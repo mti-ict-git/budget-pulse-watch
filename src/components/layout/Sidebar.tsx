@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import {
   BarChart3,
   FileText,
@@ -28,7 +28,7 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const location = useLocation();
+  // using NavLink active state; no need for useLocation
 
   return (
     <div className={cn(
@@ -53,25 +53,25 @@ export function Sidebar({ className }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2">
-        {navigation.map((item) => {
-          const isActive = location.pathname === item.href;
-          return (
-            <NavLink
-              key={item.name}
-              to={item.href}
-              className={cn(
+        {navigation.map((item) => (
+          <NavLink
+            key={item.name}
+            to={item.href}
+            end
+            className={({ isActive }) =>
+              cn(
                 "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                 isActive
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted",
                 isCollapsed && "justify-center space-x-0"
-              )}
-            >
-              <item.icon className="h-5 w-5 flex-shrink-0" />
-              {!isCollapsed && <span>{item.name}</span>}
-            </NavLink>
-          );
-        })}
+              )
+            }
+          >
+            <item.icon className="h-5 w-5 flex-shrink-0" />
+            {!isCollapsed && <span>{item.name}</span>}
+          </NavLink>
+        ))}
       </nav>
 
       {/* User Info */}
