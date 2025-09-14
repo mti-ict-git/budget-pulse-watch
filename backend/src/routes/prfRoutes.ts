@@ -47,6 +47,48 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 /**
+ * @route GET /api/prfs/with-items
+ * @desc Get all PRFs with their items
+ * @access Public (will be protected later)
+ */
+router.get('/with-items', async (req: Request, res: Response) => {
+  try {
+    const queryParams: PRFQueryParams = {
+      page: parseInt(req.query.page as string) || 1,
+      limit: parseInt(req.query.limit as string) || 10,
+      Status: req.query.status as string,
+      Department: req.query.department as string,
+      Priority: req.query.priority as string,
+      RequestorID: req.query.requestorId ? parseInt(req.query.requestorId as string) : undefined,
+      COAID: req.query.coaId ? parseInt(req.query.coaId as string) : undefined,
+      DateFrom: req.query.dateFrom as string,
+      DateTo: req.query.dateTo as string,
+      Search: req.query.search as string
+    };
+
+    const result = await PRFModel.findAllWithItems(queryParams);
+    
+    return res.json({
+      success: true,
+      data: result.prfs,
+      pagination: {
+        page: queryParams.page,
+        limit: queryParams.limit,
+        total: result.total,
+        totalPages: Math.ceil(result.total / queryParams.limit!)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching PRFs with items:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch PRFs with items',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
  * @route DELETE /api/prfs/bulk
  * @desc Delete multiple PRFs
  * @access Public (will be protected later)
@@ -507,17 +549,40 @@ router.delete('/items/:itemId', async (req: Request, res: Response) => {
  */
 router.get('/statistics', async (req: Request, res: Response) => {
   try {
-    const statistics = await PRFModel.getStatistics();
+    const stats = await PRFModel.getStatistics();
     
     return res.json({
       success: true,
-      data: statistics
+      data: stats
     });
   } catch (error) {
     console.error('Error fetching PRF statistics:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch PRF statistics',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @route GET /api/prfs/filters/status
+ * @desc Get unique status values from database
+ * @access Public
+ */
+router.get('/filters/status', async (req: Request, res: Response) => {
+  try {
+    const statusValues = await PRFModel.getUniqueStatusValues();
+    
+    return res.json({
+      success: true,
+      data: statusValues
+    });
+  } catch (error) {
+    console.error('Error fetching status values:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch status values',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }

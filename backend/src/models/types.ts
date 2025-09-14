@@ -497,6 +497,15 @@ export interface PRFSummary {
   COACode: string;
   COAName: string;
   DaysOpen: number;
+  // Excel import fields
+  DateSubmit?: Date;
+  SubmitBy?: string;
+  SumDescriptionRequested?: string;
+  PurchaseCostCode?: string;
+  RequiredFor?: string;
+  BudgetYear?: number;
+  Description?: string;
+  UpdatedAt?: Date;
 }
 
 export interface BudgetSummary {
@@ -626,6 +635,7 @@ export interface ExcelPRFData {
   'Purchase Cost Code': string;         // Excel: "Purchase Cost Code"
   Amount: number;                       // Excel: "Amount"
   'Required for': string;               // Excel: "Required for"
+  'Status in Pronto': string;           // Excel: "Status in Pronto"
 }
 
 export interface ExcelBudgetData {

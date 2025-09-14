@@ -266,7 +266,7 @@ router.get('/prf/history', async (req, res) => {
 });
 
 /**
- * Helper function to import PRF data
+ * Helper function to import PRF data with PRF-Items relationship
  */
 async function importPRFData(
   prfData: ExcelPRFData[], 
@@ -291,97 +291,93 @@ async function importPRFData(
   const coaResult = await executeQuery(coaQuery);
   const defaultCoaId = coaResult.recordset[0]?.COAID || 1;
 
-  for (let i = 0; i < prfData.length; i++) {
-    const record = prfData[i];
-    const rowNumber = i + 2; // Excel row number
-
-    try {
-      // Note: Duplicate PRF numbers are now allowed as per new requirements
-      // Skip duplicate checking logic
-
-      // Since we only import valid records, no need for error handling
-      // All data should be valid at this point
-      const notesParts = ['Imported from Excel'];
-      
-      // Use validated data directly
-      const amount = record['Amount'];
-      const budgetYear = record['Budget'];
-      
-      let submitBy = record['Submit By'];
-      if (!submitBy || submitBy.trim().length === 0) {
-        submitBy = 'Unknown User';
-        notesParts.push('Submit By was missing - set to Unknown User');
-      }
-      
-      // PRF NUMBER IS MANDATORY - DO NOT AUTO-GENERATE!
-      if (!record['PRF No'] || record['PRF No'].toString().trim().length === 0) {
-        throw new Error('PRF No is mandatory and cannot be empty');
-      }
-      const prfNo = record['PRF No'].toString().trim();
-      notesParts.push('PRF No from Excel (mandatory field)');
-      
-      let description = record['Description'];
-      if (!description || description.trim().length === 0) {
-        description = 'No description provided';
-        notesParts.push('Description was missing - set default');
-      }
-      
-      let dateSubmit = record['Date Submit'];
-      if (!dateSubmit) {
-        dateSubmit = new Date();
-        notesParts.push('Date Submit was missing - set to current date');
-      }
-      
-      // No validation errors since we only import valid records
-      
-      // Insert new PRF record
-      const insertQuery = `
-        INSERT INTO PRF (
-           PRFNo, Title, Description, RequestorID, Department, COAID,
-           RequestedAmount, Priority, Status, RequestDate,
-           DateSubmit, SubmitBy, SumDescriptionRequested,
-           PurchaseCostCode, RequiredFor, BudgetYear, Notes
-         ) VALUES (
-           @PRFNo, @Title, @Description, @RequestorID, @Department, @COAID,
-           @RequestedAmount, @Priority, @Status, @RequestDate,
-           @DateSubmit, @SubmitBy, @SumDescriptionRequested,
-           @PurchaseCostCode, @RequiredFor, @BudgetYear, @Notes
-         )
-      `;
-
-      const params = {
-        PRFNo: prfNo,
-        Title: record['Sum Description Requested'] || description || 'Imported from Excel',
-        Description: description,
-        RequestorID: defaultUserId,
-        Department: 'IT', // Default department
-        COAID: defaultCoaId,
-        RequestedAmount: amount,
-        Priority: 'Medium',
-        Status: 'Completed', // Historical data is typically completed
-        RequestDate: dateSubmit,
-        DateSubmit: dateSubmit,
-        SubmitBy: submitBy,
-        SumDescriptionRequested: record['Sum Description Requested'] || null,
-        PurchaseCostCode: record['Purchase Cost Code'] || null,
-        RequiredFor: record['Required for'] || null,
-        BudgetYear: budgetYear,
-        Notes: notesParts.join('; ')
-      };
-
-      await executeQuery(insertQuery, params);
-      importedRecords++;
-      console.log(`✅ Imported record ${rowNumber}: PRF ${record['PRF No']}`);
-
-    } catch (error) {
-      console.error(`❌ Error importing record ${rowNumber}:`, error);
+  // Group records by PRF No
+  const prfGroups = new Map<string, ExcelPRFData[]>();
+  const rowNumbers = new Map<string, number[]>();
+  
+  prfData.forEach((record, index) => {
+    const prfNo = record['PRF No']?.toString().trim();
+    if (!prfNo) {
       errors.push({
-        row: rowNumber,
-        field: 'general',
-        message: error instanceof Error ? error.message : 'Unknown error during import',
-        data: record
+        row: index + 2,
+        field: 'PRF No',
+        message: 'PRF No is mandatory and cannot be empty'
       });
-      skippedRecords++;
+      return;
+    }
+    
+    if (!prfGroups.has(prfNo)) {
+      prfGroups.set(prfNo, []);
+      rowNumbers.set(prfNo, []);
+    }
+    prfGroups.get(prfNo)!.push(record);
+    rowNumbers.get(prfNo)!.push(index + 2);
+  });
+
+  console.log(`📊 Grouped ${prfData.length} records into ${prfGroups.size} PRFs`);
+
+  // Process each PRF group
+  for (const [prfNo, records] of prfGroups) {
+    try {
+      // Use the first record for PRF header information
+      const headerRecord = records[0];
+      const firstRowNumber = rowNumbers.get(prfNo)![0];
+      
+      // Check if PRF already exists
+      const existingPrfQuery = `SELECT PRFID FROM PRF WHERE PRFNo = @PRFNo`;
+      const existingResult = await executeQuery(existingPrfQuery, { PRFNo: prfNo });
+      
+      let prfId: number;
+      
+      if (existingResult.recordset.length > 0) {
+        // PRF exists
+        prfId = existingResult.recordset[0].PRFID;
+        
+        if (options.skipDuplicates) {
+          warnings.push({
+            row: firstRowNumber,
+            message: `PRF ${prfNo} already exists - skipped`
+          });
+          skippedRecords += records.length;
+          continue;
+        } else if (options.updateExisting) {
+          // Update existing PRF with header info from first record
+          await updateExistingPRF(prfId, headerRecord);
+          warnings.push({
+            row: firstRowNumber,
+            message: `PRF ${prfNo} updated with new header information`
+          });
+        }
+      } else {
+        // Create new PRF
+        prfId = await createNewPRF(headerRecord, defaultUserId, defaultCoaId, records);
+      }
+      
+      // Add all records as PRF items
+      for (let i = 0; i < records.length; i++) {
+        const record = records[i];
+        const rowNumber = rowNumbers.get(prfNo)![i];
+        
+        try {
+          await createPRFItem(prfId, record, rowNumber);
+          importedRecords++;
+        } catch (itemError) {
+          errors.push({
+            row: rowNumber,
+            field: 'PRF Item',
+            message: itemError instanceof Error ? itemError.message : 'Failed to create PRF item'
+          });
+        }
+      }
+      
+    } catch (prfError) {
+      const firstRowNumber = rowNumbers.get(prfNo)![0];
+      errors.push({
+        row: firstRowNumber,
+        field: 'PRF',
+        message: prfError instanceof Error ? prfError.message : 'Failed to create PRF'
+      });
+      skippedRecords += records.length;
     }
   }
 
@@ -398,8 +394,107 @@ async function importPRFData(
 }
 
 /**
- * Helper function to update existing PRF
+ * Create a new PRF from Excel data
  */
+async function createNewPRF(
+  headerRecord: ExcelPRFData, 
+  defaultUserId: number, 
+  defaultCoaId: number,
+  allRecords: ExcelPRFData[]
+): Promise<number> {
+  const prfNo = headerRecord['PRF No'].toString().trim();
+  const submitBy = headerRecord['Submit By'] || 'Unknown User';
+  const dateSubmit = headerRecord['Date Submit'] || new Date();
+  const budgetYear = headerRecord['Budget'];
+  const sumDescription = headerRecord['Sum Description Requested'] || 'Imported from Excel';
+  
+  // Calculate total amount from all items
+  const totalAmount = allRecords.reduce((sum, record) => sum + (record['Amount'] || 0), 0);
+  
+  const insertQuery = `
+    INSERT INTO PRF (
+      PRFNo, Title, Description, RequestorID, Department, COAID,
+      RequestedAmount, Priority, Status, RequestDate,
+      DateSubmit, SubmitBy, SumDescriptionRequested,
+      PurchaseCostCode, RequiredFor, BudgetYear, Notes
+    )
+    OUTPUT INSERTED.PRFID
+    VALUES (
+      @PRFNo, @Title, @Description, @RequestorID, @Department, @COAID,
+      @RequestedAmount, @Priority, @Status, @RequestDate,
+      @DateSubmit, @SubmitBy, @SumDescriptionRequested,
+      @PurchaseCostCode, @RequiredFor, @BudgetYear, @Notes
+    )
+  `;
+  
+  const params = {
+    PRFNo: prfNo,
+    Title: sumDescription,
+    Description: headerRecord['Description'] || 'Imported from Excel',
+    RequestorID: defaultUserId,
+    Department: 'IT',
+    COAID: defaultCoaId,
+    RequestedAmount: totalAmount,
+    Priority: 'Medium',
+    Status: headerRecord['Status in Pronto'] || 'Completed',
+    RequestDate: dateSubmit,
+    DateSubmit: dateSubmit,
+    SubmitBy: submitBy,
+    SumDescriptionRequested: sumDescription,
+    PurchaseCostCode: headerRecord['Purchase Cost Code'] || null,
+    RequiredFor: headerRecord['Required for'] || null,
+    BudgetYear: budgetYear,
+    Notes: `Imported from Excel with ${allRecords.length} items`
+  };
+  
+  const result = await executeQuery(insertQuery, params);
+  const prfId = result.recordset[0].PRFID;
+  
+  console.log(`✅ Created PRF ${prfNo} with ID ${prfId}`);
+  return prfId;
+}
+
+/**
+ * Create a PRF item from Excel record
+ */
+async function createPRFItem(
+  prfId: number, 
+  record: ExcelPRFData, 
+  rowNumber: number
+): Promise<void> {
+  const insertQuery = `
+    INSERT INTO PRFItems (
+      PRFID, ItemName, Description, Quantity, UnitPrice, Specifications
+    ) VALUES (
+      @PRFID, @ItemName, @Description, @Quantity, @UnitPrice, @Specifications
+    )
+  `;
+  
+  const itemName = record['Sum Description Requested'] || record['Description'] || `Item from row ${rowNumber}`;
+  const description = record['Description'] || record['Sum Description Requested'] || '';
+  const amount = record['Amount'] || 0;
+  
+  const params = {
+    PRFID: prfId,
+    ItemName: itemName.substring(0, 200), // Limit to field length
+    Description: description.substring(0, 1000), // Limit to field length
+    Quantity: 1,
+    UnitPrice: amount,
+    Specifications: JSON.stringify({
+      originalRow: rowNumber,
+      purchaseCostCode: record['Purchase Cost Code'],
+      requiredFor: record['Required for'],
+      statusInPronto: record['Status in Pronto']
+    })
+  };
+  
+  await executeQuery(insertQuery, params);
+   console.log(`✅ Created PRF item for row ${rowNumber}`);
+ }
+
+ /**
+  * Helper function to update existing PRF
+  */
 async function updateExistingPRF(prfId: number, record: ExcelPRFData): Promise<void> {
   const updateQuery = `
     UPDATE PRF SET

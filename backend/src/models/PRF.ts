@@ -271,6 +271,116 @@ export class PRFModel {
   }
 
   /**
+   * Find all PRFs with items (enhanced search includes PRF items)
+   */
+  static async findAllWithItems(queryParams: PRFQueryParams): Promise<{ prfs: (PRFSummary & { Items: PRFItem[] })[], total: number }> {
+    const {
+      page = 1,
+      limit = 10,
+      Status,
+      Department,
+      Priority,
+      RequestorID,
+      COAID,
+      DateFrom,
+      DateTo,
+      Search
+    } = queryParams;
+
+    const offset = (page - 1) * limit;
+    const whereConditions = [];
+    const params: PRFQueryParams = { Offset: offset, Limit: limit };
+
+    if (Status) {
+      whereConditions.push('p.Status = @Status');
+      params.Status = Status;
+    }
+    if (Department) {
+      whereConditions.push('p.Department = @Department');
+      params.Department = Department;
+    }
+    if (Priority) {
+      whereConditions.push('p.Priority = @Priority');
+      params.Priority = Priority;
+    }
+    if (RequestorID) {
+      whereConditions.push('p.RequestorID = @RequestorID');
+      params.RequestorID = RequestorID;
+    }
+    if (COAID) {
+      whereConditions.push('p.COAID = @COAID');
+      params.COAID = COAID;
+    }
+    if (DateFrom) {
+      whereConditions.push('p.RequestDate >= @DateFrom');
+      params.DateFrom = DateFrom;
+    }
+    if (DateTo) {
+      whereConditions.push('p.RequestDate <= @DateTo');
+      params.DateTo = DateTo;
+    }
+    if (Search) {
+      // Enhanced search: include PRF fields AND PRF items fields
+      whereConditions.push(`(
+        p.PRFNo LIKE @Search OR 
+        p.Title LIKE @Search OR 
+        p.SumDescriptionRequested LIKE @Search OR 
+        p.SubmitBy LIKE @Search OR 
+        p.RequiredFor LIKE @Search OR
+        p.Description LIKE @Search OR
+        EXISTS (
+          SELECT 1 FROM PRFItems pi 
+          WHERE pi.PRFID = p.PRFID AND (
+            pi.ItemName LIKE @Search OR 
+            pi.Description LIKE @Search OR 
+            pi.Specifications LIKE @Search
+          )
+        )
+      )`);
+      params.Search = `%${Search}%`;
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Query to get PRFs with enhanced search
+    const query = `
+      SELECT DISTINCT p.* FROM vw_PRFSummary p
+      ${whereClause}
+      ORDER BY p.RequestDate DESC
+      OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY
+    `;
+
+    // Count query for pagination
+    const countQuery = `
+      SELECT COUNT(DISTINCT p.PRFID) as Total 
+      FROM vw_PRFSummary p
+      ${whereClause}
+    `;
+
+    const countParams = { ...params };
+    delete countParams.Offset;
+    delete countParams.Limit;
+
+    const [prfsResult, countResult] = await Promise.all([
+      executeQuery<PRFSummary>(query, params),
+      executeQuery<{ Total: number }>(countQuery, countParams)
+    ]);
+
+    // Get items for each PRF
+    const prfsWithItems = await Promise.all(
+      prfsResult.recordset.map(async (prf) => {
+        const items = await this.getItems(prf.PRFID);
+        return { ...prf, Items: items };
+      })
+    );
+    
+    return {
+      prfs: prfsWithItems,
+      total: countResult.recordset[0].Total
+    };
+  }
+
+  /**
    * Add items to PRF
    */
   static async addItems(prfId: number, items: CreatePRFItemRequest[]): Promise<PRFItem[]> {
@@ -377,5 +487,20 @@ export class PRFModel {
 
     const result = await executeQuery(query);
     return result.recordset[0];
+  }
+
+  /**
+   * Get unique status values from database
+   */
+  static async getUniqueStatusValues(): Promise<string[]> {
+    const query = `
+      SELECT DISTINCT Status
+      FROM PRF
+      WHERE Status IS NOT NULL AND Status != ''
+      ORDER BY Status
+    `;
+
+    const result = await executeQuery<{ Status: string }>(query);
+    return result.recordset.map(row => row.Status);
   }
 }

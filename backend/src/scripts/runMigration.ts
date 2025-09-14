@@ -10,14 +10,15 @@ async function runMigration() {
     await connectDatabase();
     console.log('✅ Database connected successfully');
     
-    const migrationPath = path.join(__dirname, '../../database/migrations/002_remove_prfnumber_column.sql');
+    const migrationPath = path.join(__dirname, '../../database/migrations/003_recreate_prf_without_prfnumber.sql');
     const sql = fs.readFileSync(migrationPath, 'utf8');
-    
+
     // Split SQL by GO statements and execute each batch
     const batches = sql.split(/\bGO\b/gi)
       .map(batch => batch.trim())
-      .filter(batch => batch.length > 0 && !batch.startsWith('--') && !batch.startsWith('USE'));
-    
+      // Keep PRINT statements and USE guards out, but execute other batches even if they start with comments
+      .filter(batch => batch.length > 0 && !/^USE\s/i.test(batch));
+
     console.log(`📝 Found ${batches.length} SQL batches to execute`);
     
     for (let i = 0; i < batches.length; i++) {

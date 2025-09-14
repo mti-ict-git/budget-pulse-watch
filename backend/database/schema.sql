@@ -62,7 +62,7 @@ CREATE TABLE PRF (
     ApprovedAmount DECIMAL(15,2) NULL,
     ActualAmount DECIMAL(15,2) NULL,
     Priority NVARCHAR(20) DEFAULT 'Medium' CHECK (Priority IN ('Low', 'Medium', 'High', 'Critical')),
-    Status NVARCHAR(20) DEFAULT 'Draft' CHECK (Status IN ('Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Completed', 'Cancelled')),
+    Status NVARCHAR(100) DEFAULT 'Draft', -- No CHECK constraint - accepts any Excel 'Status in Pronto' values
     RequestDate DATETIME2 NOT NULL DEFAULT GETDATE(),
     RequiredDate DATETIME2,
     ApprovalDate DATETIME2 NULL,
@@ -173,7 +173,16 @@ SELECT
     u.FirstName + ' ' + u.LastName AS RequestorName,
     coa.COACode,
     coa.COAName,
-    DATEDIFF(day, p.RequestDate, GETDATE()) AS DaysOpen
+    DATEDIFF(day, p.RequestDate, GETDATE()) AS DaysOpen,
+    -- Excel import fields
+    p.DateSubmit,
+    p.SubmitBy,
+    p.SumDescriptionRequested,
+    p.PurchaseCostCode,
+    p.RequiredFor,
+    p.BudgetYear,
+    p.Description,
+    p.UpdatedAt
 FROM PRF p
 INNER JOIN Users u ON p.RequestorID = u.UserID
 INNER JOIN ChartOfAccounts coa ON p.COAID = coa.COAID;

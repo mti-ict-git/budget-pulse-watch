@@ -85,13 +85,19 @@ export class ExcelParserService {
         record['PRF No'] = record['PRF No'].toString();
       }
 
+      // Handle Status in Pronto field
+      if (record['Status in Pronto']) {
+        record['Status in Pronto'] = record['Status in Pronto'].toString().trim();
+      }
+
       // Debug log for first few records
       if (index < 3) {
         console.log(`📝 Record ${index + 1}:`, {
           No: record['No'],
           Amount: record['Amount'],
           'PRF No': record['PRF No'],
-          'Submit By': record['Submit By']
+          'Submit By': record['Submit By'],
+          'Status in Pronto': record['Status in Pronto']
         });
       }
 

@@ -18,9 +18,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare } from "lucide-react";
+import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize } from "lucide-react";
 import { PRFDetailDialog } from "@/components/prf/PRFDetailDialog";
 import { ExcelImportDialog } from "@/components/prf/ExcelImportDialog";
+import { PRFCreateDialog } from "@/components/prf/PRFCreateDialog";
+
+// PRF Item interface
+interface PRFItem {
+  ItemID: number;
+  PRFID: number;
+  ItemName: string;
+  Description: string;
+  Quantity: number;
+  UnitPrice: number;
+  Specifications?: string;
+}
 
 // PRF data interface
 interface PRFData {
@@ -38,6 +50,7 @@ interface PRFData {
   priority: string;
   progress: string;
   lastUpdate: string;
+  items?: PRFItem[];
 }
 
 // Raw API data interface (from backend)
@@ -61,6 +74,7 @@ interface PRFRawData {
   Status?: string;
   UpdatedAt?: string;
   LastUpdate?: string;
+  Items?: PRFItem[];
 }
 
 // API response interface
@@ -76,20 +90,29 @@ interface PRFApiResponse {
 }
 
 const getStatusBadge = (status: string) => {
-  const statusConfig = {
-    pending: { label: "Pending", variant: "secondary" as const },
-    approved: { label: "Approved", variant: "default" as const },
-    completed: { label: "Completed", variant: "success" as const },
-    over_budget: { label: "Over Budget", variant: "destructive" as const },
-    draft: { label: "Draft", variant: "outline" as const },
-    submitted: { label: "Submitted", variant: "secondary" as const },
-    under_review: { label: "Under Review", variant: "secondary" as const },
-    rejected: { label: "Rejected", variant: "destructive" as const },
-    cancelled: { label: "Cancelled", variant: "outline" as const }
+  // Use the actual status value from Excel without modification
+  const displayStatus = status || 'Unknown';
+  
+  // Determine badge variant based on common status patterns
+  const getVariant = (status: string): "default" | "secondary" | "destructive" | "outline" | "success" => {
+    const lowerStatus = status.toLowerCase();
+    
+    if (lowerStatus.includes('approved') || lowerStatus.includes('complete')) {
+      return 'success';
+    }
+    if (lowerStatus.includes('reject') || lowerStatus.includes('cancel') || lowerStatus.includes('denied')) {
+      return 'destructive';
+    }
+    if (lowerStatus.includes('pending') || lowerStatus.includes('review') || lowerStatus.includes('pronto')) {
+      return 'secondary';
+    }
+    if (lowerStatus.includes('draft') || lowerStatus.includes('hold')) {
+      return 'outline';
+    }
+    return 'default';
   };
   
-  const config = statusConfig[status as keyof typeof statusConfig] || { label: status, variant: "outline" as const };
-  return <Badge variant={config.variant}>{config.label}</Badge>;
+  return <Badge variant={getVariant(displayStatus)}>{displayStatus}</Badge>;
 };
 
 const getPriorityBadge = (priority: string) => {
@@ -122,6 +145,8 @@ export default function PRFMonitoring() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [availableStatusValues, setAvailableStatusValues] = useState<string[]>([]);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 50,
@@ -145,7 +170,7 @@ export default function PRFMonitoring() {
         ...(yearFilter !== 'all' && { year: yearFilter })
       });
 
-      const response = await fetch(`http://localhost:3001/api/prfs?${queryParams}`);
+      const response = await fetch(`http://localhost:3001/api/prfs/with-items?${queryParams}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -155,22 +180,30 @@ export default function PRFMonitoring() {
       
       if (result.success) {
         // Transform API data to match frontend interface
-        const transformedData: PRFData[] = result.data.map((prf: PRFRawData) => ({
+        // Debug: Log the raw data to see what Status values we're getting
+        console.log('Raw PRF data from API:', result.data.slice(0, 3));
+        console.log('Status values:', result.data.map(prf => prf.Status));
+        
+        const transformedData = result.data.map((prf: PRFRawData) => ({
           id: prf.PRFID?.toString() || '',
           prfNo: prf.PRFNo || '',
-          dateSubmit: prf.RequestDate || prf.DateSubmit || '',
-          submitBy: prf.RequestorName || prf.SubmitBy || '',
+          dateSubmit: prf.DateSubmit || prf.RequestDate || '',
+          submitBy: prf.SubmitBy || prf.RequestorName || '',
           description: prf.Title || prf.Description || '',
-          sumDescriptionRequested: prf.Description || prf.SumDescriptionRequested || '',
+          sumDescriptionRequested: prf.SumDescriptionRequested || '',
           purchaseCostCode: prf.PurchaseCostCode || '',
           amount: prf.RequestedAmount || prf.Amount || 0,
           requiredFor: prf.RequiredFor || '',
           budgetYear: prf.BudgetYear || new Date().getFullYear(),
           department: prf.Department || '',
           priority: prf.Priority || 'Medium',
-          progress: prf.Status?.toLowerCase() || 'pending',
-          lastUpdate: prf.UpdatedAt || prf.LastUpdate || prf.RequestDate || ''
+          progress: prf.Status || 'pending',
+          lastUpdate: prf.UpdatedAt || prf.LastUpdate || prf.RequestDate || '',
+          items: prf.Items || []
         }));
+        
+        // Debug: Log the transformed data to see what progress values we have
+        console.log('Transformed data progress values:', transformedData.map(prf => prf.progress));
         
         setPrfData(transformedData);
         setPagination(result.pagination);
@@ -185,6 +218,28 @@ export default function PRFMonitoring() {
       setLoading(false);
     }
   };
+
+  // Fetch available status values from API
+  const fetchStatusValues = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/api/prfs/filters/status');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setAvailableStatusValues(result.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching status values:', error);
+      // Fallback to empty array if fetch fails
+      setAvailableStatusValues([]);
+    }
+  };
+
+  // Fetch status values on component mount
+  useEffect(() => {
+    fetchStatusValues();
+  }, []);
 
   // Fetch data on component mount and when filters change
   useEffect(() => {
@@ -207,6 +262,32 @@ export default function PRFMonitoring() {
 
   // Since filtering is now done on the backend, we use prfData directly
   const filteredData = prfData;
+
+  // Toggle row expansion
+  const toggleRowExpansion = (prfId: string) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(prfId)) {
+        newSet.delete(prfId);
+      } else {
+        newSet.add(prfId);
+      }
+      return newSet;
+    });
+  };
+
+  // Expand all rows that have items
+  const expandAllRows = () => {
+    const expandableRows = filteredData
+      .filter(prf => prf.items && prf.items.length > 0)
+      .map(prf => prf.id);
+    setExpandedRows(new Set(expandableRows));
+  };
+
+  // Collapse all rows
+  const collapseAllRows = () => {
+    setExpandedRows(new Set());
+  };
 
   // Bulk action handlers
   const handleSelectAll = (checked: boolean) => {
@@ -292,10 +373,7 @@ export default function PRFMonitoring() {
         </div>
         <div className="flex gap-2">
           <ExcelImportDialog />
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            New PRF
-          </Button>
+          <PRFCreateDialog onPRFCreated={fetchPRFData} />
         </div>
       </div>
 
@@ -326,15 +404,11 @@ export default function PRFMonitoring() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="submitted">Submitted</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="under_review">Under Review</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                  <SelectItem value="over_budget">Over Budget</SelectItem>
+                  {availableStatusValues.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Select value={priorityFilter} onValueChange={setPriorityFilter}>
@@ -444,6 +518,32 @@ export default function PRFMonitoring() {
             </div>
           ) : (
             <>
+              {/* Expand/Collapse All Controls */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={expandAllRows}
+                    disabled={loading || filteredData.filter(prf => prf.items && prf.items.length > 0).length === 0}
+                  >
+                    <Expand className="h-4 w-4 mr-1" />
+                    Expand All
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={collapseAllRows}
+                    disabled={loading || expandedRows.size === 0}
+                  >
+                    <Minimize className="h-4 w-4 mr-1" />
+                    Collapse All
+                  </Button>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {filteredData.filter(prf => prf.items && prf.items.length > 0).length} expandable rows
+                </div>
+              </div>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -455,7 +555,7 @@ export default function PRFMonitoring() {
                         className="rounded border-gray-300"
                       />
                     </TableHead>
-                    <TableHead>System ID</TableHead>
+                    <TableHead className="w-8"></TableHead>
                     <TableHead>PRF No</TableHead>
                     <TableHead>Date Submit</TableHead>
                     <TableHead>Submit By</TableHead>
@@ -488,39 +588,94 @@ export default function PRFMonitoring() {
                     </TableRow>
                   ) : (
                     filteredData.map((prf) => (
-                      <TableRow key={prf.id}>
-                        <TableCell>
-                          <input
-                            type="checkbox"
-                            checked={selectedItems.has(prf.id)}
-                            onChange={(e) => handleSelectItem(prf.id, e.target.checked)}
-                            className="rounded border-gray-300"
-                          />
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">{prf.id}</TableCell>
-                        <TableCell className="font-medium">{prf.prfNo}</TableCell>
-                        <TableCell>{new Date(prf.dateSubmit).toLocaleDateString('id-ID')}</TableCell>
-                        <TableCell>{prf.submitBy}</TableCell>
-                        <TableCell className="max-w-[200px] truncate" title={prf.description}>{prf.description}</TableCell>
-                        <TableCell className="font-mono text-sm">{prf.purchaseCostCode}</TableCell>
-                        <TableCell className="font-medium">{formatCurrency(prf.amount)}</TableCell>
-                        <TableCell className="max-w-[150px] truncate" title={prf.requiredFor}>{prf.requiredFor}</TableCell>
-                        <TableCell><Badge variant="outline">{prf.department}</Badge></TableCell>
-                        <TableCell>{getPriorityBadge(prf.priority)}</TableCell>
-                        <TableCell>{prf.budgetYear}</TableCell>
-                        <TableCell>{getStatusBadge(prf.progress)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <PRFDetailDialog prf={prf} />
-                            <Button variant="ghost" size="sm" title="Edit">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" title="Delete">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                      <>
+                        <TableRow 
+                          key={prf.id} 
+                          className={`${prf.items && prf.items.length > 0 ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                          onClick={() => prf.items && prf.items.length > 0 && toggleRowExpansion(prf.id)}
+                        >
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={selectedItems.has(prf.id)}
+                              onChange={(e) => handleSelectItem(prf.id, e.target.checked)}
+                              className="rounded border-gray-300"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            {prf.items && prf.items.length > 0 && (
+                              <div className="flex items-center justify-center">
+                                {expandedRows.has(prf.id) ? (
+                                  <ChevronDown className="h-4 w-4 text-gray-500" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-gray-500" />
+                                )}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <span>{prf.prfNo}</span>
+                              {prf.items && prf.items.length > 0 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {prf.items.length} items
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>{new Date(prf.dateSubmit).toLocaleDateString('id-ID')}</TableCell>
+                          <TableCell>{prf.submitBy}</TableCell>
+                          <TableCell className="max-w-[200px] truncate" title={prf.description}>{prf.description}</TableCell>
+                          <TableCell className="font-mono text-sm">{prf.purchaseCostCode}</TableCell>
+                          <TableCell className="font-medium">{formatCurrency(prf.amount)}</TableCell>
+                          <TableCell className="max-w-[150px] truncate" title={prf.requiredFor}>{prf.requiredFor}</TableCell>
+                          <TableCell><Badge variant="outline">{prf.department}</Badge></TableCell>
+                          <TableCell>{getPriorityBadge(prf.priority)}</TableCell>
+                          <TableCell>{prf.budgetYear}</TableCell>
+                          <TableCell>{getStatusBadge(prf.progress)}</TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-2">
+                              <PRFDetailDialog prf={prf} />
+                              <Button variant="ghost" size="sm" title="Edit">
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="sm" title="Delete">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        {expandedRows.has(prf.id) && prf.items && prf.items.length > 0 && (
+                          <TableRow>
+                            <TableCell colSpan={14} className="bg-gray-50 p-0">
+                              <div className="p-4">
+                                <h4 className="font-medium mb-3 text-sm text-gray-700">PRF Items ({prf.items.length})</h4>
+                                <div className="space-y-2">
+                                  {prf.items.map((item, index) => (
+                                    <div key={item.ItemID} className="flex items-center justify-between p-3 bg-white rounded border">
+                                      <div className="flex-1">
+                                        <div className="font-medium text-sm">{item.ItemName}</div>
+                                        {item.Description && (
+                                          <div className="text-xs text-gray-600 mt-1">{item.Description}</div>
+                                        )}
+                                        {item.Specifications && (
+                                          <div className="text-xs text-gray-500 mt-1">
+                                            Specs: {JSON.parse(item.Specifications).originalRow ? `Row ${JSON.parse(item.Specifications).originalRow}` : 'N/A'}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="text-right">
+                                        <div className="text-sm font-medium">{formatCurrency(item.UnitPrice)}</div>
+                                        <div className="text-xs text-gray-500">Qty: {item.Quantity}</div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </>
                     ))
                   )}
                 </TableBody>
