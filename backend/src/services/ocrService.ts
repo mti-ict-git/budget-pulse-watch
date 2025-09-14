@@ -43,104 +43,91 @@ export class OCRService {
   private async initializeAI() {
     try {
       const settings = await loadSettings();
-      if (settings.ocr.enabled) {
-        const provider = settings.ocr.provider || 'gemini';
-        
-        if (provider === 'gemini' && settings.ocr.geminiApiKey) {
-          this.genAI = new GoogleGenerativeAI(settings.ocr.geminiApiKey);
-          this.openAI = null;
-        } else if (provider === 'openai' && settings.ocr.openaiApiKey) {
-          this.openAI = new OpenAI({ apiKey: settings.ocr.openaiApiKey });
-          this.genAI = null;
-        }
+      
+      if (settings.ocr.provider === 'openai' && settings.ocr.openaiApiKey) {
+        this.openAI = new OpenAI({
+          apiKey: settings.ocr.openaiApiKey
+        });
+      }
+      
+      if (settings.ocr.provider === 'gemini' && settings.ocr.geminiApiKey) {
+        this.genAI = new GoogleGenerativeAI(settings.ocr.geminiApiKey);
       }
     } catch (error) {
-      console.error('Failed to initialize OCR service:', error);
+      console.error('Failed to initialize AI services:', error);
     }
   }
 
   async testConnection(apiKey?: string, provider?: 'gemini' | 'openai'): Promise<{ success: boolean; message: string }> {
     try {
       const settings = await loadSettings();
-      const testProvider = provider || settings.ocr.provider || 'gemini';
-      const keyToTest = apiKey || (testProvider === 'openai' ? settings.ocr.openaiApiKey : settings.ocr.geminiApiKey);
       
-      if (!keyToTest) {
-        return {
-          success: false,
-          message: 'No API key provided'
-        };
-      }
-
-      if (testProvider === 'gemini') {
-        return await this.testGeminiConnection(keyToTest, settings);
-      } else if (testProvider === 'openai') {
+      if (provider === 'openai' || (!provider && settings.ocr.provider === 'openai')) {
+        const keyToTest = apiKey || settings.ocr.openaiApiKey;
+        if (!keyToTest) {
+          return { success: false, message: 'OpenAI API key not provided' };
+        }
         return await this.testOpenAIConnection(keyToTest, settings);
       } else {
-        return {
-          success: false,
-          message: 'Unsupported provider'
-        };
+        const keyToTest = apiKey || settings.ocr.geminiApiKey;
+        if (!keyToTest) {
+          return { success: false, message: 'Gemini API key not provided' };
+        }
+        return await this.testGeminiConnection(keyToTest, settings);
       }
     } catch (error) {
-      console.error('OCR API test failed:', error);
-      return { 
-        success: false, 
-        message: error instanceof Error ? error.message : 'Unknown error occurred' 
+      return {
+        success: false,
+        message: `Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       };
     }
   }
 
   private async testGeminiConnection(apiKey: string, settings: AppSettings): Promise<{ success: boolean; message: string }> {
     try {
-      const modelName = settings.ocr.model || 'gemini-1.5-flash';
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: modelName });
+      const model = genAI.getGenerativeModel({ model: settings.ocr.model || 'gemini-1.5-flash' });
       
-      // Simple test prompt
-      const result = await model.generateContent('Hello, this is a test. Please respond with "API key is working".');
+      const result = await model.generateContent('Test connection');
       const response = await result.response;
-      const text = response.text();
       
-      if (text.toLowerCase().includes('api key is working')) {
-        return { success: true, message: 'Gemini API key is valid and working' };
+      if (response.text()) {
+        return { success: true, message: 'Gemini API connection successful' };
       } else {
-        return { success: true, message: 'Gemini API key is valid but response was unexpected' };
+        return { success: false, message: 'Gemini API returned empty response' };
       }
     } catch (error) {
-      return { 
-        success: false, 
-        message: error instanceof Error ? error.message : 'Gemini API test failed' 
+      return {
+        success: false,
+        message: `Gemini API test failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       };
     }
   }
 
   private async testOpenAIConnection(apiKey: string, settings: AppSettings): Promise<{ success: boolean; message: string }> {
     try {
+      const openAI = new OpenAI({ apiKey });
       const modelName = settings.ocr.model || 'gpt-4o-mini';
-      const openai = new OpenAI({ apiKey });
       
-      // Simple test prompt
-      const response = await openai.chat.completions.create({
+      const response = await openAI.chat.completions.create({
         model: modelName,
         messages: [{
           role: 'user',
-          content: 'Hello, this is a test. Please respond with "API key is working".'
+          content: 'Test connection'
         }],
-        max_tokens: 50
+        max_tokens: 10
       });
       
       const text = response.choices[0]?.message?.content || '';
-      
-      if (text.toLowerCase().includes('api key is working')) {
-        return { success: true, message: 'OpenAI API key is valid and working' };
+      if (text) {
+        return { success: true, message: 'OpenAI API connection successful' };
       } else {
-        return { success: true, message: 'OpenAI API key is valid but response was unexpected' };
+        return { success: false, message: 'OpenAI API returned empty response' };
       }
     } catch (error) {
-      return { 
-        success: false, 
-        message: error instanceof Error ? error.message : 'OpenAI API test failed' 
+      return {
+        success: false,
+        message: `OpenAI API test failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       };
     }
   }
@@ -148,9 +135,9 @@ export class OCRService {
   private async getApiKey(): Promise<string | null> {
     try {
       const settings = await loadSettings();
-      const provider = settings.ocr.provider || 'gemini';
-      return provider === 'openai' ? settings.ocr.openaiApiKey || null : settings.ocr.geminiApiKey || null;
-    } catch {
+      return settings.ocr.provider === 'openai' ? settings.ocr.openaiApiKey || null : settings.ocr.geminiApiKey || null;
+    } catch (error) {
+      console.error('Failed to load API key:', error);
       return null;
     }
   }
@@ -159,30 +146,25 @@ export class OCRService {
     await this.initializeAI();
     
     const settings = await loadSettings();
-    const provider = settings.ocr.provider || 'gemini';
     
-    if (provider === 'gemini') {
-      if (!this.genAI) {
-        throw new Error('Gemini OCR service not initialized. Please configure Gemini API key in settings.');
+    if (settings.ocr.provider === 'openai' && this.openAI) {
+      return await this.extractWithOpenAI(imageBuffer, mimeType, settings);
+    } else if (settings.ocr.provider === 'gemini' && this.genAI) {
+      // Note: Gemini currently only supports images, not PDFs
+      if (mimeType === 'application/pdf') {
+        throw new Error('PDF processing is only supported with OpenAI provider. Please switch to OpenAI in settings or convert PDF to image.');
       }
       return await this.extractWithGemini(imageBuffer, mimeType, settings);
-    } else if (provider === 'openai') {
-      if (!this.openAI) {
-        throw new Error('OpenAI OCR service not initialized. Please configure OpenAI API key in settings.');
-      }
-      return await this.extractWithOpenAI(imageBuffer, mimeType, settings);
     } else {
-      throw new Error('Unsupported OCR provider. Please configure a valid provider in settings.');
+      throw new Error('OCR service not properly configured');
     }
   }
 
   private async extractWithGemini(imageBuffer: Buffer, mimeType: string, settings: AppSettings): Promise<ExtractedPRFData> {
     try {
-      const modelName = settings.ocr.model || 'gemini-1.5-flash';
-      const model = this.genAI!.getGenerativeModel({ model: modelName });
+      const model = this.genAI!.getGenerativeModel({ model: settings.ocr.model || 'gemini-1.5-flash' });
       
-      const prompt = `
-Analyze this Purchase Request Form (PRF) document and extract the following information in JSON format.
+      const prompt = `Analyze this Purchase Request Form (PRF) document and extract the following information in JSON format.
 Be very careful to extract exact values as they appear in the document.
 
 Please extract:
@@ -244,8 +226,7 @@ Return ONLY a valid JSON object with this structure:
 
 If a field is not found or unclear, use null for that field.
 For dates, try to convert to YYYY-MM-DD format if possible, otherwise keep original format.
-For amounts, extract only the numeric value without currency symbols.
-`;
+For amounts, extract only the numeric value without currency symbols.`;
 
       const imagePart = {
         inlineData: {
@@ -343,6 +324,39 @@ If a field is not found or unclear, use null for that field.
 For dates, try to convert to YYYY-MM-DD format if possible, otherwise keep original format.
 For amounts, extract only the numeric value without currency symbols.`;
 
+      // Determine content type based on file type
+      let contentItem: {
+        type: 'file';
+        file: {
+          filename: string;
+          file_data: string;
+        };
+      } | {
+        type: 'image_url';
+        image_url: {
+          url: string;
+        };
+      };
+      
+      if (mimeType === 'application/pdf') {
+        // For PDF files, use file type
+        contentItem = {
+          type: 'file' as const,
+          file: {
+            filename: 'document.pdf',
+            file_data: `data:application/pdf;base64,${imageBuffer.toString('base64')}`
+          }
+        };
+      } else {
+        // For images, use image_url type
+        contentItem = {
+          type: 'image_url' as const,
+          image_url: {
+            url: `data:${mimeType};base64,${imageBuffer.toString('base64')}`
+          }
+        };
+      }
+
       const response = await this.openAI!.chat.completions.create({
         model: modelName,
         messages: [{
@@ -352,12 +366,7 @@ For amounts, extract only the numeric value without currency symbols.`;
               type: 'text',
               text: prompt
             },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:${mimeType};base64,${imageBuffer.toString('base64')}`
-              }
-            }
+            contentItem
           ]
         }],
         max_tokens: 2000,
@@ -393,27 +402,35 @@ For amounts, extract only the numeric value without currency symbols.`;
     if (data.prfNo && typeof data.prfNo === 'string') {
       cleaned.prfNo = data.prfNo.trim();
     }
+    
     if (data.requestedBy && typeof data.requestedBy === 'string') {
       cleaned.requestedBy = data.requestedBy.trim();
     }
+    
     if (data.department && typeof data.department === 'string') {
       cleaned.department = data.department.trim();
     }
+    
     if (data.proposedSupplier && typeof data.proposedSupplier === 'string') {
       cleaned.proposedSupplier = data.proposedSupplier.trim();
     }
+    
     if (data.projectDescription && typeof data.projectDescription === 'string') {
       cleaned.projectDescription = data.projectDescription.trim();
     }
+    
     if (data.projectId && typeof data.projectId === 'string') {
       cleaned.projectId = data.projectId.trim();
     }
+    
     if (data.referenceDrawingNumber && typeof data.referenceDrawingNumber === 'string') {
       cleaned.referenceDrawingNumber = data.referenceDrawingNumber.trim();
     }
+    
     if (data.generalLedgerCode && typeof data.generalLedgerCode === 'string') {
       cleaned.generalLedgerCode = data.generalLedgerCode.trim();
     }
+    
     if (data.status && typeof data.status === 'string') {
       cleaned.status = data.status.trim();
     }
@@ -422,42 +439,95 @@ For amounts, extract only the numeric value without currency symbols.`;
     if (data.dateRaised) {
       cleaned.dateRaised = this.cleanDate(data.dateRaised);
     }
+    
     if (data.dateRequired) {
       cleaned.dateRequired = this.cleanDate(data.dateRequired);
     }
+    
     if (data.receivedPRDate) {
       cleaned.receivedPRDate = this.cleanDate(data.receivedPRDate);
     }
+    
     if (data.entryDate) {
       cleaned.entryDate = this.cleanDate(data.entryDate);
     }
 
     // Clean numeric fields
-    if (data.totalAmount && !isNaN(Number(data.totalAmount))) {
-      cleaned.totalAmount = Number(data.totalAmount);
+    if (data.totalAmount !== undefined && data.totalAmount !== null) {
+      const amount = typeof data.totalAmount === 'string' 
+        ? parseFloat(String(data.totalAmount).replace(/[^\d.-]/g, ''))
+        : Number(data.totalAmount);
+      
+      if (!isNaN(amount)) {
+        cleaned.totalAmount = amount;
+      }
     }
 
     // Clean boolean fields
-    if (typeof data.budgeted === 'boolean') {
-      cleaned.budgeted = data.budgeted;
+    if (data.budgeted !== undefined && data.budgeted !== null) {
+      cleaned.budgeted = Boolean(data.budgeted);
     }
-    if (typeof data.underICTControl === 'boolean') {
-      cleaned.underICTControl = data.underICTControl;
+    
+    if (data.underICTControl !== undefined && data.underICTControl !== null) {
+      cleaned.underICTControl = Boolean(data.underICTControl);
     }
 
     // Clean items array
-    if (Array.isArray(data.items)) {
-      cleaned.items = data.items.map(item => ({
-        partNumber: item.partNumber ? String(item.partNumber).trim() : undefined,
-        description: item.description ? String(item.description).trim() : undefined,
-        quantity: item.quantity && !isNaN(Number(item.quantity)) ? Number(item.quantity) : undefined,
-        unitPrice: item.unitPrice && !isNaN(Number(item.unitPrice)) ? Number(item.unitPrice) : undefined,
-        totalPrice: item.totalPrice && !isNaN(Number(item.totalPrice)) ? Number(item.totalPrice) : undefined,
-        currency: item.currency ? String(item.currency).trim() : undefined
-      })).filter(item => 
-        // Keep items that have at least a description or part number
-        item.description || item.partNumber
-      );
+    if (data.items && Array.isArray(data.items)) {
+      cleaned.items = data.items.map(item => {
+        const cleanedItem: Partial<{
+          partNumber?: string;
+          description?: string;
+          quantity?: number;
+          unitPrice?: number;
+          totalPrice?: number;
+          currency?: string;
+        }> = {};
+        
+        if (item.partNumber && typeof item.partNumber === 'string') {
+          cleanedItem.partNumber = item.partNumber.trim();
+        }
+        
+        if (item.description && typeof item.description === 'string') {
+          cleanedItem.description = item.description.trim();
+        }
+        
+        if (item.currency && typeof item.currency === 'string') {
+          cleanedItem.currency = item.currency.trim();
+        }
+        
+        if (item.quantity !== undefined && item.quantity !== null) {
+          const qty = typeof item.quantity === 'string' 
+            ? parseFloat(String(item.quantity).replace(/[^\d.-]/g, ''))
+            : Number(item.quantity);
+          
+          if (!isNaN(qty)) {
+            cleanedItem.quantity = qty;
+          }
+        }
+        
+        if (item.unitPrice !== undefined && item.unitPrice !== null) {
+          const price = typeof item.unitPrice === 'string' 
+            ? parseFloat(String(item.unitPrice).replace(/[^\d.-]/g, ''))
+            : Number(item.unitPrice);
+          
+          if (!isNaN(price)) {
+            cleanedItem.unitPrice = price;
+          }
+        }
+        
+        if (item.totalPrice !== undefined && item.totalPrice !== null) {
+          const total = typeof item.totalPrice === 'string' 
+            ? parseFloat(String(item.totalPrice).replace(/[^\d.-]/g, ''))
+            : Number(item.totalPrice);
+          
+          if (!isNaN(total)) {
+            cleanedItem.totalPrice = total;
+          }
+        }
+        
+        return cleanedItem;
+      }).filter(item => item.description || item.partNumber); // Only keep items with some content
     }
 
     return cleaned;
@@ -469,20 +539,21 @@ For amounts, extract only the numeric value without currency symbols.`;
     // Try to parse and format the date
     const date = new Date(dateStr);
     if (!isNaN(date.getTime())) {
-      return date.toISOString().split('T')[0]; // YYYY-MM-DD format
+      return date.toISOString().split('T')[0]; // Return YYYY-MM-DD format
     }
     
-    // If parsing fails, return the original string
+    // If parsing fails, return the original string trimmed
     return String(dateStr).trim();
   }
 
   async isEnabled(): Promise<boolean> {
     try {
       const settings = await loadSettings();
-      const provider = settings.ocr.provider || 'gemini';
-      const hasApiKey = provider === 'openai' ? !!settings.ocr.openaiApiKey : !!settings.ocr.geminiApiKey;
+      const hasApiKey = settings.ocr.provider === 'openai' 
+        ? !!settings.ocr.openaiApiKey 
+        : !!settings.ocr.geminiApiKey;
       return settings.ocr.enabled && hasApiKey;
-    } catch {
+    } catch (error) {
       return false;
     }
   }
