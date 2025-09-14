@@ -200,15 +200,7 @@ class HistoricalDataImporter {
    */
   private static async importSinglePRF(record: ExcelPRFData): Promise<{ success: boolean; message?: string }> {
     try {
-      // Check for duplicates
-      if (record['PRF No']) {
-        const duplicateQuery = `SELECT PRFID FROM PRF WHERE PRFNo = @PRFNo`;
-        const duplicateResult = await executeQuery(duplicateQuery, { PRFNo: record['PRF No'] });
-        
-        if (duplicateResult.recordset.length > 0) {
-          return { success: false, message: 'Duplicate PRF No' };
-        }
-      }
+      // Note: Duplicate PRF numbers are now allowed as per new requirements
 
       // Get user ID for submitter
       let requestorId = 1; // Default admin

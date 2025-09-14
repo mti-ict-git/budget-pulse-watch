@@ -179,50 +179,90 @@ export class ExcelParserService {
       const rowNumber = index + 2; // +2 because Excel rows start at 1 and we skip header
 
       // Required field validations
-      if (!record['No'] || record['No'] <= 0) {
-        errors.push({
-          row: rowNumber,
-          field: 'No',
-          message: 'Row number is required and must be positive',
-          data: record['No']
-        });
-      }
+      // Note: 'No' column is ignored as per new requirements
 
-      if (!record['Budget'] || record['Budget'] < 2020 || record['Budget'] > 2030) {
+      // Budget year validation - required and must be in valid range
+      if (!record['Budget']) {
         errors.push({
           row: rowNumber,
           field: 'Budget',
-          message: 'Budget year is required and must be between 2020-2030',
+          message: 'Budget year is required',
           data: record['Budget']
         });
+      } else {
+        const budgetYear = parseInt(record['Budget'].toString());
+        if (isNaN(budgetYear) || budgetYear < 2020 || budgetYear > 2030) {
+          errors.push({
+            row: rowNumber,
+            field: 'Budget',
+            message: 'Budget year must be between 2020-2030',
+            data: record['Budget']
+          });
+        }
       }
 
+      // Date submitted validation - required and must be valid
       if (!record['Date Submit']) {
         errors.push({
           row: rowNumber,
           field: 'Date Submit',
-          message: 'Submit date is required',
+          message: 'Date submitted is required',
           data: record['Date Submit']
         });
+      } else {
+        const dateValue = record['Date Submit'];
+        let isValidDate = false;
+        
+        if (dateValue instanceof Date) {
+          isValidDate = !isNaN(dateValue.getTime());
+        } else if (typeof dateValue === 'number') {
+          // Excel date serial number
+          isValidDate = dateValue > 0 && dateValue < 100000; // reasonable range
+        } else if (typeof dateValue === 'string') {
+          const parsedDate = new Date(dateValue);
+          isValidDate = !isNaN(parsedDate.getTime());
+        }
+        
+        if (!isValidDate) {
+          errors.push({
+            row: rowNumber,
+            field: 'Date Submit',
+            message: 'Date submitted is not a valid date',
+            data: record['Date Submit']
+          });
+        }
       }
 
-      if (!record['Submit By'] || record['Submit By'].trim().length === 0) {
+      // Submitter existence validation
+      if (!record['Submit By'] || record['Submit By'].toString().trim().length === 0) {
         errors.push({
           row: rowNumber,
           field: 'Submit By',
-          message: 'Submitter name is required',
+          message: 'Submitter name is required and cannot be empty',
           data: record['Submit By']
         });
       }
 
-      if (!record['PRF No']) {
+      // PRF No validation - required and must contain digits
+      if (!record['PRF No'] || record['PRF No'].toString().trim().length === 0) {
         errors.push({
           row: rowNumber,
           field: 'PRF No',
           message: 'PRF number is required',
           data: record['PRF No']
         });
+      } else {
+        const prfNo = record['PRF No'].toString().trim();
+        if (!/\d/.test(prfNo)) {
+          errors.push({
+            row: rowNumber,
+            field: 'PRF No',
+            message: 'PRF number must contain at least one digit',
+            data: record['PRF No']
+          });
+        }
       }
+      // Note: Duplicate PRF numbers are now allowed as per requirements
 
       if (!record['Amount'] || record['Amount'] <= 0) {
         errors.push({

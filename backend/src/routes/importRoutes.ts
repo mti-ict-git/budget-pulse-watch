@@ -106,13 +106,26 @@ router.post('/prf/bulk', upload.single('file'), async (req, res) => {
       });
     }
 
-    // Import ALL records (including those with validation errors)
-    // Records with errors will be imported with notes for later fixing
-    console.log('🔄 Starting import process with options:', options);
-    console.log('📊 PRF data to import:', prfData.length, 'records');
-    console.log('⚠️ Records with validation errors:', validation.errors.length, 'will be imported with error notes');
+    // Only import VALID records - reject records with validation errors
+    const validRecords = prfData.filter((record, index) => {
+      const rowNumber = index + 2;
+      const recordErrors = validation.errors.filter(e => e.row === rowNumber);
+      return recordErrors.length === 0;
+    });
     
-    const importResult = await importPRFData(prfData, options, validation);
+    console.log('🔄 Starting import process with options:', options);
+    console.log('📊 Total records in file:', prfData.length);
+    console.log('✅ Valid records to import:', validRecords.length);
+    console.log('❌ Invalid records rejected:', prfData.length - validRecords.length);
+    
+    if (validation.errors.length > 0) {
+      console.log('⚠️ Validation errors found - invalid records will be rejected:');
+      validation.errors.slice(0, 10).forEach(error => {
+        console.log(`   Row ${error.row}: ${error.field} - ${error.message}`);
+      });
+    }
+    
+    const importResult = await importPRFData(validRecords, options, validation);
     
     console.log('✅ Import result:', importResult);
 
@@ -283,47 +296,16 @@ async function importPRFData(
     const rowNumber = i + 2; // Excel row number
 
     try {
-      // Check for duplicates if skipDuplicates is enabled
-      if (options.skipDuplicates && record['PRF No']) {
-        const duplicateQuery = `SELECT PRFID FROM PRF WHERE PRFNo = @PRFNo`;
-        const duplicateResult = await executeQuery(duplicateQuery, { PRFNo: record['PRF No'] });
-        
-        if (duplicateResult.recordset.length > 0) {
-          if (options.updateExisting) {
-            // Update existing record
-            await updateExistingPRF(duplicateResult.recordset[0].PRFID, record);
-            importedRecords++;
-            continue;
-          } else {
-            skippedRecords++;
-            warnings.push({
-              row: rowNumber,
-              message: `Duplicate PRF No: ${record['PRF No']} - skipped`,
-              data: record
-            });
-            continue;
-          }
-        }
-      }
+      // Note: Duplicate PRF numbers are now allowed as per new requirements
+      // Skip duplicate checking logic
 
-      // Get validation errors for this specific row
-      const rowErrors = validation?.errors.filter(e => e.row === rowNumber) || [];
-      
-      // Build notes about data fixes and validation issues
+      // Since we only import valid records, no need for error handling
+      // All data should be valid at this point
       const notesParts = ['Imported from Excel'];
       
-      // Handle missing/invalid data with defaults and notes
-      let amount = record['Amount'];
-      if (!amount || amount <= 0 || isNaN(amount)) {
-        amount = 0;
-        notesParts.push('Amount was missing/invalid - set to 0');
-      }
-      
-      let budgetYear = record['Budget'];
-      if (!budgetYear || budgetYear < 2020 || budgetYear > 2030) {
-        budgetYear = new Date().getFullYear();
-        notesParts.push(`Budget year was invalid - set to ${budgetYear}`);
-      }
+      // Use validated data directly
+      const amount = record['Amount'];
+      const budgetYear = record['Budget'];
       
       let submitBy = record['Submit By'];
       if (!submitBy || submitBy.trim().length === 0) {
@@ -356,10 +338,7 @@ async function importPRFData(
         notesParts.push('Date Submit was missing - set to current date');
       }
       
-      // Add validation error notes
-      if (rowErrors.length > 0) {
-        notesParts.push('Validation issues: ' + rowErrors.map(e => `${e.field}: ${e.message}`).join('; '));
-      }
+      // No validation errors since we only import valid records
       
       // Insert new PRF record
       const insertQuery = `

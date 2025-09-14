@@ -158,7 +158,7 @@ export default function PRFMonitoring() {
         // Transform API data to match frontend interface
         const transformedData: PRFData[] = result.data.map((prf: PRFRawData) => ({
           id: prf.PRFID?.toString() || prf.PRFNumber || '',
-          prfNo: prf.PRFNumber || prf.PRFNo || '',
+          prfNo: prf.PRFNo || prf.PRFNumber || '',
           dateSubmit: prf.RequestDate || prf.DateSubmit || '',
           submitBy: prf.RequestorName || prf.SubmitBy || '',
           description: prf.Title || prf.Description || '',
@@ -238,11 +238,38 @@ export default function PRFMonitoring() {
     // TODO: Implement bulk archive functionality
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (window.confirm(`Are you sure you want to delete ${selectedItems.size} selected PRF records? This action cannot be undone.`)) {
-      console.log('Bulk delete:', Array.from(selectedItems));
-      // TODO: Implement bulk delete API call
-      setSelectedItems(new Set());
+      try {
+        setLoading(true);
+        const ids = Array.from(selectedItems);
+        
+        const response = await fetch('http://localhost:3001/api/prfs/bulk', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ ids: ids.map(id => parseInt(id, 10)) }),
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          // Show success message
+          alert(`Successfully deleted ${result.data.deletedCount} PRF records`);
+          
+          // Clear selection and refresh data
+          setSelectedItems(new Set());
+          await fetchPRFData();
+        } else {
+          throw new Error(result.message || 'Failed to delete PRF records');
+        }
+      } catch (error) {
+        console.error('Error deleting PRF records:', error);
+        alert(`Error deleting PRF records: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
