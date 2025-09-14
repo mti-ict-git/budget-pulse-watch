@@ -313,18 +313,12 @@ async function importPRFData(
         notesParts.push('Submit By was missing - set to Unknown User');
       }
       
-      // PRESERVE ORIGINAL PRF NUMBER FROM EXCEL - DO NOT AUTO-GENERATE!
-      let prfNo = record['PRF No'];
-      if (!prfNo || prfNo.toString().trim().length === 0) {
-        // Only generate if completely missing
-        const generatedNumber = await PRFModel.generatePRFNumber();
-        prfNo = generatedNumber;
-        notesParts.push('PRF No was missing - auto-generated');
-      } else {
-        // Use the original PRF number from Excel (trimmed)
-        prfNo = prfNo.toString().trim();
-        notesParts.push('PRF No preserved from Excel');
+      // PRF NUMBER IS MANDATORY - DO NOT AUTO-GENERATE!
+      if (!record['PRF No'] || record['PRF No'].toString().trim().length === 0) {
+        throw new Error('PRF No is mandatory and cannot be empty');
       }
+      const prfNo = record['PRF No'].toString().trim();
+      notesParts.push('PRF No from Excel (mandatory field)');
       
       let description = record['Description'];
       if (!description || description.trim().length === 0) {
@@ -343,20 +337,20 @@ async function importPRFData(
       // Insert new PRF record
       const insertQuery = `
         INSERT INTO PRF (
-          PRFNumber, Title, Description, RequestorID, Department, COAID,
-          RequestedAmount, Priority, Status, RequestDate,
-          DateSubmit, SubmitBy, PRFNo, SumDescriptionRequested,
-          PurchaseCostCode, RequiredFor, BudgetYear, Notes
-        ) VALUES (
-          @PRFNumber, @Title, @Description, @RequestorID, @Department, @COAID,
-          @RequestedAmount, @Priority, @Status, @RequestDate,
-          @DateSubmit, @SubmitBy, @PRFNo, @SumDescriptionRequested,
-          @PurchaseCostCode, @RequiredFor, @BudgetYear, @Notes
-        )
+           PRFNo, Title, Description, RequestorID, Department, COAID,
+           RequestedAmount, Priority, Status, RequestDate,
+           DateSubmit, SubmitBy, SumDescriptionRequested,
+           PurchaseCostCode, RequiredFor, BudgetYear, Notes
+         ) VALUES (
+           @PRFNo, @Title, @Description, @RequestorID, @Department, @COAID,
+           @RequestedAmount, @Priority, @Status, @RequestDate,
+           @DateSubmit, @SubmitBy, @SumDescriptionRequested,
+           @PurchaseCostCode, @RequiredFor, @BudgetYear, @Notes
+         )
       `;
 
       const params = {
-        PRFNumber: prfNo,
+        PRFNo: prfNo,
         Title: record['Sum Description Requested'] || description || 'Imported from Excel',
         Description: description,
         RequestorID: defaultUserId,
@@ -368,7 +362,6 @@ async function importPRFData(
         RequestDate: dateSubmit,
         DateSubmit: dateSubmit,
         SubmitBy: submitBy,
-        PRFNo: prfNo,
         SumDescriptionRequested: record['Sum Description Requested'] || null,
         PurchaseCostCode: record['Purchase Cost Code'] || null,
         RequiredFor: record['Required for'] || null,

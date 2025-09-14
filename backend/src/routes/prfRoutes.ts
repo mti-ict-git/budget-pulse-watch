@@ -46,7 +46,66 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @route DELETE /api/prfs/bulk
+ * @desc Delete multiple PRFs
+ * @access Public (will be protected later)
+ */
+router.delete('/bulk', async (req: Request, res: Response) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or empty IDs array'
+      });
+    }
 
+    // Validate all IDs are numbers
+    const prfIds = ids.map(id => {
+      const numId = parseInt(id);
+      if (isNaN(numId)) {
+        throw new Error(`Invalid PRF ID: ${id}`);
+      }
+      return numId;
+    });
+
+    let deletedCount = 0;
+    const errors: string[] = [];
+
+    // Delete each PRF individually to handle errors gracefully
+    for (const prfId of prfIds) {
+      try {
+        const deleted = await PRFModel.delete(prfId);
+        if (deleted) {
+          deletedCount++;
+        } else {
+          errors.push(`PRF ID ${prfId} not found`);
+        }
+      } catch (error) {
+        errors.push(`Failed to delete PRF ID ${prfId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: `Successfully deleted ${deletedCount} of ${prfIds.length} PRFs`,
+      data: {
+        deletedCount,
+        totalRequested: prfIds.length,
+        errors: errors.length > 0 ? errors : undefined
+      }
+    });
+  } catch (error) {
+    console.error('Error in bulk delete:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to delete PRFs',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
 
 /**
  * @route GET /api/prfs/:id
@@ -127,15 +186,15 @@ router.get('/:id/with-items', async (req: Request, res: Response) => {
 });
 
 /**
- * @route GET /api/prfs/number/:prfNumber
- * @desc Get PRF by PRF number
+ * @route GET /api/prfs/prfno/:prfNo
+ * @desc Get PRF by PRFNo
  * @access Public (will be protected later)
  */
-router.get('/number/:prfNumber', async (req: Request, res: Response) => {
+router.get('/prfno/:prfNo', async (req: Request, res: Response) => {
   try {
-    const prfNumber = req.params.prfNumber;
+    const prfNo = req.params.prfNo;
     
-    const prf = await PRFModel.findByNumber(prfNumber);
+    const prf = await PRFModel.findByPRFNo(prfNo);
     
     if (!prf) {
       return res.status(404).json({
@@ -281,73 +340,6 @@ router.delete('/:id', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to delete PRF',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-/**
- * @route DELETE /api/prfs/bulk
- * @desc Delete multiple PRFs
- * @access Public (will be protected later)
- */
-router.delete('/bulk', async (req: Request, res: Response) => {
-  console.log('=== BULK DELETE ROUTE HIT ===');
-  console.log('Request body:', req.body);
-  console.log('Request headers:', req.headers);
-  try {
-    const { ids } = req.body;
-    
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid or empty IDs array'
-      });
-    }
-
-    // Validate all IDs are numbers
-    console.log('Received IDs for bulk delete:', ids);
-    const prfIds = ids.map(id => {
-      console.log('Processing ID:', id, 'Type:', typeof id);
-      const numId = parseInt(id);
-      if (isNaN(numId)) {
-        console.log('Failed to parse ID:', id, 'Result:', numId);
-        throw new Error(`Invalid PRF ID: ${id}`);
-      }
-      return numId;
-    });
-
-    let deletedCount = 0;
-    const errors: string[] = [];
-
-    // Delete each PRF individually to handle errors gracefully
-    for (const prfId of prfIds) {
-      try {
-        const deleted = await PRFModel.delete(prfId);
-        if (deleted) {
-          deletedCount++;
-        } else {
-          errors.push(`PRF ID ${prfId} not found`);
-        }
-      } catch (error) {
-        errors.push(`Failed to delete PRF ID ${prfId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }
-
-    return res.json({
-      success: true,
-      message: `Successfully deleted ${deletedCount} of ${prfIds.length} PRFs`,
-      data: {
-        deletedCount,
-        totalRequested: prfIds.length,
-        errors: errors.length > 0 ? errors : undefined
-      }
-    });
-  } catch (error) {
-    console.error('Error in bulk delete:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to delete PRFs',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }

@@ -111,22 +111,18 @@ export class ExcelParserService {
     });
 
     // Apply filter and log results
+    // Note: Ignore 'No' column as per user requirements
     const filteredRecords = processedRecords.filter(record => {
-      const hasNo = record['No'] && record['No'] !== null && record['No'] !== undefined && !isNaN(record['No'] as number) && record['No'] > 0;
-      const hasValidAmount = record['Amount'] !== null && record['Amount'] !== undefined && !isNaN(record['Amount'] as number);
+      // Only filter out completely empty rows
+      const hasAnyData = Object.values(record).some(value => 
+        value !== null && value !== undefined && value !== '' && value !== 0
+      );
       
-      if (!hasNo || !hasValidAmount) {
-        console.log(`🚫 Filtered out record:`, {
-          No: record['No'],
-          Amount: record['Amount'],
-          hasNo,
-          hasValidAmount,
-          NoType: typeof record['No'],
-          AmountType: typeof record['Amount']
-        });
+      if (!hasAnyData) {
+        console.log(`🚫 Filtered out empty record:`, record);
       }
       
-      return hasNo && hasValidAmount;
+      return hasAnyData;
     });
 
     console.log(`✅ Processed: ${processedRecords.length} total, ${filteredRecords.length} valid records`);
@@ -243,12 +239,12 @@ export class ExcelParserService {
         });
       }
 
-      // PRF No validation - required and must contain digits
+      // PRF No validation - MANDATORY field, must contain digits
       if (!record['PRF No'] || record['PRF No'].toString().trim().length === 0) {
         errors.push({
           row: rowNumber,
           field: 'PRF No',
-          message: 'PRF number is required',
+          message: 'PRF number is MANDATORY and cannot be empty',
           data: record['PRF No']
         });
       } else {
@@ -262,7 +258,7 @@ export class ExcelParserService {
           });
         }
       }
-      // Note: Duplicate PRF numbers are now allowed as per requirements
+      // Note: Duplicate PRF numbers are allowed as per requirements
 
       if (!record['Amount'] || record['Amount'] <= 0) {
         errors.push({

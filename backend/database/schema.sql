@@ -52,7 +52,7 @@ CREATE TABLE Budget (
 -- PRF (Purchase Request Form) table
 CREATE TABLE PRF (
     PRFID INT IDENTITY(1,1) PRIMARY KEY,
-    PRFNumber NVARCHAR(50) UNIQUE NOT NULL,
+    PRFNo NVARCHAR(50) UNIQUE NOT NULL, -- Business identifier from Excel
     Title NVARCHAR(200) NOT NULL,
     Description NVARCHAR(2000),
     RequestorID INT NOT NULL,
@@ -73,8 +73,7 @@ CREATE TABLE PRF (
     VendorContact NVARCHAR(500),
     AttachmentPath NVARCHAR(500),
     Notes NVARCHAR(2000),
-    -- Excel Import Fields
-    PRFNo NVARCHAR(100) NULL, -- Original PRF number from Excel
+    -- Excel Import Fields (PRFNo moved to main fields above)
     DateSubmit DATETIME2 NULL, -- Submit date from Excel
     SubmitBy NVARCHAR(200) NULL, -- Submitter name from Excel
     SumDescriptionRequested NVARCHAR(1000) NULL, -- Summary description from Excel
@@ -162,7 +161,7 @@ GO
 CREATE VIEW vw_PRFSummary AS
 SELECT 
     p.PRFID,
-    p.PRFNumber,
+    p.PRFNo,
     p.Title,
     p.Department,
     p.RequestedAmount,

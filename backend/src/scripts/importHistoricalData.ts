@@ -222,28 +222,31 @@ class HistoricalDataImporter {
         }
       }
 
-      // Generate PRF number
-      const prfNumber = await PRFModel.generatePRFNumber();
+      // Use PRF number from Excel data - MANDATORY!
+      if (!record['PRF No'] || record['PRF No'].toString().trim().length === 0) {
+        throw new Error('PRF No is mandatory and cannot be empty');
+      }
+      const prfNumber = record['PRF No'].toString().trim();
 
       // Insert PRF record
       const insertQuery = `
         INSERT INTO PRF (
-          PRFNumber, Title, Description, RequestorID, Department, COAID,
+          PRFNo, Title, Description, RequestorID, Department, COAID,
           RequestedAmount, Priority, Status, RequestDate,
-          DateSubmit, SubmitBy, PRFNo, SumDescriptionRequested,
+          DateSubmit, SubmitBy, SumDescriptionRequested,
           PurchaseCostCode, RequiredFor, BudgetYear, Notes,
           CreatedAt, UpdatedAt
         ) VALUES (
-          @PRFNumber, @Title, @Description, @RequestorID, @Department, @COAID,
+          @PRFNo, @Title, @Description, @RequestorID, @Department, @COAID,
           @RequestedAmount, @Priority, @Status, @RequestDate,
-          @DateSubmit, @SubmitBy, @PRFNo, @SumDescriptionRequested,
+          @DateSubmit, @SubmitBy, @SumDescriptionRequested,
           @PurchaseCostCode, @RequiredFor, @BudgetYear, @Notes,
           GETDATE(), GETDATE()
         )
       `;
 
       const params = {
-        PRFNumber: prfNumber,
+        PRFNo: record['PRF No'],
         Title: record['Sum Description Requested'] || record['Description'] || 'Imported from Excel',
         Description: record['Description'] || '',
         RequestorID: requestorId,
@@ -255,7 +258,6 @@ class HistoricalDataImporter {
         RequestDate: record['Date Submit'] || new Date(),
         DateSubmit: record['Date Submit'],
         SubmitBy: record['Submit By'],
-        PRFNo: record['PRF No'],
         SumDescriptionRequested: record['Sum Description Requested'],
         PurchaseCostCode: record['Purchase Cost Code'],
         RequiredFor: record['Required for'],

@@ -2,45 +2,32 @@ import { executeQuery } from '../config/database';
 import { PRF, CreatePRFRequest, UpdatePRFRequest, PRFQueryParams, PRFSummary, PRFItem, CreatePRFItemRequest, UpdatePRFParams, AddPRFItemsParams, UpdatePRFItemParams, PRFStatistics } from './types';
 
 export class PRFModel {
-  /**
-   * Generate next PRF number
-   */
-  static async generatePRFNumber(): Promise<string> {
-    const year = new Date().getFullYear();
-    const query = `
-      SELECT COUNT(*) + 1 as NextNumber 
-      FROM PRF 
-      WHERE YEAR(CreatedAt) = @Year
-    `;
-    
-    const result = await executeQuery<{ NextNumber: number }>(query, { Year: year });
-    const nextNumber = result.recordset[0].NextNumber;
-    
-    return `PRF-${year}-${nextNumber.toString().padStart(4, '0')}`;
-  }
+  // PRFNumber generation removed - PRFNo is now mandatory from Excel data
 
   /**
    * Create a new PRF
    */
   static async create(prfData: CreatePRFRequest, requestorId: number): Promise<PRF> {
-    const prfNumber = await this.generatePRFNumber();
+    if (!prfData.PRFNo || prfData.PRFNo.trim().length === 0) {
+      throw new Error('PRFNo is required and cannot be empty');
+    }
     
     const query = `
       INSERT INTO PRF (
-        PRFNumber, Title, Description, RequestorID, Department, COAID, 
+        PRFNo, Title, Description, RequestorID, Department, COAID, 
         RequestedAmount, Priority, RequiredDate, Justification, 
         VendorName, VendorContact, Notes
       )
       OUTPUT INSERTED.*
       VALUES (
-        @PRFNumber, @Title, @Description, @RequestorID, @Department, @COAID,
+        @PRFNo, @Title, @Description, @RequestorID, @Department, @COAID,
         @RequestedAmount, @Priority, @RequiredDate, @Justification,
         @VendorName, @VendorContact, @Notes
       )
     `;
     
     const params = {
-      PRFNumber: prfNumber,
+      PRFNo: prfData.PRFNo.trim(),
       Title: prfData.Title,
       Description: prfData.Description || null,
       RequestorID: requestorId,
@@ -79,14 +66,14 @@ export class PRFModel {
   }
 
   /**
-   * Find PRF by number
+   * Find PRF by PRFNo
    */
-  static async findByNumber(prfNumber: string): Promise<PRF | null> {
+  static async findByPRFNo(prfNo: string): Promise<PRF | null> {
     const query = `
-      SELECT * FROM PRF WHERE PRFNumber = @PRFNumber
+      SELECT * FROM PRF WHERE PRFNo = @PRFNo
     `;
     
-    const result = await executeQuery<PRF>(query, { PRFNumber: prfNumber });
+    const result = await executeQuery<PRF>(query, { PRFNo: prfNo });
     return result.recordset[0] || null;
   }
 
@@ -221,35 +208,35 @@ export class PRFModel {
     const params: PRFQueryParams = { Offset: offset, Limit: limit };
 
     if (Status) {
-      whereConditions.push('p.Status = @Status');
+      whereConditions.push('Status = @Status');
       params.Status = Status;
     }
     if (Department) {
-      whereConditions.push('p.Department = @Department');
+      whereConditions.push('Department = @Department');
       params.Department = Department;
     }
     if (Priority) {
-      whereConditions.push('p.Priority = @Priority');
+      whereConditions.push('Priority = @Priority');
       params.Priority = Priority;
     }
     if (RequestorID) {
-      whereConditions.push('p.RequestorID = @RequestorID');
+      whereConditions.push('PRFID IN (SELECT PRFID FROM PRF WHERE RequestorID = @RequestorID)');
       params.RequestorID = RequestorID;
     }
     if (COAID) {
-      whereConditions.push('p.COAID = @COAID');
+      whereConditions.push('PRFID IN (SELECT PRFID FROM PRF WHERE COAID = @COAID)');
       params.COAID = COAID;
     }
     if (DateFrom) {
-      whereConditions.push('p.RequestDate >= @DateFrom');
+      whereConditions.push('RequestDate >= @DateFrom');
       params.DateFrom = DateFrom;
     }
     if (DateTo) {
-      whereConditions.push('p.RequestDate <= @DateTo');
+      whereConditions.push('RequestDate <= @DateTo');
       params.DateTo = DateTo;
     }
     if (Search) {
-      whereConditions.push('(p.PRFNumber LIKE @Search OR p.Title LIKE @Search OR p.Description LIKE @Search)');
+      whereConditions.push('(PRFNo LIKE @Search OR Title LIKE @Search OR SumDescriptionRequested LIKE @Search OR SubmitBy LIKE @Search OR RequiredFor LIKE @Search)');
       params.Search = `%${Search}%`;
     }
 
@@ -264,9 +251,7 @@ export class PRFModel {
 
     const countQuery = `
       SELECT COUNT(*) as Total 
-      FROM PRF p
-      INNER JOIN Users u ON p.RequestorID = u.UserID
-      INNER JOIN ChartOfAccounts coa ON p.COAID = coa.COAID
+      FROM vw_PRFSummary
       ${whereClause}
     `;
 

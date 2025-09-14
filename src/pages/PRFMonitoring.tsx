@@ -43,7 +43,6 @@ interface PRFData {
 // Raw API data interface (from backend)
 interface PRFRawData {
   PRFID?: number;
-  PRFNumber?: string;
   PRFNo?: string;
   RequestDate?: string;
   DateSubmit?: string;
@@ -157,8 +156,8 @@ export default function PRFMonitoring() {
       if (result.success) {
         // Transform API data to match frontend interface
         const transformedData: PRFData[] = result.data.map((prf: PRFRawData) => ({
-          id: prf.PRFID?.toString() || prf.PRFNumber || '',
-          prfNo: prf.PRFNo || prf.PRFNumber || '',
+          id: prf.PRFID?.toString() || '',
+          prfNo: prf.PRFNo || '',
           dateSubmit: prf.RequestDate || prf.DateSubmit || '',
           submitBy: prf.RequestorName || prf.SubmitBy || '',
           description: prf.Title || prf.Description || '',

@@ -75,7 +75,6 @@ export interface UpdatePRFParams {
   // New fields from Excel analysis
   DateSubmit?: Date;
   SubmitBy?: string;
-  PRFNo?: string;
   SumDescriptionRequested?: string;
   PurchaseCostCode?: string;
   RequiredFor?: string;
@@ -336,7 +335,7 @@ export interface UpdateBudgetRequest {
 
 export interface PRF {
   PRFID: number;
-  PRFNumber: string;
+  PRFNo: string;
   Title: string;
   Description?: string;
   RequestorID: number;
@@ -363,7 +362,6 @@ export interface PRF {
   // New fields from Excel analysis
   DateSubmit?: Date;                    // Excel: "Date Submit"
   SubmitBy?: string;                    // Excel: "Submit By"
-  PRFNo?: string;                       // Excel: "PRF No" (different from PRFNumber)
   SumDescriptionRequested?: string;     // Excel: "Sum Description Requested"
   PurchaseCostCode?: string;            // Excel: "Purchase Cost Code"
   RequiredFor?: string;                 // Excel: "Required for"
@@ -371,6 +369,7 @@ export interface PRF {
 }
 
 export interface CreatePRFRequest {
+  PRFNo: string;
   Title: string;
   Description?: string;
   Department: string;
@@ -387,7 +386,6 @@ export interface CreatePRFRequest {
   // New fields from Excel analysis
   DateSubmit?: Date;
   SubmitBy?: string;
-  PRFNo?: string;
   SumDescriptionRequested?: string;
   PurchaseCostCode?: string;
   RequiredFor?: string;
@@ -416,7 +414,6 @@ export interface UpdatePRFRequest {
   // New fields from Excel analysis
   DateSubmit?: Date;
   SubmitBy?: string;
-  PRFNo?: string;
   SumDescriptionRequested?: string;
   PurchaseCostCode?: string;
   RequiredFor?: string;
@@ -487,7 +484,7 @@ export interface CreateTransactionRequest {
 // View types
 export interface PRFSummary {
   PRFID: number;
-  PRFNumber: string;
+  PRFNo: string;
   Title: string;
   Department: string;
   RequestedAmount: number;
