@@ -2,8 +2,13 @@ import express from 'express';
 import multer from 'multer';
 import { ExcelParserService } from '../services/excelParser';
 import { PRFModel } from '../models/PRF';
-import { BulkPRFImportRequest, PRFImportResult, ExcelPRFData } from '../models/types';
+import { BulkPRFImportRequest, PRFImportResult, ExcelPRFData, User, ChartOfAccounts, PRF } from '../models/types';
 import { executeQuery } from '../config/database';
+
+// Interface for count query results
+interface CountResult {
+  Total: number;
+}
 
 const router = express.Router();
 
@@ -238,7 +243,7 @@ router.get('/prf/history', async (req, res) => {
       executeQuery(countQuery)
     ]);
 
-    const total = countResult.recordset[0].Total;
+    const total = (countResult.recordset[0] as CountResult).Total;
     const totalPages = Math.ceil(total / limit);
 
     res.json({
@@ -284,12 +289,12 @@ async function importPRFData(
   // Get default user ID for imports (admin user)
   const adminQuery = `SELECT UserID FROM Users WHERE Role = 'Admin' ORDER BY UserID`;
   const adminResult = await executeQuery(adminQuery);
-  const defaultUserId = adminResult.recordset[0]?.UserID || 1;
+  const defaultUserId = (adminResult.recordset[0] as User)?.UserID || 1;
 
   // Get default COA ID
   const coaQuery = `SELECT COAID FROM ChartOfAccounts WHERE IsActive = 1 ORDER BY COAID`;
   const coaResult = await executeQuery(coaQuery);
-  const defaultCoaId = coaResult.recordset[0]?.COAID || 1;
+  const defaultCoaId = (coaResult.recordset[0] as ChartOfAccounts)?.COAID || 1;
 
   // Group records by PRF No
   const prfGroups = new Map<string, ExcelPRFData[]>();
@@ -331,7 +336,7 @@ async function importPRFData(
       
       if (existingResult.recordset.length > 0) {
         // PRF exists
-        prfId = existingResult.recordset[0].PRFID;
+        prfId = (existingResult.recordset[0] as PRF).PRFID;
         
         if (options.skipDuplicates) {
           warnings.push({
@@ -448,7 +453,7 @@ async function createNewPRF(
   };
   
   const result = await executeQuery(insertQuery, params);
-  const prfId = result.recordset[0].PRFID;
+  const prfId = (result.recordset[0] as PRF).PRFID;
   
   console.log(`✅ Created PRF ${prfNo} with ID ${prfId}`);
   return prfId;

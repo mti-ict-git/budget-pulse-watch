@@ -14,6 +14,11 @@ import {
   BudgetStatistics
 } from './types';
 
+// Interface for count query results
+interface CountResult {
+  Total: number;
+}
+
 export class BudgetModel {
   /**
    * Create a new budget
@@ -43,7 +48,7 @@ export class BudgetModel {
     };
     
     const result = await executeQuery<Budget>(query, params);
-    return result.recordset[0];
+    return result.recordset[0] as Budget;
   }
 
   /**
@@ -55,7 +60,7 @@ export class BudgetModel {
     `;
     
     const result = await executeQuery<Budget>(query, { BudgetID: budgetId });
-    return result.recordset[0] || null;
+    return (result.recordset[0] as Budget) || null;
   }
 
   /**
@@ -68,7 +73,7 @@ export class BudgetModel {
     `;
     
     const result = await executeQuery<Budget>(query, { COAID: coaId, FiscalYear: fiscalYear });
-    return result.recordset[0] || null;
+    return (result.recordset[0] as Budget) || null;
   }
 
   /**
@@ -121,7 +126,7 @@ export class BudgetModel {
     `;
 
     const result = await executeQuery<Budget>(query, params);
-    return result.recordset[0];
+    return result.recordset[0] as Budget;
   }
 
   /**
@@ -204,7 +209,7 @@ export class BudgetModel {
 
     return {
       budgets: budgetsResult.recordset,
-      total: countResult.recordset[0].Total
+      total: (countResult.recordset[0] as CountResult).Total
     };
   }
 
@@ -245,7 +250,7 @@ export class BudgetModel {
     `;
     
     const result = await executeQuery<BudgetUtilization>(query, { BudgetID: budgetId });
-    return result.recordset[0] || null;
+    return (result.recordset[0] as BudgetUtilization) || null;
   }
 
   /**
@@ -329,7 +334,7 @@ export class BudgetModel {
     `;
     
     const result = await executeQuery(query, { FiscalYear: fiscalYear });
-    return result.recordset;
+    return result.recordset as BudgetUtilizationSummary[];
   }
 
   /**
@@ -352,7 +357,7 @@ export class BudgetModel {
     `;
 
     const result = await executeQuery<Budget>(query, { BudgetID: budgetId });
-    return result.recordset[0];
+    return result.recordset[0] as Budget;
   }
 
   /**
@@ -398,7 +403,7 @@ export class BudgetModel {
     `;
     
     const result = await executeQuery(query, { Threshold: thresholdPercentage });
-    return result.recordset;
+    return result.recordset as BudgetAlert[];
   }
 
   /**
@@ -422,6 +427,6 @@ export class BudgetModel {
     `;
 
     const result = await executeQuery(query, params);
-    return result.recordset[0];
+    return result.recordset[0] as BudgetStatistics;
   }
 }

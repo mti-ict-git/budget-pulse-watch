@@ -33,22 +33,26 @@ export interface UpdateUserParams {
   Role?: 'Admin' | 'Manager' | 'User';
   Department?: string;
   PasswordHash?: string;
+  [key: string]: unknown;
 }
 
 export interface UserQueryParams {
   Offset: number;
   Limit: number;
   Search?: string;
+  [key: string]: unknown;
 }
 
 export interface UsernameExistsParams {
   Username: string;
   ExcludeUserID?: number;
+  [key: string]: unknown;
 }
 
 export interface EmailExistsParams {
   Email: string;
   ExcludeUserID?: number;
+  [key: string]: unknown;
 }
 
 // PRF parameter types
@@ -71,6 +75,7 @@ export interface UpdatePRFParams {
   VendorName?: string;
   VendorContact?: string;
   Notes?: string;
+  [key: string]: unknown;
   
   // New fields from Excel analysis
   DateSubmit?: Date;
@@ -94,6 +99,7 @@ export interface PRFQueryParams {
   DateFrom?: string;
   DateTo?: string;
   Search?: string;
+  [key: string]: unknown;
 }
 
 export interface AddPRFItemsParams {
@@ -108,6 +114,7 @@ export interface UpdatePRFItemParams {
   Quantity?: number;
   UnitPrice?: number;
   Specifications?: string;
+  [key: string]: unknown;
 }
 
 export interface PRFStatistics {
@@ -185,6 +192,7 @@ export interface UpdateCOAParams {
   Description?: string;
   IsActive?: boolean;
   Department?: string;
+  [key: string]: unknown;
 }
 
 export interface COAFindAllParams {
@@ -195,6 +203,7 @@ export interface COAFindAllParams {
   IsActive?: boolean;
   ParentAccountID?: number;
   Search?: string;
+  [key: string]: unknown;
 }
 
 export interface COABulkImportParams {
@@ -232,6 +241,7 @@ export interface BudgetUpdateParams {
   EndDate?: Date;
   Status?: string;
   Notes?: string;
+  [key: string]: unknown;
 }
 
 export interface BudgetFindAllParams {
@@ -243,16 +253,19 @@ export interface BudgetFindAllParams {
   Status?: string;
   COAID?: number;
   Search?: string;
+  [key: string]: unknown;
 }
 
 export interface BudgetUtilizationParams {
   Department: string;
   FiscalYear?: number;
+  [key: string]: unknown;
 }
 
 export interface COAExistsParams {
   AccountCode: string;
   ExcludeID?: number;
+  [key: string]: unknown;
 }
 
 export interface BudgetAlert {
@@ -590,6 +603,7 @@ export interface BudgetQueryParams {
   budgetType?: string;
   status?: string;
   search?: string;
+  [key: string]: unknown;
 }
 
 // Dashboard metrics

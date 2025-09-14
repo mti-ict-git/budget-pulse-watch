@@ -1,6 +1,11 @@
 import { executeQuery } from '../config/database';
 import { PRF, CreatePRFRequest, UpdatePRFRequest, PRFQueryParams, PRFSummary, PRFItem, CreatePRFItemRequest, UpdatePRFParams, AddPRFItemsParams, UpdatePRFItemParams, PRFStatistics } from './types';
 
+// Interface for count query results
+interface CountResult {
+  Total: number;
+}
+
 export class PRFModel {
   // PRFNumber generation removed - PRFNo is now mandatory from Excel data
 
@@ -62,7 +67,7 @@ export class PRFModel {
     `;
     
     const result = await executeQuery<PRF>(query, { PRFID: prfId });
-    return result.recordset[0] || null;
+    return (result.recordset[0] as PRF) || null;
   }
 
   /**
@@ -74,7 +79,7 @@ export class PRFModel {
     `;
     
     const result = await executeQuery<PRF>(query, { PRFNo: prfNo });
-    return result.recordset[0] || null;
+    return (result.recordset[0] as PRF) || null;
   }
 
   /**
@@ -266,7 +271,7 @@ export class PRFModel {
 
     return {
       prfs: prfsResult.recordset,
-      total: countResult.recordset[0].Total
+      total: (countResult.recordset[0] as CountResult).Total
     };
   }
 
@@ -376,7 +381,7 @@ export class PRFModel {
     
     return {
       prfs: prfsWithItems,
-      total: countResult.recordset[0].Total
+      total: (countResult.recordset[0] as CountResult).Total
     };
   }
 
@@ -455,7 +460,7 @@ export class PRFModel {
     `;
 
     const result = await executeQuery<PRFItem>(query, params);
-    return result.recordset[0];
+    return result.recordset[0] as PRFItem;
   }
 
   /**
@@ -486,7 +491,7 @@ export class PRFModel {
     `;
 
     const result = await executeQuery(query);
-    return result.recordset[0];
+    return result.recordset[0] as PRFStatistics;
   }
 
   /**

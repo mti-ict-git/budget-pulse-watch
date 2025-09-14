@@ -1,6 +1,15 @@
 import { executeQuery } from '../config/database';
 import { ChartOfAccounts, CreateCOARequest, UpdateCOARequest, COAQueryParams, UpdateCOAParams, COAFindAllParams, COABulkImportParams, COAAccountUsage, COAStatistics, COAExistsParams } from './types';
 
+// Interface for count query results
+interface CountResult {
+  Total: number;
+}
+
+interface ExistsResult {
+  Count: number;
+}
+
 export class ChartOfAccountsModel {
   /**
    * Create a new Chart of Accounts entry
@@ -29,7 +38,7 @@ export class ChartOfAccountsModel {
     };
     
     const result = await executeQuery<ChartOfAccounts>(query, params);
-    return result.recordset[0];
+    return result.recordset[0] as ChartOfAccounts;
   }
 
   /**
@@ -41,7 +50,7 @@ export class ChartOfAccountsModel {
     `;
     
     const result = await executeQuery<ChartOfAccounts>(query, { COAID: coaId });
-    return result.recordset[0] || null;
+    return (result.recordset[0] as ChartOfAccounts) || null;
   }
 
   /**
@@ -53,7 +62,7 @@ export class ChartOfAccountsModel {
     `;
     
     const result = await executeQuery<ChartOfAccounts>(query, { AccountCode: accountCode });
-    return result.recordset[0] || null;
+    return (result.recordset[0] as ChartOfAccounts) || null;
   }
 
   /**
@@ -102,7 +111,7 @@ export class ChartOfAccountsModel {
     `;
 
     const result = await executeQuery<ChartOfAccounts>(query, params);
-    return result.recordset[0];
+    return result.recordset[0] as ChartOfAccounts;
   }
 
   /**
@@ -196,7 +205,7 @@ export class ChartOfAccountsModel {
 
     return {
       accounts: accountsResult.recordset,
-      total: countResult.recordset[0].Total
+      total: (countResult.recordset[0] as CountResult).Total
     };
   }
 
@@ -244,7 +253,7 @@ export class ChartOfAccountsModel {
     `;
     
     const result = await executeQuery(query);
-    return result.recordset;
+    return result.recordset as Record<string, unknown>[];
   }
 
   /**
@@ -319,7 +328,7 @@ export class ChartOfAccountsModel {
     }
     
     const result = await executeQuery<{ Count: number }>(query, params);
-    return result.recordset[0].Count > 0;
+    return (result.recordset[0] as ExistsResult).Count > 0;
   }
 
   /**
@@ -343,7 +352,7 @@ export class ChartOfAccountsModel {
     `;
     
     const result = await executeQuery(query, { COAID: coaId });
-    return result.recordset[0];
+    return result.recordset[0] as COAAccountUsage;
   }
 
   /**
@@ -394,6 +403,6 @@ export class ChartOfAccountsModel {
     `;
 
     const result = await executeQuery(query);
-    return result.recordset[0];
+    return result.recordset[0] as COAStatistics;
   }
 }

@@ -76,9 +76,9 @@ export const closeDatabase = async (): Promise<void> => {
 /**
  * Execute a SQL query
  */
-export const executeQuery = async <T = any>(
+export const executeQuery = async <T = unknown>(
   query: string,
-  params?: { [key: string]: any }
+  params?: { [key: string]: unknown }
 ): Promise<sql.IResult<T>> => {
   try {
     const currentPool = getPool();
@@ -102,9 +102,9 @@ export const executeQuery = async <T = any>(
 /**
  * Execute a stored procedure
  */
-export const executeStoredProcedure = async <T = any>(
+export const executeStoredProcedure = async <T = unknown>(
   procedureName: string,
-  params?: { [key: string]: any }
+  params?: { [key: string]: unknown }
 ): Promise<sql.IResult<T>> => {
   try {
     const currentPool = getPool();

@@ -2,6 +2,15 @@ import { executeQuery } from '../config/database';
 import { User, CreateUserRequest, LoginRequest, UpdateUserParams, UserQueryParams, UsernameExistsParams, EmailExistsParams } from './types';
 import bcrypt from 'bcryptjs';
 
+// Interface for count query results
+interface CountResult {
+  Total: number;
+}
+
+interface ExistsResult {
+  Count: number;
+}
+
 export class UserModel {
   /**
    * Create a new user
@@ -26,7 +35,7 @@ export class UserModel {
     };
     
     const result = await executeQuery<User>(query, params);
-    return result.recordset[0];
+    return result.recordset[0] as User;
   }
 
   /**
@@ -38,7 +47,7 @@ export class UserModel {
     `;
     
     const result = await executeQuery<User>(query, { UserID: userId });
-    return result.recordset[0] || null;
+    return (result.recordset[0] as User) || null;
   }
 
   /**
@@ -50,7 +59,7 @@ export class UserModel {
     `;
     
     const result = await executeQuery<User>(query, { Username: username });
-    return result.recordset[0] || null;
+    return (result.recordset[0] as User) || null;
   }
 
   /**
@@ -62,7 +71,7 @@ export class UserModel {
     `;
     
     const result = await executeQuery<User>(query, { Email: email });
-    return result.recordset[0] || null;
+    return (result.recordset[0] as User) || null;
   }
 
   /**
@@ -128,7 +137,7 @@ export class UserModel {
     `;
 
     const result = await executeQuery<User>(query, params);
-    return result.recordset[0];
+    return result.recordset[0] as User;
   }
 
   /**
@@ -177,7 +186,7 @@ export class UserModel {
 
     return {
       users: usersResult.recordset,
-      total: countResult.recordset[0].Total
+      total: (countResult.recordset[0] as CountResult).Total
     };
   }
 
@@ -194,7 +203,7 @@ export class UserModel {
     }
 
     const result = await executeQuery<{ Count: number }>(query, params);
-    return result.recordset[0].Count > 0;
+    return (result.recordset[0] as ExistsResult).Count > 0;
   }
 
   /**
@@ -210,6 +219,6 @@ export class UserModel {
     }
 
     const result = await executeQuery<{ Count: number }>(query, params);
-    return result.recordset[0].Count > 0;
+    return (result.recordset[0] as ExistsResult).Count > 0;
   }
 }

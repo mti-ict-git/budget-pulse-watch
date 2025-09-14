@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ExcelParserService } from '../services/excelParser';
 import { executeQuery, connectDatabase } from '../config/database';
-import { ExcelPRFData, ExcelBudgetData } from '../models/types';
+import { ExcelPRFData, ExcelBudgetData, User, ChartOfAccounts } from '../models/types';
 import { PRFModel } from '../models/PRF';
 
 /**
@@ -109,7 +109,7 @@ class HistoricalDataImporter {
     const result = await executeQuery(checkQuery, { FirstName: name });
 
     if (result.recordset.length > 0) {
-      return result.recordset[0].UserID;
+      return (result.recordset[0] as User).UserID;
     }
 
     const insertQuery = `
@@ -129,7 +129,7 @@ class HistoricalDataImporter {
     };
 
     const insertResult = await executeQuery(insertQuery, params);
-    return insertResult.recordset[0].UserID;
+    return (insertResult.recordset[0] as User).UserID;
   }
 
   /**
@@ -140,7 +140,7 @@ class HistoricalDataImporter {
     const result = await executeQuery(checkQuery, { COACode: code });
 
     if (result.recordset.length > 0) {
-      return result.recordset[0].COAID;
+      return (result.recordset[0] as ChartOfAccounts).COAID;
     }
 
     const insertQuery = `
@@ -157,7 +157,7 @@ class HistoricalDataImporter {
     };
 
     const insertResult = await executeQuery(insertQuery, params);
-    return insertResult.recordset[0].COAID;
+    return (insertResult.recordset[0] as ChartOfAccounts).COAID;
   }
 
   /**
@@ -208,7 +208,7 @@ class HistoricalDataImporter {
         const userQuery = `SELECT UserID FROM Users WHERE FirstName = @FirstName`;
         const userResult = await executeQuery(userQuery, { FirstName: record['Submit By'] });
         if (userResult.recordset.length > 0) {
-          requestorId = userResult.recordset[0].UserID;
+          requestorId = (userResult.recordset[0] as User).UserID;
         }
       }
 
@@ -218,7 +218,7 @@ class HistoricalDataImporter {
         const coaQuery = `SELECT COAID FROM ChartOfAccounts WHERE COACode = @COACode`;
         const coaResult = await executeQuery(coaQuery, { COACode: record['Purchase Cost Code'] });
         if (coaResult.recordset.length > 0) {
-          coaId = coaResult.recordset[0].COAID;
+          coaId = (coaResult.recordset[0] as ChartOfAccounts).COAID;
         }
       }
 

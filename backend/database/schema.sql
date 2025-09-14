@@ -215,6 +215,32 @@ GO
 INSERT INTO Users (Username, Email, PasswordHash, FirstName, LastName, Role, Department)
 VALUES ('admin', 'admin@company.com', '$2b$10$rQZ8kHp.TB.It.NuiNvxaOZvBz4Lp8J8m8qfPXU5JtHfQy7TZjHNe', 'System', 'Administrator', 'Admin', 'IT');
 
+-- PRF Files table for document management
+CREATE TABLE PRFFiles (
+    FileID INT IDENTITY(1,1) PRIMARY KEY,
+    PRFID INT NOT NULL,
+    OriginalFileName NVARCHAR(255) NOT NULL,
+    FilePath NVARCHAR(500) NOT NULL, -- Local storage path
+    SharedPath NVARCHAR(500) NULL, -- Network shared storage path
+    FileSize BIGINT NOT NULL, -- File size in bytes
+    FileType NVARCHAR(50) NOT NULL, -- e.g., 'pdf', 'jpg', 'png', 'xlsx'
+    MimeType NVARCHAR(100) NOT NULL, -- e.g., 'application/pdf', 'image/jpeg'
+    UploadDate DATETIME2 NOT NULL DEFAULT GETDATE(),
+    UploadedBy INT NOT NULL,
+    IsOriginalDocument BIT DEFAULT 0, -- True for OCR source documents
+    Description NVARCHAR(500) NULL, -- Optional file description
+    CreatedAt DATETIME2 DEFAULT GETDATE(),
+    UpdatedAt DATETIME2 DEFAULT GETDATE(),
+    FOREIGN KEY (PRFID) REFERENCES PRF(PRFID) ON DELETE CASCADE,
+    FOREIGN KEY (UploadedBy) REFERENCES Users(UserID)
+);
+
+-- Create indexes for PRF Files
+CREATE INDEX IX_PRFFiles_PRFID ON PRFFiles(PRFID);
+CREATE INDEX IX_PRFFiles_UploadDate ON PRFFiles(UploadDate);
+CREATE INDEX IX_PRFFiles_FileType ON PRFFiles(FileType);
+GO
+
 -- Insert sample Chart of Accounts
 INSERT INTO ChartOfAccounts (COACode, COAName, Description, Category) VALUES
 ('IT-001', 'Hardware Equipment', 'Computer hardware, servers, networking equipment', 'IT Equipment'),

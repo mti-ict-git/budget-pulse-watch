@@ -6,6 +6,8 @@ import { CreatePRFRequest, CreatePRFItemRequest } from '../models/types';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs/promises';
+import { getSharedStorageService } from '../services/sharedStorageService';
+import { PRFFilesModel } from '../models/PRFFiles';
 
 const router = express.Router();
 
@@ -147,6 +149,43 @@ router.post('/create-from-document', upload.single('document'), async (req, res)
       const savedFilePath = path.join(tempDir, `${createdPRF.PRFID}-${uploadId}${fileExtension}`);
       await fs.writeFile(savedFilePath, buffer);
       
+      // Copy file to shared storage and save metadata
+      let sharedStorageResult = null;
+      let fileRecord = null;
+      try {
+        const sharedStorageService = getSharedStorageService();
+        sharedStorageResult = await sharedStorageService.copyFileToSharedStorage(
+          savedFilePath,
+          createdPRF.PRFNo,
+          originalname
+        );
+        
+        if (sharedStorageResult.success) {
+          console.log(`📁 File copied to shared storage: ${sharedStorageResult.sharedPath}`);
+          
+          // Save file metadata to database
+          const fileStats = await fs.stat(savedFilePath);
+          fileRecord = await PRFFilesModel.create({
+            PRFID: createdPRF.PRFID,
+            OriginalFileName: originalname,
+            FilePath: savedFilePath,
+            SharedPath: sharedStorageResult.sharedPath,
+            FileSize: fileStats.size,
+            FileType: fileExtension.toLowerCase().replace('.', ''),
+            MimeType: mimetype || 'application/octet-stream',
+            UploadedBy: 1, // TODO: Get from authenticated user
+            IsOriginalDocument: true,
+            Description: 'OCR source document'
+          });
+          
+          console.log(`💾 File metadata saved to database with ID: ${fileRecord.FileID}`);
+        } else {
+          console.warn(`⚠️ Shared storage copy failed: ${sharedStorageResult.error}`);
+        }
+      } catch (sharedStorageError) {
+        console.error('Shared storage operation failed:', sharedStorageError);
+      }
+      
       console.log(`✅ PRF created successfully with ID: ${createdPRF.PRFID}`);
       
       return res.status(201).json({
@@ -159,7 +198,9 @@ router.post('/create-from-document', upload.single('document'), async (req, res)
           ocrConfidence: extractedData.confidence,
           uploadId,
           originalFilename: originalname,
-          savedFilePath
+          savedFilePath,
+          sharedStorage: sharedStorageResult,
+          fileRecord: fileRecord
         }
       });
       

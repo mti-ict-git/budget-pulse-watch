@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Eye, Calendar, User, Building, DollarSign, Target, Code, Clock } from "lucide-react";
+import PRFFileExplorer from "../../../frontend/src/components/PRFFileExplorer";
 
 interface PRFData {
   id: string;
@@ -235,6 +236,15 @@ export function PRFDetailDialog({ prf }: PRFDetailDialogProps) {
               </div>
             </CardContent>
           </Card>
+
+          {/* PRF Files */}
+          <div className="md:col-span-2">
+            <PRFFileExplorer 
+              prfId={parseInt(prf.id)} 
+              prfNo={prf.prfNo} 
+              readonly={false}
+            />
+          </div>
         </div>
       </DialogContent>
     </Dialog>
