@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,63 +18,90 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Filter, Plus, Eye } from "lucide-react";
+import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare } from "lucide-react";
+import { PRFDetailDialog } from "@/components/prf/PRFDetailDialog";
+import { ExcelImportDialog } from "@/components/prf/ExcelImportDialog";
 
-// Mock PRF data
-const prfData = [
-  {
-    id: "PRF-2024-248",
-    dateSubmit: "2024-01-15",
-    submitBy: "John Doe",
-    description: "Office Supplies for Q1",
-    purchaseCostCode: "COA-001",
-    amount: 2500000,
-    requiredFor: "Finance Department",
-    picPickup: "Jane Smith",
-    buyer: "Procurement Team",
-    headOfBuyer: "Mike Johnson",
-    progress: "pending",
-    lastUpdate: "2024-01-15"
-  },
-  {
-    id: "PRF-2024-247",
-    dateSubmit: "2024-01-14",
-    submitBy: "Jane Smith",
-    description: "Software License Renewal",
-    purchaseCostCode: "COA-003",
-    amount: 750000,
-    requiredFor: "IT Department",
-    picPickup: "Bob Wilson",
-    buyer: "IT Procurement",
-    headOfBuyer: "Sarah Davis",
-    progress: "approved",
-    lastUpdate: "2024-01-14"
-  },
-  {
-    id: "PRF-2024-246",
-    dateSubmit: "2024-01-13",
-    submitBy: "Bob Wilson",
-    description: "Network Equipment",
-    purchaseCostCode: "COA-002",
-    amount: 1200000,
-    requiredFor: "IT Infrastructure",
-    picPickup: "Alice Johnson",
-    buyer: "Tech Team",
-    headOfBuyer: "Mike Johnson",
-    progress: "over_budget",
-    lastUpdate: "2024-01-13"
-  }
-];
+// PRF data interface
+interface PRFData {
+  id: string;
+  prfNo: string;
+  dateSubmit: string;
+  submitBy: string;
+  description: string;
+  sumDescriptionRequested: string;
+  purchaseCostCode: string;
+  amount: number;
+  requiredFor: string;
+  budgetYear: number;
+  department: string;
+  priority: string;
+  progress: string;
+  lastUpdate: string;
+}
+
+// Raw API data interface (from backend)
+interface PRFRawData {
+  PRFID?: number;
+  PRFNumber?: string;
+  PRFNo?: string;
+  RequestDate?: string;
+  DateSubmit?: string;
+  RequestorName?: string;
+  SubmitBy?: string;
+  Title?: string;
+  Description?: string;
+  SumDescriptionRequested?: string;
+  PurchaseCostCode?: string;
+  RequestedAmount?: number;
+  Amount?: number;
+  RequiredFor?: string;
+  BudgetYear?: number;
+  Department?: string;
+  Priority?: string;
+  Status?: string;
+  UpdatedAt?: string;
+  LastUpdate?: string;
+}
+
+// API response interface
+interface PRFApiResponse {
+  success: boolean;
+  data: PRFRawData[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
 
 const getStatusBadge = (status: string) => {
   const statusConfig = {
     pending: { label: "Pending", variant: "secondary" as const },
     approved: { label: "Approved", variant: "default" as const },
     completed: { label: "Completed", variant: "success" as const },
-    over_budget: { label: "Over Budget", variant: "destructive" as const }
+    over_budget: { label: "Over Budget", variant: "destructive" as const },
+    draft: { label: "Draft", variant: "outline" as const },
+    submitted: { label: "Submitted", variant: "secondary" as const },
+    under_review: { label: "Under Review", variant: "secondary" as const },
+    rejected: { label: "Rejected", variant: "destructive" as const },
+    cancelled: { label: "Cancelled", variant: "outline" as const }
   };
   
-  const config = statusConfig[status as keyof typeof statusConfig];
+  const config = statusConfig[status as keyof typeof statusConfig] || { label: status, variant: "outline" as const };
+  return <Badge variant={config.variant}>{config.label}</Badge>;
+};
+
+const getPriorityBadge = (priority: string) => {
+  const priorityConfig = {
+    Low: { label: "Low", variant: "outline" as const },
+    Medium: { label: "Medium", variant: "secondary" as const },
+    High: { label: "High", variant: "default" as const },
+    Critical: { label: "Critical", variant: "destructive" as const }
+  };
+  
+  const config = priorityConfig[priority as keyof typeof priorityConfig] || { label: priority, variant: "outline" as const };
   return <Badge variant={config.variant}>{config.label}</Badge>;
 };
 
@@ -89,111 +116,421 @@ const formatCurrency = (amount: number) => {
 export default function PRFMonitoring() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [yearFilter, setYearFilter] = useState("2024");
-
-  const filteredData = prfData.filter(prf => {
-    const matchesSearch = prf.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         prf.submitBy.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         prf.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || prf.progress === statusFilter;
-    return matchesSearch && matchesStatus;
+  const [yearFilter, setYearFilter] = useState("all");
+  const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [prfData, setPrfData] = useState<PRFData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 50,
+    total: 0,
+    totalPages: 0
   });
+
+  // Fetch PRF data from API
+  const fetchPRFData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const queryParams = new URLSearchParams({
+        page: pagination.page.toString(),
+        limit: pagination.limit.toString(),
+        ...(searchTerm && { search: searchTerm }),
+        ...(statusFilter !== 'all' && { status: statusFilter }),
+        ...(departmentFilter !== 'all' && { department: departmentFilter }),
+        ...(priorityFilter !== 'all' && { priority: priorityFilter }),
+        ...(yearFilter !== 'all' && { year: yearFilter })
+      });
+
+      const response = await fetch(`http://localhost:3001/api/prfs?${queryParams}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result: PRFApiResponse = await response.json();
+      
+      if (result.success) {
+        // Transform API data to match frontend interface
+        const transformedData: PRFData[] = result.data.map((prf: PRFRawData) => ({
+          id: prf.PRFID?.toString() || prf.PRFNumber || '',
+          prfNo: prf.PRFNumber || prf.PRFNo || '',
+          dateSubmit: prf.RequestDate || prf.DateSubmit || '',
+          submitBy: prf.RequestorName || prf.SubmitBy || '',
+          description: prf.Title || prf.Description || '',
+          sumDescriptionRequested: prf.Description || prf.SumDescriptionRequested || '',
+          purchaseCostCode: prf.PurchaseCostCode || '',
+          amount: prf.RequestedAmount || prf.Amount || 0,
+          requiredFor: prf.RequiredFor || '',
+          budgetYear: prf.BudgetYear || new Date().getFullYear(),
+          department: prf.Department || '',
+          priority: prf.Priority || 'Medium',
+          progress: prf.Status?.toLowerCase() || 'pending',
+          lastUpdate: prf.UpdatedAt || prf.LastUpdate || prf.RequestDate || ''
+        }));
+        
+        setPrfData(transformedData);
+        setPagination(result.pagination);
+      } else {
+        throw new Error('Failed to fetch PRF data');
+      }
+    } catch (err) {
+      console.error('Error fetching PRF data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch PRF data');
+      setPrfData([]); // Set empty array on error
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch data on component mount and when filters change
+  useEffect(() => {
+    fetchPRFData();
+    setSelectedItems(new Set()); // Clear selections when data changes
+  }, [pagination.page, pagination.limit, statusFilter, departmentFilter, priorityFilter, yearFilter]);
+
+  // Debounced search effect
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (pagination.page === 1) {
+        fetchPRFData();
+      } else {
+        setPagination(prev => ({ ...prev, page: 1 }));
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  // Since filtering is now done on the backend, we use prfData directly
+  const filteredData = prfData;
+
+  // Bulk action handlers
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedItems(new Set(filteredData.map(prf => prf.id)));
+    } else {
+      setSelectedItems(new Set());
+    }
+  };
+
+  const handleSelectItem = (id: string, checked: boolean) => {
+    const newSelected = new Set(selectedItems);
+    if (checked) {
+      newSelected.add(id);
+    } else {
+      newSelected.delete(id);
+    }
+    setSelectedItems(newSelected);
+  };
+
+  const handleBulkExport = () => {
+    console.log('Exporting selected items:', Array.from(selectedItems));
+    // TODO: Implement bulk export functionality
+  };
+
+  const handleBulkArchive = () => {
+    console.log('Archiving selected items:', Array.from(selectedItems));
+    // TODO: Implement bulk archive functionality
+  };
+
+  const handleBulkDelete = () => {
+    if (window.confirm(`Are you sure you want to delete ${selectedItems.size} selected PRF records? This action cannot be undone.`)) {
+      console.log('Bulk delete:', Array.from(selectedItems));
+      // TODO: Implement bulk delete API call
+      setSelectedItems(new Set());
+    }
+  };
+
+  const handleBulkStatusUpdate = (newStatus: string) => {
+    console.log('Updating status for selected items:', Array.from(selectedItems), 'to:', newStatus);
+    // TODO: Implement bulk status update functionality
+  };
+
+  const handlePageSizeChange = (newLimit: string) => {
+    setPagination(prev => ({ ...prev, limit: parseInt(newLimit), page: 1 }));
+  };
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">PRF Monitoring</h1>
+          <h1 className="text-3xl font-bold tracking-tight">PRF Monitoring</h1>
           <p className="text-muted-foreground">
-            Track and manage Purchase Request Forms
+            Track and manage Purchase Request Forms with enhanced Excel field support
           </p>
         </div>
-        <Button className="w-fit">
-          <Plus className="h-4 w-4" />
-          New PRF
-        </Button>
+        <div className="flex gap-2">
+          <ExcelImportDialog />
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            New PRF
+          </Button>
+        </div>
       </div>
 
-      {/* Filters */}
-      <Card className="dashboard-card">
-        <CardContent className="p-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search PRFs..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Filters
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by PRF No, description, submit by, or required for..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="submitted">Submitted</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="under_review">Under Review</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                  <SelectItem value="over_budget">Over Budget</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Priority</SelectItem>
+                  <SelectItem value="Low">Low</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="High">High</SelectItem>
+                  <SelectItem value="Critical">Critical</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  <SelectItem value="Finance">Finance</SelectItem>
+                  <SelectItem value="IT">IT</SelectItem>
+                  <SelectItem value="HR">HR</SelectItem>
+                  <SelectItem value="Operations">Operations</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={yearFilter} onValueChange={setYearFilter}>
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue placeholder="Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Years</SelectItem>
+                  <SelectItem value="2024">2024</SelectItem>
+                  <SelectItem value="2025">2025</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="over_budget">Over Budget</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={yearFilter} onValueChange={setYearFilter}>
-              <SelectTrigger className="w-full sm:w-32">
-                <SelectValue placeholder="Year" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="2024">2024</SelectItem>
-                <SelectItem value="2023">2023</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </CardContent>
       </Card>
 
-      {/* PRF Table */}
-      <Card className="dashboard-card">
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            PRF List
-            <Badge variant="secondary">{filteredData.length} records</Badge>
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>
+              PRF List ({pagination.total} items)
+              {loading && <span className="text-sm text-muted-foreground ml-2">Loading...</span>}
+              {selectedItems.size > 0 && (
+                <span className="text-sm text-blue-600 ml-2">({selectedItems.size} selected)</span>
+              )}
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              {/* Page Size Selector */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Show:</span>
+                <Select value={pagination.limit.toString()} onValueChange={handlePageSizeChange}>
+                  <SelectTrigger className="w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                    <SelectItem value="500">500</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Bulk Actions */}
+              {selectedItems.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={handleBulkExport}>
+                    <Download className="h-4 w-4 mr-1" />
+                    Export ({selectedItems.size})
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleBulkArchive}>
+                    <Archive className="h-4 w-4 mr-1" />
+                    Archive ({selectedItems.size})
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Delete ({selectedItems.size})
+                  </Button>
+                  <Select onValueChange={handleBulkStatusUpdate}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue placeholder="Update Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                      <SelectItem value="under_review">Under Review</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>PRF No</TableHead>
-                  <TableHead>Date Submit</TableHead>
-                  <TableHead>Submit By</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredData.map((prf) => (
-                  <TableRow key={prf.id}>
-                    <TableCell className="font-medium">{prf.id}</TableCell>
-                    <TableCell>{new Date(prf.dateSubmit).toLocaleDateString('id-ID')}</TableCell>
-                    <TableCell>{prf.submitBy}</TableCell>
-                    <TableCell>{prf.description}</TableCell>
-                    <TableCell>{formatCurrency(prf.amount)}</TableCell>
-                    <TableCell>{getStatusBadge(prf.progress)}</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
+          {error ? (
+            <div className="text-center py-8">
+              <p className="text-red-500 mb-4">Error loading PRF data: {error}</p>
+              <Button onClick={() => fetchPRFData()} variant="outline">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+            </div>
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
+                      <input
+                        type="checkbox"
+                        checked={selectedItems.size === filteredData.length && filteredData.length > 0}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                        className="rounded border-gray-300"
+                      />
+                    </TableHead>
+                    <TableHead>System ID</TableHead>
+                    <TableHead>PRF No</TableHead>
+                    <TableHead>Date Submit</TableHead>
+                    <TableHead>Submit By</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Cost Code</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Required For</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Budget Year</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={14} className="text-center py-8">
+                        <div className="flex items-center justify-center">
+                          <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                          Loading PRF data...
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredData.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={14} className="text-center py-8 text-muted-foreground">
+                        No PRF data found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredData.map((prf) => (
+                      <TableRow key={prf.id}>
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            checked={selectedItems.has(prf.id)}
+                            onChange={(e) => handleSelectItem(prf.id, e.target.checked)}
+                            className="rounded border-gray-300"
+                          />
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">{prf.id}</TableCell>
+                        <TableCell className="font-medium">{prf.prfNo}</TableCell>
+                        <TableCell>{new Date(prf.dateSubmit).toLocaleDateString('id-ID')}</TableCell>
+                        <TableCell>{prf.submitBy}</TableCell>
+                        <TableCell className="max-w-[200px] truncate" title={prf.description}>{prf.description}</TableCell>
+                        <TableCell className="font-mono text-sm">{prf.purchaseCostCode}</TableCell>
+                        <TableCell className="font-medium">{formatCurrency(prf.amount)}</TableCell>
+                        <TableCell className="max-w-[150px] truncate" title={prf.requiredFor}>{prf.requiredFor}</TableCell>
+                        <TableCell><Badge variant="outline">{prf.department}</Badge></TableCell>
+                        <TableCell>{getPriorityBadge(prf.priority)}</TableCell>
+                        <TableCell>{prf.budgetYear}</TableCell>
+                        <TableCell>{getStatusBadge(prf.progress)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <PRFDetailDialog prf={prf} />
+                            <Button variant="ghost" size="sm" title="Edit">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" title="Delete">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              
+              {/* Pagination Controls */}
+              {pagination.totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} entries
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                      disabled={pagination.page <= 1 || loading}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-sm">
+                      Page {pagination.page} of {pagination.totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                      disabled={pagination.page >= pagination.totalPages || loading}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

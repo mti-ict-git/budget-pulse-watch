@@ -1,0 +1,396 @@
+import { executeQuery } from '../config/database';
+import { PRF, CreatePRFRequest, UpdatePRFRequest, PRFQueryParams, PRFSummary, PRFItem, CreatePRFItemRequest, UpdatePRFParams, AddPRFItemsParams, UpdatePRFItemParams, PRFStatistics } from './types';
+
+export class PRFModel {
+  /**
+   * Generate next PRF number
+   */
+  static async generatePRFNumber(): Promise<string> {
+    const year = new Date().getFullYear();
+    const query = `
+      SELECT COUNT(*) + 1 as NextNumber 
+      FROM PRF 
+      WHERE YEAR(CreatedAt) = @Year
+    `;
+    
+    const result = await executeQuery<{ NextNumber: number }>(query, { Year: year });
+    const nextNumber = result.recordset[0].NextNumber;
+    
+    return `PRF-${year}-${nextNumber.toString().padStart(4, '0')}`;
+  }
+
+  /**
+   * Create a new PRF
+   */
+  static async create(prfData: CreatePRFRequest, requestorId: number): Promise<PRF> {
+    const prfNumber = await this.generatePRFNumber();
+    
+    const query = `
+      INSERT INTO PRF (
+        PRFNumber, Title, Description, RequestorID, Department, COAID, 
+        RequestedAmount, Priority, RequiredDate, Justification, 
+        VendorName, VendorContact, Notes
+      )
+      OUTPUT INSERTED.*
+      VALUES (
+        @PRFNumber, @Title, @Description, @RequestorID, @Department, @COAID,
+        @RequestedAmount, @Priority, @RequiredDate, @Justification,
+        @VendorName, @VendorContact, @Notes
+      )
+    `;
+    
+    const params = {
+      PRFNumber: prfNumber,
+      Title: prfData.Title,
+      Description: prfData.Description || null,
+      RequestorID: requestorId,
+      Department: prfData.Department,
+      COAID: prfData.COAID,
+      RequestedAmount: prfData.RequestedAmount,
+      Priority: prfData.Priority || 'Medium',
+      RequiredDate: prfData.RequiredDate || null,
+      Justification: prfData.Justification || null,
+      VendorName: prfData.VendorName || null,
+      VendorContact: prfData.VendorContact || null,
+      Notes: prfData.Notes || null
+    };
+    
+    const result = await executeQuery<PRF>(query, params);
+    const prf = result.recordset[0];
+
+    // Add PRF items if provided
+    if (prfData.Items && prfData.Items.length > 0) {
+      await this.addItems(prf.PRFID, prfData.Items);
+    }
+
+    return prf;
+  }
+
+  /**
+   * Find PRF by ID
+   */
+  static async findById(prfId: number): Promise<PRF | null> {
+    const query = `
+      SELECT * FROM PRF WHERE PRFID = @PRFID
+    `;
+    
+    const result = await executeQuery<PRF>(query, { PRFID: prfId });
+    return result.recordset[0] || null;
+  }
+
+  /**
+   * Find PRF by number
+   */
+  static async findByNumber(prfNumber: string): Promise<PRF | null> {
+    const query = `
+      SELECT * FROM PRF WHERE PRFNumber = @PRFNumber
+    `;
+    
+    const result = await executeQuery<PRF>(query, { PRFNumber: prfNumber });
+    return result.recordset[0] || null;
+  }
+
+  /**
+   * Get PRF with items
+   */
+  static async findByIdWithItems(prfId: number): Promise<(PRF & { Items: PRFItem[] }) | null> {
+    const prf = await this.findById(prfId);
+    if (!prf) return null;
+
+    const items = await this.getItems(prfId);
+    return { ...prf, Items: items };
+  }
+
+  /**
+   * Update PRF
+   */
+  static async update(prfId: number, updateData: UpdatePRFRequest): Promise<PRF> {
+    const setClause = [];
+    const params: UpdatePRFParams = { PRFID: prfId };
+
+    if (updateData.Title) {
+      setClause.push('Title = @Title');
+      params.Title = updateData.Title;
+    }
+    if (updateData.Description !== undefined) {
+      setClause.push('Description = @Description');
+      params.Description = updateData.Description;
+    }
+    if (updateData.Department) {
+      setClause.push('Department = @Department');
+      params.Department = updateData.Department;
+    }
+    if (updateData.COAID) {
+      setClause.push('COAID = @COAID');
+      params.COAID = updateData.COAID;
+    }
+    if (updateData.RequestedAmount) {
+      setClause.push('RequestedAmount = @RequestedAmount');
+      params.RequestedAmount = updateData.RequestedAmount;
+    }
+    if (updateData.Priority) {
+      setClause.push('Priority = @Priority');
+      params.Priority = updateData.Priority;
+    }
+    if (updateData.Status) {
+      setClause.push('Status = @Status');
+      params.Status = updateData.Status;
+    }
+    if (updateData.RequiredDate !== undefined) {
+      setClause.push('RequiredDate = @RequiredDate');
+      params.RequiredDate = updateData.RequiredDate;
+    }
+    if (updateData.ApprovedAmount !== undefined) {
+      setClause.push('ApprovedAmount = @ApprovedAmount');
+      params.ApprovedAmount = updateData.ApprovedAmount;
+    }
+    if (updateData.ActualAmount !== undefined) {
+      setClause.push('ActualAmount = @ActualAmount');
+      params.ActualAmount = updateData.ActualAmount;
+    }
+    if (updateData.ApprovalDate !== undefined) {
+      setClause.push('ApprovalDate = @ApprovalDate');
+      params.ApprovalDate = updateData.ApprovalDate;
+    }
+    if (updateData.CompletionDate !== undefined) {
+      setClause.push('CompletionDate = @CompletionDate');
+      params.CompletionDate = updateData.CompletionDate;
+    }
+    if (updateData.ApprovedBy !== undefined) {
+      setClause.push('ApprovedBy = @ApprovedBy');
+      params.ApprovedBy = updateData.ApprovedBy;
+    }
+    if (updateData.Justification !== undefined) {
+      setClause.push('Justification = @Justification');
+      params.Justification = updateData.Justification;
+    }
+    if (updateData.VendorName !== undefined) {
+      setClause.push('VendorName = @VendorName');
+      params.VendorName = updateData.VendorName;
+    }
+    if (updateData.VendorContact !== undefined) {
+      setClause.push('VendorContact = @VendorContact');
+      params.VendorContact = updateData.VendorContact;
+    }
+    if (updateData.Notes !== undefined) {
+      setClause.push('Notes = @Notes');
+      params.Notes = updateData.Notes;
+    }
+
+    setClause.push('UpdatedAt = GETDATE()');
+
+    const query = `
+      UPDATE PRF 
+      SET ${setClause.join(', ')}
+      OUTPUT INSERTED.*
+      WHERE PRFID = @PRFID
+    `;
+
+    const result = await executeQuery<PRF>(query, params);
+    return result.recordset[0];
+  }
+
+  /**
+   * Delete PRF
+   */
+  static async delete(prfId: number): Promise<boolean> {
+    const query = `DELETE FROM PRF WHERE PRFID = @PRFID`;
+    const result = await executeQuery(query, { PRFID: prfId });
+    return result.rowsAffected[0] > 0;
+  }
+
+  /**
+   * Get all PRFs with filtering and pagination
+   */
+  static async findAll(queryParams: PRFQueryParams): Promise<{ prfs: PRFSummary[], total: number }> {
+    const {
+      page = 1,
+      limit = 10,
+      Status,
+      Department,
+      Priority,
+      RequestorID,
+      COAID,
+      DateFrom,
+      DateTo,
+      Search
+    } = queryParams;
+
+    const offset = (page - 1) * limit;
+    const whereConditions = [];
+    const params: PRFQueryParams = { Offset: offset, Limit: limit };
+
+    if (Status) {
+      whereConditions.push('p.Status = @Status');
+      params.Status = Status;
+    }
+    if (Department) {
+      whereConditions.push('p.Department = @Department');
+      params.Department = Department;
+    }
+    if (Priority) {
+      whereConditions.push('p.Priority = @Priority');
+      params.Priority = Priority;
+    }
+    if (RequestorID) {
+      whereConditions.push('p.RequestorID = @RequestorID');
+      params.RequestorID = RequestorID;
+    }
+    if (COAID) {
+      whereConditions.push('p.COAID = @COAID');
+      params.COAID = COAID;
+    }
+    if (DateFrom) {
+      whereConditions.push('p.RequestDate >= @DateFrom');
+      params.DateFrom = DateFrom;
+    }
+    if (DateTo) {
+      whereConditions.push('p.RequestDate <= @DateTo');
+      params.DateTo = DateTo;
+    }
+    if (Search) {
+      whereConditions.push('(p.PRFNumber LIKE @Search OR p.Title LIKE @Search OR p.Description LIKE @Search)');
+      params.Search = `%${Search}%`;
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    const query = `
+      SELECT * FROM vw_PRFSummary
+      ${whereClause}
+      ORDER BY RequestDate DESC
+      OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*) as Total 
+      FROM PRF p
+      INNER JOIN Users u ON p.RequestorID = u.UserID
+      INNER JOIN ChartOfAccounts coa ON p.COAID = coa.COAID
+      ${whereClause}
+    `;
+
+    const countParams = { ...params };
+    delete countParams.Offset;
+    delete countParams.Limit;
+
+    const [prfsResult, countResult] = await Promise.all([
+      executeQuery<PRFSummary>(query, params),
+      executeQuery<{ Total: number }>(countQuery, countParams)
+    ]);
+
+    return {
+      prfs: prfsResult.recordset,
+      total: countResult.recordset[0].Total
+    };
+  }
+
+  /**
+   * Add items to PRF
+   */
+  static async addItems(prfId: number, items: CreatePRFItemRequest[]): Promise<PRFItem[]> {
+    const insertValues = items.map((_, index) => 
+      `(@PRFID, @ItemName${index}, @Description${index}, @Quantity${index}, @UnitPrice${index}, @Specifications${index})`
+    ).join(', ');
+
+    const params: AddPRFItemsParams = { PRFID: prfId };
+    items.forEach((item, index) => {
+      params[`ItemName${index}`] = item.ItemName;
+      params[`Description${index}`] = item.Description || null;
+      params[`Quantity${index}`] = item.Quantity;
+      params[`UnitPrice${index}`] = item.UnitPrice;
+      params[`Specifications${index}`] = item.Specifications || null;
+    });
+
+    const query = `
+      INSERT INTO PRFItems (PRFID, ItemName, Description, Quantity, UnitPrice, Specifications)
+      OUTPUT INSERTED.*
+      VALUES ${insertValues}
+    `;
+
+    const result = await executeQuery<PRFItem>(query, params);
+    return result.recordset;
+  }
+
+  /**
+   * Get PRF items
+   */
+  static async getItems(prfId: number): Promise<PRFItem[]> {
+    const query = `
+      SELECT * FROM PRFItems WHERE PRFID = @PRFID ORDER BY PRFItemID
+    `;
+    
+    const result = await executeQuery<PRFItem>(query, { PRFID: prfId });
+    return result.recordset;
+  }
+
+  /**
+   * Update PRF item
+   */
+  static async updateItem(itemId: number, updateData: Partial<CreatePRFItemRequest>): Promise<PRFItem> {
+    const setClause = [];
+    const params: UpdatePRFItemParams = { PRFItemID: itemId };
+
+    if (updateData.ItemName) {
+      setClause.push('ItemName = @ItemName');
+      params.ItemName = updateData.ItemName;
+    }
+    if (updateData.Description !== undefined) {
+      setClause.push('Description = @Description');
+      params.Description = updateData.Description;
+    }
+    if (updateData.Quantity) {
+      setClause.push('Quantity = @Quantity');
+      params.Quantity = updateData.Quantity;
+    }
+    if (updateData.UnitPrice) {
+      setClause.push('UnitPrice = @UnitPrice');
+      params.UnitPrice = updateData.UnitPrice;
+    }
+    if (updateData.Specifications !== undefined) {
+      setClause.push('Specifications = @Specifications');
+      params.Specifications = updateData.Specifications;
+    }
+
+    const query = `
+      UPDATE PRFItems 
+      SET ${setClause.join(', ')}
+      OUTPUT INSERTED.*
+      WHERE PRFItemID = @PRFItemID
+    `;
+
+    const result = await executeQuery<PRFItem>(query, params);
+    return result.recordset[0];
+  }
+
+  /**
+   * Delete PRF item
+   */
+  static async deleteItem(itemId: number): Promise<boolean> {
+    const query = `DELETE FROM PRFItems WHERE PRFItemID = @PRFItemID`;
+    const result = await executeQuery(query, { PRFItemID: itemId });
+    return result.rowsAffected[0] > 0;
+  }
+
+  /**
+   * Get PRF statistics
+   */
+  static async getStatistics(): Promise<PRFStatistics> {
+    const query = `
+      SELECT 
+        COUNT(*) as TotalPRFs,
+        SUM(CASE WHEN Status IN ('Draft', 'Submitted', 'Under Review') THEN 1 ELSE 0 END) as PendingPRFs,
+        SUM(CASE WHEN Status = 'Approved' THEN 1 ELSE 0 END) as ApprovedPRFs,
+        SUM(CASE WHEN Status = 'Completed' THEN 1 ELSE 0 END) as CompletedPRFs,
+        SUM(CASE WHEN Status = 'Rejected' THEN 1 ELSE 0 END) as RejectedPRFs,
+        SUM(RequestedAmount) as TotalRequestedAmount,
+        SUM(ApprovedAmount) as TotalApprovedAmount,
+        AVG(DATEDIFF(day, RequestDate, COALESCE(ApprovalDate, GETDATE()))) as AvgProcessingDays
+      FROM PRF
+      WHERE RequestDate >= DATEADD(year, -1, GETDATE())
+    `;
+
+    const result = await executeQuery(query);
+    return result.recordset[0];
+  }
+}
