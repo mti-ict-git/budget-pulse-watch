@@ -8,7 +8,8 @@ import {
   Menu,
   X,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils";
 const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
   { name: "PRF Monitoring", href: "/prf", icon: FileText },
+  { name: "Create PRF", href: "/prf/create", icon: Plus },
   { name: "Budget Overview", href: "/budget", icon: Wallet },
   { name: "Reports", href: "/reports", icon: TrendingUp },
   { name: "Alerts", href: "/alerts", icon: AlertTriangle },

@@ -7,6 +7,8 @@ import { Layout } from "./components/layout/Layout";
 import Dashboard from "./pages/Dashboard";
 import PRFMonitoring from "./pages/PRFMonitoring";
 import BudgetOverview from "./pages/BudgetOverview";
+import Settings from "./pages/Settings";
+import CreatePRF from "./pages/CreatePRF";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,10 +22,11 @@ const App = () => (
           <Route path="/" element={<Layout />}>
             <Route index element={<Dashboard />} />
             <Route path="prf" element={<PRFMonitoring />} />
+            <Route path="prf/create" element={<CreatePRF />} />
             <Route path="budget" element={<BudgetOverview />} />
             <Route path="reports" element={<div className="p-6">Reports coming soon...</div>} />
             <Route path="alerts" element={<div className="p-6">Alerts coming soon...</div>} />
-            <Route path="settings" element={<div className="p-6">Settings coming soon...</div>} />
+            <Route path="settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

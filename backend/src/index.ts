@@ -8,6 +8,9 @@ import prfRoutes from './routes/prfRoutes';
 import budgetRoutes from './routes/budgetRoutes';
 import coaRoutes from './routes/coaRoutes';
 import importRoutes from './routes/importRoutes';
+import settingsRoutes from './routes/settingsRoutes';
+import uploadRoutes from './routes/uploadRoutes';
+import ocrPrfRoutes from './routes/ocrPrfRoutes';
 // TODO: Add error handling middleware later
 
 // Load environment variables
@@ -40,6 +43,9 @@ app.use('/api/prfs', prfRoutes);
 app.use('/api/budgets', budgetRoutes);
 app.use('/api/coa', coaRoutes);
 app.use('/api/import', importRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/ocr-prf', ocrPrfRoutes);
 
 // Basic error handling
 app.use((req, res) => {

@@ -21,7 +21,6 @@ import {
 import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize } from "lucide-react";
 import { PRFDetailDialog } from "@/components/prf/PRFDetailDialog";
 import { ExcelImportDialog } from "@/components/prf/ExcelImportDialog";
-import { PRFCreateDialog } from "@/components/prf/PRFCreateDialog";
 
 // PRF Item interface
 interface PRFItem {
@@ -373,7 +372,6 @@ export default function PRFMonitoring() {
         </div>
         <div className="flex gap-2">
           <ExcelImportDialog />
-          <PRFCreateDialog onPRFCreated={fetchPRFData} />
         </div>
       </div>
 

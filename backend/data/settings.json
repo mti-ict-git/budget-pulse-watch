@@ -1,0 +1,7 @@
+{
+  "ocr": {
+    "enabled": true,
+    "geminiApiKey": "a41c84a7bd82ab1a66e10de86cbca1f0:05d34458bf7c4975030262776fffd749018299f043b1a8a30ca33b9d151ce4cb8450b4c8052312646057e60fe800ada8",
+    "model": "gemini-1.5-flash"
+  }
+}
