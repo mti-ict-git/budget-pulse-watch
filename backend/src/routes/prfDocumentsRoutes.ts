@@ -149,13 +149,13 @@ router.get('/scan-folder/:prfNo', async (req: Request, res: Response) => {
     
     const scanResult = await scanPRFFolder(prfNo, sharedFolderPath);
     
-    res.json({
+    return res.json({
       success: true,
       data: scanResult
     });
   } catch (error) {
     console.error('Error scanning PRF folder:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Failed to scan PRF folder',
       error: error instanceof Error ? error.message : 'Unknown error'
