@@ -30,11 +30,12 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const isPDF = file.mimeType === 'application/pdf';
   const isPreviewable = isImage || isPDF;
 
-  const fileUrl = `/api/prf-files/${prfId}/${file.id}/download`;
+  const fileUrl = `/api/prf-documents/view/${file.id}`;
+  const downloadUrl = `/api/prf-documents/download/${file.id}`;
 
   const handleDownload = () => {
     const link = document.createElement('a');
-    link.href = fileUrl;
+    link.href = downloadUrl;
     link.download = file.originalName;
     document.body.appendChild(link);
     link.click();

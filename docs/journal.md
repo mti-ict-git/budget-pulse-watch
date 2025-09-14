@@ -1486,6 +1486,99 @@ const handleManualSubmit = async (e: React.FormEvent) => {
 
 ---
 
+## 2025-09-14 20:07:32 - Document View and Download Functionality Implementation
+
+**Context**: The view document and download document features were not working in the PRF Documents interface. Users could scan and sync folders successfully, but couldn't view or download the synced documents.
+
+**Root Cause**: 
+1. Missing API endpoints for document download and viewing in `prfDocumentsRoutes.ts`
+2. Frontend components were using incorrect API endpoints
+3. Download functionality was not implemented (marked as TODO)
+
+**Solution Implemented**:
+
+### Backend Changes:
+- **Added `/download/:fileId` endpoint**: Serves files as attachments for download with proper headers
+- **Added `/view/:fileId` endpoint**: Serves files inline for viewing/preview with caching headers
+- **File path resolution**: Uses SharedPath or FilePath from database
+- **Error handling**: Proper 404 responses for missing files or file access issues
+- **Security**: File existence validation before serving
+
+### Frontend Changes:
+- **Updated `handleDocumentDownload`**: Implemented actual download functionality using the new API endpoint
+- **Fixed FilePreviewModal**: Updated to use correct API endpoints (`/api/prf-documents/view/` and `/api/prf-documents/download/`)
+- **Error handling**: Added try-catch blocks with user feedback via toast notifications
+
+**Files Modified**:
+- `backend/src/routes/prfDocumentsRoutes.ts` - Added download and view endpoints
+- `src/components/prf/PRFDocuments.tsx` - Implemented download functionality
+- `src/components/FilePreviewModal.tsx` - Fixed API endpoint URLs
+
+**Technical Details**:
+```typescript
+// New endpoints added:
+GET /api/prf-documents/download/:fileId - Download file as attachment
+GET /api/prf-documents/view/:fileId - View file inline with caching
+```
+
+**Verification**: 
+- TypeScript compilation passes without errors
+- Development server running on http://localhost:8080
+- Both view and download functionality now available in PRF Documents interface
+
+**Next Steps**: Test the functionality with actual PRF documents to ensure file serving works correctly.
+
+---
+
+## 2025-09-14 19:59:07 - Shared Folder Path Configuration Fix
+
+**Context**: The scan folder functionality was failing with a 400 Bad Request error "Shared folder path not configured" when users pressed the scan folder button in PRFDocuments.tsx.
+
+**Root Cause**: The `getSharedFolderPath()` function in `prfDocumentsRoutes.ts` was reading from `settings.sharedFolderPath` but the actual settings.json structure has the path under `settings.general.sharedFolderPath`.
+
+**Solution**: Updated the function to correctly access the nested property:
+```typescript
+// Before
+return settings.sharedFolderPath || '';
+
+// After  
+return settings.general?.sharedFolderPath || '';
+```
+
+**Files Modified**:
+- `backend/src/routes/prfDocumentsRoutes.ts` - Fixed shared folder path reading
+
+**Verification**: Development server running successfully, preview accessible at http://localhost:5173
+
+**Next Steps**: Test scan folder functionality in the UI to ensure the fix resolves the 400 error.
+
+---
+
+## 2025-09-14 19:55:12 - TypeScript Error Resolution
+
+**Context**: Fixed TypeScript compilation errors in PRF documents routes
+
+**Issues Resolved**:
+1. **Import Error**: Changed `import { pool }` to `import { getPool }` from database config
+2. **Missing Return Statements**: Added `return` statements to all response calls in API endpoints
+   - `/scan-folder/:prfNo` endpoint
+   - `/sync-folder/:prfNo` endpoint  
+   - `/documents/:prfId` endpoint
+   - `/sync-all-folders` endpoint
+
+**Technical Details**:
+- Database config exports `getPool()` function, not a `pool` object
+- TypeScript requires all code paths in functions to return a value
+- All `res.json()` and `res.status().json()` calls now have explicit `return` statements
+
+**Verification**:
+- `npx tsc --noEmit` now passes with exit code 0
+- No TypeScript compilation errors remaining
+
+**Next Steps**: System ready for testing and deployment
+
+---
+
 ## 2025-09-14 19:50:28 - PRF Folder Mapping System Implementation Complete
 
 **Context**: Implemented comprehensive folder mapping system to automatically organize and sync PRF documents by PRF number, addressing user requirements for network folder integration and metadata storage.

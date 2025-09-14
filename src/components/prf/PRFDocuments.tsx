@@ -179,12 +179,27 @@ const PRFDocuments: React.FC<PRFDocumentsProps> = ({ prfId, prfNo, onDocumentUpd
     setShowPreview(true);
   };
 
-  const handleDocumentDownload = (document: PRFDocument) => {
-    // TODO: Implement download functionality
-    toast({
-      title: "Download Started",
-      description: `Downloading ${document.OriginalFileName}`,
-    });
+  const handleDocumentDownload = async (doc: PRFDocument) => {
+    try {
+      const link = document.createElement('a');
+      link.href = `/api/prf-documents/download/${doc.FileID}`;
+      link.download = doc.OriginalFileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Download Started",
+        description: `Downloading ${doc.OriginalFileName}`,
+      });
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      toast({
+        title: "Download Failed",
+        description: `Failed to download ${doc.OriginalFileName}`,
+        variant: "destructive",
+      });
+    }
   };
 
   return (

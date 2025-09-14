@@ -42,7 +42,7 @@ async function getSharedFolderPath(): Promise<string> {
     const settingsPath = path.join(__dirname, '../../data/settings.json');
     const settingsData = await fs.readFile(settingsPath, 'utf-8');
     const settings = JSON.parse(settingsData);
-    return settings.sharedFolderPath || '';
+    return settings.general?.sharedFolderPath || '';
   } catch (error) {
     console.error('Error reading settings:', error);
     return '';
@@ -286,6 +286,132 @@ router.get('/documents/:prfId', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to get PRF documents',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// API endpoint: Download a specific document
+router.get('/download/:fileId', async (req: Request, res: Response) => {
+  try {
+    const { fileId } = req.params;
+    
+    const pool = getPool();
+    const result = await pool.request()
+      .input('fileId', fileId)
+      .query(`
+        SELECT 
+          FileID, PRFID, OriginalFileName, FilePath, SharedPath,
+          FileSize, FileType, MimeType, UploadDate, UploadedBy,
+          IsOriginalDocument, Description
+        FROM PRFFiles 
+        WHERE FileID = @fileId
+      `);
+    
+    if (result.recordset.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'File not found'
+      });
+    }
+    
+    const file = result.recordset[0];
+    const filePath = file.SharedPath || file.FilePath;
+    
+    if (!filePath) {
+      return res.status(404).json({
+        success: false,
+        message: 'File path not available'
+      });
+    }
+    
+    try {
+      // Check if file exists
+      await fs.access(filePath);
+      
+      // Set appropriate headers
+      res.setHeader('Content-Disposition', `attachment; filename="${file.OriginalFileName}"`);
+      res.setHeader('Content-Type', file.MimeType);
+      res.setHeader('Content-Length', file.FileSize);
+      
+      // Stream the file
+      const fileBuffer = await fs.readFile(filePath);
+      return res.send(fileBuffer);
+    } catch (fileError) {
+      console.error('Error reading file:', fileError);
+      return res.status(404).json({
+        success: false,
+        message: 'File not found on disk'
+      });
+    }
+  } catch (error) {
+    console.error('Error downloading file:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to download file',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// API endpoint: Serve a file for viewing (inline)
+router.get('/view/:fileId', async (req: Request, res: Response) => {
+  try {
+    const { fileId } = req.params;
+    
+    const pool = getPool();
+    const result = await pool.request()
+      .input('fileId', fileId)
+      .query(`
+        SELECT 
+          FileID, PRFID, OriginalFileName, FilePath, SharedPath,
+          FileSize, FileType, MimeType, UploadDate, UploadedBy,
+          IsOriginalDocument, Description
+        FROM PRFFiles 
+        WHERE FileID = @fileId
+      `);
+    
+    if (result.recordset.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'File not found'
+      });
+    }
+    
+    const file = result.recordset[0];
+    const filePath = file.SharedPath || file.FilePath;
+    
+    if (!filePath) {
+      return res.status(404).json({
+        success: false,
+        message: 'File path not available'
+      });
+    }
+    
+    try {
+      // Check if file exists
+      await fs.access(filePath);
+      
+      // Set appropriate headers for inline viewing
+      res.setHeader('Content-Type', file.MimeType);
+      res.setHeader('Content-Length', file.FileSize);
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      
+      // Stream the file
+      const fileBuffer = await fs.readFile(filePath);
+      return res.send(fileBuffer);
+    } catch (fileError) {
+      console.error('Error reading file:', fileError);
+      return res.status(404).json({
+        success: false,
+        message: 'File not found on disk'
+      });
+    }
+  } catch (error) {
+    console.error('Error serving file:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to serve file',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
