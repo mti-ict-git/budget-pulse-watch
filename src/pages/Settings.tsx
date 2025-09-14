@@ -17,6 +17,10 @@ interface OCRSettings {
   model: string;
 }
 
+interface GeneralSettings {
+  sharedFolderPath: string;
+}
+
 const Settings: React.FC = () => {
   const [ocrSettings, setOcrSettings] = useState<OCRSettings>({
     provider: 'gemini',
@@ -25,9 +29,13 @@ const Settings: React.FC = () => {
     enabled: false,
     model: 'gemini-1.5-flash'
   });
+  const [generalSettings, setGeneralSettings] = useState<GeneralSettings>({
+    sharedFolderPath: ''
+  });
   const [showApiKey, setShowApiKey] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isTestingFolder, setIsTestingFolder] = useState(false);
   const { toast } = useToast();
 
   // Load settings on component mount
@@ -37,15 +45,25 @@ const Settings: React.FC = () => {
 
   const loadSettings = async () => {
     try {
-      const response = await fetch('/api/settings/ocr');
-      if (response.ok) {
-        const settings = await response.json();
+      // Load OCR settings
+      const ocrResponse = await fetch('/api/settings/ocr');
+      if (ocrResponse.ok) {
+        const settings = await ocrResponse.json();
         setOcrSettings({
           provider: settings.provider || 'gemini',
           geminiApiKey: settings.geminiApiKey || '',
           openaiApiKey: settings.openaiApiKey || '',
           enabled: settings.enabled || false,
           model: settings.model || (settings.provider === 'openai' ? 'gpt-4o-mini' : 'gemini-1.5-flash')
+        });
+      }
+      
+      // Load general settings
+      const generalResponse = await fetch('/api/settings/general');
+      if (generalResponse.ok) {
+        const settings = await generalResponse.json();
+        setGeneralSettings({
+          sharedFolderPath: settings.sharedFolderPath || ''
         });
       }
     } catch (error) {
@@ -155,6 +173,92 @@ const Settings: React.FC = () => {
 
   const toggleOCREnabled = () => {
     setOcrSettings(prev => ({ ...prev, enabled: !prev.enabled }));
+  };
+
+  const handleSharedFolderPathChange = (value: string) => {
+    setGeneralSettings(prev => ({ ...prev, sharedFolderPath: value }));
+  };
+
+  const testSharedFolderPath = async () => {
+    if (!generalSettings.sharedFolderPath.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a shared folder path first.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsTestingFolder(true);
+    try {
+      const response = await fetch('/api/settings/test-folder-path', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ path: generalSettings.sharedFolderPath })
+      });
+
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        toast({
+          title: 'Success',
+          description: `Folder path is accessible. Found ${result.fileCount || 0} files.`,
+          variant: 'default'
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: result.error || 'Failed to access the shared folder path.',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Network error while testing folder path. Please check your connection.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsTestingFolder(false);
+    }
+  };
+
+  const saveGeneralSettings = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/settings/general', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(generalSettings)
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: 'General settings saved successfully!',
+          variant: 'default'
+        });
+      } else {
+        const error = await response.json();
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to save general settings.',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Network error while saving settings. Please check your connection.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -386,11 +490,52 @@ const Settings: React.FC = () => {
             <CardHeader>
               <CardTitle>General Settings</CardTitle>
               <CardDescription>
-                General application configuration options.
+                Configure general application settings including shared folder paths for file monitoring.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">General settings will be added here in future updates.</p>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="shared-folder-path">Shared Folder Path</Label>
+                  <div className="flex space-x-2">
+                    <Input
+                      id="shared-folder-path"
+                      type="text"
+                      placeholder="Enter shared folder path (e.g., \\\\server\\shared\\documents)"
+                      value={generalSettings.sharedFolderPath}
+                      onChange={(e) => handleSharedFolderPathChange(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button
+                      onClick={testSharedFolderPath}
+                      disabled={isTestingFolder || !generalSettings.sharedFolderPath.trim()}
+                      variant="outline"
+                    >
+                      <TestTube className="h-4 w-4 mr-2" />
+                      {isTestingFolder ? 'Testing...' : 'Test'}
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Specify the network path where PRF documents are stored. This path will be monitored for new files.
+                  </p>
+                </div>
+
+                <Alert>
+                  <AlertDescription>
+                    <strong>Network Path Examples:</strong><br />
+                    • Windows UNC: \\\\server\\shared\\documents<br />
+                    • Local path: C:\\Documents\\PRF<br />
+                    • Mapped drive: Z:\\PRF_Documents
+                  </AlertDescription>
+                </Alert>
+              </div>
+
+              <div className="flex justify-end space-x-2">
+                <Button onClick={saveGeneralSettings} disabled={isLoading}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {isLoading ? 'Saving...' : 'Save Settings'}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

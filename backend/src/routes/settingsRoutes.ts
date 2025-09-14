@@ -18,8 +18,13 @@ interface OCRSettings {
   model?: string;
 }
 
+interface GeneralSettings {
+  sharedFolderPath?: string;
+}
+
 interface AppSettings {
   ocr: OCRSettings;
+  general?: GeneralSettings;
 }
 
 // Encryption helpers
@@ -219,5 +224,106 @@ router.get('/ocr/key', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/settings/general - Get general settings
+router.get('/general', async (req: Request, res: Response) => {
+  try {
+    const settings = await loadSettings();
+    
+    res.json({
+      sharedFolderPath: settings.general?.sharedFolderPath || ''
+    });
+  } catch (error) {
+    console.error('Failed to load general settings:', error);
+    res.status(500).json({ error: 'Failed to load general settings' });
+  }
+});
+
+// POST /api/settings/general - Save general settings
+router.post('/general', async (req: Request, res: Response) => {
+  try {
+    const { sharedFolderPath } = req.body;
+    
+    if (sharedFolderPath && typeof sharedFolderPath !== 'string') {
+      return res.status(400).json({ error: 'sharedFolderPath must be a string' });
+    }
+    
+    const currentSettings = await loadSettings();
+    
+    // Update general settings
+    currentSettings.general = {
+      sharedFolderPath: sharedFolderPath || ''
+    };
+    
+    await saveSettings(currentSettings);
+    
+    return res.json({ 
+      message: 'General settings saved successfully',
+      sharedFolderPath: currentSettings.general.sharedFolderPath
+    });
+  } catch (error) {
+    console.error('Failed to save general settings:', error);
+    return res.status(500).json({ error: 'Failed to save general settings' });
+  }
+});
+
+// POST /api/settings/test-folder-path - Test shared folder path accessibility
+router.post('/test-folder-path', async (req: Request, res: Response) => {
+  try {
+    const { path: folderPath } = req.body;
+    
+    if (!folderPath || typeof folderPath !== 'string') {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Folder path is required' 
+      });
+    }
+
+    // Test folder accessibility
+    try {
+      const stats = await fs.stat(folderPath);
+      
+      if (!stats.isDirectory()) {
+        return res.json({
+          success: false,
+          error: 'Path exists but is not a directory'
+        });
+      }
+
+      // Try to read the directory to check permissions
+      const files = await fs.readdir(folderPath);
+      
+      return res.json({
+        success: true,
+        message: 'Folder path is accessible',
+        fileCount: files.length
+      });
+    } catch (fsError: unknown) {
+      let errorMessage = 'Failed to access folder path';
+      const error = fsError as { code?: string };
+      
+      if (error.code === 'ENOENT') {
+        errorMessage = 'Folder path does not exist';
+      } else if (error.code === 'EACCES' || error.code === 'EPERM') {
+        errorMessage = 'Permission denied. Check network permissions and credentials.';
+      } else if (error.code === 'ENOTDIR') {
+        errorMessage = 'Path exists but is not a directory';
+      } else if (error.code === 'ENETUNREACH' || error.code === 'EHOSTUNREACH') {
+        errorMessage = 'Network unreachable. Check network connectivity.';
+      }
+      
+      return res.json({
+        success: false,
+        error: errorMessage
+      });
+    }
+  } catch (error) {
+    console.error('Folder path test failed:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error while testing folder path'
+    });
+  }
+});
+
 export default router;
-export { loadSettings, saveSettings, OCRSettings, AppSettings };
+export { loadSettings, saveSettings, OCRSettings, GeneralSettings, AppSettings };

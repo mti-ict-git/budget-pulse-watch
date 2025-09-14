@@ -2,8 +2,11 @@
   "ocr": {
     "enabled": true,
     "provider": "openai",
-    "geminiApiKey": "64ec5307e86e89a03c460cac4e0381ea:d19512a3987769367edb625b2917eeed",
+    "geminiApiKey": "dd57bba049628f33dfd4d94743992d5c:92391353c14c95f657204e22f221edaa",
     "openaiApiKey": "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",
     "model": "gpt-4o-mini"
+  },
+  "general": {
+    "sharedFolderPath": "\\\\mbma.com\\shared\\PR_Document\\PT Merdeka Tsingshan Indonesia"
   }
 }

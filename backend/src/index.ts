@@ -12,6 +12,7 @@ import settingsRoutes from './routes/settingsRoutes';
 import uploadRoutes from './routes/uploadRoutes';
 import ocrPrfRoutes from './routes/ocrPrfRoutes';
 import prfFilesRoutes from './routes/prfFilesRoutes';
+import prfDocumentsRoutes from './routes/prfDocumentsRoutes';
 // TODO: Add error handling middleware later
 
 // Load environment variables
@@ -48,6 +49,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/ocr-prf', ocrPrfRoutes);
 app.use('/api/prf-files', prfFilesRoutes);
+app.use('/api/prf-documents', prfDocumentsRoutes);
 
 // Basic error handling
 app.use((req, res) => {

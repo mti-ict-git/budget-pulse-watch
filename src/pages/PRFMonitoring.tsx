@@ -18,9 +18,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize } from "lucide-react";
+import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync } from "lucide-react";
 import { PRFDetailDialog } from "@/components/prf/PRFDetailDialog";
 import { ExcelImportDialog } from "@/components/prf/ExcelImportDialog";
+import { toast } from "@/hooks/use-toast";
 
 // PRF Item interface
 interface PRFItem {
@@ -146,6 +147,7 @@ export default function PRFMonitoring() {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [availableStatusValues, setAvailableStatusValues] = useState<string[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [isBulkSyncing, setIsBulkSyncing] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 50,
@@ -357,6 +359,41 @@ export default function PRFMonitoring() {
     // TODO: Implement bulk status update functionality
   };
 
+  const handleBulkSync = async () => {
+    setIsBulkSyncing(true);
+    try {
+      const response = await fetch('/api/prf-documents/bulk-sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: 1 }), // TODO: Get from auth context
+      });
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: "Bulk Sync Completed",
+          description: `Synced ${result.data.totalSynced} files across ${result.data.foldersProcessed} PRF folders`,
+        });
+        
+        // Optionally refresh PRF data
+        fetchPRFData();
+      } else {
+        throw new Error(result.message || 'Failed to perform bulk sync');
+      }
+    } catch (error) {
+      console.error('Error during bulk sync:', error);
+      toast({
+        title: "Bulk Sync Failed",
+        description: error instanceof Error ? error.message : 'Failed to sync folders',
+        variant: "destructive",
+      });
+    } finally {
+      setIsBulkSyncing(false);
+    }
+  };
+
   const handlePageSizeChange = (newLimit: string) => {
     setPagination(prev => ({ ...prev, limit: parseInt(newLimit), page: 1 }));
   };
@@ -371,6 +408,18 @@ export default function PRFMonitoring() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleBulkSync}
+            disabled={isBulkSyncing}
+          >
+            {isBulkSyncing ? (
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <FolderSync className="h-4 w-4 mr-2" />
+            )}
+            Bulk Sync Folders
+          </Button>
           <ExcelImportDialog />
         </div>
       </div>

@@ -1486,6 +1486,72 @@ const handleManualSubmit = async (e: React.FormEvent) => {
 
 ---
 
+## 2025-09-14 19:50:28 - PRF Folder Mapping System Implementation Complete
+
+**Context**: Implemented comprehensive folder mapping system to automatically organize and sync PRF documents by PRF number, addressing user requirements for network folder integration and metadata storage.
+
+**What was done**:
+
+### Backend Implementation:
+1. **PRF Documents API** (`backend/src/routes/prfDocumentsRoutes.ts`):
+   - `/scan-folder/:prfNo` - Scans network folders by PRF number
+   - `/sync-folder/:prfNo` - Syncs discovered files to PRFFiles table
+   - `/documents/:prfId` - Retrieves synced documents for a PRF
+   - `/bulk-sync` - Bulk synchronization across all PRF folders
+   - Helper functions for MIME type detection and shared folder path resolution
+
+2. **Database Integration**:
+   - Utilized existing `PRFFiles` table (line 219 in schema.sql)
+   - Populated FilePath, SharedPath, and metadata columns
+   - Maintained file audit trail with upload tracking
+
+3. **Route Registration**:
+   - Added prfDocumentsRoutes to main backend index.ts
+   - Registered `/api/prf-documents` endpoint group
+
+### Frontend Implementation:
+4. **PRFDocuments Component** (`src/components/prf/PRFDocuments.tsx`):
+   - Folder scanning with real-time file discovery
+   - Document synchronization to database
+   - File preview integration with existing FilePreviewModal
+   - Progress tracking and error handling
+   - File type icons and size formatting
+   - Document metadata display (upload date, file type, size)
+
+5. **PRF Detail Integration**:
+   - Replaced PRFFileExplorer with PRFDocuments in PRFDetailDialog
+   - Seamless integration with existing PRF detail view
+   - Maintained consistent UI/UX patterns
+
+6. **Bulk Sync Functionality**:
+   - Added bulk sync button to PRF Monitoring page
+   - Progress indicators and toast notifications
+   - Error handling for network connectivity issues
+
+### Architecture Decisions:
+- **Reused existing database schema**: Leveraged PRFFiles table instead of creating new tables
+- **Network folder mapping**: PRF number directly maps to folder name (e.g., PRF 31555 → folder 31555)
+- **Metadata persistence**: Complete file information stored in database for quick access
+- **Progressive enhancement**: Scan → Preview → Sync workflow for user control
+- **Error resilience**: Graceful handling of missing folders and network issues
+
+### Key Features:
+- **Auto-discovery**: Automatically finds files in network folders by PRF number
+- **Metadata storage**: File size, type, MIME type, and upload tracking
+- **Eye view display**: Visual file listing with icons and metadata
+- **Bulk operations**: Sync all PRF folders at once from monitoring page
+- **File preview**: Integration with existing modal for PDF/image preview
+- **Progress tracking**: Real-time feedback during scan and sync operations
+
+**Next steps**:
+- Configure shared folder base path in Settings page
+- Add file versioning and conflict resolution
+- Implement file download functionality
+- Add network permission validation
+- Monitor performance with large folder structures
+
+---
+
 ## Error Resolution - September 14, 2025 5:12:47 PM
 
 ### Context
@@ -1594,3 +1660,103 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
 **Next steps**:
 - Continue monitoring for `any` usage across the codebase
 - Consider stricter TypeScript configuration to prevent `any` types
+
+---
+
+## 2025-09-14 17:56:21 - Shared Folder Configuration Feature Complete ✅
+
+**Context**: Implemented complete shared folder path configuration functionality with comprehensive error handling for network permissions and connectivity issues
+
+**What was done**:
+
+### Frontend Implementation
+- **Enhanced Settings Page**: Added shared folder configuration to General tab
+- **User Interface**: Input field with test button for folder path validation
+- **Error Handling**: Comprehensive network error handling with user-friendly messages
+- **Examples**: Added helpful network path examples (UNC, local, mapped drives)
+
+### Backend Implementation
+- **API Endpoints**: Created `/api/settings/general` for CRUD operations
+- **Folder Testing**: Implemented `/api/settings/test-folder-path` endpoint
+- **Error Handling**: Detailed error codes for different failure scenarios:
+  - `ENOENT`: Folder doesn't exist
+  - `EACCES`/`EPERM`: Permission denied
+  - `ENOTDIR`: Path is not a directory
+  - `ENETUNREACH`/`EHOSTUNREACH`: Network connectivity issues
+- **Data Persistence**: Extended settings.json structure with general settings
+
+**Files modified**:
+- `src/pages/Settings.tsx` - Added shared folder configuration UI
+- `backend/src/routes/settingsRoutes.ts` - Added general settings endpoints
+- `backend/data/settings.json` - Extended with general settings structure
+
+**Features implemented**:
+- ✅ Shared folder path input and validation
+- ✅ Real-time folder accessibility testing
+- ✅ Network permission error handling
+- ✅ Connectivity issue detection
+- ✅ User-friendly error messages
+- ✅ Settings persistence
+- ✅ TypeScript type safety
+
+**Technical details**:
+```typescript
+// Frontend interface
+interface GeneralSettings {
+  sharedFolderPath: string;
+}
+
+// Backend error handling
+if (fsError.code === 'EACCES' || fsError.code === 'EPERM') {
+  errorMessage = 'Permission denied. Check network permissions and credentials.';
+} else if (fsError.code === 'ENETUNREACH' || fsError.code === 'EHOSTUNREACH') {
+  errorMessage = 'Network unreachable. Check network connectivity.';
+}
+```
+
+**Benefits achieved**:
+- **Enhanced User Experience**: Clear feedback on folder accessibility
+- **Robust Error Handling**: Specific error messages for different failure scenarios
+- **Network Resilience**: Proper handling of network connectivity issues
+- **Type Safety**: Full TypeScript coverage for new functionality
+- **Maintainability**: Clean separation of concerns between frontend and backend
+
+**Next steps**:
+- Test with various network configurations
+- Consider adding folder monitoring capabilities
+- Implement file change notifications for the configured path
+
+---
+
+## 2025-09-14 18:14:29 - Backend Type Safety Enhancement ✅
+
+**Context**: Improved type safety in backend error handling by replacing `any` type with proper TypeScript typing
+
+**What was done**:
+- **File**: `backend/src/routes/settingsRoutes.ts` line 300
+- **Change**: Replaced `catch (fsError: any)` with `catch (fsError: unknown)`
+- **Type Safety**: Added proper type assertion `const error = fsError as { code?: string }`
+- **Error Handling**: Updated all error code references to use the typed `error` variable
+
+**Technical details**:
+```typescript
+// Before (unsafe)
+catch (fsError: any) {
+  if (fsError.code === 'ENOENT') {
+
+// After (type-safe)
+catch (fsError: unknown) {
+  const error = fsError as { code?: string };
+  if (error.code === 'ENOENT') {
+```
+
+**Benefits achieved**:
+- **Type Safety**: Eliminated `any` type usage
+- **Code Quality**: Better TypeScript compliance
+- **Maintainability**: Explicit type handling for error objects
+- **Compilation**: TypeScript compilation passes without warnings
+
+**Verification**:
+- ✅ TypeScript compilation successful
+- ✅ Error handling functionality preserved
+- ✅ All error codes properly typed
