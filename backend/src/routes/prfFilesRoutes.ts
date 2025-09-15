@@ -1,7 +1,8 @@
 import express from 'express';
 import multer from 'multer';
 import { PRFFilesModel } from '../models/PRFFiles';
-import { getSharedStorageService } from '../services/sharedStorageService';
+import { getSharedStorageService, SharedStorageConfig } from '../services/sharedStorageService';
+import { loadSettings } from './settingsRoutes';
 import path from 'path';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
@@ -95,7 +96,14 @@ router.post('/:prfId/upload', upload.single('file'), async (req, res) => {
     let fileRecord = null;
     
     try {
-      const sharedStorageService = getSharedStorageService();
+      // Load settings to configure shared storage
+      const settings = await loadSettings();
+      const sharedStorageConfig: SharedStorageConfig = {
+        basePath: settings.general?.sharedFolderPath || '',
+        enabled: !!(settings.general?.sharedFolderPath?.trim())
+      };
+      
+      const sharedStorageService = getSharedStorageService(sharedStorageConfig);
       
       // Get PRF number for shared storage path
       // TODO: Fetch actual PRF number from database

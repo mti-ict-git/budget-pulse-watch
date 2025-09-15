@@ -33,6 +33,7 @@ interface ExtractedPRFData {
   projectId?: string;
   referenceDrawingNumber?: string;
   generalLedgerCode?: string;
+  requestFor?: string; // Auto-extracted from item descriptions
   budgeted?: boolean;
   underICTControl?: boolean;
   receivedPRDate?: string;
@@ -445,18 +446,13 @@ const CreatePRF: React.FC = () => {
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <Label htmlFor="department">Department *</Label>
-                            <Select value={formData.Department} onValueChange={(value) => handleInputChange('Department', value)}>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select department" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {departments.map((dept) => (
-                                  <SelectItem key={dept} value={dept}>
-                                    {dept}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <Input
+                               id="department"
+                               value={formData.Department}
+                               onChange={(e) => handleInputChange('Department', e.target.value)}
+                               placeholder="Enter department"
+                               required
+                             />
                           </div>
                           <div>
                             <Label htmlFor="priority">Priority</Label>

@@ -21,13 +21,15 @@ export class PRFModel {
       INSERT INTO PRF (
         PRFNo, Title, Description, RequestorID, Department, COAID, 
         RequestedAmount, Priority, RequiredDate, Justification, 
-        VendorName, VendorContact, Notes
+        VendorName, VendorContact, Notes, DateSubmit, SubmitBy, 
+        SumDescriptionRequested, PurchaseCostCode, RequiredFor, BudgetYear
       )
       OUTPUT INSERTED.*
       VALUES (
         @PRFNo, @Title, @Description, @RequestorID, @Department, @COAID,
         @RequestedAmount, @Priority, @RequiredDate, @Justification,
-        @VendorName, @VendorContact, @Notes
+        @VendorName, @VendorContact, @Notes, @DateSubmit, @SubmitBy,
+        @SumDescriptionRequested, @PurchaseCostCode, @RequiredFor, @BudgetYear
       )
     `;
     
@@ -44,7 +46,13 @@ export class PRFModel {
       Justification: prfData.Justification || null,
       VendorName: prfData.VendorName || null,
       VendorContact: prfData.VendorContact || null,
-      Notes: prfData.Notes || null
+      Notes: prfData.Notes || null,
+      DateSubmit: prfData.DateSubmit || null,
+      SubmitBy: prfData.SubmitBy || null,
+      SumDescriptionRequested: prfData.SumDescriptionRequested || null,
+      PurchaseCostCode: prfData.PurchaseCostCode || null,
+      RequiredFor: prfData.RequiredFor || null,
+      BudgetYear: prfData.BudgetYear || null
     };
     
     const result = await executeQuery<PRF>(query, params);

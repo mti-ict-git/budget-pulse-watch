@@ -41,7 +41,7 @@ export function Sidebar({ className }: SidebarProps) {
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border">
         {!isCollapsed && (
-          <h1 className="text-xl font-bold text-primary">PO Monitor</h1>
+          <h1 className="text-xl font-bold text-primary">MTI ICT PO Monitoring</h1>
         )}
         <Button
           variant="ghost"

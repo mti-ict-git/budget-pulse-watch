@@ -21,6 +21,8 @@ import {
 import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync } from "lucide-react";
 import { PRFDetailDialog } from "@/components/prf/PRFDetailDialog";
 import { ExcelImportDialog } from "@/components/prf/ExcelImportDialog";
+import { PRFEditDialog } from "@/components/prf/PRFEditDialog";
+import { PRFDeleteDialog } from "@/components/prf/PRFDeleteDialog";
 import { toast } from "@/hooks/use-toast";
 
 // PRF Item interface
@@ -683,12 +685,8 @@ export default function PRFMonitoring() {
                           <TableCell onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-2">
                               <PRFDetailDialog prf={prf} />
-                              <Button variant="ghost" size="sm" title="Edit">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" title="Delete">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <PRFEditDialog prf={prf} onPRFUpdated={fetchPRFData} />
+                              <PRFDeleteDialog prf={prf} onPRFDeleted={fetchPRFData} />
                             </div>
                           </TableCell>
                         </TableRow>

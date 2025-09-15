@@ -13,6 +13,9 @@ import uploadRoutes from './routes/uploadRoutes';
 import ocrPrfRoutes from './routes/ocrPrfRoutes';
 import prfFilesRoutes from './routes/prfFilesRoutes';
 import prfDocumentsRoutes from './routes/prfDocumentsRoutes';
+import authRoutes from './routes/auth';
+import ldapUsersRoutes from './routes/ldapUsers';
+import { initializeDatabase, ensureTablesExist } from './config/initializeDatabase';
 // TODO: Add error handling middleware later
 
 // Load environment variables
@@ -50,6 +53,8 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/ocr-prf', ocrPrfRoutes);
 app.use('/api/prf-files', prfFilesRoutes);
 app.use('/api/prf-documents', prfDocumentsRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/ldap-users', ldapUsersRoutes);
 
 // Basic error handling
 app.use((req, res) => {
@@ -68,9 +73,15 @@ const startServer = async () => {
     await connectDatabase();
     console.log('✅ Database connected successfully');
     
+    // Ensure tables exist and initialize database
+    await ensureTablesExist();
+    await initializeDatabase();
+    
+    // Start server
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📊 PRF Monitoring API ready at http://localhost:${PORT}`);
+      console.log(`📊 API Health Check: http://localhost:${PORT}/health`);
+      console.log(`🔐 Auth API: http://localhost:${PORT}/api/auth`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

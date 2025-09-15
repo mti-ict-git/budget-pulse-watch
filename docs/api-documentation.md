@@ -1,8 +1,8 @@
-# Budget Pulse Watch API Documentation
+# MTI ICT PO Monitoring API Documentation
 
 ## Overview
 
-The Budget Pulse Watch API is a RESTful API built with Node.js, Express, and TypeScript that provides comprehensive budget management and Purchase Request Form (PRF) monitoring capabilities.
+The MTI ICT PO Monitoring API is a RESTful API built with Node.js, Express, and TypeScript that provides comprehensive budget management and Purchase Request Form (PRF) monitoring capabilities.
 
 ### Base URL
 ```

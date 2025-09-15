@@ -31,6 +31,7 @@ interface ExtractedPRFData {
   projectId?: string;
   referenceDrawingNumber?: string;
   generalLedgerCode?: string;
+  requestFor?: string; // Auto-extracted from item descriptions
   budgeted?: boolean;
   underICTControl?: boolean;
   receivedPRDate?: string;
@@ -446,7 +447,11 @@ const OCRUpload: React.FC<OCRUploadProps> = ({ onPRFCreated, onPreviewData }) =>
                     <p className="text-sm text-gray-900">{extractedData.projectId || 'Not detected'}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700">General Ledger Code</label>
+                    <label className="text-sm font-medium text-gray-700">Request For</label>
+                    <p className="text-sm text-gray-900">{extractedData.requestFor || 'Not detected'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Cost Code</label>
                     <p className="text-sm text-gray-900">{extractedData.generalLedgerCode || 'Not detected'}</p>
                   </div>
                   <div>

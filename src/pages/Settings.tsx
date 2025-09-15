@@ -6,8 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Eye, EyeOff, Save, TestTube } from 'lucide-react';
+import { Eye, EyeOff, Save, TestTube, Users, Search, UserPlus, UserMinus, Shield } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { authService } from '@/services/authService';
 
 interface OCRSettings {
   provider: 'gemini' | 'openai';
@@ -19,6 +21,23 @@ interface OCRSettings {
 
 interface GeneralSettings {
   sharedFolderPath: string;
+}
+
+interface LDAPUser {
+  Username: string;
+  FullName?: string;
+  Email?: string;
+  Department?: string;
+  LastLogin?: string;
+  GrantedBy: string;
+  GrantedAt: string;
+}
+
+interface ADUser {
+  username: string;
+  displayName: string;
+  email: string;
+  department?: string;
 }
 
 const Settings: React.FC = () => {
@@ -36,12 +55,25 @@ const Settings: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isTestingFolder, setIsTestingFolder] = useState(false);
+  
+  // LDAP User Management State
+  const [ldapUsers, setLdapUsers] = useState<LDAPUser[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<ADUser[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isGrantingAccess, setIsGrantingAccess] = useState(false);
+  const [isTestingLDAP, setIsTestingLDAP] = useState(false);
+  
   const { toast } = useToast();
+  const { user } = useAuth();
 
   // Load settings on component mount
   useEffect(() => {
     loadSettings();
-  }, []);
+    if (user?.role === 'Admin') {
+      loadLDAPUsers();
+    }
+  }, [user]);
 
   const loadSettings = async () => {
     try {
@@ -98,6 +130,149 @@ const Settings: React.FC = () => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // LDAP User Management Functions
+  const loadLDAPUsers = async () => {
+    try {
+      const response = await fetch('/api/ldap-users', {
+        headers: authService.getAuthHeaders()
+      });
+      if (response.ok) {
+        const users = await response.json();
+        setLdapUsers(users);
+      }
+    } catch (error) {
+      console.error('Failed to load LDAP users:', error);
+    }
+  };
+
+  const searchADUsers = async () => {
+    if (!searchTerm.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a search term.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const response = await fetch(`/api/ldap-users/search?q=${encodeURIComponent(searchTerm)}`, {
+        headers: authService.getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        const results = await response.json();
+        setSearchResults(results);
+        if (results.length === 0) {
+          toast({
+            title: 'No Results',
+            description: 'No users found matching your search term.'
+          });
+        }
+      } else {
+        throw new Error('Search failed');
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to search Active Directory. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const grantUserAccess = async (username: string) => {
+    setIsGrantingAccess(true);
+    try {
+      const response = await fetch('/api/ldap-users/grant', {
+        method: 'POST',
+        headers: authService.getAuthHeaders(),
+        body: JSON.stringify({ username })
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: `Access granted to ${username}`
+        });
+        loadLDAPUsers();
+        setSearchResults(prev => prev.filter(user => user.username !== username));
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to grant access');
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to grant access',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsGrantingAccess(false);
+    }
+  };
+
+  const revokeUserAccess = async (username: string) => {
+    try {
+      const response = await fetch(`/api/ldap-users/${username}`, {
+        method: 'DELETE',
+        headers: authService.getAuthHeaders()
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: `Access revoked for ${username}`
+        });
+        loadLDAPUsers();
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to revoke access');
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to revoke access',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const testLDAPConnection = async () => {
+    setIsTestingLDAP(true);
+    try {
+      const response = await fetch('/api/ldap-users/test-connection', {
+        headers: authService.getAuthHeaders()
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: 'Success',
+          description: 'LDAP connection is working properly.'
+        });
+      } else {
+        toast({
+          title: 'Connection Failed',
+          description: result.message || 'LDAP connection test failed.',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to test LDAP connection.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsTestingLDAP(false);
     }
   };
 
@@ -274,6 +449,12 @@ const Settings: React.FC = () => {
         <TabsList>
           <TabsTrigger value="ocr">OCR Configuration</TabsTrigger>
           <TabsTrigger value="general">General</TabsTrigger>
+          {user?.role === 'Admin' && (
+            <TabsTrigger value="users">
+              <Users className="h-4 w-4 mr-2" />
+              User Management
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="ocr">
@@ -539,6 +720,144 @@ const Settings: React.FC = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {user?.role === 'Admin' && (
+          <TabsContent value="users">
+            <div className="space-y-6">
+              {/* LDAP Connection Test */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    LDAP Connection
+                  </CardTitle>
+                  <CardDescription>
+                    Test the connection to your Active Directory server.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={testLDAPConnection}
+                    disabled={isTestingLDAP}
+                    variant="outline"
+                  >
+                    <TestTube className="h-4 w-4 mr-2" />
+                    {isTestingLDAP ? 'Testing...' : 'Test LDAP Connection'}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Search AD Users */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Search className="h-5 w-5" />
+                    Search Active Directory
+                  </CardTitle>
+                  <CardDescription>
+                    Search for users in Active Directory to grant access.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex space-x-2">
+                    <Input
+                      placeholder="Search by username, name, or email..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && searchADUsers()}
+                      className="flex-1"
+                    />
+                    <Button
+                      onClick={searchADUsers}
+                      disabled={isSearching || !searchTerm.trim()}
+                    >
+                      <Search className="h-4 w-4 mr-2" />
+                      {isSearching ? 'Searching...' : 'Search'}
+                    </Button>
+                  </div>
+
+                  {searchResults.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="font-medium">Search Results:</h4>
+                      <div className="border rounded-lg divide-y">
+                        {searchResults.map((adUser) => (
+                          <div key={adUser.username} className="p-3 flex items-center justify-between">
+                            <div>
+                              <div className="font-medium">{adUser.displayName}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {adUser.username} • {adUser.email}
+                                {adUser.department && ` • ${adUser.department}`}
+                              </div>
+                            </div>
+                            <Button
+                              onClick={() => grantUserAccess(adUser.username)}
+                              disabled={isGrantingAccess || ldapUsers.some(u => u.Username === adUser.username)}
+                              size="sm"
+                            >
+                              <UserPlus className="h-4 w-4 mr-2" />
+                              {ldapUsers.some(u => u.Username === adUser.username) ? 'Already Has Access' : 'Grant Access'}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Current LDAP Users */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Users with Access ({ldapUsers.length})
+                  </CardTitle>
+                  <CardDescription>
+                    Active Directory users who have been granted access to the system.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {ldapUsers.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No LDAP users have been granted access yet.</p>
+                      <p className="text-sm">Use the search above to find and grant access to AD users.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="border rounded-lg divide-y">
+                        {ldapUsers.map((ldapUser) => (
+                          <div key={ldapUser.Username} className="p-3 flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="font-medium">{ldapUser.FullName || ldapUser.Username}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {ldapUser.Username}
+                                {ldapUser.Email && ` • ${ldapUser.Email}`}
+                                {ldapUser.Department && ` • ${ldapUser.Department}`}
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                Granted by {ldapUser.GrantedBy} on {new Date(ldapUser.GrantedAt).toLocaleDateString()}
+                                {ldapUser.LastLogin && ` • Last login: ${new Date(ldapUser.LastLogin).toLocaleDateString()}`}
+                              </div>
+                            </div>
+                            <Button
+                              onClick={() => revokeUserAccess(ldapUser.Username)}
+                              variant="destructive"
+                              size="sm"
+                            >
+                              <UserMinus className="h-4 w-4 mr-2" />
+                              Revoke Access
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

@@ -221,4 +221,17 @@ export class UserModel {
     const result = await executeQuery<{ Count: number }>(query, params);
     return (result.recordset[0] as ExistsResult).Count > 0;
   }
+
+  /**
+   * Update user's last login timestamp
+   */
+  static async updateLastLogin(userId: number): Promise<void> {
+    const query = `
+      UPDATE Users 
+      SET UpdatedAt = GETDATE() 
+      WHERE UserID = @UserID
+    `;
+    
+    await executeQuery(query, { UserID: userId });
+  }
 }

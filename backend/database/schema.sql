@@ -250,3 +250,27 @@ INSERT INTO ChartOfAccounts (COACode, COAName, Description, Category) VALUES
 ('IT-005', 'Office Equipment', 'Printers, scanners, office hardware', 'Equipment'),
 ('IT-006', 'Training & Development', 'IT training, certifications, courses', 'Training'),
 ('IT-007', 'Maintenance & Support', 'Hardware maintenance, software support', 'Maintenance');
+
+-- LDAP User Access table for Active Directory authentication
+CREATE TABLE LDAPUserAccess (
+    AccessID INT IDENTITY(1,1) PRIMARY KEY,
+    Username NVARCHAR(100) UNIQUE NOT NULL, -- AD username
+    Email NVARCHAR(100) UNIQUE NOT NULL, -- AD email
+    DisplayName NVARCHAR(200) NOT NULL, -- AD display name
+    Department NVARCHAR(100) NULL, -- AD department
+    Role NVARCHAR(20) DEFAULT 'User' CHECK (Role IN ('Admin', 'Manager', 'User')),
+    IsActive BIT DEFAULT 1,
+    GrantedBy INT NOT NULL, -- Admin who granted access
+    GrantedAt DATETIME2 DEFAULT GETDATE(),
+    LastLogin DATETIME2 NULL,
+    CreatedAt DATETIME2 DEFAULT GETDATE(),
+    UpdatedAt DATETIME2 DEFAULT GETDATE(),
+    FOREIGN KEY (GrantedBy) REFERENCES Users(UserID)
+);
+
+-- Create indexes for LDAP User Access
+CREATE INDEX IX_LDAPUserAccess_Username ON LDAPUserAccess(Username);
+CREATE INDEX IX_LDAPUserAccess_Email ON LDAPUserAccess(Email);
+CREATE INDEX IX_LDAPUserAccess_IsActive ON LDAPUserAccess(IsActive);
+CREATE INDEX IX_LDAPUserAccess_Role ON LDAPUserAccess(Role);
+GO

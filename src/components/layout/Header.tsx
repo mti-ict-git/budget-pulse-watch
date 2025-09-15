@@ -1,4 +1,4 @@
-import { Bell, Search, User } from "lucide-react";
+import { Bell, Search, User, LogOut, Settings, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,8 +10,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "../../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 export function Header() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  const handleSettings = () => {
+    navigate('/settings');
+  };
+
   return (
     <header className="h-16 border-b border-border bg-card px-6 flex items-center justify-between">
       {/* Search */}
@@ -27,6 +41,15 @@ export function Header() {
 
       {/* Actions */}
       <div className="flex items-center space-x-4">
+        {/* User Info */}
+        <div className="hidden md:flex flex-col items-end text-sm">
+          <span className="font-medium">{user?.firstName} {user?.lastName}</span>
+          <div className="flex items-center gap-1 text-muted-foreground">
+            {user?.role === 'Admin' && <Shield className="h-3 w-3" />}
+            <span className="text-xs">{user?.role} • {user?.department}</span>
+          </div>
+        </div>
+
         {/* Notifications */}
         <Button variant="ghost" size="sm" className="relative">
           <Bell className="h-5 w-5" />
@@ -41,17 +64,28 @@ export function Header() {
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" className="flex items-center gap-2">
               <User className="h-5 w-5" />
+              <span className="hidden sm:inline">{user?.username}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuLabel>
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium">{user?.firstName} {user?.lastName}</p>
+                <p className="text-xs text-muted-foreground">{user?.email}</p>
+              </div>
+            </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Profile</DropdownMenuItem>
-            <DropdownMenuItem>Settings</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleSettings} className="cursor-pointer">
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Sign out</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive">
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign out
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

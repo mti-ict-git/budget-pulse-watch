@@ -6,8 +6,9 @@ import { CreatePRFRequest, CreatePRFItemRequest } from '../models/types';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs/promises';
-import { getSharedStorageService } from '../services/sharedStorageService';
+import { getSharedStorageService, SharedStorageConfig } from '../services/sharedStorageService';
 import { PRFFilesModel } from '../models/PRFFiles';
+import { loadSettings } from './settingsRoutes';
 
 const router = express.Router();
 
@@ -112,7 +113,7 @@ router.post('/create-from-document', upload.single('document'), async (req, res)
         SubmitBy: extractedData.requestedBy || 'Unknown',
         SumDescriptionRequested: extractedData.projectDescription || '',
         PurchaseCostCode: extractedData.generalLedgerCode || '',
-        RequiredFor: extractedData.projectId || '',
+        RequiredFor: extractedData.requestFor || extractedData.projectId || '',
         BudgetYear: new Date().getFullYear()
       };
 
@@ -153,7 +154,14 @@ router.post('/create-from-document', upload.single('document'), async (req, res)
       let sharedStorageResult = null;
       let fileRecord = null;
       try {
-        const sharedStorageService = getSharedStorageService();
+        // Load settings to configure shared storage
+        const settings = await loadSettings();
+        const sharedStorageConfig: SharedStorageConfig = {
+          basePath: settings.general?.sharedFolderPath || '',
+          enabled: !!(settings.general?.sharedFolderPath?.trim())
+        };
+        
+        const sharedStorageService = getSharedStorageService(sharedStorageConfig);
         sharedStorageResult = await sharedStorageService.copyFileToSharedStorage(
           savedFilePath,
           createdPRF.PRFNo,

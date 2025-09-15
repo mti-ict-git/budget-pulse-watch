@@ -30,6 +30,7 @@ export interface ExtractedPRFData {
   entryDate?: string;
   status?: string;
   confidence?: number;
+  requestFor?: string; // Auto-extracted from item descriptions
 }
 
 export class OCRService {
@@ -183,15 +184,29 @@ Please extract:
    - Currency
    - Unit Price
    - Total Price
-9. Project Description/Area
+9. Project Description/Area (if not explicitly provided, generate a concise description based on the item descriptions)
 10. Project ID
 11. Reference Drawing Number
-12. General Ledger Code/Project #
+12. Cost Code/General Ledger Code (IMPORTANT: Look for alphanumeric codes like 'MTIRMRAD496328' in the rightmost column of the items table, NOT the total amounts at the bottom. Cost codes are typically alphanumeric and appear in the 'General Ledger Code/Project #' column)
+   - Extract only alphanumeric codes from the rightmost column of the items table, not total amounts
+   - Cost codes appear in individual item rows, not in summary totals
+   - Look for cost codes in the "General Ledger Code/Project #" column (typically the last column)
+   - Cost codes are usually alphanumeric strings like "MTIRMRAD496328", not pure numbers
+   - Ignore large numeric values (>100,000) as these are likely totals, not cost codes
+   - Focus on the far-right side of each item row in the table
 13. Budgeted (Yes/No checkbox)
 14. Under ICT Control (Yes/No checkbox)
 15. Received PR date
 16. Entry date
 17. Any status information
+18. Request For (extract from item descriptions any text that starts with 'FOR' or 'For', e.g., 'FOR Supporting OHS a/n M. Rama & Emil Azali')
+
+IMPORTANT INSTRUCTIONS:
+- If Project Description/Area is not explicitly filled in the form, automatically generate a brief, professional description based on the item descriptions
+- Look for 'FOR' or 'For' text in item descriptions and extract it as 'Request For' information
+- The generated project description should summarize what the items are for in 1-2 sentences
+- CRITICAL: For Cost Code/General Ledger Code, ONLY extract alphanumeric codes from the rightmost column of the items table (e.g., 'MTIRMRAD496328'). DO NOT use total amounts, subtotals, or any pure numeric values from the bottom of the form
+- Cost codes are typically alphanumeric strings that appear in individual item rows, not summary totals
 
 Return ONLY a valid JSON object with this structure:
 {
@@ -212,10 +227,11 @@ Return ONLY a valid JSON object with this structure:
       "currency": "string"
     }
   ],
-  "projectDescription": "string",
+  "projectDescription": "string", // Auto-generate if not explicitly provided
   "projectId": "string",
   "referenceDrawingNumber": "string",
-  "generalLedgerCode": "string",
+  "generalLedgerCode": "string", // This represents the cost code
+  "requestFor": "string", // Extract 'FOR' text from item descriptions
   "budgeted": boolean,
   "underICTControl": boolean,
   "receivedPRDate": "string",
@@ -264,7 +280,7 @@ For amounts, extract only the numeric value without currency symbols.`;
 Be very careful to extract exact values as they appear in the document.
 
 Please extract:
-1. PRF No (Purchase Request Form number)
+1. PRF No (Purchase Request Form number, Number Only, e.g. 33155)
 2. Requested By (person who requested)
 3. Department
 4. Date Raised/Date Requested
@@ -279,15 +295,23 @@ Please extract:
    - Currency
    - Unit Price
    - Total Price
-9. Project Description/Area
+9. Project Description/Area (if not explicitly provided, generate a concise description based on the item descriptions)
 10. Project ID
 11. Reference Drawing Number
-12. General Ledger Code/Project #
+12. Cost Code/General Ledger Code (IMPORTANT: Look for alphanumeric codes like 'MTIRMRAD496328' in the rightmost column of the items table, NOT the total amounts at the bottom. Cost codes are typically alphanumeric and appear in the 'General Ledger Code/Project #' column)
 13. Budgeted (Yes/No checkbox)
 14. Under ICT Control (Yes/No checkbox)
 15. Received PR date
 16. Entry date
 17. Any status information
+18. Request For (extract from item descriptions any text that starts with 'FOR' or 'For', e.g., 'FOR Supporting OHS a/n M. Rama & Emil Azali')
+
+IMPORTANT INSTRUCTIONS:
+- If Project Description/Area is not explicitly filled in the form, automatically generate a brief, professional description based on the item descriptions
+- Look for 'FOR' or 'For' text in item descriptions and extract it as 'Request For' information
+- The generated project description should summarize what the items are for in 1-2 sentences
+- CRITICAL: For Cost Code/General Ledger Code, ONLY extract alphanumeric codes from the rightmost column of the items table (e.g., 'MTIRMRAD496328'). DO NOT use total amounts, subtotals, or any pure numeric values from the bottom of the form
+- Cost codes are typically alphanumeric strings that appear in individual item rows, not summary totals
 
 Return ONLY a valid JSON object with this structure:
 {
@@ -308,10 +332,11 @@ Return ONLY a valid JSON object with this structure:
       "currency": "string"
     }
   ],
-  "projectDescription": "string",
+  "projectDescription": "string", // Auto-generate if not explicitly provided
   "projectId": "string",
   "referenceDrawingNumber": "string",
   "generalLedgerCode": "string",
+  "requestFor": "string", // Extract 'FOR' text from item descriptions
   "budgeted": boolean,
   "underICTControl": boolean,
   "receivedPRDate": "string",
@@ -322,7 +347,9 @@ Return ONLY a valid JSON object with this structure:
 
 If a field is not found or unclear, use null for that field.
 For dates, try to convert to YYYY-MM-DD format if possible, otherwise keep original format.
-For amounts, extract only the numeric value without currency symbols.`;
+For amounts, extract only the numeric value without currency symbols.
+For projectDescription: if not explicitly provided in the form, generate a brief description based on item descriptions.
+For requestFor: look for text starting with 'FOR' or 'For' in item descriptions and extract it.`;
 
       // Determine content type based on file type
       let contentItem: {
@@ -428,11 +455,22 @@ For amounts, extract only the numeric value without currency symbols.`;
     }
     
     if (data.generalLedgerCode && typeof data.generalLedgerCode === 'string') {
-      cleaned.generalLedgerCode = data.generalLedgerCode.trim();
+      const trimmedCode = data.generalLedgerCode.trim();
+      // Validate cost code format - should be alphanumeric, not pure numbers
+      if (this.isValidCostCode(trimmedCode)) {
+        cleaned.generalLedgerCode = trimmedCode;
+      } else {
+        console.warn(`Invalid cost code format detected: '${trimmedCode}' - appears to be a numeric amount rather than a cost code`);
+        // Don't set the cost code if it appears to be a numeric amount
+      }
     }
     
     if (data.status && typeof data.status === 'string') {
       cleaned.status = data.status.trim();
+    }
+    
+    if (data.requestFor && typeof data.requestFor === 'string') {
+      cleaned.requestFor = data.requestFor.trim();
     }
 
     // Clean date fields
@@ -544,6 +582,64 @@ For amounts, extract only the numeric value without currency symbols.`;
     
     // If parsing fails, return the original string trimmed
     return String(dateStr).trim();
+  }
+
+  private isValidCostCode(code: string): boolean {
+    if (!code || code.length === 0) return false;
+    
+    // Remove any whitespace and common separators
+    const cleanCode = code.replace(/[\s,-]/g, '');
+    
+    // Reject obvious non-cost-code patterns
+    if (this.isLikelyNotCostCode(cleanCode)) {
+      return false;
+    }
+    
+    // Check for valid cost code patterns
+    return this.matchesCostCodePattern(cleanCode);
+  }
+
+  private isLikelyNotCostCode(code: string): boolean {
+    // Pure numbers that are likely amounts
+    if (/^\d+$/.test(code)) {
+      const numValue = parseInt(code, 10);
+      // Large numbers are likely totals/amounts, not cost codes
+      if (numValue > 100000) return true;
+      // Very small numbers (1-3 digits) are likely quantities, not cost codes
+      if (numValue < 100 && code.length <= 3) return true;
+    }
+    
+    // Common non-cost-code patterns
+    const nonCostCodePatterns = [
+      /^\d{1,2}$/, // Single/double digits (quantities)
+      /^\d+\.\d+$/, // Decimal numbers (prices)
+      /^\d{1,3}(,\d{3})*$/, // Formatted numbers with commas
+      /^[0-9.,]+$/, // Numbers with only digits, commas, and periods
+      /^(yes|no|n\/a|tbd|pending)$/i, // Common form values
+    ];
+    
+    return nonCostCodePatterns.some(pattern => pattern.test(code));
+  }
+
+  private matchesCostCodePattern(code: string): boolean {
+    // Must be at least 3 characters
+    if (code.length < 3) return false;
+    
+    // Valid cost code patterns
+    const costCodePatterns = [
+      /^[A-Z]{2,}[A-Z0-9]+$/i, // Letters followed by alphanumeric (MTIRMRAD496328)
+      /^[A-Z]+\d+$/i, // Letters followed by numbers (ABC123)
+      /^\d+[A-Z]+$/i, // Numbers followed by letters (123ABC)
+      /^[A-Z0-9]+-[A-Z0-9]+$/i, // Alphanumeric with dash (PROJECT-001)
+      /^[A-Z]{1,4}\d{3,}$/i, // 1-4 letters + 3+ digits (MT123456)
+    ];
+    
+    // Must contain at least one letter (prevents pure numbers)
+    const hasLetters = /[A-Za-z]/.test(code);
+    if (!hasLetters) return false;
+    
+    // Check if it matches any valid pattern
+    return costCodePatterns.some(pattern => pattern.test(code));
   }
 
   async isEnabled(): Promise<boolean> {
