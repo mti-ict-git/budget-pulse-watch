@@ -85,7 +85,7 @@ export function ExcelImportDialog() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('http://localhost:3001/api/import/prf/validate', {
+      const response = await fetch('/api/import/prf/validate', {
         method: 'POST',
         body: formData,
       });
@@ -120,7 +120,7 @@ export function ExcelImportDialog() {
         setImportProgress(prev => Math.min(prev + 10, 90));
       }, 500);
 
-      const response = await fetch('http://localhost:3001/api/import/prf/bulk', {
+      const response = await fetch('/api/import/prf/bulk', {
         method: 'POST',
         body: formData,
       });

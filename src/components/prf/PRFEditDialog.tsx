@@ -148,7 +148,7 @@ export function PRFEditDialog({ prf, onPRFUpdated }: PRFEditDialogProps) {
 
       console.log('Updating PRF:', prf.id, 'with data:', updateData);
 
-      const response = await fetch(`http://localhost:3001/api/prfs/${prf.id}`, {
+      const response = await fetch(`/api/prfs/${prf.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -173,7 +173,7 @@ export default function PRFMonitoring() {
         ...(yearFilter !== 'all' && { year: yearFilter })
       });
 
-      const response = await fetch(`http://localhost:3001/api/prfs/with-items?${queryParams}`);
+      const response = await fetch(`/api/prfs/with-items?${queryParams}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -225,7 +225,7 @@ export default function PRFMonitoring() {
   // Fetch available status values from API
   const fetchStatusValues = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/prfs/filters/status');
+      const response = await fetch('/api/prfs/filters/status');
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
@@ -327,7 +327,7 @@ export default function PRFMonitoring() {
         setLoading(true);
         const ids = Array.from(selectedItems);
         
-        const response = await fetch('http://localhost:3001/api/prfs/bulk', {
+        const response = await fetch('/api/prfs/bulk', {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
