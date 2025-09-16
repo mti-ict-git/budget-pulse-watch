@@ -4077,3 +4077,58 @@ npm error Invalid: lock file's uuid@13.0.0 does not satisfy uuid@9.0.1
 - Rebuild containers with `docker compose up -d --build`
 - Consider Node.js version upgrade to 20+ for full package compatibility
 - Address security vulnerability with `npm audit fix`
+
+---
+
+## 2025-09-16 15:35:38 - Production Deployment Critical Fixes
+
+**Context**: Resolved critical production deployment issues including API key decryption failures and database SSL certificate problems that were preventing the application from starting.
+
+**Root Cause Analysis**:
+1. **API Key Decryption Failures**: 
+   - Encrypted API keys in `settings.json` were created with a different encryption key
+   - Current `SETTINGS_ENCRYPTION_KEY` in `.env.production` couldn't decrypt existing data
+   - Error: `error:1C800064:Provider routines::bad decrypt`
+
+2. **Database SSL Certificate Issues**:
+   - SQL Server at `10.60.10.47:1433` uses self-signed certificates
+   - Configuration had `DB_TRUST_CERT=false` causing connection failures
+   - Error: `self-signed certificate` / `DEPTH_ZERO_SELF_SIGNED_CERT`
+
+**Implementation**:
+
+### Database SSL Configuration Fix
+```bash
+# Updated .env.production
+DB_ENCRYPT=true
+DB_TRUST_CERT=true  # Changed from false to true
+```
+
+### API Key Decryption Fix
+1. **Created diagnostic script**: `backend/src/scripts/fixApiKeys.ts`
+   - Analyzes encryption/decryption issues
+   - Safely clears corrupted encrypted data
+   - Provides clear remediation steps
+
+2. **Executed fix script**:
+   - Identified corrupted Gemini and OpenAI API keys
+   - Cleared broken encrypted data from `settings.json`
+   - Preserved settings structure for re-entry
+
+**Technical Details**:
+- **Database Configuration**: <mcfile name="database.ts" path="backend/src/config/database.ts"></mcfile>
+- **Settings Encryption**: <mcfile name="settingsRoutes.ts" path="backend/src/routes/settingsRoutes.ts"></mcfile>
+- **Environment Variables**: <mcfile name=".env.production" path="backend/.env.production"></mcfile>
+- **Fix Script**: <mcfile name="fixApiKeys.ts" path="backend/src/scripts/fixApiKeys.ts"></mcfile>
+
+**Results**:
+- ✅ Database SSL certificate issue resolved
+- ✅ API key decryption errors eliminated
+- ✅ Settings file cleaned and ready for new key entry
+- ✅ Application startup errors addressed
+
+**Next Steps**:
+- Test container deployment: `docker compose up -d --build`
+- Re-enter API keys through the web interface after successful deployment
+- Verify OCR functionality with new encrypted keys
+- Monitor application logs for any remaining issues

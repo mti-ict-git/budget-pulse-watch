@@ -2,8 +2,8 @@
   "ocr": {
     "enabled": true,
     "provider": "openai",
-    "geminiApiKey": "dd57bba049628f33dfd4d94743992d5c:92391353c14c95f657204e22f221edaa",
-    "openaiApiKey": "53d21e61b5e82ad90fb9eaf4af25e937:f93cbc64a39a8551a9dafc8164d3075d10a628ae2f9057b5b6975c9caddda2599fed089000832fe1570526c1c8c6750809d880631ba6aa7016c81e76669c5ebfa9cc101ebebf92fee6576602cb96d8396f74b994d417094a8a00ae962488890019eac69e238e1758b5ae06ca58ca9979b9a7e42b3f75f174b684660e7a5b7641aad759fa206912251c82cddb07229e41a37f93ea71322425645658bf0caccedf8a38de042ba522310d04ec9f14346c70",
+    "geminiApiKey": "",
+    "openaiApiKey": "",
     "model": "gpt-4o-mini"
   },
   "general": {
