@@ -30,7 +30,7 @@ interface AppSettings {
 // Encryption helpers
 function encrypt(text: string): string {
   const algorithm = 'aes-256-cbc';
-  const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
+  const key = crypto.scryptSync(process.env.SETTINGS_ENCRYPTION_KEY || ENCRYPTION_KEY, 'salt', 32);
   const iv = crypto.randomBytes(16);
   const cipher = crypto.createCipheriv(algorithm, key, iv);
   
@@ -42,7 +42,7 @@ function encrypt(text: string): string {
 
 function decrypt(encryptedText: string): string {
   const algorithm = 'aes-256-cbc';
-  const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
+  const key = crypto.scryptSync(process.env.SETTINGS_ENCRYPTION_KEY || ENCRYPTION_KEY, 'salt', 32);
   
   const textParts = encryptedText.split(':');
   const iv = Buffer.from(textParts.shift()!, 'hex');
