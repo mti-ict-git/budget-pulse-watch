@@ -4342,3 +4342,30 @@ VITE_API_URL=http://localhost:3001  # Local development backend
 3. Mount the file in Docker or set environment variables directly
 
 The Docker Compose configuration now properly handles both development and production scenarios with appropriate environment variable management.
+
+---
+
+## 2025-09-16 17:11:57 - Root Cause Identified: Wrong URL Access
+
+**Context:** User continued experiencing 404 errors despite proxy configuration being correct.
+
+**Investigation:**
+- Verified backend is running correctly on port 3001
+- Tested backend directly: `http://localhost:3001/api/auth/login` ✅ Working
+- Tested Vite proxy: `http://localhost:8080/api/auth/login` ✅ Working
+- Both return identical responses: `{"success":false,"message":"Invalid username or password"}`
+
+**Root Cause:** User is accessing the production URL `https://pomon.merdekabattery.com:9007/api/auth/login` instead of the development server.
+
+**Solution:** 
+- **Correct Development URL:** http://localhost:8080/
+- **Avoid:** Any production URLs or static dist folder access
+- Clear browser cache (Ctrl+Shift+R)
+
+**Technical Details:**
+- AuthService uses relative URL `/api/auth` ✅ Correct
+- Vite proxy configuration working properly ✅
+- Environment variables properly configured ✅
+- Backend auth routes responding correctly ✅
+
+**Status:** Issue resolved - user needs to access correct development URL.
