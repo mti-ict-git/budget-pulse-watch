@@ -21,6 +21,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Save, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { authService } from "@/services/authService";
 
 interface CreatePRFRequest {
   PRFNo: string;
@@ -119,6 +120,7 @@ export function PRFCreateDialog({ onPRFCreated }: PRFCreateDialogProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`,
         },
         body: JSON.stringify({
           ...formData,

@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { authService } from '@/services/authService';
 
 interface PRFData {
   id: string;
@@ -47,6 +48,7 @@ export function PRFDeleteDialog({ prf, onPRFDeleted }: PRFDeleteDialogProps) {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`,
         },
       });
 

@@ -21,6 +21,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Edit, Save, X } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { authService } from '@/services/authService';
 
 interface PRFData {
   id: string;
@@ -152,6 +153,7 @@ export function PRFEditDialog({ prf, onPRFUpdated }: PRFEditDialogProps) {
           method: 'PUT',
           headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`,
         },
         body: JSON.stringify(updateData),
       });

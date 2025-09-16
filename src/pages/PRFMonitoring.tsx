@@ -24,6 +24,7 @@ import { ExcelImportDialog } from "@/components/prf/ExcelImportDialog";
 import { PRFEditDialog } from "@/components/prf/PRFEditDialog";
 import { PRFDeleteDialog } from "@/components/prf/PRFDeleteDialog";
 import { toast } from "@/hooks/use-toast";
+import { authService } from "@/services/authService";
 
 // PRF Item interface
 interface PRFItem {
@@ -322,6 +323,7 @@ export default function PRFMonitoring() {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
+            ...authService.getAuthHeaders(),
           },
           body: JSON.stringify({ ids: ids.map(id => parseInt(id, 10)) }),
         });

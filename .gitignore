@@ -15,6 +15,7 @@ dist
 dist-ssr
 build
 *.local
+*.xlsx
 
 # Environment variables
 .env

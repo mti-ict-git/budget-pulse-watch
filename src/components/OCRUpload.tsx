@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Upload, FileText, Eye, CheckCircle, AlertCircle, Loader2, Download, Info } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { authService } from '@/services/authService';
 
 interface ExtractedPRFData {
   prfNo?: string;
@@ -126,6 +127,9 @@ const OCRUpload: React.FC<OCRUploadProps> = ({ onPRFCreated, onPreviewData }) =>
 
       const response = await fetch('/api/ocr-prf/preview-extraction', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authService.getToken()}`,
+        },
         body: formData,
       });
 
@@ -188,6 +192,9 @@ const OCRUpload: React.FC<OCRUploadProps> = ({ onPRFCreated, onPreviewData }) =>
 
       const response = await fetch('/api/ocr-prf/create-from-document', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authService.getToken()}`,
+        },
         body: formData,
       });
 

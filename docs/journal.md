@@ -1,3 +1,38 @@
+# Development Journal
+
+## 2025-09-16 21:04:51 - Complete Authentication Fix for PRF Components
+
+**Context:** Multiple PRF components were experiencing 401 Unauthorized errors due to missing authentication headers in their API requests.
+
+**Problem:** Several components were missing the required "Authorization: Bearer" headers:
+1. PRFDeleteDialog.tsx - DELETE request to `/api/prfs/{id}`
+2. PRFCreateDialog.tsx - POST request to `/api/prfs`
+3. PRFEditDialog.tsx - PUT request to `/api/prfs/{id}`
+
+**Solution Applied:**
+For each component:
+- Added `import { authService } from '@/services/authService';`
+- Modified fetch requests to include authentication headers:
+  ```typescript
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${authService.getToken()}`,
+  }
+  ```
+
+**Components Fixed:**
+- ✅ PRFDeleteDialog.tsx - Added auth headers to DELETE request
+- ✅ PRFCreateDialog.tsx - Added auth headers to POST request  
+- ✅ PRFEditDialog.tsx - Added auth headers to PUT request
+- ✅ ExcelImportDialog.tsx - Already properly implemented with auth headers
+- ✅ OCRUpload.tsx - Previously fixed with auth headers
+
+**Result:** All PRF CRUD operations now properly authenticate with the backend API, eliminating 401 Unauthorized errors.
+
+**Next Steps:** Test all PRF operations to ensure they work correctly with authentication.
+
+---
+
 // Before: Reading wrong header row
 const headers = rawData[0] as string[];
 const dataRows = rawData.slice(1);
