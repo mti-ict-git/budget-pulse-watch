@@ -176,6 +176,30 @@ export class PRFModel {
       setClause.push('Notes = @Notes');
       params.Notes = updateData.Notes;
     }
+    if (updateData.DateSubmit !== undefined) {
+      setClause.push('DateSubmit = @DateSubmit');
+      params.DateSubmit = updateData.DateSubmit;
+    }
+    if (updateData.SubmitBy !== undefined) {
+      setClause.push('SubmitBy = @SubmitBy');
+      params.SubmitBy = updateData.SubmitBy;
+    }
+    if (updateData.SumDescriptionRequested !== undefined) {
+      setClause.push('SumDescriptionRequested = @SumDescriptionRequested');
+      params.SumDescriptionRequested = updateData.SumDescriptionRequested;
+    }
+    if (updateData.PurchaseCostCode !== undefined) {
+      setClause.push('PurchaseCostCode = @PurchaseCostCode');
+      params.PurchaseCostCode = updateData.PurchaseCostCode;
+    }
+    if (updateData.RequiredFor !== undefined) {
+      setClause.push('RequiredFor = @RequiredFor');
+      params.RequiredFor = updateData.RequiredFor;
+    }
+    if (updateData.BudgetYear !== undefined) {
+      setClause.push('BudgetYear = @BudgetYear');
+      params.BudgetYear = updateData.BudgetYear;
+    }
 
     setClause.push('UpdatedAt = GETDATE()');
 
