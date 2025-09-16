@@ -119,7 +119,38 @@ class AuthService {
    */
   isAdmin(): boolean {
     const user = this.getCurrentUser();
-    return user?.role === 'Admin';
+    return user?.role === 'admin';
+  }
+
+  /**
+   * Check if current user can manage content (admin or doccon)
+   */
+  canManageContent(): boolean {
+    const user = this.getCurrentUser();
+    return user?.role === 'admin' || user?.role === 'doccon';
+  }
+
+  /**
+   * Check if current user has read-only access
+   */
+  isReadOnly(): boolean {
+    const user = this.getCurrentUser();
+    return user?.role === 'user';
+  }
+
+  /**
+   * Get role display name
+   */
+  getRoleDisplayName(): string {
+    const user = this.getCurrentUser();
+    if (!user) return 'Unknown';
+    
+    const displayNames: Record<string, string> = {
+      admin: 'Administrator',
+      doccon: 'Document Controller',
+      user: 'User'
+    };
+    return displayNames[user.role] || user.role;
   }
 
   /**

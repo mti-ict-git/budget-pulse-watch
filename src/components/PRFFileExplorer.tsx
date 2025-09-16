@@ -42,7 +42,7 @@ import {
   Eye
 } from 'lucide-react';
 import { formatBytes, formatDate } from '@/lib/utils';
-import FilePreviewModal from '../../../src/components/FilePreviewModal';
+import FilePreviewModal from './FilePreviewModal';
 
 interface PRFFile {
   FileID: number;

@@ -4,6 +4,7 @@ import { ocrService } from '../services/ocrService';
 import path from 'path';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
+import { authenticateToken, requireContentManager } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -35,7 +36,7 @@ const upload = multer({
 });
 
 // Upload and process PRF document
-router.post('/prf-document', upload.single('document'), async (req, res) => {
+router.post('/prf-document', authenticateToken, requireContentManager, upload.single('document'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({

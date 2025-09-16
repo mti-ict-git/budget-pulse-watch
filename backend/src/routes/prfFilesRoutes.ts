@@ -6,6 +6,7 @@ import { loadSettings } from './settingsRoutes';
 import path from 'path';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
+import { authenticateToken, requireContentManager } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -61,7 +62,7 @@ router.get('/:prfId', async (req, res) => {
  * POST /api/prf-files/:prfId/upload
  * Upload additional files to a PRF
  */
-router.post('/:prfId/upload', upload.single('file'), async (req, res) => {
+router.post('/:prfId/upload', authenticateToken, requireContentManager, upload.single('file'), async (req, res) => {
   try {
     const prfId = parseInt(req.params.prfId);
     const { description } = req.body;
@@ -218,7 +219,7 @@ router.get('/file/:fileId', async (req, res) => {
  * DELETE /api/prf-files/file/:fileId
  * Delete a file (removes from database and shared storage)
  */
-router.delete('/file/:fileId', async (req, res) => {
+router.delete('/file/:fileId', authenticateToken, requireContentManager, async (req, res) => {
   try {
     const fileId = parseInt(req.params.fileId);
     

@@ -30,7 +30,7 @@ export class UserModel {
       PasswordHash: hashedPassword,
       FirstName: userData.FirstName,
       LastName: userData.LastName,
-      Role: userData.Role || 'User',
+      Role: userData.Role || 'user',
       Department: userData.Department || null
     };
     
@@ -83,6 +83,10 @@ export class UserModel {
       return null;
     }
 
+    if (!user.PasswordHash) {
+      return null; // LDAP users don't have local passwords
+    }
+    
     const isValidPassword = await bcrypt.compare(credentials.Password, user.PasswordHash);
     if (!isValidPassword) {
       return null;

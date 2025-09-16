@@ -21,7 +21,7 @@ export const initializeDatabase = async (): Promise<void> => {
         Password: 'admin123',
         FirstName: 'MTI',
         LastName: 'Administrator',
-        Role: 'Admin',
+        Role: 'admin',
         Department: 'IT'
       });
       

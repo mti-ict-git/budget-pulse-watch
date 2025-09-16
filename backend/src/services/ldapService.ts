@@ -23,9 +23,12 @@ class LDAPService {
 
   constructor() {
     this.client = new Client({
-      url: process.env.LDAP_URL || 'ldap://10.60.10.56:389',
-      timeout: 5000,
-      connectTimeout: 5000,
+      url: process.env.LDAP_URL || 'ldaps://10.60.10.56:636',
+      timeout: parseInt(process.env.LDAP_TIMEOUT || '30000'),
+      connectTimeout: parseInt(process.env.LDAP_CONNECT_TIMEOUT || '15000'),
+      tlsOptions: {
+        rejectUnauthorized: false
+      }
     });
     
     this.bindDN = process.env.LDAP_BIND_DN || '';
@@ -52,7 +55,9 @@ class LDAPService {
           'department',
           'title',
           'distinguishedName'
-        ]
+        ],
+        sizeLimit: 10,
+        timeLimit: 30
       };
       
       const searchResult = await this.client.search(this.baseDN, searchOptions);
@@ -73,9 +78,12 @@ class LDAPService {
       
       // Try to bind with user credentials to verify password
       const userClient = new Client({
-        url: process.env.LDAP_URL || 'ldap://10.60.10.56:389',
-        timeout: 5000,
-        connectTimeout: 5000,
+        url: process.env.LDAP_URL || 'ldaps://10.60.10.56:636',
+        timeout: parseInt(process.env.LDAP_TIMEOUT || '30000'),
+        connectTimeout: parseInt(process.env.LDAP_CONNECT_TIMEOUT || '15000'),
+        tlsOptions: {
+          rejectUnauthorized: false
+        }
       });
       
       try {
@@ -139,7 +147,8 @@ class LDAPService {
           'title',
           'distinguishedName'
         ],
-        sizeLimit: 50
+        sizeLimit: 50,
+        timeLimit: 30
       };
       
       const searchResult = await this.client.search(this.baseDN, searchOptions);

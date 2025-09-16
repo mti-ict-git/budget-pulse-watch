@@ -4,6 +4,7 @@ import { ExcelParserService } from '../services/excelParser';
 import { PRFModel } from '../models/PRF';
 import { BulkPRFImportRequest, PRFImportResult, ExcelPRFData, User, ChartOfAccounts, PRF } from '../models/types';
 import { executeQuery } from '../config/database';
+import { authenticateToken, requireContentManager } from '../middleware/auth';
 
 // Interface for count query results
 interface CountResult {
@@ -31,7 +32,7 @@ const upload = multer({
  * POST /api/import/prf/validate
  * Validate Excel file without importing
  */
-router.post('/prf/validate', upload.single('file'), async (req, res) => {
+router.post('/prf/validate', authenticateToken, requireContentManager, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -81,7 +82,7 @@ router.post('/prf/validate', upload.single('file'), async (req, res) => {
  * POST /api/import/prf/bulk
  * Import PRF data from Excel file
  */
-router.post('/prf/bulk', upload.single('file'), async (req, res) => {
+router.post('/prf/bulk', authenticateToken, requireContentManager, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -287,7 +288,7 @@ async function importPRFData(
   let skippedRecords = 0;
 
   // Get default user ID for imports (admin user)
-  const adminQuery = `SELECT UserID FROM Users WHERE Role = 'Admin' ORDER BY UserID`;
+  const adminQuery = `SELECT UserID FROM Users WHERE Role = 'admin' ORDER BY UserID`;
   const adminResult = await executeQuery(adminQuery);
   const defaultUserId = (adminResult.recordset[0] as User)?.UserID || 1;
 

@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { Request, Response } from 'express';
 import { getPool } from '../config/database';
+import { authenticateToken, requireContentManager } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -164,7 +165,7 @@ router.get('/scan-folder/:prfNo', async (req: Request, res: Response) => {
 });
 
 // API endpoint: Sync PRF folder to database
-router.post('/sync-folder/:prfNo', async (req: Request, res: Response) => {
+router.post('/sync-folder/:prfNo', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const { prfNo } = req.params;
     const { userId = 1 } = req.body; // Default user ID, should come from auth
@@ -418,7 +419,7 @@ router.get('/view/:fileId', async (req: Request, res: Response) => {
 });
 
 // API endpoint: Bulk sync all PRF folders
-router.post('/sync-all-folders', async (req: Request, res: Response) => {
+router.post('/sync-all-folders', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const { userId = 1 } = req.body;
     

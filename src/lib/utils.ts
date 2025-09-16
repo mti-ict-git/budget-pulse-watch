@@ -1,4 +1,4 @@
-import { clsx, type ClassValue } from "clsx";
+import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
@@ -50,7 +50,72 @@ export function formatDate(dateString: string): string {
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
-      day: 'numeric'
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
   }
+}
+
+/**
+ * Format currency to Indonesian Rupiah
+ */
+export function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(amount);
+}
+
+/**
+ * Format number with thousand separators
+ */
+export function formatNumber(num: number): string {
+  return new Intl.NumberFormat('id-ID').format(num);
+}
+
+/**
+ * Truncate text to specified length
+ */
+export function truncateText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + '...';
+}
+
+/**
+ * Get file extension from filename
+ */
+export function getFileExtension(filename: string): string {
+  return filename.split('.').pop()?.toLowerCase() || '';
+}
+
+/**
+ * Check if a string is a valid email
+ */
+export function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+/**
+ * Generate a random ID
+ */
+export function generateId(): string {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
+/**
+ * Debounce function
+ */
+export function debounce<T extends (...args: unknown[]) => unknown>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
 }

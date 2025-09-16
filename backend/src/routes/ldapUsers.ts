@@ -36,7 +36,7 @@ router.get('/', authenticateToken, requireAdmin, asyncHandler(async (req, res) =
  * @access  Private (Admin only)
  */
 router.post('/grant-access', authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
-  const { username, email, displayName, department, role = 'User' } = req.body;
+  const { username, email, displayName, department, role = 'user' } = req.body;
 
   // Validate input
   if (!username || !email || !displayName) {
@@ -89,7 +89,7 @@ router.post('/grant-access', authenticateToken, requireAdmin, asyncHandler(async
     Email: email,
     DisplayName: displayName,
     Department: department,
-    Role: role as 'Admin' | 'Manager' | 'User',
+    Role: role as 'admin' | 'doccon' | 'user',
     GrantedBy: req.user!.UserID
   });
 
@@ -101,6 +101,186 @@ router.post('/grant-access', authenticateToken, requireAdmin, asyncHandler(async
 }));
 
 /**
+ * @route   POST /api/ldap-users/grant
+ * @desc    Grant access to an LDAP user (simplified - fetches user details from LDAP)
+ * @access  Private (Admin only)
+ */
+router.post('/grant', authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+  const { username, role = 'user' } = req.body;
+
+  if (!username) {
+    return res.status(400).json({
+      success: false,
+      message: 'Username is required'
+    });
+  }
+
+  // Validate role
+  if (role && !['admin', 'doccon', 'user'].includes(role)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid role. Must be admin, doccon, or user'
+    });
+  }
+
+  console.log(`🔐 [Grant Access] Attempting to grant access to user: "${username}" with role: "${role}"`);
+
+  try {
+    // Check if user already has access
+    const existingUser = await LDAPUserAccessModel.findByUsername(username);
+    if (existingUser) {
+      console.log(`⚠️ [Grant Access] User "${username}" already has access`);
+      return res.status(409).json({
+        success: false,
+        message: 'User already has access'
+      });
+    }
+
+    // Fetch user details from LDAP
+    console.log(`🔍 [Grant Access] Fetching user details from LDAP for: "${username}"`);
+    const ldapService = new LDAPService();
+    const users = await ldapService.searchUsers(username);
+    
+    if (!users || users.length === 0) {
+      console.log(`❌ [Grant Access] User "${username}" not found in LDAP`);
+      return res.status(404).json({
+        success: false,
+        message: 'User not found in Active Directory'
+      });
+    }
+    
+    // Find exact match (case-insensitive)
+    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+    if (!user) {
+      console.log(`❌ [Grant Access] Exact match for "${username}" not found in LDAP results`);
+      return res.status(404).json({
+        success: false,
+        message: 'User not found in Active Directory'
+      });
+    }
+    
+    console.log(`✅ [Grant Access] Found user in LDAP:`, {
+      username: user.username,
+      displayName: user.displayName,
+      email: user.email,
+      department: user.department,
+      role: role
+    });
+    
+    // Check if email is already in use
+    if (user.email) {
+      const emailExists = await LDAPUserAccessModel.emailExists(user.email);
+      if (emailExists) {
+        console.log(`⚠️ [Grant Access] Email "${user.email}" already in use`);
+        return res.status(409).json({
+          success: false,
+          message: 'Email address is already associated with another user'
+        });
+      }
+    }
+    
+    // Grant access with LDAP user details and specified role
+    const newAccess = await LDAPUserAccessModel.grantAccess({
+      Username: user.username,
+      Email: user.email || '',
+      DisplayName: user.displayName,
+      Department: user.department,
+      Role: role as 'admin' | 'doccon' | 'user',
+      GrantedBy: req.user!.UserID
+    });
+    
+    console.log(`🎉 [Grant Access] Successfully granted access to "${username}" with role "${role}"`);
+    
+    return res.status(201).json({
+      success: true,
+      message: `Access granted successfully with ${role} role`,
+      data: newAccess
+    });
+    
+  } catch (error) {
+    console.error(`❌ [Grant Access] Error granting access to "${username}":`, error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to grant access to user'
+    });
+  }
+}));
+
+/**
+ * @route   GET /api/ldap-users/test-connection
+ * @desc    Test LDAP connection
+ * @access  Private (Admin only)
+ */
+router.get('/test-connection', authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+  try {
+    const ldapService = new LDAPService();
+    await ldapService.testConnection();
+    
+    return res.json({
+      success: true,
+      message: 'LDAP connection successful'
+    });
+  } catch (error) {
+    console.error('LDAP connection test failed:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'LDAP connection failed',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}));
+
+/**
+ * @route   GET /api/ldap-users/search
+ * @desc    Search LDAP users in Active Directory
+ * @access  Private (Admin only)
+ */
+router.get('/search', authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+  const query = req.query.q as string;
+  
+  console.log(`🔍 [LDAP Search] Received request for query: "${query}" at ${new Date().toISOString()}`);
+  
+  if (!query || query.trim().length < 2) {
+    console.log('❌ [LDAP Search] Query too short, returning 400');
+    return res.status(400).json({
+      success: false,
+      message: 'Search query must be at least 2 characters long'
+    });
+  }
+
+  try {
+    console.log(`🔄 [LDAP Search] Starting LDAP search for: "${query.trim()}"`);
+    const ldapService = new LDAPService();
+    const users = await ldapService.searchUsers(query.trim());
+    
+    console.log(`✅ [LDAP Search] Found ${users?.length || 0} users for query: "${query.trim()}"`);    
+    console.log(`📋 [LDAP Search] User data:`, JSON.stringify(users, null, 2));
+    
+    // Set no-cache headers to prevent browser caching
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+    
+    console.log(`📤 [LDAP Search] Sending response with ${users?.length || 0} users and no-cache headers`);
+    
+    return res.json({
+      success: true,
+      data: users || [],
+      message: `Found ${users?.length || 0} users`
+    });
+  } catch (error) {
+    console.error('LDAP search error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to search users in Active Directory',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}));
+
+/**
  * @route   PUT /api/ldap-users/:username
  * @desc    Update LDAP user access
  * @access  Private (Admin only)
@@ -108,6 +288,14 @@ router.post('/grant-access', authenticateToken, requireAdmin, asyncHandler(async
 router.put('/:username', authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
   const { username } = req.params;
   const { role, department, isActive } = req.body;
+
+  // Validate role if provided
+  if (role && !['admin', 'doccon', 'user'].includes(role)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid role. Must be admin, doccon, or user'
+    });
+  }
 
   // Check if user exists
   const existingUser = await LDAPUserAccessModel.findByUsername(username);

@@ -28,6 +28,7 @@ interface LDAPUser {
   FullName?: string;
   Email?: string;
   Department?: string;
+  Role: 'admin' | 'doccon' | 'user';
   LastLogin?: string;
   GrantedBy: string;
   GrantedAt: string;
@@ -63,6 +64,7 @@ const Settings: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [isGrantingAccess, setIsGrantingAccess] = useState(false);
   const [isTestingLDAP, setIsTestingLDAP] = useState(false);
+  const [selectedRoles, setSelectedRoles] = useState<Record<string, 'admin' | 'doccon' | 'user'>>({});
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -70,7 +72,7 @@ const Settings: React.FC = () => {
   // Load settings on component mount
   useEffect(() => {
     loadSettings();
-    if (user?.role === 'Admin') {
+    if (user?.role === 'admin') {
       loadLDAPUsers();
     }
   }, [user]);
@@ -140,11 +142,13 @@ const Settings: React.FC = () => {
         headers: authService.getAuthHeaders()
       });
       if (response.ok) {
-        const users = await response.json();
-        setLdapUsers(users);
+        const result = await response.json();
+        // Handle the API response structure: {success: true, data: users[], pagination: {...}}
+        setLdapUsers(result.data || []);
       }
     } catch (error) {
       console.error('Failed to load LDAP users:', error);
+      setLdapUsers([]); // Ensure it's always an array
     }
   };
 
@@ -158,25 +162,40 @@ const Settings: React.FC = () => {
       return;
     }
 
+    console.log(`🔍 [Frontend] Starting LDAP search for: "${searchTerm}" at ${new Date().toISOString()}`);
     setIsSearching(true);
     try {
-      const response = await fetch(`/api/ldap-users/search?q=${encodeURIComponent(searchTerm)}`, {
+      const url = `/api/ldap-users/search?q=${encodeURIComponent(searchTerm)}`;
+      console.log(`📤 [Frontend] Making request to: ${url}`);
+      
+      const response = await fetch(url, {
         headers: authService.getAuthHeaders()
+      });
+      
+      console.log(`📥 [Frontend] Response received:`, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
       });
       
       if (response.ok) {
         const results = await response.json();
-        setSearchResults(results);
-        if (results.length === 0) {
+        console.log(`✅ [Frontend] Search results:`, results);
+        console.log(`📊 [Frontend] Results data structure:`, JSON.stringify(results, null, 2));
+        console.log(`📝 [Frontend] Results.data:`, results.data);
+        setSearchResults(results.data || []);
+        if ((results.data || []).length === 0) {
           toast({
             title: 'No Results',
             description: 'No users found matching your search term.'
           });
         }
       } else {
+        console.error(`❌ [Frontend] Search failed with status: ${response.status}`);
         throw new Error('Search failed');
       }
     } catch (error) {
+      console.error(`❌ [Frontend] Search error:`, error);
       toast({
         title: 'Error',
         description: 'Failed to search Active Directory. Please try again.',
@@ -188,21 +207,30 @@ const Settings: React.FC = () => {
   };
 
   const grantUserAccess = async (username: string) => {
+    const role = selectedRoles[username] || 'user';
     setIsGrantingAccess(true);
     try {
       const response = await fetch('/api/ldap-users/grant', {
         method: 'POST',
-        headers: authService.getAuthHeaders(),
-        body: JSON.stringify({ username })
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeaders()
+        },
+        body: JSON.stringify({ username, role })
       });
 
       if (response.ok) {
         toast({
           title: 'Success',
-          description: `Access granted to ${username}`
+          description: `Access granted to ${username} with ${role} role`
         });
         loadLDAPUsers();
         setSearchResults(prev => prev.filter(user => user.username !== username));
+        setSelectedRoles(prev => {
+          const newRoles = { ...prev };
+          delete newRoles[username];
+          return newRoles;
+        });
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Failed to grant access');
@@ -449,7 +477,7 @@ const Settings: React.FC = () => {
         <TabsList>
           <TabsTrigger value="ocr">OCR Configuration</TabsTrigger>
           <TabsTrigger value="general">General</TabsTrigger>
-          {user?.role === 'Admin' && (
+          {user?.role === 'admin' && (
             <TabsTrigger value="users">
               <Users className="h-4 w-4 mr-2" />
               User Management
@@ -782,21 +810,39 @@ const Settings: React.FC = () => {
                       <div className="border rounded-lg divide-y">
                         {searchResults.map((adUser) => (
                           <div key={adUser.username} className="p-3 flex items-center justify-between">
-                            <div>
+                            <div className="flex-1">
                               <div className="font-medium">{adUser.displayName}</div>
                               <div className="text-sm text-muted-foreground">
                                 {adUser.username} • {adUser.email}
                                 {adUser.department && ` • ${adUser.department}`}
                               </div>
                             </div>
-                            <Button
-                              onClick={() => grantUserAccess(adUser.username)}
-                              disabled={isGrantingAccess || ldapUsers.some(u => u.Username === adUser.username)}
-                              size="sm"
-                            >
-                              <UserPlus className="h-4 w-4 mr-2" />
-                              {ldapUsers.some(u => u.Username === adUser.username) ? 'Already Has Access' : 'Grant Access'}
-                            </Button>
+                            <div className="flex items-center space-x-2">
+                              <Select
+                                value={selectedRoles[adUser.username] || 'user'}
+                                onValueChange={(value: 'admin' | 'doccon' | 'user') => 
+                                  setSelectedRoles(prev => ({ ...prev, [adUser.username]: value }))
+                                }
+                                disabled={ldapUsers.some(u => u.Username === adUser.username)}
+                              >
+                                <SelectTrigger className="w-24">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="user">User</SelectItem>
+                                  <SelectItem value="doccon">DocCon</SelectItem>
+                                  <SelectItem value="admin">Admin</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                onClick={() => grantUserAccess(adUser.username)}
+                                disabled={isGrantingAccess || ldapUsers.some(u => u.Username === adUser.username)}
+                                size="sm"
+                              >
+                                <UserPlus className="h-4 w-4 mr-2" />
+                                {ldapUsers.some(u => u.Username === adUser.username) ? 'Already Has Access' : 'Grant Access'}
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -829,7 +875,16 @@ const Settings: React.FC = () => {
                         {ldapUsers.map((ldapUser) => (
                           <div key={ldapUser.Username} className="p-3 flex items-center justify-between">
                             <div className="flex-1">
-                              <div className="font-medium">{ldapUser.FullName || ldapUser.Username}</div>
+                              <div className="flex items-center gap-2">
+                                <div className="font-medium">{ldapUser.FullName || ldapUser.Username}</div>
+                                <span className={`px-2 py-1 text-xs rounded-full ${
+                                  ldapUser.Role === 'admin' ? 'bg-red-100 text-red-800' :
+                                  ldapUser.Role === 'doccon' ? 'bg-blue-100 text-blue-800' :
+                                  'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {ldapUser.Role}
+                                </span>
+                              </div>
                               <div className="text-sm text-muted-foreground">
                                 {ldapUser.Username}
                                 {ldapUser.Email && ` • ${ldapUser.Email}`}

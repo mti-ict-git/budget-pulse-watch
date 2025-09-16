@@ -4,10 +4,10 @@ export interface User {
   UserID: number;
   Username: string;
   Email: string;
-  PasswordHash: string;
+  PasswordHash?: string; // Optional for LDAP users
   FirstName: string;
   LastName: string;
-  Role: 'Admin' | 'Manager' | 'User';
+  Role: 'admin' | 'doccon' | 'user';
   Department?: string;
   IsActive: boolean;
   CreatedAt: Date;
@@ -20,7 +20,7 @@ export interface CreateUserRequest {
   Password: string;
   FirstName: string;
   LastName: string;
-  Role?: 'Admin' | 'Manager' | 'User';
+  Role?: 'admin' | 'doccon' | 'user';
   Department?: string;
 }
 
@@ -30,7 +30,7 @@ export interface UpdateUserParams {
   Email?: string;
   FirstName?: string;
   LastName?: string;
-  Role?: 'Admin' | 'Manager' | 'User';
+  Role?: 'admin' | 'doccon' | 'user';
   Department?: string;
   PasswordHash?: string;
   [key: string]: unknown;

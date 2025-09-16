@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { BudgetModel } from '../models/Budget';
 import { CreateBudgetRequest, UpdateBudgetRequest, BudgetQueryParams } from '../models/types';
+import { authenticateToken, requireContentManager } from '../middleware/auth';
 
 const router = Router();
 
@@ -126,9 +127,9 @@ router.get('/coa/:coaId/year/:fiscalYear', async (req: Request, res: Response) =
 /**
  * @route POST /api/budgets
  * @desc Create new budget
- * @access Public (will be protected later)
+ * @access Content Manager (admin or doccon)
  */
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const budgetData: CreateBudgetRequest = req.body;
     
@@ -169,9 +170,9 @@ router.post('/', async (req: Request, res: Response) => {
 /**
  * @route PUT /api/budgets/:id
  * @desc Update budget
- * @access Public (will be protected later)
+ * @access Content Manager (admin or doccon)
  */
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const budgetId = parseInt(req.params.id);
     const updateData: UpdateBudgetRequest = req.body;
@@ -212,9 +213,9 @@ router.put('/:id', async (req: Request, res: Response) => {
 /**
  * @route DELETE /api/budgets/:id
  * @desc Delete budget
- * @access Public (will be protected later)
+ * @access Content Manager (admin or doccon)
  */
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const budgetId = parseInt(req.params.id);
     
@@ -357,9 +358,9 @@ router.get('/utilization/summary/:fiscalYear', async (req: Request, res: Respons
 /**
  * @route PUT /api/budgets/:id/update-utilization
  * @desc Update budget utilization (recalculate from PRF data)
- * @access Public (will be protected later)
+ * @access Content Manager (admin or doccon)
  */
-router.put('/:id/update-utilization', async (req: Request, res: Response) => {
+router.put('/:id/update-utilization', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const budgetId = parseInt(req.params.id);
     

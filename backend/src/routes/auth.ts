@@ -91,6 +91,13 @@ router.post('/login', asyncHandler(async (req, res) => {
       
       if (user) {
         // Verify password
+        if (!user.PasswordHash) {
+          return res.status(401).json({
+            success: false,
+            message: 'Invalid credentials - user has no local password'
+          });
+        }
+        
         const isValidPassword = await bcrypt.compare(password, user.PasswordHash);
         
         if (isValidPassword) {

@@ -33,7 +33,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // Check admin requirement
-  if (requireAdmin && user?.role !== 'Admin') {
+  if (requireAdmin && user?.role !== 'admin') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">

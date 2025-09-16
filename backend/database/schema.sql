@@ -9,7 +9,7 @@ CREATE TABLE Users (
     PasswordHash NVARCHAR(255) NOT NULL,
     FirstName NVARCHAR(50) NOT NULL,
     LastName NVARCHAR(50) NOT NULL,
-    Role NVARCHAR(20) DEFAULT 'User' CHECK (Role IN ('Admin', 'Manager', 'User')),
+    Role NVARCHAR(20) DEFAULT 'user' CHECK (Role IN ('admin', 'doccon', 'user')),
     Department NVARCHAR(100),
     IsActive BIT DEFAULT 1,
     CreatedAt DATETIME2 DEFAULT GETDATE(),
@@ -213,7 +213,7 @@ GO
 
 -- Insert default admin user (password: admin123 - should be changed)
 INSERT INTO Users (Username, Email, PasswordHash, FirstName, LastName, Role, Department)
-VALUES ('admin', 'admin@company.com', '$2b$10$rQZ8kHp.TB.It.NuiNvxaOZvBz4Lp8J8m8qfPXU5JtHfQy7TZjHNe', 'System', 'Administrator', 'Admin', 'IT');
+VALUES ('admin', 'admin@company.com', '$2b$10$rQZ8kHp.TB.It.NuiNvxaOZvBz4Lp8J8m8qfPXU5JtHfQy7TZjHNe', 'System', 'Administrator', 'admin', 'IT');
 
 -- PRF Files table for document management
 CREATE TABLE PRFFiles (
@@ -258,7 +258,7 @@ CREATE TABLE LDAPUserAccess (
     Email NVARCHAR(100) UNIQUE NOT NULL, -- AD email
     DisplayName NVARCHAR(200) NOT NULL, -- AD display name
     Department NVARCHAR(100) NULL, -- AD department
-    Role NVARCHAR(20) DEFAULT 'User' CHECK (Role IN ('Admin', 'Manager', 'User')),
+    Role NVARCHAR(20) DEFAULT 'user' CHECK (Role IN ('admin', 'doccon', 'user')),
     IsActive BIT DEFAULT 1,
     GrantedBy INT NOT NULL, -- Admin who granted access
     GrantedAt DATETIME2 DEFAULT GETDATE(),

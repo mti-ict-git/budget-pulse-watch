@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { ChartOfAccountsModel } from '../models/ChartOfAccounts';
 import { CreateCOARequest, UpdateCOARequest, COAQueryParams } from '../models/types';
+import { authenticateToken, requireContentManager } from '../middleware/auth';
 
 const router = Router();
 
@@ -117,9 +118,9 @@ router.get('/code/:accountCode', async (req: Request, res: Response) => {
 /**
  * @route POST /api/coa
  * @desc Create new COA
- * @access Public (will be protected later)
+ * @access Content Manager (admin or doccon)
  */
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const coaData: CreateCOARequest = req.body;
     
@@ -160,9 +161,9 @@ router.post('/', async (req: Request, res: Response) => {
 /**
  * @route PUT /api/coa/:id
  * @desc Update COA
- * @access Public (will be protected later)
+ * @access Content Manager (admin or doccon)
  */
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const coaId = parseInt(req.params.id);
     const updateData: UpdateCOARequest = req.body;
@@ -214,9 +215,9 @@ router.put('/:id', async (req: Request, res: Response) => {
 /**
  * @route DELETE /api/coa/:id
  * @desc Delete COA (soft delete)
- * @access Public (will be protected later)
+ * @access Content Manager (admin or doccon)
  */
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const coaId = parseInt(req.params.id);
     
@@ -262,9 +263,9 @@ router.delete('/:id', async (req: Request, res: Response) => {
 /**
  * @route DELETE /api/coa/:id/hard
  * @desc Hard delete COA (permanent deletion)
- * @access Public (will be protected later)
+ * @access Content Manager (admin or doccon)
  */
-router.delete('/:id/hard', async (req: Request, res: Response) => {
+router.delete('/:id/hard', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const coaId = parseInt(req.params.id);
     
@@ -470,9 +471,9 @@ router.get('/:id/usage', async (req: Request, res: Response) => {
 /**
  * @route POST /api/coa/bulk-import
  * @desc Bulk import COA data
- * @access Public (will be protected later)
+ * @access Content Manager (admin or doccon)
  */
-router.post('/bulk-import', async (req: Request, res: Response) => {
+router.post('/bulk-import', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const accounts: CreateCOARequest[] = req.body.accounts;
     

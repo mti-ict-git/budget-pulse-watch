@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { PRFModel } from '../models/PRF';
 import { CreatePRFRequest, UpdatePRFRequest, PRFQueryParams, CreatePRFItemRequest } from '../models/types';
+import { authenticateToken, requireContentManager } from '../middleware/auth';
 
 const router = Router();
 
@@ -91,9 +92,9 @@ router.get('/with-items', async (req: Request, res: Response) => {
 /**
  * @route DELETE /api/prfs/bulk
  * @desc Delete multiple PRFs
- * @access Public (will be protected later)
+ * @access Content Manager (admin or doccon)
  */
-router.delete('/bulk', async (req: Request, res: Response) => {
+router.delete('/bulk', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const { ids } = req.body;
     
@@ -262,9 +263,9 @@ router.get('/prfno/:prfNo', async (req: Request, res: Response) => {
 /**
  * @route POST /api/prfs
  * @desc Create new PRF
- * @access Public (will be protected later)
+ * @access Content Manager (admin or doccon)
  */
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const prfData: CreatePRFRequest = req.body;
     
@@ -299,9 +300,9 @@ router.post('/', async (req: Request, res: Response) => {
 /**
  * @route PUT /api/prfs/:id
  * @desc Update PRF
- * @access Public (will be protected later)
+ * @access Content Manager (admin or doccon)
  */
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const prfId = parseInt(req.params.id);
     const updateData: UpdatePRFRequest = req.body;
@@ -342,9 +343,9 @@ router.put('/:id', async (req: Request, res: Response) => {
 /**
  * @route DELETE /api/prfs/:id
  * @desc Delete PRF
- * @access Public (will be protected later)
+ * @access Content Manager (admin or doccon)
  */
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const prfId = parseInt(req.params.id);
     
@@ -390,9 +391,9 @@ router.delete('/:id', async (req: Request, res: Response) => {
 /**
  * @route POST /api/prfs/:id/items
  * @desc Add items to PRF
- * @access Public (will be protected later)
+ * @access Content Manager (admin or doccon)
  */
-router.post('/:id/items', async (req: Request, res: Response) => {
+router.post('/:id/items', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const prfId = parseInt(req.params.id);
     const items: CreatePRFItemRequest[] = req.body.items;
@@ -472,9 +473,9 @@ router.get('/:id/items', async (req: Request, res: Response) => {
 /**
  * @route PUT /api/prfs/items/:itemId
  * @desc Update PRF item
- * @access Public (will be protected later)
+ * @access Content Manager (admin or doccon)
  */
-router.put('/items/:itemId', async (req: Request, res: Response) => {
+router.put('/items/:itemId', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const itemId = parseInt(req.params.itemId);
     const updateData: Partial<CreatePRFItemRequest> = req.body;
@@ -506,9 +507,9 @@ router.put('/items/:itemId', async (req: Request, res: Response) => {
 /**
  * @route DELETE /api/prfs/items/:itemId
  * @desc Delete PRF item
- * @access Public (will be protected later)
+ * @access Content Manager (admin or doccon)
  */
-router.delete('/items/:itemId', async (req: Request, res: Response) => {
+router.delete('/items/:itemId', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const itemId = parseInt(req.params.itemId);
     

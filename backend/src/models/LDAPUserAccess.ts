@@ -6,7 +6,7 @@ export interface LDAPUserAccess {
   Email: string;
   DisplayName: string;
   Department?: string;
-  Role: 'Admin' | 'Manager' | 'User';
+  Role: 'admin' | 'doccon' | 'user';
   IsActive: boolean;
   GrantedBy: number;
   GrantedAt: Date;
@@ -20,12 +20,12 @@ export interface CreateLDAPAccessRequest {
   Email: string;
   DisplayName: string;
   Department?: string;
-  Role: 'Admin' | 'Manager' | 'User';
+  Role: 'admin' | 'doccon' | 'user';
   GrantedBy: number;
 }
 
 export interface UpdateLDAPAccessRequest {
-  Role?: 'Admin' | 'Manager' | 'User';
+  Role?: 'admin' | 'doccon' | 'user';
   Department?: string;
   IsActive?: boolean;
 }
@@ -210,7 +210,7 @@ export class LDAPUserAccessModel {
     activeUsers: number;
     inactiveUsers: number;
     adminUsers: number;
-    managerUsers: number;
+    docconUsers: number;
     regularUsers: number;
   }> {
     const query = `
@@ -218,9 +218,9 @@ export class LDAPUserAccessModel {
         COUNT(*) as TotalUsers,
         SUM(CASE WHEN IsActive = 1 THEN 1 ELSE 0 END) as ActiveUsers,
         SUM(CASE WHEN IsActive = 0 THEN 1 ELSE 0 END) as InactiveUsers,
-        SUM(CASE WHEN Role = 'Admin' AND IsActive = 1 THEN 1 ELSE 0 END) as AdminUsers,
-        SUM(CASE WHEN Role = 'Manager' AND IsActive = 1 THEN 1 ELSE 0 END) as ManagerUsers,
-        SUM(CASE WHEN Role = 'User' AND IsActive = 1 THEN 1 ELSE 0 END) as RegularUsers
+        SUM(CASE WHEN Role = 'admin' AND IsActive = 1 THEN 1 ELSE 0 END) as AdminUsers,
+        SUM(CASE WHEN Role = 'doccon' AND IsActive = 1 THEN 1 ELSE 0 END) as DocconUsers,
+        SUM(CASE WHEN Role = 'user' AND IsActive = 1 THEN 1 ELSE 0 END) as RegularUsers
       FROM LDAPUserAccess
     `;
     
@@ -229,7 +229,7 @@ export class LDAPUserAccessModel {
       ActiveUsers: number;
       InactiveUsers: number;
       AdminUsers: number;
-      ManagerUsers: number;
+      DocconUsers: number;
       RegularUsers: number;
     }>(query);
     
@@ -240,7 +240,7 @@ export class LDAPUserAccessModel {
       activeUsers: stats.ActiveUsers,
       inactiveUsers: stats.InactiveUsers,
       adminUsers: stats.AdminUsers,
-      managerUsers: stats.ManagerUsers,
+      docconUsers: stats.DocconUsers,
       regularUsers: stats.RegularUsers
     };
   }

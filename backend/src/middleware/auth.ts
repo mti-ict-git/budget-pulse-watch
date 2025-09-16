@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { UserModel } from '../models/User';
 import { User } from '../models/types';
 import { LDAPUserAccessModel, LDAPUserAccess } from '../models/LDAPUserAccess';
+import { UserRole, Permission, hasPermission, isAdmin, canManageContent } from '../utils/rolePermissions';
 
 // Extend Express Request interface to include user
 declare module 'express-serve-static-core' {
@@ -121,7 +122,7 @@ export const requireAdmin = (
     return;
   }
 
-  if (req.user.Role !== 'Admin') {
+  if (!isAdmin(req.user.Role as UserRole)) {
     res.status(403).json({ 
       success: false, 
       message: 'Admin access required' 
@@ -133,9 +134,9 @@ export const requireAdmin = (
 };
 
 /**
- * Middleware to check if user has admin or manager role
+ * Middleware to check if user has admin or doccon role (content management)
  */
-export const requireManagerOrAdmin = (
+export const requireContentManager = (
   req: Request,
   res: Response,
   next: NextFunction
@@ -148,10 +149,97 @@ export const requireManagerOrAdmin = (
     return;
   }
 
-  if (!['Admin', 'Manager'].includes(req.user.Role)) {
+  if (!canManageContent(req.user.Role as UserRole)) {
     res.status(403).json({ 
       success: false, 
-      message: 'Manager or Admin access required' 
+      message: 'Content management access required (admin or doccon role)' 
+    });
+    return;
+  }
+
+  next();
+};
+
+/**
+ * Middleware factory to check specific permissions
+ */
+export const requirePermission = (permission: Permission) => (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void => {
+  if (!req.user) {
+    res.status(401).json({ 
+      success: false, 
+      message: 'Authentication required' 
+    });
+    return;
+  }
+
+  if (!hasPermission(req.user.Role as UserRole, permission)) {
+    res.status(403).json({ 
+      success: false, 
+      message: `Insufficient permissions. Required: ${permission}` 
+    });
+    return;
+  }
+
+  next();
+};
+
+/**
+ * Middleware factory to check multiple permissions (user must have ALL)
+ */
+export const requireAllPermissions = (permissions: Permission[]) => (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void => {
+  if (!req.user) {
+    res.status(401).json({ 
+      success: false, 
+      message: 'Authentication required' 
+    });
+    return;
+  }
+
+  const userRole = req.user.Role as UserRole;
+  const missingPermissions = permissions.filter(permission => !hasPermission(userRole, permission));
+  
+  if (missingPermissions.length > 0) {
+    res.status(403).json({ 
+      success: false, 
+      message: `Insufficient permissions. Missing: ${missingPermissions.join(', ')}` 
+    });
+    return;
+  }
+
+  next();
+};
+
+/**
+ * Middleware factory to check multiple permissions (user must have ANY)
+ */
+export const requireAnyPermission = (permissions: Permission[]) => (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void => {
+  if (!req.user) {
+    res.status(401).json({ 
+      success: false, 
+      message: 'Authentication required' 
+    });
+    return;
+  }
+
+  const userRole = req.user.Role as UserRole;
+  const hasAnyPermission = permissions.some(permission => hasPermission(userRole, permission));
+  
+  if (!hasAnyPermission) {
+    res.status(403).json({ 
+      success: false, 
+      message: `Insufficient permissions. Required one of: ${permissions.join(', ')}` 
     });
     return;
   }

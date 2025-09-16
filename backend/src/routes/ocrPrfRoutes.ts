@@ -9,6 +9,7 @@ import fs from 'fs/promises';
 import { getSharedStorageService, SharedStorageConfig } from '../services/sharedStorageService';
 import { PRFFilesModel } from '../models/PRFFiles';
 import { loadSettings } from './settingsRoutes';
+import { authenticateToken, requireContentManager } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -40,7 +41,7 @@ const upload = multer({
 });
 
 // Create PRF from uploaded document using OCR
-router.post('/create-from-document', upload.single('document'), async (req, res) => {
+router.post('/create-from-document', authenticateToken, requireContentManager, upload.single('document'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -232,7 +233,7 @@ router.post('/create-from-document', upload.single('document'), async (req, res)
 });
 
 // Preview OCR extraction without creating PRF
-router.post('/preview-extraction', upload.single('document'), async (req, res) => {
+router.post('/preview-extraction', authenticateToken, requireContentManager, upload.single('document'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
