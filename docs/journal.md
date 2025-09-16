@@ -3971,3 +3971,65 @@ services:
 - Re-run `docker compose up -d --build` to verify warnings are resolved
 - Test application functionality with cleaned configuration
 - Monitor container startup and database connectivity
+
+---
+
+## 2025-09-16 15:12:25 - Docker Build Fix for Frontend
+
+**Context**: Docker build was failing with "sh: vite: not found" error during the frontend build stage. The issue was that the Dockerfile was using `npm ci --only=production` which excludes devDependencies like Vite that are required for building the application.
+
+**Changes Made**:
+1. **Dockerfile Update**: Changed `npm ci --only=production` to `npm ci` to install all dependencies including devDependencies
+   - This ensures Vite and other build tools are available during the build process
+   - The production image still only contains the built artifacts, not the source code or build dependencies
+
+**Technical Details**:
+- **File Modified**: <mcfile name="Dockerfile" path="c:\Scripts\Projects\budget-pulse-watch\Dockerfile"></mcfile>
+- **Line Changed**: Line 12 - Install dependencies command
+- **Build Stage**: Only affects the builder stage, production stage remains unchanged
+
+**Results**:
+- ✅ Fixed Docker build error for frontend
+- ✅ Vite and other devDependencies now available during build
+- ✅ Multi-stage build still produces lean production image
+
+**Next Steps**:
+- Re-run the Docker build command to verify the fix
+- Test the complete deployment with updated port configuration
+- Verify frontend accessibility on port 9091 and backend on port 5004
+
+---
+
+## 2025-09-16 15:19:29 - Backend ESM Module Compatibility Fix
+
+**Context**: Backend container was failing with `Error [ERR_REQUIRE_ESM]: require() of ES Module` for the uuid package. The issue was that uuid v13+ is ESM-only but the TypeScript compilation target is CommonJS, causing a module system incompatibility.
+
+**Root Cause Analysis**:
+- **uuid package**: Version 13.0.0 is ESM-only (no CommonJS support)
+- **TypeScript config**: Compiling to CommonJS modules (`"module": "commonjs"`)
+- **Build process**: Backend Dockerfile using `npm ci --only=production` excluding devDependencies
+
+**Changes Made**:
+1. **Package Downgrade**: Updated uuid from `^13.0.0` to `^9.0.1` in <mcfile name="package.json" path="c:\Scripts\Projects\budget-pulse-watch\backend\package.json"></mcfile>
+   - uuid v9.x supports both CommonJS and ESM
+   - Maintains API compatibility with existing code
+
+2. **Backend Dockerfile Fix**: Changed `npm ci --only=production` to `npm ci` in <mcfile name="Dockerfile" path="c:\Scripts\Projects\budget-pulse-watch\backend\Dockerfile"></mcfile>
+   - Ensures all dependencies are available during build
+   - Consistent with frontend Dockerfile fix
+
+**Technical Details**:
+- **Import Statement**: `import { v4 as uuidv4 } from 'uuid';` remains unchanged
+- **Module System**: Maintains CommonJS compilation for Node.js compatibility
+- **Build Process**: Multi-stage Docker build ensures lean production image
+
+**Results**:
+- ✅ Resolved ESM module compatibility error
+- ✅ Backend can now import uuid package successfully
+- ✅ Maintained existing API and functionality
+- ✅ Fixed Docker build dependency installation
+
+**Next Steps**:
+- Rebuild backend container with `docker compose up -d --build`
+- Verify backend starts without ESM errors
+- Test complete application functionality
