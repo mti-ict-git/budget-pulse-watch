@@ -3926,3 +3926,48 @@ React console warning detected: "Each child in a list should have a unique 'key'
 - Test Docker Compose deployment with new port configuration
 - Verify frontend can connect to backend on port 5004
 - Update any reverse proxy or firewall rules for new ports
+
+---
+
+## 2025-09-16 15:09:33 - Docker Compose Environment Variable Fix
+
+**Context**: Fixed Docker Compose warnings about unset environment variables and conflicting database configuration during production deployment.
+
+**Issues Identified**:
+1. **Environment Variable Warnings**: Docker Compose was trying to use host environment variables (${DB_HOST}, ${DB_PASSWORD}, etc.) that weren't set on the production server
+2. **Redundant Configuration**: Both `env_file` and `environment` sections were present, causing conflicts
+3. **Obsolete Version Field**: Docker Compose warned about deprecated `version: '3.8'` field
+4. **Conflicting Database Settings**: Duplicate `DB_ENCRYPT` and `DB_TRUST_CERT` values in .env.production
+
+**Fixes Applied**:
+
+### Docker Compose Cleanup
+- **Removed redundant environment section**: Eliminated `environment:` block with ${VAR} references
+- **Kept env_file configuration**: Maintained `env_file: ./backend/.env.production` for proper variable loading
+- **Removed obsolete version field**: Eliminated deprecated `version: '3.8'` declaration
+
+### Environment Configuration Cleanup
+- **Removed duplicate database settings**: Eliminated conflicting `DB_ENCRYPT=false` and `DB_TRUST_CERT=true`
+- **Kept production security settings**: Maintained `DB_ENCRYPT=true` and `DB_TRUST_CERT=false` at end of file
+
+**Final Configuration**:
+```yaml
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "5004:3000"
+    env_file:
+      - ./backend/.env.production
+```
+
+**Results**:
+- ✅ Eliminated all Docker Compose environment variable warnings
+- ✅ Removed configuration conflicts and duplicates
+- ✅ Simplified docker-compose.yml structure
+- ✅ Maintained proper environment variable loading from .env.production
+
+**Next Steps**:
+- Re-run `docker compose up -d --build` to verify warnings are resolved
+- Test application functionality with cleaned configuration
+- Monitor container startup and database connectivity

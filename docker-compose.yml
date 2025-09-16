@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Frontend
   frontend:
@@ -16,18 +14,6 @@ services:
       - "5004:3000"
     env_file:
       - ./backend/.env.production
-    environment:
-      - NODE_ENV=${NODE_ENV:-production}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=${DB_NAME}
-      - JWT_SECRET=${JWT_SECRET}
-      - LDAP_URL=${LDAP_URL}
-      - LDAP_BIND_DN=${LDAP_BIND_DN}
-      - LDAP_BIND_PASSWORD=${LDAP_BIND_PASSWORD}
-      - LDAP_SEARCH_BASE=${LDAP_SEARCH_BASE}
     # depends_on removed - SQL Server runs on separate server
 
 # Note: SQL Server is running on a separate server
