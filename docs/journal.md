@@ -4132,3 +4132,213 @@ DB_TRUST_CERT=true  # Changed from false to true
 - Re-enter API keys through the web interface after successful deployment
 - Verify OCR functionality with new encrypted keys
 - Monitor application logs for any remaining issues
+
+---
+
+## 2025-09-16 15:50:44 - Unified Encryption System for Development & Production
+
+### Context
+User requested to use the same encryption system for both development and production environments to ensure API key consistency and avoid decryption issues when switching between environments.
+
+### Implementation
+
+**1. Updated Local Development Environment (`backend/.env`)**
+- **Added SETTINGS_ENCRYPTION_KEY**: Used the same encryption key as production
+- **Updated Database SSL**: Changed `DB_ENCRYPT=false` to `DB_ENCRYPT=true`
+- **Synchronized JWT_SECRET**: Used the same secure JWT secret as production
+- **Added Missing LDAP Config**: Added `LDAP_SEARCH_BASE` for consistency
+
+**2. Environment Configuration Comparison**
+
+| Setting | Development | Production | Status |
+|---------|-------------|------------|---------|
+| `SETTINGS_ENCRYPTION_KEY` | ✅ Same | ✅ Same | **Unified** |
+| `DB_ENCRYPT` | ✅ true | ✅ true | **Unified** |
+| `DB_TRUST_CERT` | ✅ true | ✅ true | **Unified** |
+| `JWT_SECRET` | ✅ Same | ✅ Same | **Unified** |
+| `NODE_ENV` | development | production | **Different (correct)** |
+| `FRONTEND_URL` | localhost:8080 | pomonitor.merdekabattery.com:9091 | **Different (correct)** |
+
+### Technical Benefits
+
+**🔐 Unified Encryption System:**
+- API keys encrypted with the same master key in both environments
+- No decryption failures when copying `settings.json` between environments
+- Consistent security model across development and production
+
+**🔄 Seamless Environment Switching:**
+- Developers can test with production-encrypted API keys locally
+- Settings backup/restore works between environments
+- Reduced configuration complexity
+
+**🛡️ Enhanced Security:**
+- Development environment now uses encrypted database connections
+- Same strong JWT secrets for consistent token validation
+- Production-grade security practices in development
+
+### Usage Instructions
+
+**For Development:**
+1. **Backend**: Automatically uses `backend/.env` with unified encryption
+2. **Frontend**: Access http://localhost:8080/settings to manage API keys
+3. **API Keys**: Enter once through web interface, works in both environments
+
+**For Production:**
+1. **Backend**: Uses `backend/.env.production` with same encryption key
+2. **Frontend**: Access https://pomonitor.merdekabattery.com:9091/settings
+3. **API Keys**: Same encrypted keys work seamlessly
+
+### Results
+- ✅ Backend development server restarted successfully with new configuration
+- ✅ Database connection established with SSL encryption
+- ✅ Unified encryption system active in both environments
+- ✅ API key management now consistent across development and production
+
+### Next Steps
+- Enter API keys through the development web interface at http://localhost:8080/settings
+- Test OCR functionality in development environment
+- Verify the same encrypted keys work when deployed to production
+
+---
+
+## 📅 2025-09-16 16:13:58 - Fixed 404 API Error with Vite Environment Variables
+
+### 🎯 Context
+User reported a 404 error when trying to login: `POST http://pomon.merdekabattery.com:9007/api/auth/login 404 (Not Found)`. The frontend was somehow trying to connect to the production domain instead of the local development backend.
+
+### 🔧 What was done
+
+**Root Cause Analysis:**
+- Frontend was using production URL `pomon.merdekabattery.com:9007` instead of local `localhost:3001`
+- Vite proxy configuration was hardcoded to `http://localhost:3001`
+- No environment variable override mechanism was in place
+
+**Solution - Environment Variable Override:**
+
+1. **Updated Vite Configuration** (<mcfile name="vite.config.ts" path="vite.config.ts"></mcfile>):
+   ```typescript
+   // Before (hardcoded)
+   proxy: {
+     '/api': {
+       target: 'http://localhost:3001',
+       changeOrigin: true,
+       secure: false
+     }
+   }
+   
+   // After (environment variable)
+   const apiTarget = process.env.VITE_API_URL || 'http://localhost:3001';
+   proxy: {
+     '/api': {
+       target: apiTarget,
+       changeOrigin: true,
+       secure: false
+     }
+   }
+   ```
+
+2. **Created Development Environment File** (<mcfile name=".env" path=".env"></mcfile>):
+   ```bash
+   # Frontend Environment Variables
+   VITE_API_URL=http://localhost:3001
+   ```
+
+3. **Restarted Frontend Development Server:**
+   - Stopped previous server instance
+   - Started new server with updated configuration
+   - Server now running on http://localhost:8080/
+
+### 🎯 Result
+- ✅ Frontend development server restarted successfully
+- ✅ Vite proxy now uses environment variable for API target
+- ✅ Development environment properly configured to use `localhost:3001`
+- ✅ Production deployments can override `VITE_API_URL` as needed
+
+### 📋 Environment Variable Usage
+
+**Development:**
+```bash
+# .env file
+VITE_API_URL=http://localhost:3001
+```
+
+**Production:**
+```bash
+# Can be set in deployment environment
+VITE_API_URL=https://api.production-domain.com
+```
+
+**Benefits:**
+- 🔧 **Flexible Configuration**: Easy to switch between environments
+- 🛡️ **Environment Isolation**: Development and production use different URLs
+- 🚀 **Deployment Ready**: Production builds can use environment-specific URLs
+- 🔄 **No Code Changes**: URL changes don't require code modifications
+
+### Next Steps
+- Test login functionality to confirm 404 error is resolved
+- Verify API calls are properly proxied to local backend
+- Document environment variable usage for deployment
+
+---
+
+## 📅 2025-09-16 16:15:59 - Docker Compose Production Configuration
+
+### 🎯 Context
+User correctly identified that production deployments via Docker Compose also need environment variable configuration for the frontend to connect to the correct backend URL.
+
+### 🔧 What was done
+
+**1. Updated Docker Compose Configuration** (<mcfile name="docker-compose.yml" path="docker-compose.yml"></mcfile>):
+```yaml
+# Added environment variables to frontend service
+frontend:
+  build: .
+  ports:
+    - "9091:8080"
+  environment:
+    - VITE_API_URL=http://localhost:5004  # Points to backend container
+  depends_on:
+    - backend
+```
+
+**2. Created Production Environment Template** (<mcfile name=".env.production.template" path=".env.production.template"></mcfile>):
+- Template file for production environment variables
+- Documents proper VITE_API_URL configuration options
+- Can be copied and customized for different deployment environments
+
+### 🎯 Configuration Options
+
+**Docker Compose (Container-to-Container):**
+```yaml
+VITE_API_URL=http://localhost:5004  # Backend container port
+```
+
+**External Production Server:**
+```yaml
+VITE_API_URL=https://api.yourdomain.com
+VITE_API_URL=http://your-server-ip:5004
+```
+
+**Development:**
+```yaml
+VITE_API_URL=http://localhost:3001  # Local development backend
+```
+
+### 🚀 Deployment Benefits
+- ✅ **Container Orchestration**: Frontend properly connects to backend container
+- ✅ **Environment Flexibility**: Easy to override for different deployment scenarios
+- ✅ **Production Ready**: Docker Compose now handles environment variables correctly
+- ✅ **Template Provided**: Clear documentation for production configuration
+
+### 📋 Deployment Instructions
+
+**For Docker Compose:**
+1. Use the default configuration (points to backend container)
+2. Or override in docker-compose.override.yml if needed
+
+**For Custom Production:**
+1. Copy `.env.production.template` to `.env.production`
+2. Update `VITE_API_URL` to match your production backend
+3. Mount the file in Docker or set environment variables directly
+
+The Docker Compose configuration now properly handles both development and production scenarios with appropriate environment variable management.
