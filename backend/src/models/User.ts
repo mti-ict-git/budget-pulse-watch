@@ -227,6 +227,21 @@ export class UserModel {
   }
 
   /**
+   * Toggle user active status
+   */
+  static async toggleStatus(userId: number): Promise<User> {
+    const query = `
+      UPDATE Users 
+      SET IsActive = CASE WHEN IsActive = 1 THEN 0 ELSE 1 END, UpdatedAt = GETDATE()
+      OUTPUT INSERTED.*
+      WHERE UserID = @UserID
+    `;
+    
+    const result = await executeQuery<User>(query, { UserID: userId });
+    return result.recordset[0] as User;
+  }
+
+  /**
    * Update user's last login timestamp
    */
   static async updateLastLogin(userId: number): Promise<void> {

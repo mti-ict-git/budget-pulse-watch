@@ -41,41 +41,40 @@ router.post('/login', asyncHandler(async (req, res) => {
         const userAccess = await LDAPUserAccessModel.hasAccess(username);
         
         if (!userAccess) {
-          return res.status(403).json({
-            success: false,
-            message: 'Access not granted. Please contact administrator for access.'
-          });
+          console.log(`LDAP user '${username}' found but no access granted, trying local auth`);
+          // Don't return error here, continue to local authentication
+        } else {
+
+          // Update last login
+          await LDAPUserAccessModel.updateLastLogin(username);
+
+          // Generate JWT token for LDAP user
+          const token = jwt.sign(
+            {
+              username: userAccess.Username,
+              authType: 'ldap'
+            },
+            JWT_SECRET,
+            { expiresIn: JWT_EXPIRES_IN }
+          );
+
+          authResult = {
+            success: true,
+            token,
+            user: {
+              id: userAccess.AccessID,
+              username: userAccess.Username,
+              role: userAccess.Role,
+              email: userAccess.Email,
+              firstName: userAccess.DisplayName.split(' ')[0] || userAccess.DisplayName,
+              lastName: userAccess.DisplayName.split(' ').slice(1).join(' ') || '',
+              department: userAccess.Department,
+              authType: 'ldap',
+              createdAt: userAccess.CreatedAt
+            }
+          };
+          isLDAPAuth = true;
         }
-
-        // Update last login
-        await LDAPUserAccessModel.updateLastLogin(username);
-
-        // Generate JWT token for LDAP user
-        const token = jwt.sign(
-          {
-            username: userAccess.Username,
-            authType: 'ldap'
-          },
-          JWT_SECRET,
-          { expiresIn: JWT_EXPIRES_IN }
-        );
-
-        authResult = {
-          success: true,
-          token,
-          user: {
-            id: userAccess.AccessID,
-            username: userAccess.Username,
-            role: userAccess.Role,
-            email: userAccess.Email,
-            firstName: userAccess.DisplayName.split(' ')[0] || userAccess.DisplayName,
-            lastName: userAccess.DisplayName.split(' ').slice(1).join(' ') || '',
-            department: userAccess.Department,
-            authType: 'ldap',
-            createdAt: userAccess.CreatedAt
-          }
-        };
-        isLDAPAuth = true;
       }
     } catch (ldapError) {
       console.log('LDAP authentication failed:', ldapError);

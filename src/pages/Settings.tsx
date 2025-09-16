@@ -34,6 +34,23 @@ interface LDAPUser {
   GrantedAt: string;
 }
 
+interface LocalUser {
+  UserID: number;
+  Username: string;
+  Email: string;
+  FirstName: string;
+  LastName: string;
+  Role: 'admin' | 'doccon' | 'user';
+  Department?: string;
+  IsActive: boolean;
+  CreatedAt: string;
+  UpdatedAt: string;
+}
+
+interface EditableUser extends LocalUser {
+  Password?: string;
+}
+
 interface ADUser {
   username: string;
   displayName: string;
@@ -42,6 +59,9 @@ interface ADUser {
 }
 
 const Settings: React.FC = () => {
+  const { user } = useAuth();
+  
+  // All useState hooks must be called before any early returns
   const [ocrSettings, setOcrSettings] = useState<OCRSettings>({
     provider: 'gemini',
     geminiApiKey: '',
@@ -59,23 +79,59 @@ const Settings: React.FC = () => {
   
   // LDAP User Management State
   const [ldapUsers, setLdapUsers] = useState<LDAPUser[]>([]);
+  const [localUsers, setLocalUsers] = useState<LocalUser[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<ADUser[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isGrantingAccess, setIsGrantingAccess] = useState(false);
   const [isTestingLDAP, setIsTestingLDAP] = useState(false);
   const [selectedRoles, setSelectedRoles] = useState<Record<string, 'admin' | 'doccon' | 'user'>>({});
+  const [isUpdatingRole, setIsUpdatingRole] = useState<Record<string, boolean>>({});
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<EditableUser | null>(null);
+  const [newUser, setNewUser] = useState({
+    Username: '',
+    Email: '',
+    Password: '',
+    FirstName: '',
+    LastName: '',
+    Role: 'user' as 'admin' | 'doccon' | 'user',
+    Department: ''
+  });
   
   const { toast } = useToast();
-  const { user } = useAuth();
 
+  // Restrict access to admin users only
   // Load settings on component mount
   useEffect(() => {
-    loadSettings();
     if (user?.role === 'admin') {
+      loadSettings();
       loadLDAPUsers();
+      loadLocalUsers();
     }
   }, [user]);
+
+  if (!user || user.role !== 'admin') {
+    return (
+      <div className="container mx-auto p-6">
+        <Card className="max-w-md mx-auto">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-red-500" />
+              Access Denied
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Alert>
+              <AlertDescription>
+                You do not have permission to access the Settings page. Only administrators can access system settings.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const loadSettings = async () => {
     try {
@@ -149,6 +205,173 @@ const Settings: React.FC = () => {
     } catch (error) {
       console.error('Failed to load LDAP users:', error);
       setLdapUsers([]); // Ensure it's always an array
+    }
+  };
+
+  // Local User Management Functions
+  const loadLocalUsers = async () => {
+    try {
+      const response = await fetch('/api/users', {
+        headers: authService.getAuthHeaders()
+      });
+      if (response.ok) {
+        const result = await response.json();
+        setLocalUsers(result.data || []);
+      }
+    } catch (error) {
+      console.error('Failed to load local users:', error);
+      setLocalUsers([]);
+    }
+  };
+
+  const createLocalUser = async () => {
+    try {
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeaders()
+        },
+        body: JSON.stringify(newUser)
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: 'User created successfully'
+        });
+        setShowCreateUserModal(false);
+        setNewUser({
+          Username: '',
+          Email: '',
+          Password: '',
+          FirstName: '',
+          LastName: '',
+          Role: 'user',
+          Department: ''
+        });
+        loadLocalUsers();
+      } else {
+        toast({
+          title: 'Error',
+          description: result.message || 'Failed to create user',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      console.error('Failed to create user:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to create user',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const updateLocalUser = async (userId: number, updates: Partial<EditableUser>) => {
+    try {
+      const response = await fetch(`/api/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeaders()
+        },
+        body: JSON.stringify(updates)
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: 'User updated successfully'
+        });
+        setEditingUser(null);
+        loadLocalUsers();
+      } else {
+        toast({
+          title: 'Error',
+          description: result.message || 'Failed to update user',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update user',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const deleteLocalUser = async (userId: number) => {
+    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/users/${userId}`, {
+        method: 'DELETE',
+        headers: authService.getAuthHeaders()
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: 'User deleted successfully'
+        });
+        loadLocalUsers();
+      } else {
+        toast({
+          title: 'Error',
+          description: result.message || 'Failed to delete user',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete user',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const toggleUserStatus = async (userId: number) => {
+    try {
+      const response = await fetch(`/api/users/${userId}/toggle-status`, {
+        method: 'PUT',
+        headers: authService.getAuthHeaders()
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: result.message
+        });
+        loadLocalUsers();
+      } else {
+        toast({
+          title: 'Error',
+          description: result.message || 'Failed to toggle user status',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      console.error('Failed to toggle user status:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to toggle user status',
+        variant: 'destructive'
+      });
     }
   };
 
@@ -269,6 +492,39 @@ const Settings: React.FC = () => {
         description: error instanceof Error ? error.message : 'Failed to revoke access',
         variant: 'destructive'
       });
+    }
+  };
+
+  const updateLDAPUserRole = async (username: string, newRole: 'admin' | 'doccon' | 'user') => {
+    setIsUpdatingRole(prev => ({ ...prev, [username]: true }));
+    try {
+      const response = await fetch(`/api/ldap-users/${username}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeaders()
+        },
+        body: JSON.stringify({ role: newRole })
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: `Role updated to ${newRole} for ${username}`
+        });
+        loadLDAPUsers();
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update role');
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to update role',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsUpdatingRole(prev => ({ ...prev, [username]: false }));
     }
   };
 
@@ -749,31 +1005,127 @@ const Settings: React.FC = () => {
           </Card>
         </TabsContent>
 
-        {user?.role === 'Admin' && (
+        {user?.role === 'admin' && (
           <TabsContent value="users">
             <div className="space-y-6">
-              {/* LDAP Connection Test */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Shield className="h-5 w-5" />
-                    LDAP Connection
-                  </CardTitle>
-                  <CardDescription>
-                    Test the connection to your Active Directory server.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    onClick={testLDAPConnection}
-                    disabled={isTestingLDAP}
-                    variant="outline"
-                  >
-                    <TestTube className="h-4 w-4 mr-2" />
-                    {isTestingLDAP ? 'Testing...' : 'Test LDAP Connection'}
-                  </Button>
-                </CardContent>
-              </Card>
+              <Tabs defaultValue="local" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="local">Local Users</TabsTrigger>
+                  <TabsTrigger value="ldap">LDAP Users</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="local" className="space-y-6">
+                  {/* Local User Management */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-5 w-5" />
+                          Local Users ({localUsers.length})
+                        </div>
+                        <Button onClick={() => setShowCreateUserModal(true)}>
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          Create User
+                        </Button>
+                      </CardTitle>
+                      <CardDescription>
+                        Manage local user accounts and their permissions.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {localUsers.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                          <p>No local users found.</p>
+                          <p className="text-sm">Create your first local user to get started.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="border rounded-lg divide-y">
+                            {localUsers.map((localUser) => (
+                              <div key={localUser.UserID} className="p-3 flex items-center justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <div className="font-medium">{localUser.FirstName} {localUser.LastName}</div>
+                                    <span className={`px-2 py-1 text-xs rounded-full ${
+                                      localUser.Role === 'admin' ? 'bg-red-100 text-red-800' :
+                                      localUser.Role === 'doccon' ? 'bg-blue-100 text-blue-800' :
+                                      'bg-gray-100 text-gray-800'
+                                    }`}>
+                                      {localUser.Role}
+                                    </span>
+                                    {!localUser.IsActive && (
+                                      <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
+                                        Inactive
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-sm text-muted-foreground">
+                                    {localUser.Username} • {localUser.Email}
+                                    {localUser.Department && ` • ${localUser.Department}`}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    Created: {new Date(localUser.CreatedAt).toLocaleDateString()}
+                                    {localUser.UpdatedAt !== localUser.CreatedAt && (
+                                      ` • Updated: ${new Date(localUser.UpdatedAt).toLocaleDateString()}`
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Button
+                                    onClick={() => setEditingUser({ ...localUser, Password: '' })}
+                                    variant="outline"
+                                    size="sm"
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    onClick={() => toggleUserStatus(localUser.UserID)}
+                                    variant={localUser.IsActive ? "outline" : "default"}
+                                    size="sm"
+                                  >
+                                    {localUser.IsActive ? 'Deactivate' : 'Activate'}
+                                  </Button>
+                                  <Button
+                                    onClick={() => deleteLocalUser(localUser.UserID)}
+                                    variant="destructive"
+                                    size="sm"
+                                  >
+                                    <UserMinus className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+                
+                <TabsContent value="ldap" className="space-y-6">
+                  {/* LDAP Connection Test */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Shield className="h-5 w-5" />
+                        LDAP Connection
+                      </CardTitle>
+                      <CardDescription>
+                        Test the connection to your Active Directory server.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Button
+                        onClick={testLDAPConnection}
+                        disabled={isTestingLDAP}
+                        variant="outline"
+                      >
+                        <TestTube className="h-4 w-4 mr-2" />
+                        {isTestingLDAP ? 'Testing...' : 'Test LDAP Connection'}
+                      </Button>
+                    </CardContent>
+                  </Card>
 
               {/* Search AD Users */}
               <Card>
@@ -895,14 +1247,33 @@ const Settings: React.FC = () => {
                                 {ldapUser.LastLogin && ` • Last login: ${new Date(ldapUser.LastLogin).toLocaleDateString()}`}
                               </div>
                             </div>
-                            <Button
-                              onClick={() => revokeUserAccess(ldapUser.Username)}
-                              variant="destructive"
-                              size="sm"
-                            >
-                              <UserMinus className="h-4 w-4 mr-2" />
-                              Revoke Access
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={ldapUser.Role}
+                                onValueChange={(value: 'admin' | 'doccon' | 'user') => 
+                                  updateLDAPUserRole(ldapUser.Username, value)
+                                }
+                                disabled={isUpdatingRole[ldapUser.Username]}
+                              >
+                                <SelectTrigger className="w-24">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="user">User</SelectItem>
+                                  <SelectItem value="doccon">DocCon</SelectItem>
+                                  <SelectItem value="admin">Admin</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                onClick={() => revokeUserAccess(ldapUser.Username)}
+                                variant="destructive"
+                                size="sm"
+                                disabled={isUpdatingRole[ldapUser.Username]}
+                              >
+                                <UserMinus className="h-4 w-4 mr-2" />
+                                Revoke Access
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -910,8 +1281,208 @@ const Settings: React.FC = () => {
                   )}
                 </CardContent>
               </Card>
+                </TabsContent>
+              </Tabs>
             </div>
           </TabsContent>
+        )}
+        
+        {/* Create User Modal */}
+        {showCreateUserModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <h3 className="text-lg font-semibold mb-4">Create New User</h3>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">First Name</label>
+                    <input
+                      type="text"
+                      value={newUser.FirstName}
+                      onChange={(e) => setNewUser({...newUser, FirstName: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-md"
+                      placeholder="John"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Last Name</label>
+                    <input
+                      type="text"
+                      value={newUser.LastName}
+                      onChange={(e) => setNewUser({...newUser, LastName: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-md"
+                      placeholder="Doe"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Username</label>
+                  <input
+                    type="text"
+                    value={newUser.Username}
+                    onChange={(e) => setNewUser({...newUser, Username: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-md"
+                    placeholder="john.doe"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={newUser.Email}
+                    onChange={(e) => setNewUser({...newUser, Email: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-md"
+                    placeholder="john.doe@company.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Password</label>
+                  <input
+                    type="password"
+                    value={newUser.Password}
+                    onChange={(e) => setNewUser({...newUser, Password: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-md"
+                    placeholder="••••••••"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Department</label>
+                  <input
+                    type="text"
+                    value={newUser.Department}
+                    onChange={(e) => setNewUser({...newUser, Department: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-md"
+                    placeholder="IT Department"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Role</label>
+                  <select
+                    value={newUser.Role}
+                    onChange={(e) => setNewUser({...newUser, Role: e.target.value as 'admin' | 'doccon' | 'user'})}
+                    className="w-full px-3 py-2 border rounded-md"
+                  >
+                    <option value="user">User</option>
+                    <option value="doccon">DocCon</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2 mt-6">
+                <Button
+                  onClick={() => {
+                    setShowCreateUserModal(false);
+                    setNewUser({
+                      Username: '',
+                      Password: '',
+                      Email: '',
+                      FirstName: '',
+                      LastName: '',
+                      Role: 'user',
+                      Department: ''
+                    });
+                  }}
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+                <Button onClick={createLocalUser}>
+                  Create User
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Edit User Modal */}
+        {editingUser && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <h3 className="text-lg font-semibold mb-4">Edit User</h3>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">First Name</label>
+                    <input
+                      type="text"
+                      value={editingUser.FirstName}
+                      onChange={(e) => setEditingUser({...editingUser, FirstName: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Last Name</label>
+                    <input
+                      type="text"
+                      value={editingUser.LastName}
+                      onChange={(e) => setEditingUser({...editingUser, LastName: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Username</label>
+                  <input
+                    type="text"
+                    value={editingUser.Username}
+                    onChange={(e) => setEditingUser({...editingUser, Username: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-md"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={editingUser.Email}
+                    onChange={(e) => setEditingUser({...editingUser, Email: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-md"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Department</label>
+                  <input
+                    type="text"
+                    value={editingUser.Department || ''}
+                    onChange={(e) => setEditingUser({...editingUser, Department: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-md"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Role</label>
+                  <select
+                    value={editingUser.Role}
+                    onChange={(e) => setEditingUser({...editingUser, Role: e.target.value as 'admin' | 'doccon' | 'user'})}
+                    className="w-full px-3 py-2 border rounded-md"
+                  >
+                    <option value="user">User</option>
+                    <option value="doccon">DocCon</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">New Password (leave blank to keep current)</label>
+                  <input
+                    type="password"
+                    value={editingUser.Password || ''}
+                    onChange={(e) => setEditingUser({...editingUser, Password: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-md"
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2 mt-6">
+                <Button
+                  onClick={() => setEditingUser(null)}
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+                <Button onClick={() => updateLocalUser(editingUser.UserID, editingUser)}>
+                  Update User
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
       </Tabs>
     </div>

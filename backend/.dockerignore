@@ -1,0 +1,78 @@
+# Dependencies
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Production build
+dist
+build
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Documentation
+README.md
+
+# Test files
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+__tests__/
+coverage/
+test-*.js
+
+# Logs
+logs
+*.log
+
+# Development files
+*.dev.js
+*.development.js
+dev/
+nodemon.json
+
+# Temporary files
+tmp/
+temp/
+
+# Lock files (keep package-lock.json, exclude others)
+yarn.lock
+bun.lockb
+
+# Database files (keep schema, exclude data)
+database/migrations/
+
+# Scripts not needed in production
+fix-admin-role.ts

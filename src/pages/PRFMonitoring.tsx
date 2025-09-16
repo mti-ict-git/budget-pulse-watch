@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -637,9 +637,8 @@ export default function PRFMonitoring() {
                     </TableRow>
                   ) : (
                     filteredData.map((prf) => (
-                      <>
+                      <React.Fragment key={prf.id}>
                         <TableRow 
-                          key={prf.id} 
                           className={`${prf.items && prf.items.length > 0 ? 'cursor-pointer hover:bg-gray-50' : ''}`}
                           onClick={() => prf.items && prf.items.length > 0 && toggleRowExpansion(prf.id)}
                         >
@@ -720,7 +719,7 @@ export default function PRFMonitoring() {
                             </TableCell>
                           </TableRow>
                         )}
-                      </>
+                      </React.Fragment>
                     ))
                   )}
                 </TableBody>

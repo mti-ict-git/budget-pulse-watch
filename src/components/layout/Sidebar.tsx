@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
@@ -30,7 +31,16 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  // using NavLink active state; no need for useLocation
+  const { user } = useAuth();
+  
+  // Filter navigation items based on user role
+  const filteredNavigation = navigation.filter(item => {
+    // Hide Settings from non-admin users
+    if (item.href === '/settings' && user?.role !== 'admin') {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <div className={cn(
@@ -55,7 +65,7 @@ export function Sidebar({ className }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2">
-        {navigation.map((item) => (
+        {filteredNavigation.map((item) => (
           <NavLink
             key={item.name}
             to={item.href}
@@ -77,15 +87,17 @@ export function Sidebar({ className }: SidebarProps) {
       </nav>
 
       {/* User Info */}
-      {!isCollapsed && (
+      {!isCollapsed && user && (
         <div className="p-4 border-t border-border">
           <div className="flex items-center space-x-3">
             <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-              <span className="text-xs font-medium text-primary-foreground">AD</span>
+              <span className="text-xs font-medium text-primary-foreground">
+                {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
+              </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">Admin User</p>
-              <p className="text-xs text-muted-foreground">Administrator</p>
+              <p className="text-sm font-medium">{user.firstName} {user.lastName}</p>
+              <p className="text-xs text-muted-foreground">{user.role} • {user.department}</p>
             </div>
           </div>
         </div>
