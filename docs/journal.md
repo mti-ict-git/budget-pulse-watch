@@ -3890,3 +3890,39 @@ React console warning detected: "Each child in a list should have a unique 'key'
 - Deploy to production environment
 - Update frontend build configuration for production API endpoints
 - Monitor CORS and authentication in production logs
+
+---
+
+## 2025-09-16 15:04:56 - Production Port Configuration Update
+
+**Context**: Updated Docker Compose and environment configuration to use custom ports for production deployment.
+
+**Changes Made**:
+
+### Docker Compose Port Mappings
+- **Frontend**: Changed from `8080:8080` to `9091:8080`
+  - External port: 9091 (accessible from host)
+  - Internal port: 8080 (container port)
+- **Backend**: Changed from `3000:3000` to `5004:3000`
+  - External port: 5004 (accessible from host)
+  - Internal port: 3000 (container port)
+
+### Environment Configuration Updates
+- **Backend PORT**: Updated from `3001` to `3000` to match container internal port
+- **FRONTEND_URL**: Updated to `https://pomonitor.merdekabattery.com:9091`
+- **CORS_ORIGIN**: Updated to `https://pomonitor.merdekabattery.com:9091`
+
+**Production Access URLs**:
+- Frontend: `https://pomonitor.merdekabattery.com:9091`
+- Backend API: `https://pomonitor.merdekabattery.com:5004`
+
+**Results**:
+- ✅ Custom production ports configured (Frontend: 9091, Backend: 5004)
+- ✅ Environment variables updated to match new port configuration
+- ✅ CORS configuration aligned with new frontend URL
+- ✅ Docker container internal ports remain standard (8080, 3000)
+
+**Next Steps**:
+- Test Docker Compose deployment with new port configuration
+- Verify frontend can connect to backend on port 5004
+- Update any reverse proxy or firewall rules for new ports
