@@ -72,13 +72,22 @@ async function loadSettings(): Promise<AppSettings> {
     const data = await fs.readFile(SETTINGS_FILE, 'utf8');
     const settings = JSON.parse(data) as AppSettings;
     
-    // Decrypt API key if it exists
+    // Decrypt API keys if they exist
     if (settings.ocr?.geminiApiKey) {
       try {
         settings.ocr.geminiApiKey = decrypt(settings.ocr.geminiApiKey);
       } catch (error) {
-        console.error('Failed to decrypt API key:', error);
+        console.error('Failed to decrypt Gemini API key:', error);
         settings.ocr.geminiApiKey = '';
+      }
+    }
+    
+    if (settings.ocr?.openaiApiKey) {
+      try {
+        settings.ocr.openaiApiKey = decrypt(settings.ocr.openaiApiKey);
+      } catch (error) {
+        console.error('Failed to decrypt OpenAI API key:', error);
+        settings.ocr.openaiApiKey = '';
       }
     }
     
@@ -102,9 +111,13 @@ async function saveSettings(settings: AppSettings): Promise<void> {
   // Create a copy for encryption
   const settingsToSave = JSON.parse(JSON.stringify(settings));
   
-  // Encrypt API key before saving
+  // Encrypt API keys before saving
   if (settingsToSave.ocr?.geminiApiKey) {
     settingsToSave.ocr.geminiApiKey = encrypt(settingsToSave.ocr.geminiApiKey);
+  }
+  
+  if (settingsToSave.ocr?.openaiApiKey) {
+    settingsToSave.ocr.openaiApiKey = encrypt(settingsToSave.ocr.openaiApiKey);
   }
   
   await fs.writeFile(SETTINGS_FILE, JSON.stringify(settingsToSave, null, 2));

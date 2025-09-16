@@ -1181,6 +1181,62 @@ const model = genAI.getGenerativeModel({ model: modelName });
 
 ---
 
+## 2025-09-16 14:46:24 - API Key Encryption Security Enhancement
+
+### Context
+User reported security concern about API keys being stored in plain text in `backend/data/settings.json`. The existing encryption system was only handling Gemini API keys but not OpenAI API keys, and the current keys were stored unencrypted.
+
+### Implementation
+
+**1. Enhanced Encryption System (`backend/src/routes/settingsRoutes.ts`)**
+- **Extended loadSettings()**: Added decryption support for OpenAI API keys
+- **Enhanced saveSettings()**: Added encryption for OpenAI API keys before saving
+- **Dual Key Support**: Now encrypts/decrypts both Gemini and OpenAI API keys
+- **Error Handling**: Separate error handling for each provider's key decryption
+
+**2. API Key Migration**
+- **Created Migration Script**: Temporary `encrypt-api-keys.js` to encrypt existing plain text keys
+- **Executed Encryption**: Successfully encrypted existing OpenAI API key in settings.json
+- **Cleanup**: Removed migration script after successful execution
+
+### Security Features
+
+**Encryption Specifications:**
+- **Algorithm**: AES-256-CBC encryption
+- **Key Derivation**: PBKDF2 with scrypt using salt
+- **IV Generation**: Random 16-byte initialization vector per encryption
+- **Format**: `{iv_hex}:{encrypted_data_hex}`
+
+**Before (Plain Text):**
+```json
+{
+  "openaiApiKey": "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"
+}
+```
+
+**After (Encrypted):**
+```json
+{
+  "openaiApiKey": "53d21e61b5e82ad90fb9eaf4af25e937:f93cbc64a39a8551a9dafc8164d3075d10a628ae2f9057b5b6975c9caddda2599fed089000832fe1570526c1c8c6750809d880631ba6aa7016c81e76669c5ebfa9cc101ebebf92fee6576602cb96d8396f74b994d417094a8a00ae962488890019eac69e238e1758b5ae06ca58ca9979b9a7e42b3f75f174b684660e7a5b7641aad759fa206912251c82cddb07229e41a37f93ea71322425645658bf0caccedf8a38de042ba522310d04ec9f14346c70"
+}
+```
+
+### Security Benefits
+
+1. **At-Rest Protection**: API keys encrypted when stored in filesystem
+2. **Runtime Decryption**: Keys only decrypted in memory when needed
+3. **Dual Provider Support**: Both Gemini and OpenAI keys protected
+4. **Backward Compatibility**: Graceful handling of decryption failures
+5. **Environment-Based Key**: Uses `SETTINGS_ENCRYPTION_KEY` environment variable
+
+### Next Steps
+- Set strong `SETTINGS_ENCRYPTION_KEY` in production environment
+- Consider implementing key rotation mechanism
+- Add audit logging for API key access
+- Implement secure key backup/recovery procedures
+
+---
+
 ## 2025-09-14 16:11:28 - OpenAI Vision API Integration
 
 ### Context
