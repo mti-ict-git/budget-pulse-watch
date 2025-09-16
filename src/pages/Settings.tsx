@@ -136,7 +136,9 @@ const Settings: React.FC = () => {
   const loadSettings = async () => {
     try {
       // Load OCR settings
-      const ocrResponse = await fetch('/api/settings/ocr');
+      const ocrResponse = await fetch('/api/settings/ocr', {
+        headers: authService.getAuthHeaders()
+      });
       if (ocrResponse.ok) {
         const settings = await ocrResponse.json();
         setOcrSettings({
@@ -149,7 +151,9 @@ const Settings: React.FC = () => {
       }
       
       // Load general settings
-      const generalResponse = await fetch('/api/settings/general');
+      const generalResponse = await fetch('/api/settings/general', {
+        headers: authService.getAuthHeaders()
+      });
       if (generalResponse.ok) {
         const settings = await generalResponse.json();
         setGeneralSettings({
@@ -166,9 +170,7 @@ const Settings: React.FC = () => {
     try {
       const response = await fetch('/api/settings/ocr', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: authService.getAuthHeaders(),
         body: JSON.stringify(ocrSettings),
       });
 
@@ -576,9 +578,7 @@ const Settings: React.FC = () => {
     try {
       const response = await fetch('/api/settings/ocr/test', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: authService.getAuthHeaders(),
         body: JSON.stringify({ 
           apiKey: currentApiKey,
           provider: ocrSettings.provider
@@ -652,9 +652,7 @@ const Settings: React.FC = () => {
     try {
       const response = await fetch('/api/settings/test-folder-path', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: authService.getAuthHeaders(),
         body: JSON.stringify({ path: generalSettings.sharedFolderPath })
       });
 
@@ -689,9 +687,7 @@ const Settings: React.FC = () => {
     try {
       const response = await fetch('/api/settings/general', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: authService.getAuthHeaders(),
         body: JSON.stringify(generalSettings)
       });
 

@@ -219,7 +219,9 @@ export default function PRFMonitoring() {
   // Fetch available status values from API
   const fetchStatusValues = async () => {
     try {
-      const response = await fetch('/api/prfs/filters/status');
+      const response = await fetch('/api/prfs/filters/status', {
+        headers: authService.getAuthHeaders()
+      });
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
@@ -358,9 +360,7 @@ export default function PRFMonitoring() {
     try {
       const response = await fetch('/api/prf-documents/bulk-sync', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: authService.getAuthHeaders(),
         body: JSON.stringify({ userId: 1 }), // TODO: Get from auth context
       });
       const result = await response.json();

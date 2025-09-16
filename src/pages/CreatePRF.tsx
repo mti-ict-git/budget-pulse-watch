@@ -12,6 +12,7 @@ import { ArrowLeft, FileText, Upload, Zap, CheckCircle, Save } from 'lucide-reac
 import { useNavigate } from 'react-router-dom';
 import OCRUpload from '@/components/OCRUpload';
 import { toast } from '@/hooks/use-toast';
+import { authService } from '@/services/authService';
 
 interface ExtractedPRFData {
   prfNo?: string;
@@ -165,6 +166,7 @@ const CreatePRF: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`,
         },
         body: JSON.stringify({
           ...formData,
