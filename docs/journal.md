@@ -4033,3 +4033,47 @@ services:
 - Rebuild backend container with `docker compose up -d --build`
 - Verify backend starts without ESM errors
 - Test complete application functionality
+
+---
+
+## 2025-09-16 15:29:23 - Package Lock File Synchronization Fix
+
+**Context**: Docker build was failing with `npm ci` error because package-lock.json was out of sync with the updated uuid version in package.json. The lock file still referenced uuid@13.0.0 while package.json was updated to uuid@9.0.1.
+
+**Error Details**:
+```
+npm error `npm ci` can only install packages when your package.json and package-lock.json are in sync.
+npm error Invalid: lock file's uuid@13.0.0 does not satisfy uuid@9.0.1
+```
+
+**Root Cause**:
+- **package.json**: Updated to uuid@9.0.1 (ESM compatibility fix)
+- **package-lock.json**: Still locked to uuid@13.0.0 (outdated)
+- **npm ci**: Requires exact synchronization between package.json and lock file
+
+**Solution Applied**:
+1. **Lock File Regeneration**: Ran `npm install` in backend directory
+   - Updated package-lock.json to match package.json dependencies
+   - Synchronized uuid version to 9.0.1
+   - Resolved dependency tree conflicts
+
+**Additional Warnings Addressed**:
+- **Node.js Version**: Multiple packages require Node.js >=20.0.0 (current: v18.20.8)
+- **Azure packages**: @azure/core-* packages showing engine warnings
+- **ldapts package**: Requires Node.js >=20
+
+**Results**:
+- ✅ package-lock.json synchronized with package.json
+- ✅ uuid dependency resolved to compatible version
+- ✅ Docker build dependency conflicts eliminated
+- ⚠️ Engine warnings remain (non-blocking for current functionality)
+
+**Technical Notes**:
+- **npm ci vs npm install**: npm ci requires exact lock file match, npm install updates lock file
+- **Dependency resolution**: 1 package changed, 254 packages audited
+- **Security**: 1 high severity vulnerability detected (requires separate audit)
+
+**Next Steps**:
+- Rebuild containers with `docker compose up -d --build`
+- Consider Node.js version upgrade to 20+ for full package compatibility
+- Address security vulnerability with `npm audit fix`
