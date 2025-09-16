@@ -136,7 +136,6 @@ const CreatePRF: React.FC = () => {
 
   const handlePRFCreated = (prfData: CreatedPRFData) => {
     setCreatedPRF(prfData);
-    console.log('PRF created:', prfData);
   };
 
   const handleInputChange = (field: keyof CreatePRFRequest, value: string | number | Date | undefined) => {
@@ -228,7 +227,6 @@ const CreatePRF: React.FC = () => {
 
   const handlePreviewData = (data: ExtractedPRFData) => {
     setPreviewData(data);
-    console.log('Preview data:', data);
   };
 
   const handleViewPRF = () => {

@@ -63,9 +63,11 @@ const Login: React.FC = () => {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <div className="bg-blue-600 p-3 rounded-full">
-              <Shield className="h-8 w-8 text-white" />
-            </div>
+            <img 
+              src="/MTI-removebg-preview.png" 
+              alt="MTI Logo" 
+              className="h-16 w-auto"
+            />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">MTI ICT PO Monitoring</h1>
           <p className="text-gray-600">Sign in to your account</p>

@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { authService } from "../../services/authService";
 
 interface ValidationError {
   row: number;
@@ -85,8 +86,15 @@ export function ExcelImportDialog() {
       const formData = new FormData();
       formData.append('file', file);
 
+      const token = authService.getToken();
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch('/api/import/prf/validate', {
         method: 'POST',
+        headers,
         body: formData,
       });
 
@@ -120,8 +128,15 @@ export function ExcelImportDialog() {
         setImportProgress(prev => Math.min(prev + 10, 90));
       }, 500);
 
+      const token = authService.getToken();
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch('/api/import/prf/bulk', {
         method: 'POST',
+        headers,
         body: formData,
       });
 

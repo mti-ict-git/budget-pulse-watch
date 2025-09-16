@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -158,7 +158,7 @@ export default function PRFMonitoring() {
   });
 
   // Fetch PRF data from API
-  const fetchPRFData = async () => {
+  const fetchPRFData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -183,10 +183,6 @@ export default function PRFMonitoring() {
       
       if (result.success) {
         // Transform API data to match frontend interface
-        // Debug: Log the raw data to see what Status values we're getting
-        console.log('Raw PRF data from API:', result.data.slice(0, 3));
-        console.log('Status values:', result.data.map(prf => prf.Status));
-        
         const transformedData = result.data.map((prf: PRFRawData) => ({
           id: prf.PRFID?.toString() || '',
           prfNo: prf.PRFNo || '',
@@ -205,9 +201,6 @@ export default function PRFMonitoring() {
           items: prf.Items || []
         }));
         
-        // Debug: Log the transformed data to see what progress values we have
-        console.log('Transformed data progress values:', transformedData.map(prf => prf.progress));
-        
         setPrfData(transformedData);
         setPagination(result.pagination);
       } else {
@@ -220,7 +213,7 @@ export default function PRFMonitoring() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [pagination.page, pagination.limit, searchTerm, statusFilter, departmentFilter, priorityFilter, yearFilter]);
 
   // Fetch available status values from API
   const fetchStatusValues = async () => {
@@ -248,7 +241,7 @@ export default function PRFMonitoring() {
   useEffect(() => {
     fetchPRFData();
     setSelectedItems(new Set()); // Clear selections when data changes
-  }, [pagination.page, pagination.limit, statusFilter, departmentFilter, priorityFilter, yearFilter]);
+  }, [pagination.page, pagination.limit, statusFilter, departmentFilter, priorityFilter, yearFilter, fetchPRFData]);
 
   // Debounced search effect
   useEffect(() => {
@@ -261,7 +254,7 @@ export default function PRFMonitoring() {
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [searchTerm]);
+  }, [searchTerm, fetchPRFData, pagination.page]);
 
   // Since filtering is now done on the backend, we use prfData directly
   const filteredData = prfData;
@@ -312,12 +305,10 @@ export default function PRFMonitoring() {
   };
 
   const handleBulkExport = () => {
-    console.log('Exporting selected items:', Array.from(selectedItems));
     // TODO: Implement bulk export functionality
   };
 
   const handleBulkArchive = () => {
-    console.log('Archiving selected items:', Array.from(selectedItems));
     // TODO: Implement bulk archive functionality
   };
 
@@ -357,7 +348,6 @@ export default function PRFMonitoring() {
   };
 
   const handleBulkStatusUpdate = (newStatus: string) => {
-    console.log('Updating status for selected items:', Array.from(selectedItems), 'to:', newStatus);
     // TODO: Implement bulk status update functionality
   };
 

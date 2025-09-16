@@ -103,54 +103,54 @@ export function PRFEditDialog({ prf, onPRFUpdated }: PRFEditDialogProps) {
     e.preventDefault();
     setIsSubmitting(true);
 
-    try {
-      // Validate required fields
-      if (!formData.Title?.trim()) {
-        toast({
-          title: "Validation Error",
-          description: "Title is required",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (!formData.RequestedAmount || formData.RequestedAmount <= 0) {
-        toast({
-          title: "Validation Error",
-          description: "Requested amount must be greater than 0",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Prepare update data
-      const updateData: UpdatePRFRequest = {
-        Title: formData.Title?.trim(),
-        Description: formData.Description?.trim(),
-        SumDescriptionRequested: formData.SumDescriptionRequested?.trim(),
-        PurchaseCostCode: formData.PurchaseCostCode?.trim(),
-        RequestedAmount: formData.RequestedAmount,
-        RequiredFor: formData.RequiredFor?.trim(),
-        BudgetYear: formData.BudgetYear,
-        Department: formData.Department,
-        Priority: formData.Priority,
-        Status: formData.Status,
-        SubmitBy: formData.SubmitBy?.trim(),
-      };
-
-      // Remove empty/undefined fields
-      Object.keys(updateData).forEach(key => {
-        const value = updateData[key as keyof UpdatePRFRequest];
-        if (value === undefined || value === '' || value === null) {
-          delete updateData[key as keyof UpdatePRFRequest];
-        }
+    // Validate required fields
+    if (!formData.Title?.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Title is required",
+        variant: "destructive",
       });
+      setIsSubmitting(false);
+      return;
+    }
 
-      console.log('Updating PRF:', prf.id, 'with data:', updateData);
+    if (!formData.RequestedAmount || formData.RequestedAmount <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Requested amount must be greater than 0",
+        variant: "destructive",
+      });
+      setIsSubmitting(false);
+      return;
+    }
 
-      const response = await fetch(`/api/prfs/${prf.id}`, {
-        method: 'PUT',
-        headers: {
+    // Prepare update data
+    const updateData: UpdatePRFRequest = {
+      Title: formData.Title?.trim(),
+      Description: formData.Description?.trim(),
+      SumDescriptionRequested: formData.SumDescriptionRequested?.trim(),
+      PurchaseCostCode: formData.PurchaseCostCode?.trim(),
+      RequestedAmount: formData.RequestedAmount,
+      RequiredFor: formData.RequiredFor?.trim(),
+      BudgetYear: formData.BudgetYear,
+      Department: formData.Department,
+      Priority: formData.Priority,
+      Status: formData.Status,
+      SubmitBy: formData.SubmitBy?.trim(),
+    };
+
+    // Remove empty/undefined fields
+    Object.keys(updateData).forEach(key => {
+      const value = updateData[key as keyof UpdatePRFRequest];
+      if (value === undefined || value === '' || value === null) {
+        delete updateData[key as keyof UpdatePRFRequest];
+      }
+    });
+
+    try {
+        const response = await fetch(`/api/prfs/${prf.id}`, {
+          method: 'PUT',
+          headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(updateData),

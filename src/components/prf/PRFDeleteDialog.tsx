@@ -43,9 +43,7 @@ export function PRFDeleteDialog({ prf, onPRFDeleted }: PRFDeleteDialogProps) {
     setIsDeleting(true);
 
     try {
-      console.log('Deleting PRF:', prf.id);
-
-      const response = await fetch(`/api/prfs/${prf.id}`, {
+        const response = await fetch(`/api/prfs/${prf.id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
