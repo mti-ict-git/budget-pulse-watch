@@ -4,8 +4,6 @@ services:
     build: .
     ports:
       - "9007:8080"
-    environment:
-      - VITE_API_URL=http://backend:3000
     depends_on:
       - backend
 
