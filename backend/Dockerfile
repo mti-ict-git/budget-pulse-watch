@@ -39,9 +39,17 @@ RUN npm run build
 # Stage 3: Production
 FROM base AS production
 
+# Install cifs-utils for network share mounting
+RUN apk add --no-cache cifs-utils
+
 # Set NODE_ENV
 ENV NODE_ENV=production
 ENV PORT=3000
+
+# Create directories for mounted volumes
+RUN mkdir -p /app/shared-documents /app/data /app/temp && \
+    chown -R nodejs:nodejs /app/shared-documents /app/data /app/temp && \
+    chmod -R 755 /app/shared-documents /app/data /app/temp
 
 # Copy production dependencies
 COPY --from=deps /app/node_modules ./node_modules

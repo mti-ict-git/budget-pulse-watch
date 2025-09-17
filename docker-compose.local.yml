@@ -1,0 +1,27 @@
+# Local development/testing override
+# Use: docker-compose -f docker-compose.yml -f docker-compose.local.yml up -d
+# 
+# This configuration uses a local directory instead of network share
+# Useful for testing or when network share access is problematic
+
+services:
+  backend:
+    volumes:
+      # Mount local directory instead of network share
+      # Create this directory and copy/sync files from network share
+      - ./shared-documents:/app/shared-documents:ro
+      - ./backend/data:/app/data
+      - ./backend/temp:/app/temp
+    
+    environment:
+      - SHARED_FOLDER_PATH=/app/shared-documents
+      - NODE_ENV=production
+      
+    env_file:
+      - ./backend/.env.production
+
+# Instructions:
+# 1. Create ./shared-documents directory in project root
+# 2. Copy or sync files from network share to ./shared-documents
+# 3. Use this compose file for deployment: 
+#    docker-compose -f docker-compose.yml -f docker-compose.local.yml up -d

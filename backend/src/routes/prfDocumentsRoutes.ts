@@ -37,13 +37,23 @@ interface FolderScanResult {
   totalSize: number;
 }
 
-// Get shared folder path from settings
+// Get shared folder path from settings or environment
 async function getSharedFolderPath(): Promise<string> {
   try {
-    const settingsPath = path.join(__dirname, '../../data/settings.json');
-    const settingsData = await fs.readFile(settingsPath, 'utf-8');
+    // First check environment variable (for Docker production)
+    const envPath = process.env.SHARED_FOLDER_PATH;
+    if (envPath) {
+      console.log('Using shared folder path from environment:', envPath);
+      return envPath;
+    }
+
+    // Fallback to settings file (for development)
+    const settingsFilePath = path.join(__dirname, '../../data/settings.json');
+    const settingsData = await fs.readFile(settingsFilePath, 'utf-8');
     const settings = JSON.parse(settingsData);
-    return settings.general?.sharedFolderPath || '';
+    const settingsSharedPath = settings.general?.sharedFolderPath || '';
+    console.log('Using shared folder path from settings:', settingsSharedPath);
+    return settingsSharedPath;
   } catch (error) {
     console.error('Error reading settings:', error);
     return '';
