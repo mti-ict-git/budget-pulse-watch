@@ -2323,6 +2323,86 @@ async function getSharedFolderPath(): Promise<string> {
 
 ---
 
+## 📅 2025-09-18 11:58:24 - Domain Credentials Configuration Setup ⚙️
+
+### 🎯 Context
+User requested guidance on where to place domain credentials (`DOMAIN_USERNAME` and `DOMAIN_PASSWORD`) for network share authentication in the production environment.
+
+### 🔧 Implementation
+
+#### **1. Backend Environment Template Updated**
+**File**: `backend/.env.production.template`
+```bash
+# Network Share Authentication (for shared folder access)
+DOMAIN_USERNAME=your-domain-username
+DOMAIN_PASSWORD=your-domain-password
+SHARED_FOLDER_PATH=\\\\mbma.com\\shared\\PR_Document\\PT Merdeka Tsingshan Indonesia
+```
+
+#### **2. Production Docker Compose Updated**
+**File**: `docker-compose.production.yml`
+```yaml
+environment:
+  - SHARED_FOLDER_PATH=\\\\mbma.com\\shared\\PR_Document\\PT Merdeka Tsingshan Indonesia
+  # Domain credentials for network share authentication
+  - DOMAIN_USERNAME=${DOMAIN_USERNAME}
+  - DOMAIN_PASSWORD=${DOMAIN_PASSWORD}
+```
+
+#### **3. Production Environment Example Created**
+**File**: `.env.production.example`
+- Provides clear example of how to configure domain credentials
+- Shows expected format and usage
+- Includes security notes and best practices
+
+### 📋 Usage Instructions
+
+#### **Step 1: Create Production Environment File**
+```bash
+# Copy template to actual production file
+cp backend/.env.production.template backend/.env.production
+
+# Or copy the root example
+cp .env.production.example .env.production
+```
+
+#### **Step 2: Configure Credentials**
+```bash
+# Edit .env.production and add your actual values:
+DOMAIN_USERNAME=svc-budget-app
+DOMAIN_PASSWORD=SecurePassword123!
+```
+
+#### **Step 3: Deploy with Credentials**
+```bash
+# Production deployment will now use domain authentication
+docker-compose -f docker-compose.yml -f docker-compose.production.yml up -d
+```
+
+### 🔒 Security Notes
+
+1. **Never commit** `.env.production` to version control
+2. **Use service account** with minimal required permissions
+3. **Rotate credentials** regularly
+4. **Monitor access logs** for authentication attempts
+
+### 📁 Files Modified
+
+- `backend/.env.production.template` - Added domain credential variables
+- `docker-compose.production.yml` - Added environment variable mapping
+- `.env.production.example` - Created configuration example
+
+### 🎯 Next Steps
+
+1. **Obtain Service Account**: Request dedicated AD service account from IT
+2. **Configure Credentials**: Update `.env.production` with actual values
+3. **Test Authentication**: Verify network share access works
+4. **Deploy**: Use production configuration for deployment
+
+**Status**: ✅ **Configuration Ready** - Awaiting service account credentials
+
+---
+
 ##  2025-09-18 09:40:07 - PRF Item Modification Feature Implementation
 
 ### **Context**

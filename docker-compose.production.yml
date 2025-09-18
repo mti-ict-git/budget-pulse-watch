@@ -16,3 +16,6 @@ services:
     environment:
       # Direct network path access (no volume mount)
       - SHARED_FOLDER_PATH=\\\\mbma.com\\shared\\PR_Document\\PT Merdeka Tsingshan Indonesia
+      # Domain credentials for network share authentication
+      - DOMAIN_USERNAME=${DOMAIN_USERNAME}
+      - DOMAIN_PASSWORD=${DOMAIN_PASSWORD}
