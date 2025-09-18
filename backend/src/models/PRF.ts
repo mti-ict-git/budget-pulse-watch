@@ -211,7 +211,14 @@ export class PRFModel {
     `;
 
     const result = await executeQuery<PRF>(query, params);
-    return result.recordset[0];
+    const updatedPRF = result.recordset[0];
+
+    // If Status was updated, cascade the status to all non-overridden items
+    if (updateData.Status) {
+      await this.cascadeStatusToItems(prfId, updateData.Status);
+    }
+
+    return updatedPRF;
   }
 
   /**
@@ -459,7 +466,7 @@ export class PRFModel {
   /**
    * Update PRF item
    */
-  static async updateItem(itemId: number, updateData: Partial<CreatePRFItemRequest>): Promise<PRFItem> {
+  static async updateItem(itemId: number, updateData: Partial<UpdatePRFItemParams>): Promise<PRFItem> {
     const setClause = [];
     const params: UpdatePRFItemParams = { PRFItemID: itemId };
 
@@ -482,6 +489,49 @@ export class PRFModel {
     if (updateData.Specifications !== undefined) {
       setClause.push('Specifications = @Specifications');
       params.Specifications = updateData.Specifications;
+    }
+    if (updateData.Status !== undefined) {
+      setClause.push('Status = @Status');
+      params.Status = updateData.Status;
+      // When status is manually changed, mark as overridden
+      setClause.push('StatusOverridden = @StatusOverridden');
+      params.StatusOverridden = true;
+    }
+    if (updateData.PickedUpBy !== undefined) {
+      setClause.push('PickedUpBy = @PickedUpBy');
+      params.PickedUpBy = updateData.PickedUpBy;
+    }
+    if (updateData.PickedUpDate !== undefined) {
+      setClause.push('PickedUpDate = @PickedUpDate');
+      params.PickedUpDate = updateData.PickedUpDate;
+    }
+    if (updateData.Notes !== undefined) {
+      setClause.push('Notes = @Notes');
+      params.Notes = updateData.Notes;
+    }
+    if (updateData.UpdatedBy !== undefined) {
+      setClause.push('UpdatedBy = @UpdatedBy, UpdatedAt = GETDATE()');
+      params.UpdatedBy = updateData.UpdatedBy;
+    }
+    if (updateData.StatusOverridden !== undefined) {
+      setClause.push('StatusOverridden = @StatusOverridden');
+      params.StatusOverridden = updateData.StatusOverridden;
+      
+      // If resetting override to false, cascade PRF status to this item
+      if (updateData.StatusOverridden === false) {
+        const prfQuery = `SELECT Status FROM PRFs WHERE PRFID = (SELECT PRFID FROM PRFItems WHERE PRFItemID = @PRFItemID)`;
+        const prfResult = await executeQuery<{ Status: string }>(prfQuery, { PRFItemID: itemId });
+        
+        if (prfResult.recordset.length > 0) {
+          const prfStatus = prfResult.recordset[0].Status;
+          setClause.push('Status = @CascadedStatus');
+          params.CascadedStatus = prfStatus;
+        }
+      }
+    }
+
+    if (setClause.length === 0) {
+      throw new Error('No fields to update');
     }
 
     const query = `
@@ -539,5 +589,22 @@ export class PRFModel {
 
     const result = await executeQuery<{ Status: string }>(query);
     return result.recordset.map(row => row.Status);
+  }
+
+  /**
+   * Cascade status update to all non-overridden items
+   */
+  private static async cascadeStatusToItems(prfId: number, newStatus: string): Promise<void> {
+    const query = `
+      UPDATE PRFItems 
+      SET Status = @Status, UpdatedAt = GETDATE()
+      WHERE PRFID = @PRFID 
+        AND (StatusOverridden IS NULL OR StatusOverridden = 0)
+    `;
+
+    await executeQuery(query, {
+      PRFID: prfId,
+      Status: newStatus
+    });
   }
 }

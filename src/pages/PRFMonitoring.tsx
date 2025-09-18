@@ -23,18 +23,30 @@ import { PRFDetailDialog } from "@/components/prf/PRFDetailDialog";
 import { ExcelImportDialog } from "@/components/prf/ExcelImportDialog";
 import { PRFEditDialog } from "@/components/prf/PRFEditDialog";
 import { PRFDeleteDialog } from "@/components/prf/PRFDeleteDialog";
+import { PRFItemModificationModal } from "@/components/prf/PRFItemModificationModal";
 import { toast } from "@/hooks/use-toast";
 import { authService } from "@/services/authService";
+import { useAuth } from "@/contexts/AuthContext";
 
 // PRF Item interface
 interface PRFItem {
-  ItemID: number;
+  PRFItemID: number;
+  ItemID?: number; // Legacy field for compatibility
   PRFID: number;
   ItemName: string;
   Description: string;
   Quantity: number;
   UnitPrice: number;
+  TotalPrice: number;
   Specifications?: string;
+  Status?: 'Pending' | 'Approved' | 'Picked Up' | 'Cancelled' | 'On Hold';
+  PickedUpBy?: string;
+  PickedUpDate?: Date;
+  Notes?: string;
+  UpdatedAt?: Date;
+  UpdatedBy?: number;
+  CreatedAt: Date;
+  StatusOverridden?: boolean; // Indicates if item status was manually overridden vs following PRF status
 }
 
 // PRF data interface
@@ -139,6 +151,7 @@ const formatCurrency = (amount: number) => {
 };
 
 export default function PRFMonitoring() {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
@@ -151,6 +164,8 @@ export default function PRFMonitoring() {
   const [availableStatusValues, setAvailableStatusValues] = useState<string[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [isBulkSyncing, setIsBulkSyncing] = useState(false);
+  const [selectedItemForModification, setSelectedItemForModification] = useState<PRFItem | null>(null);
+  const [isModificationModalOpen, setIsModificationModalOpen] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 50,
@@ -315,6 +330,47 @@ export default function PRFMonitoring() {
     // TODO: Implement bulk archive functionality
   };
 
+  // Item modification handlers
+  const handleItemModification = (item: PRFItem) => {
+    setSelectedItemForModification(item);
+    setIsModificationModalOpen(true);
+  };
+
+  const handleItemUpdate = async (itemId: number, updateData: Partial<PRFItem>) => {
+    try {
+      const response = await fetch(`/api/prfs/items/${itemId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeaders(),
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "Item Updated",
+          description: "PRF item has been successfully updated.",
+        });
+        
+        // Refresh the data to show updated item
+        await fetchPRFData();
+      } else {
+        throw new Error(result.message || 'Failed to update item');
+      }
+    } catch (error) {
+      console.error('Error updating item:', error);
+      toast({
+        title: "Update Failed",
+        description: error instanceof Error ? error.message : "Failed to update PRF item.",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
   const handleBulkDelete = async () => {
     if (window.confirm(`Are you sure you want to delete ${selectedItems.size} selected PRF records? This action cannot be undone.`)) {
       try {
@@ -356,12 +412,21 @@ export default function PRFMonitoring() {
   };
 
   const handleBulkSync = async () => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to perform bulk sync",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsBulkSyncing(true);
     try {
       const response = await fetch('/api/prf-documents/bulk-sync', {
         method: 'POST',
         headers: authService.getAuthHeaders(),
-        body: JSON.stringify({ userId: 1 }), // TODO: Get from auth context
+        body: JSON.stringify({ userId: user.id }),
       });
       const result = await response.json();
       
@@ -688,9 +753,35 @@ export default function PRFMonitoring() {
                                 <h4 className="font-medium mb-3 text-sm text-gray-700">PRF Items ({prf.items.length})</h4>
                                 <div className="space-y-2">
                                   {prf.items.map((item, index) => (
-                                    <div key={item.ItemID} className="flex items-center justify-between p-3 bg-white rounded border">
+                                    <div key={item.PRFItemID || item.ItemID} className="flex items-center justify-between p-3 bg-white rounded border">
                                       <div className="flex-1">
-                                        <div className="font-medium text-sm">{item.ItemName}</div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <div className="font-medium text-sm">{item.ItemName}</div>
+                                          {item.Status && (
+                                            <div className="flex items-center gap-1">
+                                              <Badge 
+                                                className={
+                                                  item.Status === 'Approved' ? 'bg-green-100 text-green-800' :
+                                                  item.Status === 'Picked Up' ? 'bg-blue-100 text-blue-800' :
+                                                  item.Status === 'Cancelled' ? 'bg-red-100 text-red-800' :
+                                                  item.Status === 'On Hold' ? 'bg-orange-100 text-orange-800' :
+                                                  'bg-yellow-100 text-yellow-800'
+                                                }
+                                              >
+                                                {item.Status}
+                                              </Badge>
+                                              {item.StatusOverridden && (
+                                                <Badge 
+                                                  variant="outline" 
+                                                  className="text-xs bg-purple-50 text-purple-700 border-purple-200"
+                                                  title="Status manually overridden - does not follow PRF status"
+                                                >
+                                                  Manual
+                                                </Badge>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
                                         {item.Description && (
                                           <div className="text-xs text-gray-600 mt-1">{item.Description}</div>
                                         )}
@@ -699,10 +790,33 @@ export default function PRFMonitoring() {
                                             Specs: {JSON.parse(item.Specifications).originalRow ? `Row ${JSON.parse(item.Specifications).originalRow}` : 'N/A'}
                                           </div>
                                         )}
+                                        {item.PickedUpBy && (
+                                          <div className="text-xs text-blue-600 mt-1">
+                                            Picked up by: {item.PickedUpBy} {item.PickedUpDate && `on ${new Date(item.PickedUpDate).toLocaleDateString()}`}
+                                          </div>
+                                        )}
+                                        {item.Notes && (
+                                          <div className="text-xs text-gray-500 mt-1 italic">
+                                            Note: {item.Notes}
+                                          </div>
+                                        )}
                                       </div>
-                                      <div className="text-right">
-                                        <div className="text-sm font-medium">{formatCurrency(item.UnitPrice)}</div>
-                                        <div className="text-xs text-gray-500">Qty: {item.Quantity}</div>
+                                      <div className="text-right flex items-center gap-2">
+                                        <div>
+                                          <div className="text-sm font-medium">{formatCurrency(item.UnitPrice)}</div>
+                                          <div className="text-xs text-gray-500">Qty: {item.Quantity}</div>
+                                          {item.TotalPrice && (
+                                            <div className="text-xs font-medium text-gray-700">Total: {formatCurrency(item.TotalPrice)}</div>
+                                          )}
+                                        </div>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => handleItemModification(item)}
+                                          className="ml-2"
+                                        >
+                                          <Edit className="h-3 w-3" />
+                                        </Button>
                                       </div>
                                     </div>
                                   ))}
@@ -750,6 +864,19 @@ export default function PRFMonitoring() {
           )}
         </CardContent>
       </Card>
+
+      {/* Item Modification Modal */}
+      {selectedItemForModification && (
+        <PRFItemModificationModal
+          isOpen={isModificationModalOpen}
+          onClose={() => {
+            setIsModificationModalOpen(false);
+            setSelectedItemForModification(null);
+          }}
+          item={selectedItemForModification}
+          onUpdate={handleItemUpdate}
+        />
+      )}
     </div>
   );
 }

@@ -528,4 +528,108 @@ router.post('/sync-all-folders', authenticateToken, requireContentManager, async
   }
 });
 
+// API endpoint: Bulk sync (alias for sync-all-folders with frontend-compatible response)
+router.post('/bulk-sync', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
+  try {
+    const { userId = 1 } = req.body;
+    
+    // Get all PRF numbers from database
+    const pool = getPool();
+    const prfResult = await pool.request()
+      .query('SELECT PRFID, PRFNo FROM PRF WHERE PRFNo IS NOT NULL');
+    
+    const sharedFolderPath = await getSharedFolderPath();
+    if (!sharedFolderPath) {
+      return res.status(400).json({
+        success: false,
+        message: 'Shared folder path not configured'
+      });
+    }
+    
+    const results = [];
+    let totalSynced = 0;
+    let foldersProcessed = 0;
+    
+    for (const prf of prfResult.recordset) {
+      try {
+        const scanResult = await scanPRFFolder(prf.PRFNo, sharedFolderPath);
+        
+        if (scanResult.totalFiles > 0) {
+          // Clear existing auto-synced files
+          await pool.request()
+            .input('prfId', prf.PRFID)
+            .query('DELETE FROM PRFFiles WHERE PRFID = @prfId AND IsOriginalDocument = 0');
+          
+          // Insert new files
+          let insertedCount = 0;
+          for (const doc of scanResult.documents) {
+            try {
+              await pool.request()
+                .input('prfId', prf.PRFID)
+                .input('originalFileName', doc.fileName)
+                .input('filePath', doc.filePath)
+                .input('sharedPath', doc.filePath)
+                .input('fileSize', doc.fileSize)
+                .input('fileType', doc.fileType)
+                .input('mimeType', doc.mimeType)
+                .input('uploadedBy', userId)
+                .input('isOriginalDocument', false)
+                .input('description', `Auto-synced from folder ${prf.PRFNo}`)
+                .query(`
+                  INSERT INTO PRFFiles (
+                    PRFID, OriginalFileName, FilePath, SharedPath, FileSize, 
+                    FileType, MimeType, UploadedBy, IsOriginalDocument, Description
+                  ) VALUES (
+                    @prfId, @originalFileName, @filePath, @sharedPath, @fileSize,
+                    @fileType, @mimeType, @uploadedBy, @isOriginalDocument, @description
+                  )
+                `);
+              insertedCount++;
+            } catch (insertError) {
+              console.error(`Error inserting file ${doc.fileName} for PRF ${prf.PRFNo}:`, insertError);
+            }
+          }
+          
+          if (insertedCount > 0) {
+            foldersProcessed++;
+            totalSynced += insertedCount;
+          }
+          
+          results.push({
+            prfNo: prf.PRFNo,
+            prfId: prf.PRFID,
+            totalFiles: scanResult.totalFiles,
+            insertedFiles: insertedCount,
+            folderPath: scanResult.folderPath
+          });
+        }
+      } catch (error) {
+        console.error(`Error syncing PRF ${prf.PRFNo}:`, error);
+        results.push({
+          prfNo: prf.PRFNo,
+          prfId: prf.PRFID,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
+    
+    return res.json({
+      success: true,
+      data: {
+        totalSynced,
+        foldersProcessed,
+        totalPRFs: prfResult.recordset.length,
+        results
+      }
+    });
+  } catch (error) {
+    console.error('Error bulk syncing folders:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to bulk sync folders',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;

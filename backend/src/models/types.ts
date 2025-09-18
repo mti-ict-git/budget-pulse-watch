@@ -114,6 +114,12 @@ export interface UpdatePRFItemParams {
   Quantity?: number;
   UnitPrice?: number;
   Specifications?: string;
+  Status?: 'Pending' | 'Approved' | 'Picked Up' | 'Cancelled' | 'On Hold';
+  PickedUpBy?: string;
+  PickedUpDate?: Date;
+  Notes?: string;
+  UpdatedBy?: number;
+  StatusOverridden?: boolean;
   [key: string]: unknown;
 }
 
@@ -442,7 +448,14 @@ export interface PRFItem {
   UnitPrice: number;
   TotalPrice: number;
   Specifications?: string;
+  Status?: 'Pending' | 'Approved' | 'Picked Up' | 'Cancelled' | 'On Hold';
+  PickedUpBy?: string;
+  PickedUpDate?: Date;
+  Notes?: string;
+  UpdatedAt?: Date;
+  UpdatedBy?: number;
   CreatedAt: Date;
+  StatusOverridden?: boolean; // Indicates if item status was manually overridden vs following PRF status
 }
 
 export interface CreatePRFItemRequest {

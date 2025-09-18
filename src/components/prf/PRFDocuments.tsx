@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import FilePreviewModal from '@/components/FilePreviewModal';
+import { useAuth } from '@/contexts/AuthContext';
+import { authService } from '@/services/authService';
 
 interface PRFDocument {
   FileID: number;
@@ -57,6 +59,7 @@ interface PRFDocumentsProps {
 }
 
 const PRFDocuments: React.FC<PRFDocumentsProps> = ({ prfId, prfNo, onDocumentUpdate }) => {
+  const { user } = useAuth();
   const [documents, setDocuments] = useState<PRFDocument[]>([]);
   const [folderScanResult, setFolderScanResult] = useState<FolderScanResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -73,7 +76,9 @@ const PRFDocuments: React.FC<PRFDocumentsProps> = ({ prfId, prfNo, onDocumentUpd
   const loadDocuments = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/prf-documents/documents/${prfId}`);
+      const response = await fetch(`/api/prf-documents/documents/${prfId}`, {
+        headers: authService.getAuthHeaders(),
+      });
       const result = await response.json();
       
       if (result.success) {
@@ -96,7 +101,9 @@ const PRFDocuments: React.FC<PRFDocumentsProps> = ({ prfId, prfNo, onDocumentUpd
   const scanFolder = async () => {
     setIsScanning(true);
     try {
-      const response = await fetch(`/api/prf-documents/scan-folder/${prfNo}`);
+      const response = await fetch(`/api/prf-documents/scan-folder/${prfNo}`, {
+        headers: authService.getAuthHeaders(),
+      });
       const result = await response.json();
       
       if (result.success) {
@@ -121,14 +128,21 @@ const PRFDocuments: React.FC<PRFDocumentsProps> = ({ prfId, prfNo, onDocumentUpd
   };
 
   const syncFolder = async () => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to sync folders.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSyncing(true);
     try {
       const response = await fetch(`/api/prf-documents/sync-folder/${prfNo}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ userId: 1 }), // TODO: Get from auth context
+        headers: authService.getAuthHeaders(),
+        body: JSON.stringify({ userId: user.id }),
       });
       const result = await response.json();
       
