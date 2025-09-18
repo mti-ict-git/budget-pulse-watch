@@ -519,13 +519,14 @@ export class PRFModel {
       
       // If resetting override to false, cascade PRF status to this item
       if (updateData.StatusOverridden === false) {
-        const prfQuery = `SELECT Status FROM PRFs WHERE PRFID = (SELECT PRFID FROM PRFItems WHERE PRFItemID = @PRFItemID)`;
+        const prfQuery = `SELECT Status FROM PRF WHERE PRFID = (SELECT PRFID FROM PRFItems WHERE PRFItemID = @PRFItemID)`;
         const prfResult = await executeQuery<{ Status: string }>(prfQuery, { PRFItemID: itemId });
         
         if (prfResult.recordset.length > 0) {
           const prfStatus = prfResult.recordset[0].Status;
+          const mappedStatus = this.mapPRFStatusToItemStatus(prfStatus);
           setClause.push('Status = @CascadedStatus');
-          params.CascadedStatus = prfStatus;
+          params.CascadedStatus = mappedStatus;
         }
       }
     }
@@ -592,9 +593,38 @@ export class PRFModel {
   }
 
   /**
+   * Map legacy PRF status values to valid PRFItems status values
+   */
+  private static mapPRFStatusToItemStatus(prfStatus: string): string {
+    // Map legacy PRF status values to valid PRFItems constraint values
+    const statusMapping: { [key: string]: string } = {
+      'Req. Approved': 'Approved',
+      'Req. Approved 2': 'Approved',
+      'Completed': 'Picked Up',
+      'In transit': 'Approved',
+      'On order': 'Approved',
+      'Rejected': 'Cancelled',
+      'Cancelled': 'Cancelled',
+      'On Hold': 'On Hold',
+      // Handle any "Updated:" prefixed statuses as Pending
+    };
+
+    // Handle "Updated:" prefixed statuses
+    if (prfStatus.toLowerCase().startsWith('updated:')) {
+      return 'Pending';
+    }
+
+    // Return mapped status or default to 'Pending' if not found
+    return statusMapping[prfStatus] || 'Pending';
+  }
+
+  /**
    * Cascade status update to all non-overridden items
    */
   private static async cascadeStatusToItems(prfId: number, newStatus: string): Promise<void> {
+    // Map the PRF status to a valid PRFItems status
+    const mappedStatus = this.mapPRFStatusToItemStatus(newStatus);
+    
     const query = `
       UPDATE PRFItems 
       SET Status = @Status, UpdatedAt = GETDATE()
@@ -604,7 +634,7 @@ export class PRFModel {
 
     await executeQuery(query, {
       PRFID: prfId,
-      Status: newStatus
+      Status: mappedStatus
     });
   }
 }

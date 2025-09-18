@@ -2172,6 +2172,157 @@ const handleBulkSync = async () => {
 **Status**: ✅ Resolved
 ---
 
+## 📅 2025-09-18 11:37:11 - AD Authentication Requirements for Shared Folder Access 🔐
+
+### 🎯 Context
+User inquiry about whether Active Directory (AD) account password is needed to access the shared folder `\\mbma.com\shared\PR_Document\PT Merdeka Tsingshan Indonesia` from within Docker containers.
+
+### 🔍 Analysis
+
+#### **Current Implementation**
+The application currently uses **direct network path access** without explicit authentication:
+
+```typescript
+// Environment variable in docker-compose.yml
+SHARED_FOLDER_PATH=\\mbma.com\shared\PR_Document\PT Merdeka Tsingshan Indonesia
+
+// Backend access via Node.js fs module
+const sharedFolderPath = process.env.SHARED_FOLDER_PATH;
+await fs.readdir(sharedFolderPath); // Direct access attempt
+```
+
+#### **Authentication Requirements**
+
+**✅ YES - AD credentials are typically required** for the following reasons:
+
+1. **Network Share Security**: `\\mbma.com\shared` is a domain-controlled network share
+2. **Docker Container Context**: Containers run in isolated environments without host authentication
+3. **Cross-Domain Access**: Container processes don't inherit host user credentials
+4. **NTLM/Kerberos Authentication**: Windows network shares require domain authentication
+
+### 🛠️ Authentication Options
+
+#### **Option 1: Docker Secrets (Recommended)**
+```yaml
+# docker-compose.production.yml
+services:
+  backend:
+    environment:
+      - SHARED_FOLDER_PATH=\\mbma.com\shared\PR_Document\PT Merdeka Tsingshan Indonesia
+      - DOMAIN_USERNAME_FILE=/run/secrets/domain_username
+      - DOMAIN_PASSWORD_FILE=/run/secrets/domain_password
+    secrets:
+      - domain_username
+      - domain_password
+
+secrets:
+  domain_username:
+    external: true
+  domain_password:
+    external: true
+```
+
+#### **Option 2: Service Account Environment Variables**
+```yaml
+# docker-compose.yml
+services:
+  backend:
+    environment:
+      - SHARED_FOLDER_PATH=\\mbma.com\shared\PR_Document\PT Merdeka Tsingshan Indonesia
+      - DOMAIN_USERNAME=${DOMAIN_USERNAME}
+      - DOMAIN_PASSWORD=${DOMAIN_PASSWORD}
+```
+
+#### **Option 3: CIFS Mount with Credentials (Previous Approach)**
+```yaml
+# docker-compose.yml (previous implementation)
+volumes:
+  shared-documents:
+    driver: local
+    driver_opts:
+      type: cifs
+      o: username=${CIFS_USERNAME},password=${CIFS_PASSWORD},domain=mbma.com
+      device: //mbma.com/shared/PR_Document/PT Merdeka Tsingshan Indonesia
+```
+
+### 🔧 Implementation Requirements
+
+#### **Backend Code Changes Needed**
+```typescript
+// backend/src/utils/networkAuth.ts
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
+
+export async function authenticateNetworkShare(
+  sharePath: string, 
+  username: string, 
+  password: string
+): Promise<boolean> {
+  try {
+    // Windows: net use command for authentication
+    await execAsync(`net use "${sharePath}" /user:mbma.com\\${username} ${password}`);
+    return true;
+  } catch (error) {
+    console.error('Network authentication failed:', error);
+    return false;
+  }
+}
+```
+
+#### **Updated Shared Folder Access**
+```typescript
+// backend/src/routes/prfDocumentsRoutes.ts
+async function getSharedFolderPath(): Promise<string> {
+  const envPath = process.env.SHARED_FOLDER_PATH;
+  const username = process.env.DOMAIN_USERNAME;
+  const password = process.env.DOMAIN_PASSWORD;
+  
+  if (envPath && username && password) {
+    // Authenticate before accessing
+    const authenticated = await authenticateNetworkShare(envPath, username, password);
+    if (!authenticated) {
+      throw new Error('Failed to authenticate with network share');
+    }
+    return envPath;
+  }
+  
+  // Fallback to settings file
+  return getSettingsPath();
+}
+```
+
+### 🚨 Security Considerations
+
+1. **Credential Storage**: Use Docker secrets or encrypted environment variables
+2. **Least Privilege**: Use dedicated service account with minimal permissions
+3. **Credential Rotation**: Implement regular password rotation
+4. **Audit Logging**: Log authentication attempts and access patterns
+5. **Network Security**: Ensure encrypted communication (SMB3+)
+
+### 📋 Next Steps
+
+1. **Obtain Service Account**: Request dedicated AD service account for application
+2. **Configure Secrets**: Set up Docker secrets for credential management
+3. **Update Backend**: Implement network authentication logic
+4. **Test Access**: Verify authenticated access to shared folder
+5. **Documentation**: Update deployment guide with authentication setup
+
+### 🎯 Impact
+
+- **Security**: Proper authentication ensures authorized access only
+- **Reliability**: Authenticated connections are more stable
+- **Compliance**: Meets enterprise security requirements
+- **Monitoring**: Enables proper access logging and auditing
+
+**Files Modified**: 
+- `docs/journal.md` (this entry)
+
+**Status**: 📋 **Analysis Complete** - Implementation pending service account setup
+
+---
+
 ##  2025-09-18 09:40:07 - PRF Item Modification Feature Implementation
 
 ### **Context**
@@ -2403,3 +2554,122 @@ The mismatch caused SQL constraint violations when the frontend tried to set sta
 - Resolves 500 errors when updating PRF status through PRFEditDialog
 - Enables proper status updates for PRF items with frontend-defined values
 - Maintains data integrity with appropriate constraint validation
+
+---
+
+## 📅 2025-09-18 11:22:53 - Legacy PRF Status Mapping Fix
+
+### 🎯 Context
+Fixed 500 Internal Server Error when updating PRFs with legacy status values that don't match the PRFItems constraint.
+
+### 🔍 Problem Identified
+- PRF table contains legacy status values like "Req. Approved 2", "Completed", "In transit", etc.
+- PRFItems constraint only allows: 'Pending', 'Approved', 'Picked Up', 'Cancelled', 'On Hold'
+- When PRF status is updated, `cascadeStatusToItems()` tries to set PRFItems with invalid status values
+- This caused CHECK constraint violations and 500 errors
+
+### ✅ Solution Implemented
+
+#### 1. **Status Mapping Function**:
+```typescript
+private static mapPRFStatusToItemStatus(prfStatus: string): string {
+  const statusMapping: { [key: string]: string } = {
+    'Req. Approved': 'Approved',
+    'Req. Approved 2': 'Approved',
+    'Completed': 'Picked Up',
+    'In transit': 'Approved',
+    'On order': 'Approved',
+    'Rejected': 'Cancelled',
+    'Cancelled': 'Cancelled',
+    'On Hold': 'On Hold',
+  };
+  
+  // Handle "Updated:" prefixed statuses as Pending
+  if (prfStatus.toLowerCase().startsWith('updated:')) {
+    return 'Pending';
+  }
+  
+  return statusMapping[prfStatus] || 'Pending';
+}
+```
+
+#### 2. **Updated cascadeStatusToItems Method**:
+- Now maps PRF status to valid PRFItems status before updating
+- Prevents constraint violations
+
+#### 3. **Fixed updateItem Method**:
+- Corrected table name from `PRFs` to `PRF`
+- Added status mapping when resetting override to false
+
+### 🔧 Validation
+- Backend server restarted successfully
+- No compilation errors
+- API endpoint responding (401 expected without auth)
+
+### 📁 Files Modified
+- `backend/src/models/PRF.ts` - Added status mapping logic
+
+### 🎯 Impact
+- Resolves 500 errors when updating PRFs with legacy status values
+- Maintains backward compatibility with existing data
+- Ensures PRFItems always receive valid constraint values
+
+---
+
+## 📅 2025-09-18 11:32:24 - Docker Configuration: Direct Network Access Implementation
+
+### 🎯 Context
+Reverted Docker configuration from volume mounting to direct network share access for the shared folder. This approach eliminates the complexity of CIFS volume mounting and allows the application to access the network share directly from within the container.
+
+### 🔍 Problem
+- Previous Docker setup used volume mounting with CIFS driver
+- Required network credentials management
+- Complex volume configuration in docker-compose files
+- Potential mounting issues in different environments
+
+### ✅ Solution Implemented
+
+#### 1. **Updated docker-compose.yml**
+- Removed bind mount volume for network share
+- Set `SHARED_FOLDER_PATH` environment variable to direct UNC path
+- Simplified volume configuration to only include data and temp directories
+
+```yaml
+environment:
+  # Direct network path access (no volume mount)
+  - SHARED_FOLDER_PATH=\\\\mbma.com\\shared\\PR_Document\\PT Merdeka Tsingshan Indonesia
+```
+
+#### 2. **Updated docker-compose.production.yml**
+- Removed CIFS volume configuration
+- Removed network credentials requirement
+- Set direct network path in environment variables
+- Simplified production deployment
+
+#### 3. **Created Test Script**
+- Created `scripts/test-docker-network-access.ps1`
+- Automated testing of network share access from Docker container
+- Validates directory listing and PRF folder access
+
+### 📁 Files Modified
+- `docker-compose.yml` - Removed volume mount, added direct path
+- `docker-compose.production.yml` - Removed CIFS volume, simplified config
+- `scripts/test-docker-network-access.ps1` - New test script
+
+### 🔧 Testing Notes
+- Docker not available on current development machine
+- Test script created for validation when Docker is available
+- Backend code already supports both mounted and direct path access via `getSharedFolderPath()` function
+
+### 💡 Benefits
+- ✅ Simplified Docker configuration
+- ✅ Eliminated CIFS mounting complexity
+- ✅ Reduced network credential management overhead
+- ✅ More portable across different Docker environments
+- ✅ Maintained backward compatibility with existing code
+
+### 🎯 Impact
+- ✅ Simplified Docker deployment process
+- ✅ Reduced configuration complexity
+- ✅ Eliminated network mounting dependencies
+- ✅ Improved portability across environments

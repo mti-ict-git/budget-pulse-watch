@@ -15,17 +15,13 @@ services:
     env_file:
       - ./backend/.env.production
     volumes:
-      # Mount network share for document scanning
-      - type: bind
-        source: "\\\\mbma.com\\shared\\PR_Document\\PT Merdeka Tsingshan Indonesia"
-        target: /app/shared-documents
-        read_only: true
       # Mount data directory for settings
       - ./backend/data:/app/data
       # Mount temp directory for uploads
       - ./backend/temp:/app/temp
     environment:
-      - SHARED_FOLDER_PATH=/app/shared-documents
+      # Direct network path access (no volume mount)
+      - SHARED_FOLDER_PATH=\\\\mbma.com\\shared\\PR_Document\\PT Merdeka Tsingshan Indonesia
     # depends_on removed - SQL Server runs on separate server
 
 # Note: SQL Server is running on a separate server

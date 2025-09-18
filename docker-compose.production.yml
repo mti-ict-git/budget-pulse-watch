@@ -3,31 +3,16 @@
 
 services:
   backend:
-    volumes:
-      # Alternative 1: CIFS mount with credentials (requires cifs-utils in container)
-      - type: volume
-        source: shared-documents
-        target: /app/shared-documents
-        volume:
-          driver: local
-          driver_opts:
-            type: cifs
-            o: "username=${NETWORK_USERNAME},password=${NETWORK_PASSWORD},domain=${NETWORK_DOMAIN},uid=1001,gid=1001,iocharset=utf8,file_mode=0777,dir_mode=0777"
-            device: "//mbma.com/shared/PR_Document/PT Merdeka Tsingshan Indonesia"
-      
-      # Data and temp directories
-      - ./backend/data:/app/data
-      - ./backend/temp:/app/temp
-    
-    environment:
-      - SHARED_FOLDER_PATH=/app/shared-documents
-      - NODE_ENV=production
-      
-    # Add network share credentials to environment
+    build: ./backend
+    ports:
+      - "3001:3000"
     env_file:
       - ./backend/.env.production
-      - ./backend/.env.network  # Create this file with network credentials
-
-volumes:
-  shared-documents:
-    driver: local
+    volumes:
+      # Mount data directory for settings
+      - ./backend/data:/app/data
+      # Mount temp directory for uploads
+      - ./backend/temp:/app/temp
+    environment:
+      # Direct network path access (no volume mount)
+      - SHARED_FOLDER_PATH=\\\\mbma.com\\shared\\PR_Document\\PT Merdeka Tsingshan Indonesia
