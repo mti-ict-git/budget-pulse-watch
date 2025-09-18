@@ -5,6 +5,39 @@ SHARED_FOLDER_PATH=\\mbma.com\shared\PR_Document\PT Merdeka Tsingshan Indonesia
 const sharedFolderPath = process.env.SHARED_FOLDER_PATH;
 await fs.readdir(sharedFolderPath); // Direct access attempt
 
+---
+
+## 2025-09-18 14:23:05 - Production Server SSH Connection Issue
+
+### Context
+Attempting to troubleshoot production environment on Docker server 10.60.10.56, but encountering SSH connectivity issues.
+
+### Issue Discovered
+- **Server reachable**: Ping successful (8ms response time)
+- **SSH port 22**: Connection failed - port appears to be blocked or SSH service not running
+- **Alternative SSH port 2222**: Also failed
+- **HTTP port 80**: Successfully accessible - web service is running
+- **Web response**: Returns HTTP 200 with what appears to be default IIS page
+
+### Troubleshooting Steps Taken
+1. Network connectivity test - ✅ Server is reachable
+2. SSH port 22 test - ❌ Connection failed
+3. Alternative SSH port 2222 test - ❌ Connection failed  
+4. HTTP port 80 test - ✅ Web service responding
+5. Web service check - Returns default page, not our application
+
+### Possible Causes
+1. SSH service not installed/configured on Windows Docker server
+2. Windows Firewall blocking SSH ports
+3. SSH running on non-standard port
+4. Server might be Windows-based requiring different access method (RDP, WinRM)
+
+### Next steps
+- Verify server OS type and available access methods
+- Check if WinRM/PowerShell remoting is available
+- Consider alternative deployment methods if SSH unavailable
+- Verify current application deployment status
+
 // Database SSL Configuration Fix
 ```bash
 # Updated .env.production

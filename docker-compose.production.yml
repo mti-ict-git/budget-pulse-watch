@@ -1,29 +1,33 @@
-# Production override for Docker Compose
-# Use: docker-compose -f docker-compose.yml -f docker-compose.production.yml up -d
+version: '3.8'
 
 services:
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     ports:
       - "5004:3000"
+    environment:
+      - NODE_ENV=production
     env_file:
       - ./backend/.env.production
-    volumes:
-      # Mount data directory for settings
-      - ./backend/data:/app/data
-      # Mount temp directory for uploads
-      - ./backend/temp:/app/temp
-      # Mount network share as CIFS volume
-      - shared_storage:/app/shared
-    environment:
-      # Docker mount path for shared storage
-      - SHARED_FOLDER_PATH=/app/shared
-      # Domain credentials are loaded from .env.production file
+    networks:
+      - app-network
+    restart: unless-stopped
+    depends_on:
+      - nginx
 
-volumes:
-  shared_storage:
-    driver: local
-    driver_opts:
-      type: cifs
-      o: "username=${DOMAIN_USERNAME},password=${DOMAIN_PASSWORD},domain=mbma.com,uid=1000,gid=1000,iocharset=utf8,file_mode=0777,dir_mode=0777"
-      device: "//mbma.com/shared/PR_Document/PT Merdeka Tsingshan Indonesia"
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge

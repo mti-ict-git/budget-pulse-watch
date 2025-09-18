@@ -1,28 +1,32 @@
-# Docker Compose override for staging environment
-# This file provides staging-specific configurations for testing production-like setup
+version: '3.8'
 
 services:
   backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5003:3000"
+    environment:
+      - NODE_ENV=staging
     env_file:
       - ./backend/.env.staging
-    environment:
-      # Staging environment variables
-      - NODE_ENV=staging
-      - DEBUG=false
-      # Use Docker mount path for shared storage
-      - SHARED_FOLDER_PATH=/app/shared
-    volumes:
-      # Mount data directory for settings
-      - ./backend/data:/app/data
-      # Mount temp directory for uploads
-      - ./backend/temp:/app/temp
-      # Mount shared storage with CIFS
-      - shared_storage:/app/shared
+    networks:
+      - app-network
+    restart: unless-stopped
+    depends_on:
+      - nginx
 
-volumes:
-  shared_storage:
-    driver: local
-    driver_opts:
-      type: cifs
-      o: "username=${DOMAIN_USERNAME},password=${DOMAIN_PASSWORD},domain=mbma.com,uid=1000,gid=1000,iocharset=utf8,file_mode=0777,dir_mode=0777"
-      device: "//mbma.com/shared/PR_Document/PT Merdeka Tsingshan Indonesia"
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge
