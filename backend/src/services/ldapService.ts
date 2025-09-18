@@ -37,6 +37,99 @@ class LDAPService {
   }
 
   /**
+   * Authenticate user against Active Directory by email
+   */
+  async authenticateUserByEmail(email: string, password: string): Promise<LDAPAuthResult> {
+    try {
+      // First, bind with service account to search for user
+      await this.client.bind(this.bindDN, this.bindPassword);
+      
+      // Search for user by email (mail attribute)
+      const searchOptions = {
+        scope: 'sub' as const,
+        filter: `(mail=${email})`,
+        attributes: [
+          'sAMAccountName',
+          'displayName', 
+          'mail',
+          'department',
+          'title',
+          'distinguishedName'
+        ],
+        sizeLimit: 10,
+        timeLimit: 30
+      };
+      
+      const searchResult = await this.client.search(this.baseDN, searchOptions);
+      
+      if (!searchResult.searchEntries || searchResult.searchEntries.length === 0) {
+        await this.client.unbind();
+        return {
+          success: false,
+          error: 'User not found in Active Directory'
+        };
+      }
+      
+      const userEntry = searchResult.searchEntries[0];
+      const userDN = userEntry.dn;
+      
+      // Unbind service account
+      await this.client.unbind();
+      
+      // Try to bind with user credentials to verify password
+      const userClient = new Client({
+        url: process.env.LDAP_URL || 'ldaps://10.60.10.56:636',
+        timeout: parseInt(process.env.LDAP_TIMEOUT || '30000'),
+        connectTimeout: parseInt(process.env.LDAP_CONNECT_TIMEOUT || '15000'),
+        tlsOptions: {
+          rejectUnauthorized: false
+        }
+      });
+      
+      try {
+        await userClient.bind(userDN, password);
+        await userClient.unbind();
+        
+        // Authentication successful, return user data
+        const ldapUser: LDAPUser = {
+          username: userEntry.sAMAccountName as string,
+          displayName: userEntry.displayName as string || email,
+          email: userEntry.mail as string || email,
+          department: userEntry.department as string,
+          title: userEntry.title as string,
+          distinguishedName: userEntry.dn
+        };
+        
+        return {
+          success: true,
+          user: ldapUser
+        };
+        
+      } catch (bindError) {
+        await userClient.unbind();
+        return {
+          success: false,
+          error: 'Invalid email or password'
+        };
+      }
+      
+    } catch (error) {
+      console.error('LDAP Email Authentication Error:', error);
+      
+      try {
+        await this.client.unbind();
+      } catch (unbindError) {
+        // Ignore unbind errors
+      }
+      
+      return {
+        success: false,
+        error: 'LDAP connection failed'
+      };
+    }
+  }
+
+  /**
    * Authenticate user against Active Directory
    */
   async authenticateUser(username: string, password: string): Promise<LDAPAuthResult> {

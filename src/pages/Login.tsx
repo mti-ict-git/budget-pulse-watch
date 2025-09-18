@@ -90,13 +90,13 @@ const Login: React.FC = () => {
                 </Alert>
               )}
 
-              {/* Username Field */}
+              {/* Username/Email Field */}
               <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="username">Username or Email</Label>
                 <Input
                   id="username"
                   type="text"
-                  placeholder="Enter your username"
+                  placeholder="Enter your username or email"
                   value={formData.username}
                   onChange={(e) => handleInputChange('username', e.target.value)}
                   required
@@ -160,8 +160,8 @@ const Login: React.FC = () => {
             <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
               <h4 className="text-sm font-medium text-blue-900 mb-2">Login Information:</h4>
               <p className="text-sm text-blue-700">
-                Use your company email and password to sign in.<br />
-                <strong>Example:</strong> mti.user@merdekabattery.com
+                Use your username or company email and password to sign in.<br />
+                <strong>Examples:</strong> john.doe or john.doe@merdekabattery.com
               </p>
             </div>
           </CardContent>

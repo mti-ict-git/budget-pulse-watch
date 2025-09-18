@@ -68,6 +68,19 @@ export class LDAPUserAccessModel {
   }
 
   /**
+   * Check if user has access by email
+   */
+  static async hasAccessByEmail(email: string): Promise<LDAPUserAccess | null> {
+    const query = `
+      SELECT * FROM LDAPUserAccess 
+      WHERE Email = @Email AND IsActive = 1
+    `;
+    
+    const result = await executeQuery<LDAPUserAccess>(query, { Email: email });
+    return (result.recordset[0] as LDAPUserAccess) || null;
+  }
+
+  /**
    * Update user access
    */
   static async updateAccess(username: string, updateData: UpdateLDAPAccessRequest): Promise<LDAPUserAccess> {

@@ -2,6 +2,7 @@ import express from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { UserModel } from '../models/User';
+import { User } from '../models/types';
 import { authenticateToken } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { LDAPService } from '../services/ldapService';
@@ -10,6 +11,21 @@ import { LDAPUserAccessModel } from '../models/LDAPUserAccess';
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const JWT_EXPIRES_IN = '24h';
+
+// Helper function to determine if input is email
+const isEmail = (input: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(input);
+};
+
+// Helper function to find user by email or username
+const findUserByEmailOrUsername = async (identifier: string): Promise<User | null> => {
+  if (isEmail(identifier)) {
+    return await UserModel.findByEmail(identifier);
+  } else {
+    return await UserModel.findByUsername(identifier);
+  }
+};
 
 /**
  * @route   POST /api/auth/login
@@ -23,30 +39,44 @@ router.post('/login', asyncHandler(async (req, res) => {
   if (!username || !password) {
     return res.status(400).json({
       success: false,
-      message: 'Username and password are required'
+      message: 'Username/email and password are required'
     });
   }
 
   let authResult = null;
   let isLDAPAuth = false;
+  const isEmailLogin = isEmail(username);
 
   // Try LDAP authentication first (if auto or ldap)
   if (authType === 'auto' || authType === 'ldap') {
     try {
       const ldapService = new LDAPService();
-      const ldapUser = await ldapService.authenticateUser(username, password);
+      let ldapUser;
+      let userAccess;
+
+      if (isEmailLogin) {
+        // Authenticate by email
+        ldapUser = await ldapService.authenticateUserByEmail(username, password);
+        if (ldapUser.success && ldapUser.user) {
+          // Check access by email
+          userAccess = await LDAPUserAccessModel.hasAccessByEmail(username);
+        }
+      } else {
+        // Authenticate by username
+        ldapUser = await ldapService.authenticateUser(username, password);
+        if (ldapUser.success && ldapUser.user) {
+          // Check access by username
+          userAccess = await LDAPUserAccessModel.hasAccess(username);
+        }
+      }
       
-      if (ldapUser) {
-        // Check if user has access in our system
-        const userAccess = await LDAPUserAccessModel.hasAccess(username);
-        
+      if (ldapUser.success && ldapUser.user) {
         if (!userAccess) {
           console.log(`LDAP user '${username}' found but no access granted, trying local auth`);
           // Don't return error here, continue to local authentication
         } else {
-
           // Update last login
-          await LDAPUserAccessModel.updateLastLogin(username);
+          await LDAPUserAccessModel.updateLastLogin(userAccess.Username);
 
           // Generate JWT token for LDAP user
           const token = jwt.sign(
@@ -85,8 +115,8 @@ router.post('/login', asyncHandler(async (req, res) => {
   // Try local authentication if LDAP failed or authType is local
   if (!authResult && (authType === 'auto' || authType === 'local')) {
     try {
-      // Find user by username
-      const user = await UserModel.findByUsername(username);
+      // Find user by email or username
+      const user = await findUserByEmailOrUsername(username);
       
       if (user) {
         // Verify password
@@ -142,7 +172,7 @@ router.post('/login', asyncHandler(async (req, res) => {
   } else {
     return res.status(401).json({
       success: false,
-      message: 'Invalid username or password'
+      message: isEmailLogin ? 'Invalid email or password' : 'Invalid username or password'
     });
   }
 }));
