@@ -4,6 +4,7 @@ import path from 'path';
 import { Request, Response } from 'express';
 import { getPool } from '../config/database';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
+import { ensureNetworkShareAccess, getNetworkAuthConfig } from '../utils/networkAuth';
 
 const router = express.Router();
 
@@ -37,13 +38,28 @@ interface FolderScanResult {
   totalSize: number;
 }
 
-// Get shared folder path from settings or environment
+// Get shared folder path from settings or environment with network authentication
 async function getSharedFolderPath(): Promise<string> {
   try {
     // First check environment variable (for Docker production)
     const envPath = process.env.SHARED_FOLDER_PATH;
     if (envPath) {
       console.log('Using shared folder path from environment:', envPath);
+      
+      // Authenticate with network share if credentials are available
+      const authConfig = getNetworkAuthConfig();
+      if (authConfig) {
+        console.log('🔐 Authenticating with network share...');
+        const authResult = await ensureNetworkShareAccess(authConfig);
+        if (!authResult.success) {
+          console.error('❌ Network authentication failed:', authResult.error);
+          throw new Error(`Network authentication failed: ${authResult.error}`);
+        }
+        console.log('✅ Network authentication successful');
+      } else {
+        console.warn('⚠️ No network authentication credentials found - attempting direct access');
+      }
+      
       return envPath;
     }
 
@@ -55,8 +71,8 @@ async function getSharedFolderPath(): Promise<string> {
     console.log('Using shared folder path from settings:', settingsSharedPath);
     return settingsSharedPath;
   } catch (error) {
-    console.error('Error reading settings:', error);
-    return '';
+    console.error('Error reading settings or authenticating:', error);
+    throw error;
   }
 }
 

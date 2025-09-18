@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { ensureNetworkShareAccess, getNetworkAuthConfig } from '../utils/networkAuth';
 
 export interface SharedStorageConfig {
   basePath: string; // \\mbma.com\shared\PR_Document\PT Merdeka Tsingshan Indonesia
@@ -17,6 +18,25 @@ export class SharedStorageService {
 
   constructor(config: SharedStorageConfig) {
     this.config = config;
+  }
+
+  /**
+   * Ensure network authentication before accessing shared storage
+   * @returns Promise<void>
+   * @throws Error if authentication fails
+   */
+  private async ensureAuthentication(): Promise<void> {
+    const authConfig = getNetworkAuthConfig();
+    if (authConfig) {
+      console.log('🔐 [SharedStorage] Authenticating with network share...');
+      const authResult = await ensureNetworkShareAccess(authConfig);
+      if (!authResult.success) {
+        throw new Error(`Network authentication failed: ${authResult.error}`);
+      }
+      console.log('✅ [SharedStorage] Network authentication successful');
+    } else {
+      console.warn('⚠️ [SharedStorage] No network authentication credentials found');
+    }
   }
 
   /**
@@ -39,6 +59,9 @@ export class SharedStorageService {
     }
 
     try {
+      // Ensure network authentication
+      await this.ensureAuthentication();
+
       // Create PRF-specific folder path
       const prfFolderPath = path.join(this.config.basePath, prfNumber);
       const destinationPath = path.join(prfFolderPath, originalFileName);
@@ -88,6 +111,9 @@ export class SharedStorageService {
     }
 
     try {
+      // Ensure network authentication
+      await this.ensureAuthentication();
+      
       await fs.access(this.config.basePath);
       return true;
     } catch {
