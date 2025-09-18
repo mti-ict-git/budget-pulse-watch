@@ -1,13 +1,43 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import fs from 'fs/promises';
 
 const execAsync = promisify(exec);
 
 export interface NetworkAuthConfig {
-  sharePath: string;
+  domain: string;
   username: string;
   password: string;
-  domain?: string;
+  sharePath: string;
+}
+
+/**
+ * Check if running inside a Docker container
+ * @returns boolean
+ */
+export function isRunningInDocker(): boolean {
+  try {
+    // Check for Docker-specific files/environment
+    return process.env.DOCKER_CONTAINER === 'true' || 
+           process.env.NODE_ENV === 'production' ||
+           process.platform === 'linux'; // Most Docker containers run Linux
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if a path exists and is accessible
+ * @param path - Path to check
+ * @returns Promise<boolean>
+ */
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await fs.access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export interface NetworkAuthResult {
@@ -25,6 +55,33 @@ export async function authenticateNetworkShare(config: NetworkAuthConfig): Promi
   const { sharePath, username, password, domain = 'mbma.com' } = config;
   
   try {
+    // Check if running in Docker
+    if (isRunningInDocker()) {
+      console.log('🐳 [NetworkAuth] Running in Docker container - checking mounted volume access');
+      
+      // In Docker, the network share should be mounted as a volume
+      // Check if the mounted path exists and is accessible
+      const dockerMountPath = process.env.SHARED_FOLDER_PATH || '/app/shared';
+      const isAccessible = await pathExists(dockerMountPath);
+      
+      if (isAccessible) {
+        console.log(`✅ [NetworkAuth] Docker mounted volume accessible at: ${dockerMountPath}`);
+        return {
+          success: true,
+          message: 'Docker mounted volume accessible'
+        };
+      } else {
+        console.error(`❌ [NetworkAuth] Docker mounted volume not accessible at: ${dockerMountPath}`);
+        console.error('Network share must be mounted as a Docker volume with proper credentials');
+        return {
+          success: false,
+          error: 'Docker mounted volume not accessible',
+          message: 'Network share must be mounted as a Docker volume with proper credentials'
+        };
+      }
+    }
+    
+    // Windows host authentication (original logic)
     // Format username with domain
     const domainUser = domain ? `${domain}\\${username}` : username;
     

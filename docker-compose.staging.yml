@@ -1,24 +1,23 @@
-# Production override for Docker Compose
-# Use: docker-compose -f docker-compose.yml -f docker-compose.production.yml up -d
+# Docker Compose override for staging environment
+# This file provides staging-specific configurations for testing production-like setup
 
 services:
   backend:
-    build: ./backend
-    ports:
-      - "5004:3000"
     env_file:
-      - ./backend/.env.production
+      - ./backend/.env.staging
+    environment:
+      # Staging environment variables
+      - NODE_ENV=staging
+      - DEBUG=false
+      # Use Docker mount path for shared storage
+      - SHARED_FOLDER_PATH=/app/shared
     volumes:
       # Mount data directory for settings
       - ./backend/data:/app/data
       # Mount temp directory for uploads
       - ./backend/temp:/app/temp
-      # Mount network share as CIFS volume
+      # Mount shared storage with CIFS
       - shared_storage:/app/shared
-    environment:
-      # Docker mount path for shared storage
-      - SHARED_FOLDER_PATH=/app/shared
-      # Domain credentials are loaded from .env.production file
 
 volumes:
   shared_storage:

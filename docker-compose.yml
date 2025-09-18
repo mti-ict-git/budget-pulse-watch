@@ -19,10 +19,16 @@ services:
       - ./backend/data:/app/data
       # Mount temp directory for uploads
       - ./backend/temp:/app/temp
+      # Mount shared storage (configured in production override)
+      - shared_storage:/app/shared
     environment:
-      # Direct network path access (no volume mount)
-      - SHARED_FOLDER_PATH=\\\\mbma.com\\shared\\PR_Document\\PT Merdeka Tsingshan Indonesia
+      # Docker mount path for shared storage
+      - SHARED_FOLDER_PATH=/app/shared
     # depends_on removed - SQL Server runs on separate server
 
 # Note: SQL Server is running on a separate server
 # Database connection configured via environment variables
+
+volumes:
+  shared_storage:
+    # Volume configuration is overridden in production

@@ -4,9 +4,31 @@ import path from 'path';
 import { Request, Response } from 'express';
 import { getPool } from '../config/database';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
-import { ensureNetworkShareAccess, getNetworkAuthConfig } from '../utils/networkAuth';
+import { ensureNetworkShareAccess, getNetworkAuthConfig, isRunningInDocker } from '../utils/networkAuth';
 
 const router = express.Router();
+
+/**
+ * Convert Windows network path to Docker mount path
+ * @param windowsPath - Windows UNC path
+ * @returns Docker mount path or original path if not in Docker
+ */
+function convertToDockerPath(windowsPath: string): string {
+  if (!isRunningInDocker()) {
+    return windowsPath;
+  }
+
+  // Convert Windows UNC path to Docker mount path
+  // \\mbma.com\shared\PR_Document\... -> /app/shared/PR_Document/...
+  const dockerMountPath = process.env.SHARED_FOLDER_PATH || '/app/shared';
+  
+  // Remove the server part and convert backslashes to forward slashes
+  const relativePath = windowsPath
+    .replace(/^\\\\[^\\]+\\shared\\?/, '') // Remove \\server\shared\
+    .replace(/\\/g, '/'); // Convert backslashes to forward slashes
+  
+  return path.posix.join(dockerMountPath, relativePath);
+}
 
 interface PRFDocument {
   FileID: number;
@@ -99,7 +121,8 @@ function getMimeType(fileName: string): string {
 
 // Scan a specific PRF folder for documents
 async function scanPRFFolder(prfNo: string, sharedFolderPath: string): Promise<FolderScanResult> {
-  const folderPath = path.join(sharedFolderPath, prfNo);
+  const dockerPath = convertToDockerPath(sharedFolderPath);
+  const folderPath = path.join(dockerPath, prfNo);
   const result: FolderScanResult = {
     prfNo,
     folderPath,
@@ -109,6 +132,7 @@ async function scanPRFFolder(prfNo: string, sharedFolderPath: string): Promise<F
   };
 
   try {
+    console.log(`📁 [PRFDocuments] Scanning folder: ${folderPath}`);
     // Check if folder exists
     await fs.access(folderPath);
     
@@ -353,8 +377,12 @@ router.get('/download/:fileId', async (req: Request, res: Response) => {
     }
     
     try {
+      // Convert to Docker path if running in container
+      const actualFilePath = convertToDockerPath(filePath);
+      console.log(`📥 [PRFDocuments] Downloading file: ${actualFilePath}`);
+      
       // Check if file exists
-      await fs.access(filePath);
+      await fs.access(actualFilePath);
       
       // Set appropriate headers
       res.setHeader('Content-Disposition', `attachment; filename="${file.OriginalFileName}"`);
@@ -362,7 +390,7 @@ router.get('/download/:fileId', async (req: Request, res: Response) => {
       res.setHeader('Content-Length', file.FileSize);
       
       // Stream the file
-      const fileBuffer = await fs.readFile(filePath);
+      const fileBuffer = await fs.readFile(actualFilePath);
       return res.send(fileBuffer);
     } catch (fileError) {
       console.error('Error reading file:', fileError);
@@ -416,8 +444,12 @@ router.get('/view/:fileId', async (req: Request, res: Response) => {
     }
     
     try {
+      // Convert to Docker path if running in container
+      const actualFilePath = convertToDockerPath(filePath);
+      console.log(`📄 [PRFDocuments] Accessing file: ${actualFilePath}`);
+      
       // Check if file exists
-      await fs.access(filePath);
+      await fs.access(actualFilePath);
       
       // Set appropriate headers for inline viewing
       res.setHeader('Content-Type', file.MimeType);
@@ -425,7 +457,7 @@ router.get('/view/:fileId', async (req: Request, res: Response) => {
       res.setHeader('Cache-Control', 'public, max-age=3600');
       
       // Stream the file
-      const fileBuffer = await fs.readFile(filePath);
+      const fileBuffer = await fs.readFile(actualFilePath);
       return res.send(fileBuffer);
     } catch (fileError) {
       console.error('Error reading file:', fileError);

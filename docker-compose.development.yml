@@ -1,0 +1,24 @@
+# Docker Compose override for development environment
+# This file provides development-specific configurations
+
+services:
+  backend:
+    environment:
+      # Development environment variables
+      - NODE_ENV=development
+      - DEBUG=true
+      # Use local directory for shared storage in development
+      - SHARED_FOLDER_PATH=/app/shared
+    volumes:
+      # Mount local directory for development testing
+      - ./backend/shared-dev:/app/shared
+    # Enable hot reload for development
+    command: npm run dev
+
+volumes:
+  shared_storage:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./backend/shared-dev

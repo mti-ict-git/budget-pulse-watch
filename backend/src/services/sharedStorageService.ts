@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { ensureNetworkShareAccess, getNetworkAuthConfig } from '../utils/networkAuth';
+import { ensureNetworkShareAccess, getNetworkAuthConfig, isRunningInDocker } from '../utils/networkAuth';
 
 export interface SharedStorageConfig {
   basePath: string; // \\mbma.com\shared\PR_Document\PT Merdeka Tsingshan Indonesia
@@ -18,6 +18,28 @@ export class SharedStorageService {
 
   constructor(config: SharedStorageConfig) {
     this.config = config;
+  }
+
+  /**
+   * Convert Windows network path to Docker mount path
+   * @param windowsPath - Windows UNC path
+   * @returns Docker mount path
+   */
+  private convertToDockerPath(windowsPath: string): string {
+    if (!isRunningInDocker()) {
+      return windowsPath;
+    }
+
+    // Convert Windows UNC path to Docker mount path
+    // \\mbma.com\shared\PR_Document\... -> /app/shared/PR_Document/...
+    const dockerMountPath = process.env.SHARED_FOLDER_PATH || '/app/shared';
+    
+    // Remove the server part and convert backslashes to forward slashes
+    const relativePath = windowsPath
+      .replace(/^\\\\[^\\]+\\shared\\?/, '') // Remove \\server\shared\
+      .replace(/\\/g, '/'); // Convert backslashes to forward slashes
+    
+    return path.posix.join(dockerMountPath, relativePath);
   }
 
   /**
@@ -63,8 +85,12 @@ export class SharedStorageService {
       await this.ensureAuthentication();
 
       // Create PRF-specific folder path
-      const prfFolderPath = path.join(this.config.basePath, prfNumber);
+      const basePath = this.convertToDockerPath(this.config.basePath);
+      const prfFolderPath = path.join(basePath, prfNumber);
       const destinationPath = path.join(prfFolderPath, originalFileName);
+
+      console.log(`📁 [SharedStorage] Creating folder: ${prfFolderPath}`);
+      console.log(`📄 [SharedStorage] Destination: ${destinationPath}`);
 
       // Ensure PRF folder exists
       await fs.mkdir(prfFolderPath, { recursive: true });
@@ -114,9 +140,15 @@ export class SharedStorageService {
       // Ensure network authentication
       await this.ensureAuthentication();
       
-      await fs.access(this.config.basePath);
+      const basePath = this.convertToDockerPath(this.config.basePath);
+      console.log(`🔍 [SharedStorage] Checking accessibility of: ${basePath}`);
+      
+      await fs.access(basePath);
+      console.log(`✅ [SharedStorage] Path accessible: ${basePath}`);
       return true;
-    } catch {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`❌ [SharedStorage] Path not accessible: ${errorMessage}`);
       return false;
     }
   }
@@ -127,7 +159,8 @@ export class SharedStorageService {
    * @returns Full path to PRF folder
    */
   getPrfFolderPath(prfNumber: string): string {
-    return path.join(this.config.basePath, prfNumber);
+    const basePath = this.convertToDockerPath(this.config.basePath);
+    return path.join(basePath, prfNumber);
   }
 
   /**
