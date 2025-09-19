@@ -2243,3 +2243,58 @@ DB_TRUST_CERT=true  # Changed from false to true
 
 // API Key Decryption Fix
 1. **Created diagnostic
+---
+
+## 2025-09-20 06:37:33 - Network Share Access Solution for Docker
+
+**Context:** Backend was failing to access Windows network share files from Docker container. Error: `ENOENT: no such file or directory` when trying to access paths like `/mbma.com/shared/PR_Document/PT Merdeka Tsingshan Indonesia/34076/PRF 34076 - PC for CCP Control Room.pdf`. The issue was that Linux containers cannot directly access Windows UNC paths.
+
+**Problem Analysis:**
+- Database contains file paths in format: `/mbma.com/shared/PR_Document/...`
+- Docker container (Linux) cannot access Windows UNC paths directly
+- Mounting as volume would require changing all database file paths (not desired)
+
+**Solution Implemented:**
+1. **CIFS Mounting at Container Startup:**
+   - Created `backend/scripts/mount-network-share.sh` to mount Windows share
+   - Created `backend/scripts/docker-entrypoint.sh` as container entrypoint
+   - Mounts network share to exact path: `/mbma.com/shared/PR_Document/PT Merdeka Tsingshan Indonesia`
+
+2. **Docker Configuration Updates:**
+   - Updated `backend/Dockerfile` to install `su-exec` and copy scripts
+   - Modified `docker-compose.yml` backend service:
+     - Run as `root` (required for mounting)
+     - Added `SYS_ADMIN` capability
+     - Enabled `privileged: true` mode
+     - Added environment variables for share configuration
+
+3. **Environment Variables:**
+   `ash
+   DOMAIN_USERNAME=mti\administrator
+   DOMAIN_PASSWORD=Bl4ck3y34dmin
+   SHARE_HOST=mbma.com
+   SHARE_PATH=shared/PR_Document/PT Merdeka Tsingshan Indonesia
+   `
+
+**Files Modified:**
+- `backend/scripts/mount-network-share.sh` - Network share mounting script
+- `backend/scripts/docker-entrypoint.sh` - Container startup script
+- `backend/Dockerfile` - Added CIFS support and entrypoint
+- `docker-compose.yml` - Backend service configuration for mounting
+
+**How It Works:**
+1. Container starts as root
+2. Entrypoint script mounts Windows share to `/mbma.com/shared/...`
+3. Application switches to nodejs user and starts
+4. File paths in database work directly (no changes needed)
+
+**Benefits:**
+-  No database migration required
+-  Existing file paths work unchanged
+-  Secure authentication with domain credentials
+-  Automatic mounting on container startup
+
+**Next Steps:**
+- Test deployment on production Docker server
+- Verify file access functionality
+- Monitor mount stability and performance

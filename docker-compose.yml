@@ -19,6 +19,17 @@ services:
       - ./backend/data:/app/data
       # Mount temp directory for uploads
       - ./backend/temp:/app/temp
+    # Run as root to allow CIFS mounting
+    user: root
+    # Add capabilities for mounting
+    cap_add:
+      - SYS_ADMIN
+    # Enable privileged mode for CIFS mounting
+    privileged: true
+    # Additional environment variables for network share
+    environment:
+      - SHARE_HOST=mbma.com
+      - SHARE_PATH=shared/PR_Document/PT Merdeka Tsingshan Indonesia
     # depends_on removed - SQL Server runs on separate server
 
 # Note: SQL Server is running on a separate server
