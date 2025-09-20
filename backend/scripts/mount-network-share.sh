@@ -1,45 +1,38 @@
 #!/bin/sh
 
 # Network Share Mounting Script for Docker Container
-# This script mounts the Windows network share to match the database file paths
+# This script mounts the Windows network share using CIFS environment variables
 
 set -e
 
 echo "🔗 Starting network share mounting..."
 
-# Parse SHARED_FOLDER_PATH environment variable
-SHARED_FOLDER_PATH="${SHARED_FOLDER_PATH:-//10.60.10.44/pr_document/PT Merdeka Tsingshan Indonesia}"
+# Use new CIFS environment variables
+SHARE_HOST="${NETWORK_SHARE_SERVER:-${CIFS_SERVER:-}}"
+SHARE_PATH="${NETWORK_SHARE_PATH:-${CIFS_SHARE:-}}"
 DOMAIN_USER="${DOMAIN_USERNAME:-}"
 DOMAIN_PASS="${DOMAIN_PASSWORD:-}"
 
-# Extract components from SHARED_FOLDER_PATH (format: //host/share/path)
-# Remove leading //
-CLEAN_PATH=$(echo "$SHARED_FOLDER_PATH" | sed 's|^//||')
-# Extract host (everything before first /)
-SHARE_HOST=$(echo "$CLEAN_PATH" | cut -d'/' -f1)
-# Extract base share name (second component)
-BASE_SHARE=$(echo "$CLEAN_PATH" | cut -d'/' -f2)
-# Extract subfolder path (everything after second /)
-SUBFOLDER_PATH=$(echo "$CLEAN_PATH" | cut -d'/' -f3-)
-
-# Mount only the base share, not the full path
-SHARE_PATH="$BASE_SHARE"
-# Create mount point for the base share
-MOUNT_POINT="/mnt/network-share"
+# Create mount point for the share
+MOUNT_POINT="/app/shared-documents"
 # Full path to the target folder within the mounted share
-TARGET_PATH="$MOUNT_POINT/$SUBFOLDER_PATH"
+TARGET_PATH="$MOUNT_POINT"
 
 echo "📋 Configuration:"
-echo "   SHARED_FOLDER_PATH: $SHARED_FOLDER_PATH"
 echo "   SHARE_HOST: $SHARE_HOST"
-echo "   BASE_SHARE: $BASE_SHARE"
-echo "   SUBFOLDER_PATH: $SUBFOLDER_PATH"
+echo "   SHARE_PATH: $SHARE_PATH"
 echo "   MOUNT_POINT: $MOUNT_POINT"
 echo "   TARGET_PATH: $TARGET_PATH"
+echo "   DOMAIN_USER: $DOMAIN_USER"
 
 # Check if required environment variables are set
 if [ -z "$DOMAIN_USER" ] || [ -z "$DOMAIN_PASS" ]; then
     echo "❌ Error: DOMAIN_USERNAME and DOMAIN_PASSWORD must be set"
+    exit 1
+fi
+
+if [ -z "$SHARE_HOST" ] || [ -z "$SHARE_PATH" ]; then
+    echo "❌ Error: CIFS_SERVER and CIFS_SHARE must be set"
     exit 1
 fi
 
@@ -58,7 +51,6 @@ echo "🔐 Mounting network share..."
 echo "   Source: //$SHARE_HOST/$SHARE_PATH"
 echo "   Target: $MOUNT_POINT"
 echo "   User: $DOMAIN_USER"
-echo "   Final Target Folder: $TARGET_PATH"
 
 # Extract username without domain prefix if present
 CLEAN_USER=$(echo "$DOMAIN_USER" | sed 's/.*\\//')
@@ -100,27 +92,14 @@ fi
 # Verify mount
 if mountpoint -q "$MOUNT_POINT"; then
     echo "✅ Network share mounted successfully!"
-    echo "📂 Testing access to base share..."
+    echo "📂 Testing access to mounted share..."
     
-    # Test directory listing of base share
+    # Test directory listing of mounted share
     if ls "$MOUNT_POINT" > /dev/null 2>&1; then
-        echo "✅ Base network share is accessible"
-        echo "📊 Found $(ls -1 "$MOUNT_POINT" | wc -l) items in base share"
-        
-        # Test access to target subfolder
-        echo "📂 Testing access to target folder: $TARGET_PATH"
-        if [ -d "$TARGET_PATH" ]; then
-            echo "✅ Target folder exists and is accessible"
-            if ls "$TARGET_PATH" > /dev/null 2>&1; then
-                echo "📊 Found $(ls -1 "$TARGET_PATH" | wc -l) items in target folder"
-            else
-                echo "⚠️  Target folder exists but listing failed"
-            fi
-        else
-            echo "⚠️  Target folder does not exist: $TARGET_PATH"
-            echo "📋 Available folders in base share:"
-            ls -la "$MOUNT_POINT" | head -10
-        fi
+        echo "✅ Network share is accessible"
+        echo "📊 Found $(ls -1 "$MOUNT_POINT" | wc -l) items in mounted share"
+        echo "📋 Sample contents:"
+        ls -la "$MOUNT_POINT" | head -5
     else
         echo "⚠️  Network share mounted but not accessible"
         echo "⚠️  Continuing without mount for troubleshooting..."
