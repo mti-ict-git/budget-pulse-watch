@@ -34,8 +34,8 @@ services:
     environment:
       - CIFS_SERVER=10.60.10.44
       - CIFS_SHARE=pr_document
-      - CIFS_USERNAME=mbma\\mtiadmin
-      - CIFS_PASSWORD=MMT!@dmin23
+      - CIFS_USERNAME=mbma\\ict.supportassistant
+      - CIFS_PASSWORD=P@ssw0rd.123
       - CIFS_MOUNT_POINT=/mnt/network-share
     # depends_on removed - SQL Server runs on separate server
 
