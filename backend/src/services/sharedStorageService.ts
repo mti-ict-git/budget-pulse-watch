@@ -32,10 +32,10 @@ export class SharedStorageService {
 
     // Convert Windows UNC path to Docker mount path
     // Database paths: \\mbma.com\shared\PR_Document\PT Merdeka Tsingshan Indonesia\...
-    // Mount point: /mnt/network-share (from //10.60.10.44/pr_document)
-    // Target: /mnt/network-share/PT Merdeka Tsingshan Indonesia/...
+    // Mount point: /app/shared-documents (where CIFS share is actually mounted)
+    // Target: /app/shared-documents/PT Merdeka Tsingshan Indonesia/...
     
-    const dockerMountPath = '/mnt/network-share';
+    const dockerMountPath = '/app/shared-documents';
     
     // Remove the server and shared folder prefix, keep only the relative path
     let relativePath = windowsPath
