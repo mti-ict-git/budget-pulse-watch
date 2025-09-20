@@ -19,6 +19,8 @@ services:
       - ./backend/data:/app/data
       # Mount temp directory for uploads
       - ./backend/temp:/app/temp
+      # Mount network share for document access
+      - network-share:/mnt/network-share
     # Run as root to allow CIFS mounting
     user: root
     # Add capabilities for mounting
@@ -38,4 +40,12 @@ services:
 
 # Note: SQL Server is running on a separate server
 # Database connection configured via environment variables
-# Network share access is configured via environment variables for direct access
+# Network share access is configured via CIFS volume mount
+
+volumes:
+  network-share:
+    driver: local
+    driver_opts:
+      type: cifs
+      o: "username=mbma\\ict.supportassistant,password=P@ssw0rd.123,uid=1000,gid=1000,iocharset=utf8,file_mode=0777,dir_mode=0777,vers=3.0"
+      device: "//10.60.10.44/pr_document"

@@ -360,18 +360,28 @@ export async function ensureNetworkShareAccess(config: NetworkAuthConfig): Promi
  * @returns NetworkAuthConfig | null
  */
 export function getNetworkAuthConfig(): NetworkAuthConfig | null {
-  const sharePath = process.env.SHARED_FOLDER_PATH;
+  const sharedFolderPath = process.env.SHARED_FOLDER_PATH;
+  const cifsSharePath = process.env.CIFS_SHARE_PATH;
   const username = process.env.DOMAIN_USERNAME;
   const password = process.env.DOMAIN_PASSWORD;
   
-  if (!sharePath || !username || !password) {
+  if (!sharedFolderPath || !username || !password) {
     console.warn(`⚠️ [NetworkAuth] Missing environment variables:`, {
-      sharePath: !!sharePath,
+      sharedFolderPath: !!sharedFolderPath,
       username: !!username,
       password: !!password
     });
     return null;
   }
+  
+  // If SHARED_FOLDER_PATH is a Docker mount point, skip authentication
+  if (sharedFolderPath.startsWith('/mnt/') || sharedFolderPath.startsWith('/app/')) {
+    console.log(`🐳 [NetworkAuth] Using Docker mount point: ${sharedFolderPath} - skipping CIFS authentication`);
+    return null;
+  }
+  
+  // Use CIFS_SHARE_PATH for mounting if available, otherwise use SHARED_FOLDER_PATH
+  const sharePath = cifsSharePath || sharedFolderPath;
   
   return {
     sharePath,
