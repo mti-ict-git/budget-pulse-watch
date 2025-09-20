@@ -365,18 +365,18 @@ export function getNetworkAuthConfig(): NetworkAuthConfig | null {
   const username = process.env.DOMAIN_USERNAME;
   const password = process.env.DOMAIN_PASSWORD;
   
+  // If SHARED_FOLDER_PATH is a Docker mount point, skip authentication entirely
+  if (sharedFolderPath && (sharedFolderPath.startsWith('/mnt/') || sharedFolderPath.startsWith('/app/'))) {
+    console.log(`🐳 [NetworkAuth] Using Docker mount point: ${sharedFolderPath} - skipping CIFS authentication`);
+    return null;
+  }
+  
   if (!sharedFolderPath || !username || !password) {
     console.warn(`⚠️ [NetworkAuth] Missing environment variables:`, {
       sharedFolderPath: !!sharedFolderPath,
       username: !!username,
       password: !!password
     });
-    return null;
-  }
-  
-  // If SHARED_FOLDER_PATH is a Docker mount point, skip authentication
-  if (sharedFolderPath.startsWith('/mnt/') || sharedFolderPath.startsWith('/app/')) {
-    console.log(`🐳 [NetworkAuth] Using Docker mount point: ${sharedFolderPath} - skipping CIFS authentication`);
     return null;
   }
   
