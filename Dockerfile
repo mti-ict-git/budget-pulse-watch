@@ -30,14 +30,24 @@ RUN addgroup -g 1001 -S nodejs && \
 # Copy built application from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy custom nginx configuration for frontend
-COPY nginx-frontend.conf /etc/nginx/nginx.conf
+# Create a simple nginx configuration for frontend
+RUN echo 'server { \
+    listen 8080; \
+    server_name localhost; \
+    root /usr/share/nginx/html; \
+    index index.html; \
+    location / { \
+        try_files $uri $uri/ /index.html; \
+    } \
+    location /health { \
+        access_log off; \
+        return 200 "healthy\\n"; \
+        add_header Content-Type text/plain; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
 
-# Set proper permissions
-RUN chown -R nginx:nginx /usr/share/nginx/html
-
-# Create nginx pid directory
-RUN mkdir -p /var/run/nginx
+# Remove the default nginx config that listens on port 80
+RUN rm -f /etc/nginx/conf.d/default.conf.bak
 
 # Expose port
 EXPOSE 8080
