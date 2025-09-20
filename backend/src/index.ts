@@ -35,8 +35,8 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 app.use(morgan('combined'));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
