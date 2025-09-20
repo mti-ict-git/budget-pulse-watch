@@ -49,8 +49,8 @@ ENV PORT=3000
 # Create directories for mounted volumes and network share mount point
 RUN mkdir -p /app/shared-documents /app/data /app/temp /app/scripts && \
     mkdir -p /mbma.com/shared/PR_Document && \
-    chown -R nodejs:nodejs /app/shared-documents /app/data /app/temp && \
-    chmod -R 755 /app/shared-documents /app/data /app/temp
+    chown -R nodejs:nodejs /app/shared-documents /app/data /app/temp /mbma.com/shared/PR_Document && \
+    chmod -R 755 /app/shared-documents /app/data /app/temp /mbma.com/shared/PR_Document
 
 # Copy production dependencies
 COPY --from=deps /app/node_modules ./node_modules
@@ -71,7 +71,9 @@ COPY scripts/ ./scripts/
 RUN chmod +x /app/scripts/*.sh
 
 # Set proper permissions
-RUN chown -R nodejs:nodejs /app
+RUN chown -R nodejs:nodejs /app && \
+    chown -R nodejs:nodejs /app/temp && \
+    chmod -R 755 /app/temp
 
 # Note: We need to run as root initially for mounting, then switch to nodejs user
 
