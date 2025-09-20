@@ -134,7 +134,10 @@ function getMimeType(fileName: string): string {
 
 // Scan a specific PRF folder for documents
 async function scanPRFFolder(prfNo: string, sharedFolderPath: string): Promise<FolderScanResult> {
-  const dockerPath = convertToDockerPath(sharedFolderPath);
+  // Only convert to Docker path if it's not already a Docker mount point
+  const dockerPath = sharedFolderPath.startsWith('/app/') || sharedFolderPath.startsWith('/mnt/') 
+    ? sharedFolderPath 
+    : convertToDockerPath(sharedFolderPath);
   const folderPath = path.join(dockerPath, prfNo);
   const result: FolderScanResult = {
     prfNo,
@@ -390,8 +393,10 @@ router.get('/download/:fileId', async (req: Request, res: Response) => {
     }
     
     try {
-      // Convert to Docker path if running in container
-      const actualFilePath = convertToDockerPath(filePath);
+      // Convert to Docker path if running in container and not already a Docker mount point
+      const actualFilePath = filePath.startsWith('/app/') || filePath.startsWith('/mnt/')
+        ? filePath
+        : convertToDockerPath(filePath);
       console.log(`📥 [PRFDocuments] Downloading file: ${actualFilePath}`);
       
       // Check if file exists
@@ -457,8 +462,10 @@ router.get('/view/:fileId', async (req: Request, res: Response) => {
     }
     
     try {
-      // Convert to Docker path if running in container
-      const actualFilePath = convertToDockerPath(filePath);
+      // Convert to Docker path if running in container and not already a Docker mount point
+      const actualFilePath = filePath.startsWith('/app/') || filePath.startsWith('/mnt/')
+        ? filePath
+        : convertToDockerPath(filePath);
       console.log(`📄 [PRFDocuments] Accessing file: ${actualFilePath}`);
       
       // Check if file exists

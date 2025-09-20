@@ -98,7 +98,9 @@ export class SharedStorageService {
       await this.ensureAuthentication();
 
       // Create PRF-specific folder path
-      const basePath = this.convertToDockerPath(this.config.basePath);
+      const basePath = this.config.basePath.startsWith('/app/') || this.config.basePath.startsWith('/mnt/')
+        ? this.config.basePath
+        : this.convertToDockerPath(this.config.basePath);
       const prfFolderPath = path.join(basePath, prfNumber);
       const destinationPath = path.join(prfFolderPath, originalFileName);
 
@@ -153,7 +155,9 @@ export class SharedStorageService {
       // Ensure network authentication
       await this.ensureAuthentication();
       
-      const basePath = this.convertToDockerPath(this.config.basePath);
+      const basePath = this.config.basePath.startsWith('/app/') || this.config.basePath.startsWith('/mnt/')
+        ? this.config.basePath
+        : this.convertToDockerPath(this.config.basePath);
       console.log(`🔍 [SharedStorage] Checking accessibility of: ${basePath}`);
       
       await fs.access(basePath);
@@ -172,7 +176,9 @@ export class SharedStorageService {
    * @returns Full path to PRF folder
    */
   getPrfFolderPath(prfNumber: string): string {
-    const basePath = this.convertToDockerPath(this.config.basePath);
+    const basePath = this.config.basePath.startsWith('/app/') || this.config.basePath.startsWith('/mnt/')
+      ? this.config.basePath
+      : this.convertToDockerPath(this.config.basePath);
     return path.join(basePath, prfNumber);
   }
 
