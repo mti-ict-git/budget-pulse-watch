@@ -7,7 +7,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
-import { pool } from '../config/database';
+import { getPool } from '../config/database';
 
 const router = express.Router();
 
@@ -95,6 +95,7 @@ router.post('/:prfId/upload-multiple', authenticateToken, requireContentManager,
     const sharedStorageService = getSharedStorageService(sharedStorageConfig);
     
     // Get PRF number for shared storage path
+    const pool = getPool();
     const prfResult = await pool.request()
       .input('prfId', prfId)
       .query('SELECT PRFNo FROM PRF WHERE PRFID = @prfId');
@@ -240,6 +241,7 @@ router.post('/:prfId/upload', authenticateToken, requireContentManager, upload.s
       const sharedStorageService = getSharedStorageService(sharedStorageConfig);
       
       // Get PRF number for shared storage path
+      const pool = getPool();
       const prfResult = await pool.request()
         .input('prfId', prfId)
         .query('SELECT PRFNo FROM PRF WHERE PRFID = @prfId');
