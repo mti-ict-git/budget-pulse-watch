@@ -19,13 +19,26 @@ function convertToDockerPath(windowsPath: string): string {
   }
 
   // Convert Windows UNC path to Docker mount path
-  // \\mbma.com\shared\PR_Document\... -> /app/shared/PR_Document/...
-  const dockerMountPath = process.env.SHARED_FOLDER_PATH || '/app/shared';
+  // Database paths: \\mbma.com\shared\PR_Document\PT Merdeka Tsingshan Indonesia\...
+  // Mount point: /mnt/network-share (from //10.60.10.44/pr_document)
+  // Target: /mnt/network-share/PT Merdeka Tsingshan Indonesia/...
   
-  // Remove the server part and convert backslashes to forward slashes
-  const relativePath = windowsPath
-    .replace(/^\\\\[^\\]+\\shared\\?/, '') // Remove \\server\shared\
+  const dockerMountPath = '/mnt/network-share';
+  
+  // Remove the server and shared folder prefix, keep only the relative path
+  let relativePath = windowsPath
+    .replace(/^\\\\[^\\]+\\shared\\PR_Document\\?/, '') // Remove \\server\shared\PR_Document\
+    .replace(/^\\\\[^\\]+\\shared\\?/, '') // Fallback: Remove \\server\shared\
     .replace(/\\/g, '/'); // Convert backslashes to forward slashes
+  
+  // If the path starts with "PT Merdeka Tsingshan Indonesia", we're good
+  // Otherwise, we might need to add it
+  if (!relativePath.startsWith('PT Merdeka Tsingshan Indonesia')) {
+    // Check if this is already a relative path within the company folder
+    if (relativePath && !relativePath.startsWith('/')) {
+      relativePath = 'PT Merdeka Tsingshan Indonesia/' + relativePath;
+    }
+  }
   
   return path.posix.join(dockerMountPath, relativePath);
 }
