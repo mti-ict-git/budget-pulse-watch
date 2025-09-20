@@ -81,6 +81,12 @@ async function getSharedFolderPath(): Promise<string> {
     if (envPath) {
       console.log('Using shared folder path from environment:', envPath);
       
+      // Skip authentication for Docker mount points
+      if (envPath.startsWith('/app/') || envPath.startsWith('/mnt/')) {
+        console.log('📁 Using Docker mount point, skipping network authentication');
+        return envPath;
+      }
+      
       // Authenticate with network share if credentials are available
       const authConfig = getNetworkAuthConfig();
       if (authConfig) {
