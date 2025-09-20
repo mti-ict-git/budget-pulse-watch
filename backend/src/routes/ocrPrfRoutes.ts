@@ -123,7 +123,7 @@ router.post('/create-from-document', authenticateToken, requireContentManager, u
         VendorName: extractedData.proposedSupplier || '',
         Notes: `OCR extracted from ${originalname}`,
         DateSubmit: extractedData.dateRaised ? new Date(extractedData.dateRaised) : new Date(),
-        SubmitBy: extractedData.requestedBy || userDisplayName,
+        SubmitBy: userDisplayName, // Always use authenticated user, not OCR extracted data
         SumDescriptionRequested: extractedData.projectDescription || '',
         PurchaseCostCode: extractedData.generalLedgerCode || '',
         RequiredFor: extractedData.requestFor || extractedData.projectId || '',
