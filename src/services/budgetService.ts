@@ -1,5 +1,8 @@
 interface CostCodeBudget {
   PurchaseCostCode: string;
+  AccountCode: string;
+  AccountName: string;
+  GrandTotalAllocated: number | null;
   GrandTotalRequested: number | null;
   GrandTotalApproved: number | null;
   GrandTotalActual: number | null;
@@ -16,6 +19,7 @@ interface CostCodeBudget {
 
 interface BudgetSummary {
   totalCostCodes: number;
+  totalBudgetAllocated: number;
   totalBudgetRequested: number;
   totalBudgetApproved: number;
   totalBudgetActual: number;

@@ -76,8 +76,8 @@ export default function BudgetOverview() {
     loadBudgetData();
   }, []);
 
-  const totalInitialBudget = budgetSummary?.totalBudgetRequested || budgetSummary?.totalBudget || 0;
-  const totalSpent = budgetSummary?.totalBudgetActual || budgetSummary?.totalSpent || 0;
+  const totalInitialBudget = budgetSummary?.totalBudgetAllocated || budgetSummary?.totalBudget || 0;
+  const totalSpent = budgetSummary?.totalBudgetApproved || budgetSummary?.totalSpent || 0;
   const totalRemaining = totalInitialBudget - totalSpent;
   const overallUtilization = budgetSummary?.overallUtilization || 0;
   const alertCount = budgetData.filter(b => b.BudgetStatus === 'Over Budget').length;
@@ -201,16 +201,23 @@ export default function BudgetOverview() {
                 </TableHeader>
                 <TableBody>
                   {budgetData.map((budget, index) => {
-                    const totalRequested = budget.GrandTotalRequested || 0;
-                    const totalActual = budget.GrandTotalActual || 0;
-                    const remainingAmount = totalRequested - totalActual;
+                    const totalAllocated = budget.GrandTotalAllocated || 0;
+                    const totalSpent = budget.GrandTotalApproved || 0;
+                    const remainingAmount = totalAllocated - totalSpent;
                     
                     return (
                       <TableRow key={`${budget.PurchaseCostCode}-${index}`}>
                         <TableCell className="font-medium">{budget.PurchaseCostCode}</TableCell>
-                        <TableCell>Cost Code {budget.PurchaseCostCode}</TableCell>
-                        <TableCell>{formatCurrency(totalRequested)}</TableCell>
-                        <TableCell>{formatCurrency(totalActual)}</TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{budget.AccountName || `Cost Code ${budget.PurchaseCostCode}`}</div>
+                            {budget.AccountCode && (
+                              <div className="text-sm text-muted-foreground">{budget.AccountCode}</div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>{formatCurrency(totalAllocated)}</TableCell>
+                        <TableCell>{formatCurrency(totalSpent)}</TableCell>
                         <TableCell className={cn(
                           "font-medium",
                           remainingAmount < 0 ? "text-destructive" : "text-foreground"

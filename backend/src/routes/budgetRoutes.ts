@@ -60,73 +60,102 @@ interface CostCodeBudgetRow {
 
 /**
  * @route GET /api/budgets/cost-codes
- * @desc Get budget data grouped by cost codes from PRF data
+ * @desc Get budget data grouped by cost codes with actual budget allocations vs spending
  * @access Public (will be protected later)
  */
 router.get('/cost-codes', async (req: Request, res: Response) => {
   try {
-    // Main query with CTEs for cost code budget analysis
+    // Query that properly joins Budget allocations with PRF spending by cost codes
     const query = `
-      WITH CostCodeBudgets AS (
+      WITH BudgetAllocations AS (
+        -- Get actual budget allocations by COA and fiscal year
         SELECT 
-          PurchaseCostCode,
-          BudgetYear,
-          SUM(CAST(RequestedAmount AS DECIMAL(18,2))) as TotalRequested,
-          SUM(CAST(ApprovedAmount AS DECIMAL(18,2))) as TotalApproved,
-          SUM(CAST(ActualAmount AS DECIMAL(18,2))) as TotalActual,
-          COUNT(*) as RequestCount
-        FROM dbo.PRF 
-        WHERE PurchaseCostCode IS NOT NULL 
-          AND PurchaseCostCode != ''
-          AND BudgetYear IS NOT NULL
-        GROUP BY PurchaseCostCode, BudgetYear
+          b.COAID,
+          b.FiscalYear,
+          coa.COACode,
+          coa.COAName,
+          SUM(b.AllocatedAmount) as TotalAllocated,
+          SUM(b.UtilizedAmount) as TotalUtilized
+        FROM Budget b
+        INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
+        GROUP BY b.COAID, b.FiscalYear, coa.COACode, coa.COAName
       ),
-      CostCodeSummary AS (
+      CostCodeSpending AS (
+        -- Get spending data by cost codes
         SELECT 
-          PurchaseCostCode,
-          SUM(TotalRequested) as GrandTotalRequested,
-          SUM(TotalApproved) as GrandTotalApproved,
-          SUM(TotalActual) as GrandTotalActual,
-          SUM(RequestCount) as TotalRequests,
-          COUNT(DISTINCT BudgetYear) as YearsActive,
-          MIN(BudgetYear) as FirstYear,
-          MAX(BudgetYear) as LastYear
-        FROM CostCodeBudgets
-        GROUP BY PurchaseCostCode
+          p.PurchaseCostCode,
+          p.COAID,
+          p.BudgetYear,
+          SUM(CAST(p.RequestedAmount AS DECIMAL(18,2))) as TotalRequested,
+          SUM(CAST(p.ApprovedAmount AS DECIMAL(18,2))) as TotalApproved,
+          SUM(CAST(p.ActualAmount AS DECIMAL(18,2))) as TotalActual,
+          COUNT(*) as RequestCount
+        FROM dbo.PRF p
+        WHERE p.PurchaseCostCode IS NOT NULL 
+          AND p.PurchaseCostCode != ''
+          AND p.BudgetYear IS NOT NULL
+          AND p.COAID IS NOT NULL
+        GROUP BY p.PurchaseCostCode, p.COAID, p.BudgetYear
+      ),
+      CostCodeBudgetSummary AS (
+        -- Join budget allocations with cost code spending
+        SELECT 
+          cs.PurchaseCostCode,
+          cs.COAID,
+          ba.COACode,
+          ba.COAName,
+          COALESCE(SUM(ba.TotalAllocated), 0) as GrandTotalAllocated,
+          SUM(cs.TotalRequested) as GrandTotalRequested,
+          SUM(cs.TotalApproved) as GrandTotalApproved,
+          SUM(cs.TotalActual) as GrandTotalActual,
+          SUM(cs.RequestCount) as TotalRequests,
+          COUNT(DISTINCT cs.BudgetYear) as YearsActive,
+          MIN(cs.BudgetYear) as FirstYear,
+          MAX(cs.BudgetYear) as LastYear
+        FROM CostCodeSpending cs
+        LEFT JOIN BudgetAllocations ba ON cs.COAID = ba.COAID AND cs.BudgetYear = ba.FiscalYear
+        GROUP BY cs.PurchaseCostCode, cs.COAID, ba.COACode, ba.COAName
       )
       SELECT 
-        cs.PurchaseCostCode,
-        cs.GrandTotalRequested,
-        cs.GrandTotalApproved,
-        cs.GrandTotalActual,
-        cs.TotalRequests,
-        cs.YearsActive,
-        cs.FirstYear,
-        cs.LastYear,
+        cbs.PurchaseCostCode,
+        cbs.COACode,
+        cbs.COAName,
+        cbs.GrandTotalAllocated,
+        cbs.GrandTotalRequested,
+        cbs.GrandTotalApproved,
+        cbs.GrandTotalActual,
+        cbs.TotalRequests,
+        cbs.YearsActive,
+        cbs.FirstYear,
+        cbs.LastYear,
         CASE 
-          WHEN cs.GrandTotalApproved > 0 
-          THEN ROUND((cs.GrandTotalActual / cs.GrandTotalApproved) * 100, 2)
+          WHEN cbs.GrandTotalAllocated > 0 
+          THEN ROUND((cbs.GrandTotalApproved / cbs.GrandTotalAllocated) * 100, 2)
           ELSE 0 
         END as UtilizationPercentage,
         CASE 
-          WHEN cs.GrandTotalRequested > 0 
-          THEN ROUND((cs.GrandTotalApproved / cs.GrandTotalRequested) * 100, 2)
+          WHEN cbs.GrandTotalRequested > 0 
+          THEN ROUND((cbs.GrandTotalApproved / cbs.GrandTotalRequested) * 100, 2)
           ELSE 0 
         END as ApprovalRate,
         CASE 
-          WHEN cs.GrandTotalActual < cs.GrandTotalApproved * 0.8 THEN 'Under Budget'
-          WHEN cs.GrandTotalActual > cs.GrandTotalApproved * 1.1 THEN 'Over Budget'
+          WHEN cbs.GrandTotalAllocated = 0 THEN 'No Budget'
+          WHEN cbs.GrandTotalApproved < cbs.GrandTotalAllocated * 0.8 THEN 'Under Budget'
+          WHEN cbs.GrandTotalApproved > cbs.GrandTotalAllocated * 1.1 THEN 'Over Budget'
           ELSE 'On Track'
         END as BudgetStatus
-      FROM CostCodeSummary cs
-      ORDER BY cs.GrandTotalApproved DESC
+      FROM CostCodeBudgetSummary cbs
+      ORDER BY cbs.GrandTotalAllocated DESC, cbs.GrandTotalApproved DESC
     `;
 
     const result = await executeQuery(query);
     
-    // Define interface for cost code budget row
+    // Define interface for cost code budget row with actual budget allocations
     interface CostCodeBudgetRow {
       PurchaseCostCode: string;
+      COACode: string;
+      COAName: string;
+      GrandTotalAllocated: number | string;
       GrandTotalRequested: number | string;
       GrandTotalApproved: number | string;
       GrandTotalActual: number | string;
@@ -142,6 +171,8 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
     // Calculate summary statistics
     const recordset = result.recordset as CostCodeBudgetRow[];
     const totalCostCodes: number = recordset.length;
+    const totalBudgetAllocated: number = recordset.reduce((sum: number, row: CostCodeBudgetRow) => 
+      sum + (parseFloat(String(row.GrandTotalAllocated)) || 0), 0);
     const totalBudgetRequested: number = recordset.reduce((sum: number, row: CostCodeBudgetRow) => 
       sum + (parseFloat(String(row.GrandTotalRequested)) || 0), 0);
     const totalBudgetApproved: number = recordset.reduce((sum: number, row: CostCodeBudgetRow) => 
@@ -151,16 +182,17 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
 
     return res.json({
       success: true,
-      message: 'Cost code budget analysis retrieved successfully',
+      message: 'Cost code budget analysis with actual allocations retrieved successfully',
       data: {
         costCodes: recordset,
         summary: {
           totalCostCodes,
+          totalBudgetAllocated: Math.round(totalBudgetAllocated * 100) / 100,
           totalBudgetRequested: Math.round(totalBudgetRequested * 100) / 100,
           totalBudgetApproved: Math.round(totalBudgetApproved * 100) / 100,
           totalBudgetActual: Math.round(totalBudgetActual * 100) / 100,
-          overallUtilization: totalBudgetApproved > 0 ? 
-            Math.round((totalBudgetActual / totalBudgetApproved) * 100 * 100) / 100 : 0,
+          overallUtilization: totalBudgetAllocated > 0 ? 
+            Math.round((totalBudgetApproved / totalBudgetAllocated) * 100 * 100) / 100 : 0,
           overallApprovalRate: totalBudgetRequested > 0 ? 
             Math.round((totalBudgetApproved / totalBudgetRequested) * 100 * 100) / 100 : 0
         }
