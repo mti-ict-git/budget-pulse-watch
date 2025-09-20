@@ -277,8 +277,23 @@ router.post('/', authenticateToken, requireContentManager, async (req: Request, 
       });
     }
 
-    // For now, use a default requestor ID (will be replaced with authenticated user)
-    const requestorId = req.body.requestorId || 1;
+    // Use authenticated user as requestor
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    const requestorId = req.user.UserID;
+    
+    // If SubmitBy is not provided, use the authenticated user's name
+    if (!prfData.SubmitBy) {
+      const userDisplayName = req.user.FirstName && req.user.LastName 
+        ? `${req.user.FirstName} ${req.user.LastName}` 
+        : req.user.Username;
+      prfData.SubmitBy = userDisplayName;
+    }
     
     const prf = await PRFModel.create(prfData, requestorId);
     

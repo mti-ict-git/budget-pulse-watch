@@ -98,12 +98,24 @@ router.post('/create-from-document', authenticateToken, requireContentManager, u
         }
       }
 
+      // Get authenticated user information
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required'
+        });
+      }
+
+      const userDisplayName = req.user.FirstName && req.user.LastName 
+        ? `${req.user.FirstName} ${req.user.LastName}` 
+        : req.user.Username;
+
       // Prepare PRF data for creation
       const prfData: CreatePRFRequest = {
         PRFNo: extractedData.prfNo || `OCR-${uploadId.substring(0, 8)}`,
         Title: extractedData.projectDescription || 'OCR Generated PRF',
         Description: extractedData.projectDescription || '',
-        Department: extractedData.department || 'Unknown',
+        Department: extractedData.department || req.user.Department || 'Unknown',
         COAID: 1, // Default COA ID
         RequestedAmount: extractedData.totalAmount || 0,
         Priority: 'Medium',
@@ -111,7 +123,7 @@ router.post('/create-from-document', authenticateToken, requireContentManager, u
         VendorName: extractedData.proposedSupplier || '',
         Notes: `OCR extracted from ${originalname}`,
         DateSubmit: extractedData.dateRaised ? new Date(extractedData.dateRaised) : new Date(),
-        SubmitBy: extractedData.requestedBy || 'Unknown',
+        SubmitBy: extractedData.requestedBy || userDisplayName,
         SumDescriptionRequested: extractedData.projectDescription || '',
         PurchaseCostCode: extractedData.generalLedgerCode || '',
         RequiredFor: extractedData.requestFor || extractedData.projectId || '',
@@ -120,7 +132,7 @@ router.post('/create-from-document', authenticateToken, requireContentManager, u
 
       // Create the PRF
       console.log(`📝 Creating PRF with data:`, prfData);
-      const createdPRF = await PRFModel.create(prfData, 1); // Default requestor ID
+      const createdPRF = await PRFModel.create(prfData, req.user.UserID);
       
       // Create PRF items if extracted
       const createdItems = [];
