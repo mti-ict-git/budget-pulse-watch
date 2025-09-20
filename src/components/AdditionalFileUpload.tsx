@@ -95,7 +95,7 @@ const AdditionalFileUpload: React.FC<AdditionalFileUploadProps> = ({
       'text/plain': ['.txt'],
       'text/csv': ['.csv']
     },
-    maxSize: 10 * 1024 * 1024, // 10MB
+    maxSize: 100 * 1024 * 1024, // 100MB
     multiple: true
   });
 

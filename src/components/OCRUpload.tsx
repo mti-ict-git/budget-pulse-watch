@@ -293,7 +293,7 @@ const OCRUpload: React.FC<OCRUploadProps> = ({ onPRFCreated, onPreviewData }) =>
                   Drag & drop a PRF document here, or click to select
                 </p>
                 <p className="text-sm text-gray-500">
-                  Supports: JPEG, PNG, GIF, BMP, WebP, PDF (max 10MB)
+                  Supports: JPEG, PNG, GIF, BMP, WebP, PDF (max 100MB)
                 </p>
               </div>
             )}
