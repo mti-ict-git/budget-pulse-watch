@@ -37,6 +37,7 @@ services:
       - CIFS_USERNAME=mbma\\ict.supportassistant
       - CIFS_PASSWORD=P@ssw0rd.123
       - CIFS_MOUNT_POINT=/mnt/network-share
+      - SHARED_FOLDER_PATH=/app/shared-documents/PT Merdeka Tsingshan Indonesia
     # depends_on removed - SQL Server runs on separate server
 
 # Note: SQL Server is running on a separate server
