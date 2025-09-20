@@ -1,7 +1,7 @@
 interface CostCodeBudget {
   PurchaseCostCode: string;
-  AccountCode: string;
-  AccountName: string;
+  COACode: string;
+  COAName: string;
   GrandTotalAllocated: number | null;
   GrandTotalRequested: number | null;
   GrandTotalApproved: number | null;

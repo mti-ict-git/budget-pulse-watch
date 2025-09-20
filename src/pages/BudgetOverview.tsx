@@ -210,9 +210,9 @@ export default function BudgetOverview() {
                         <TableCell className="font-medium">{budget.PurchaseCostCode}</TableCell>
                         <TableCell>
                           <div>
-                            <div className="font-medium">{budget.AccountName || `Cost Code ${budget.PurchaseCostCode}`}</div>
-                            {budget.AccountCode && (
-                              <div className="text-sm text-muted-foreground">{budget.AccountCode}</div>
+                            <div className="font-medium">{budget.COAName || `Cost Code ${budget.PurchaseCostCode}`}</div>
+                            {budget.COACode && (
+                              <div className="text-sm text-muted-foreground">{budget.COACode}</div>
                             )}
                           </div>
                         </TableCell>
