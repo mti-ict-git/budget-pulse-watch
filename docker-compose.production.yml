@@ -9,6 +9,21 @@ services:
       - "5004:3000"
     environment:
       - NODE_ENV=production
+      # Database Configuration
+      - DB_TYPE=mssql
+      - DB_HOST=10.60.10.47
+      - DB_SERVER=10.60.10.47
+      - DB_USER=sa
+      - DB_PASSWORD=Bl4ck3y34dmin
+      - DB_NAME=PRFMonitoringDB
+      - DB_PORT=1433
+      - DB_ENCRYPT=true
+      - DB_TRUST_CERT=true
+      # CIFS Configuration (File Server)
+      - CIFS_SERVER=10.60.10.44
+      - CIFS_SHARE=pr_document
+      - CIFS_USERNAME=mbma\\mtiadmin
+      - CIFS_PASSWORD=MMT!@dmin23
     env_file:
       - ./backend/.env.production
     networks:
