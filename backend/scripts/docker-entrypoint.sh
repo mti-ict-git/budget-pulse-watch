@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Docker Entrypoint Script
 # This script runs before the main application to set up network share access

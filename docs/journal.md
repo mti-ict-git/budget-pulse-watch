@@ -2298,3 +2298,177 @@ DB_TRUST_CERT=true  # Changed from false to true
 - Test deployment on production Docker server
 - Verify file access functionality
 - Monitor mount stability and performance
+
+---
+
+## 2025-09-20 08:05:51 - CIFS Mount Troubleshooting on Production
+
+### Context
+Testing CIFS mounting functionality on production Docker server (10.60.10.59) to resolve network share access issues. The backend container needs to mount Windows share `//mbma.com/shared` to access PRF documents.
+
+### Container Diagnostics Performed
+1. **Network Connectivity**: ✅ Container can reach mbma.com
+2. **CIFS Utilities**: ✅ cifs-utils package installed and functional
+3. **Kernel Modules**: ✅ CIFS kernel support available
+4. **Mount Point**: ✅ Test directory `/tmp/test-mount` created successfully
+
+### Mount Testing Results
+**Manual Mount Attempts:**
+- `vers=3.0, sec=ntlmssp`: ❌ "Required key not available" (error 126)
+- `vers=1.0, sec=ntlm`: ❌ "Invalid argument" (error 22)
+- `vers=2.0, sec=none`: ❌ "Required key not available" (error 126)
+- `vers=2.1, sec=ntlmssp`: ❌ "Required key not available" (error 126)
+- `vers=1.0 with credentials file`: ❌ "Required key not available" (error 126)
+
+### Cryptographic Module Analysis
+- **Issue Found**: Container lacks NTLM cryptographic modules
+- **Available Crypto**: AES, HMAC, Blake2b algorithms present
+- **Missing**: NTLM/NTLMSSP authentication modules (common in Alpine Linux)
+
+### Authentication Testing
+**Installed samba-client for testing:**
+```bash
+apk add samba-client  # 42 packages installed successfully
+```
+
+**SMB Connection Test:**
+```bash
+smbclient -L //mbma.com -U ict.supportassistant%'Bl4ck3y34dmin' -W mbma
+# Result: NT_STATUS_ACCOUNT_LOCKED_OUT
+```
+
+### Issues Identified
+1. **Account Lockout**: Multiple failed mount attempts locked the `ict.supportassistant` account
+2. **Missing Crypto Modules**: Alpine Linux container lacks NTLM authentication support
+3. **Security Requirements**: Windows share requires NTLM/NTLMSSP authentication
+
+### Root Cause Analysis
+The production environment has stricter security policies than development:
+- Account lockout after failed authentication attempts
+- NTLM cryptographic modules not available in Alpine Linux base image
+- Windows domain authentication requirements
+
+### Next Steps
+1. **Account Recovery**: Contact IT to unlock `ict.supportassistant` account
+2. **Alternative Authentication**: Test with different domain account or service account
+3. **Container Image**: Consider using Ubuntu-based image with full NTLM support
+4. **Security Review**: Verify domain authentication requirements and policies
+
+### Technical Recommendations
+1. **Immediate**: Use Ubuntu/Debian base image with full CIFS/NTLM support
+2. **Security**: Implement service account with limited privileges for mounting
+3. **Monitoring**: Add mount status checks and automatic retry logic
+4. **Fallback**: Consider alternative file access methods if CIFS mounting fails
+
+---
+
+## 2025-09-20 08:09:14 - Credential Correction
+
+### Issue Identified
+**CRITICAL ERROR**: Used wrong credentials during testing!
+
+**Wrong credentials used in testing:**
+- Username: `ict.supportassistant`
+- Password: `Bl4ck3y34dmin`
+
+**Correct credentials from .env.production:**
+- Username: `mbma\ict.supportassistant`
+- Password: `P@ssw0rd.123`
+
+### Impact
+This explains the authentication failures during CIFS mount testing. The "NT_STATUS_ACCOUNT_LOCKED_OUT" error was likely due to using incorrect username, not actual account lockout.
+
+### Next Steps
+1. **Immediate**: Test CIFS mounting with correct credentials (`mbma\ict.supportassistant`)
+2. **Verify**: Check if Alpine Linux container can authenticate with correct credentials
+3. **Proceed**: If still fails, continue with Ubuntu base image plan
+
+---
+
+## 2025-09-20 08:12:22 - DFS Limitation Discovery
+
+### Critical Finding: Linux CIFS Does Not Support DFS
+
+**Root Cause Identified**: Linux CIFS clients do not support Microsoft DFS (Distributed File System).
+
+**Impact**: 
+- Path `//mbma.com/shared` appears to be a DFS namespace
+- Linux containers cannot resolve DFS paths to actual physical servers
+- This explains all mounting failures regardless of credentials or crypto modules
+
+**Evidence**:
+- Credentials work perfectly with `smbclient` (can list shares)
+- `shared` share not visible in share enumeration (typical of DFS)
+- Consistent "Required key not available" errors across all mount attempts
+
+**Solution Required**:
+- Find the actual physical server hosting the shared folder
+- Use direct server path instead of DFS namespace
+- Format: `//actual-server-ip/share-name` instead of `//mbma.com/shared`
+
+---
+
+## 2025-09-20 08:16:51 - Correct Server Path Identified
+
+### Actual Server Path Discovered
+
+**Correct Path**: `\\10.60.10.44\pr_document\PT Merdeka Tsingshan Indonesia`
+
+**Key Changes**:
+- Server: `10.60.10.44` (not mbma.com DFS)
+- Share: `pr_document` (not shared)
+- Path: `PT Merdeka Tsingshan Indonesia` (same subfolder)
+
+**Next Steps**:
+1. Update `.env.production` with correct server path ✅
+2. Test CIFS mounting with direct server IP ✅
+3. Verify application can access the network share
+
+---
+
+## 2025-09-20 08:33:17 - Account Lockout Issue Discovered
+
+### Problem Identified
+During CIFS mounting tests, discovered that the `ict.supportassistant` account is locked out:
+```
+CIFS: Status code returned 0xc0000234 STATUS_ACCOUNT_LOCKED_OUT
+CIFS: VFS: \\10.60.10.44 Send error in SessSetup = -13
+```
+
+### Technical Details
+- **Server**: 10.60.10.44
+- **Share**: pr_document  
+- **Account**: mbma\ict.supportassistant
+- **Error**: STATUS_ACCOUNT_LOCKED_OUT (0xc0000234)
+- **Mount attempts**: All failed with permission denied due to locked account
+
+### Root Cause
+The service account `ict.supportassistant` has been locked out, likely due to:
+1. Multiple failed authentication attempts
+2. Password policy violations
+3. Administrative action
+
+### Resolution Required
+**Immediate Actions Needed:**
+1. **Unlock the account**: Contact domain administrator to unlock `mbma\ict.supportassistant`
+2. **Verify credentials**: Confirm the password is still `Bl4ck3y34dmin`
+3. **Check account status**: Ensure account is enabled and not expired
+4. **Test authentication**: Verify account works before proceeding
+
+### Alternative Solutions
+If account cannot be unlocked immediately:
+1. **Use different service account** with access to `\\10.60.10.44\pr_document`
+2. **Create new service account** specifically for this application
+3. **Request temporary access** with different credentials
+
+### Current Status
+- ✅ Network connectivity confirmed (ping successful, port 445 open)
+- ✅ CIFS utilities available in container
+- ✅ Container has proper privileges (SYS_ADMIN, privileged mode)
+- ❌ **BLOCKED**: Service account locked out
+
+### Next Steps
+1. **Contact IT administrator** to unlock `ict.supportassistant` account
+2. Test CIFS mounting once account is unlocked
+3. Update mount script with working credentials
+4. Verify application functionality

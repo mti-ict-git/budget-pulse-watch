@@ -16,12 +16,20 @@ services:
     restart: unless-stopped
     depends_on:
       - nginx
+    # Required for CIFS mounting
+    user: root
+    privileged: true
+    cap_add:
+      - SYS_ADMIN
+      - DAC_READ_SEARCH
+    security_opt:
+      - apparmor:unconfined
 
   nginx:
     image: nginx:alpine
     ports:
-      - "80:80"
-      - "443:443"
+      - "5005:80"
+      - "5443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     networks:
