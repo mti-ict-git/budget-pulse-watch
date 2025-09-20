@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Wallet, TrendingDown, TrendingUp, AlertTriangle, Download, RefreshCw, Plus, Search, MoreHorizontal, Edit, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { budgetService, type CostCodeBudget, type BudgetSummary, type Budget, type BudgetQueryParams } from '@/services/budgetService';
+import { budgetService, type CostCodeBudget, type BudgetSummary, type Budget } from '@/services/budgetService';
 import { BudgetCreateDialog } from '@/components/budget/BudgetCreateDialog';
 import { BudgetEditDialog } from '@/components/budget/BudgetEditDialog';
 import { toast } from "sonner";
@@ -60,7 +60,6 @@ const getProgressColor = (percent: number) => {
 export default function BudgetOverview() {
   const [budgetData, setBudgetData] = useState<CostCodeBudget[]>([]);
   const [budgetSummary, setBudgetSummary] = useState<BudgetSummary | null>(null);
-  const [budgets, setBudgets] = useState<Budget[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -74,11 +73,11 @@ export default function BudgetOverview() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
 
-  const loadBudgetData = async () => {
+  const loadBudgetData = async (searchParams?: { search?: string; status?: string; fiscalYear?: number }) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await budgetService.getCostCodeBudgets();
+      const response = await budgetService.getCostCodeBudgets(searchParams);
       
       if (response.success && response.data) {
         setBudgetData(response.data.costCodes);
@@ -94,28 +93,6 @@ export default function BudgetOverview() {
     }
   };
 
-  const loadBudgets = useCallback(async () => {
-    try {
-      const params: BudgetQueryParams = {
-        page: 1,
-        limit: 100,
-        search: searchTerm || undefined,
-        fiscalYear: fiscalYearFilter !== 'all' ? parseInt(fiscalYearFilter, 10) : undefined,
-      };
-
-      const response = await budgetService.getBudgets(params);
-      
-      if (response.success && response.data) {
-        setBudgets(response.data);
-      } else {
-        setError(response.message || 'Failed to load budgets');
-      }
-    } catch (err) {
-      setError('Failed to load budgets');
-      console.error('Error loading budgets:', err);
-    }
-  }, [searchTerm, fiscalYearFilter]);
-
   const handleDeleteBudget = async (budgetId: number) => {
     if (!confirm('Are you sure you want to delete this budget?')) {
       return;
@@ -126,8 +103,7 @@ export default function BudgetOverview() {
       
       if (response.success) {
         toast.success('Budget deleted successfully');
-        loadBudgets();
-        loadBudgetData(); // Refresh summary data
+        loadBudgetData(); // Refresh data
       } else {
         toast.error(response.message || 'Failed to delete budget');
       }
@@ -143,26 +119,34 @@ export default function BudgetOverview() {
   };
 
   const handleBudgetCreated = () => {
-    loadBudgets();
-    loadBudgetData(); // Refresh summary data
+    loadBudgetData(); // Refresh data
     setCreateDialogOpen(false);
   };
 
   const handleBudgetUpdated = () => {
-    loadBudgets();
     loadBudgetData(); // Refresh summary data
     setEditDialogOpen(false);
     setSelectedBudget(null);
   };
 
+  // Initial load
   useEffect(() => {
     loadBudgetData();
-    loadBudgets();
-  }, [loadBudgets]);
+  }, []);
 
+  // Debounced search effect
   useEffect(() => {
-    loadBudgets();
-  }, [loadBudgets]);
+    const timeoutId = setTimeout(() => {
+      const searchParams = {
+        search: searchTerm || undefined,
+        fiscalYear: fiscalYearFilter !== 'all' ? parseInt(fiscalYearFilter, 10) : undefined,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+      };
+      loadBudgetData(searchParams);
+    }, 300); // 300ms delay
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, fiscalYearFilter, statusFilter]);
 
   const totalInitialBudget = budgetSummary?.totalBudgetAllocated || budgetSummary?.totalBudget || 0;
   const totalSpent = budgetSummary?.totalBudgetApproved || budgetSummary?.totalSpent || 0;
@@ -181,7 +165,7 @@ export default function BudgetOverview() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={loadBudgetData} disabled={loading}>
+          <Button variant="outline" onClick={() => loadBudgetData()} disabled={loading}>
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
             Refresh
           </Button>
@@ -269,7 +253,7 @@ export default function BudgetOverview() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
-                  placeholder="Search budgets by COA name or code..."
+                  placeholder="Search budgets by code, name, category, or department..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"

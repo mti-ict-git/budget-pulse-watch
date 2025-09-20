@@ -158,27 +158,27 @@ export class BudgetModel {
     const params: BudgetFindAllParams = { Offset: offset, Limit: limit };
 
     if (fiscalYear) {
-      whereConditions.push('b.FiscalYear = @FiscalYear');
+      whereConditions.push('FiscalYear = @FiscalYear');
       params.FiscalYear = fiscalYear;
     }
     if (department) {
-      whereConditions.push('b.Department = @Department');
+      whereConditions.push('Department = @Department');
       params.Department = department;
     }
     if (budgetType) {
-      whereConditions.push('b.BudgetType = @BudgetType');
+      whereConditions.push('BudgetType = @BudgetType');
       params.BudgetType = budgetType;
     }
     if (status) {
-      whereConditions.push('b.Status = @Status');
+      whereConditions.push('Status = @Status');
       params.Status = status;
     }
     if (coaId) {
-      whereConditions.push('b.COAID = @COAID');
+      whereConditions.push('COAID = @COAID');
       params.COAID = coaId;
     }
     if (search) {
-      whereConditions.push('(coa.COACode LIKE @Search OR coa.COAName LIKE @Search OR b.Description LIKE @Search)');
+      whereConditions.push('(AccountCode LIKE @Search OR AccountName LIKE @Search OR Category LIKE @Search OR Department LIKE @Search)');
       params.Search = `%${search}%`;
     }
 
@@ -187,14 +187,13 @@ export class BudgetModel {
     const query = `
       SELECT * FROM vw_BudgetSummary
       ${whereClause}
-      ORDER BY FiscalYear DESC, COACode
+      ORDER BY FiscalYear DESC, AccountCode
       OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY
     `;
 
     const countQuery = `
       SELECT COUNT(*) as Total 
-      FROM Budget b
-      INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
+      FROM vw_BudgetSummary
       ${whereClause}
     `;
 

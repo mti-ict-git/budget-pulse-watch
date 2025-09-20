@@ -65,6 +65,27 @@ interface CostCodeBudgetRow {
  */
 router.get('/cost-codes', async (req: Request, res: Response) => {
   try {
+    // Get search parameters
+    const search = req.query.search as string;
+    const status = req.query.status as string;
+    const fiscalYear = req.query.fiscalYear ? parseInt(req.query.fiscalYear as string) : undefined;
+    
+    // Build WHERE conditions for search
+    let searchConditions = '';
+    if (search) {
+      searchConditions += ` AND (
+        cbs.PurchaseCostCode LIKE '%${search}%' OR 
+        cbs.COACode LIKE '%${search}%' OR 
+        cbs.COAName LIKE '%${search}%'
+      )`;
+    }
+    if (status && status !== 'all') {
+      searchConditions += ` AND cbs.BudgetStatus = '${status}'`;
+    }
+    if (fiscalYear) {
+      searchConditions += ` AND cbs.LastYear = ${fiscalYear}`;
+    }
+
     // Query that properly joins Budget allocations with PRF spending by cost codes
     const query = `
       WITH BudgetAllocations AS (
@@ -145,6 +166,7 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
           ELSE 'On Track'
         END as BudgetStatus
       FROM CostCodeBudgetSummary cbs
+      WHERE 1=1 ${searchConditions}
       ORDER BY cbs.GrandTotalAllocated DESC, cbs.GrandTotalApproved DESC
     `;
 

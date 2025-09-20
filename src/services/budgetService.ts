@@ -149,7 +149,7 @@ class BudgetService {
    */
   async getBudgetSummary(fiscalYear?: number): Promise<BudgetSummary | null> {
     try {
-      const response = await this.getCostCodeBudgets(fiscalYear);
+      const response = await this.getCostCodeBudgets(fiscalYear ? { fiscalYear } : undefined);
       
       if (!response.success || !response.data) {
         return null;
@@ -165,11 +165,18 @@ class BudgetService {
   /**
    * Get cost code budget data
    */
-  async getCostCodeBudgets(fiscalYear?: number): Promise<CostCodeBudgetResponse> {
+  async getCostCodeBudgets(searchParams?: { search?: string; status?: string; fiscalYear?: number }): Promise<CostCodeBudgetResponse> {
     try {
       const params = new URLSearchParams();
-      if (fiscalYear) {
-        params.append('fiscalYear', fiscalYear.toString());
+      
+      if (searchParams?.fiscalYear) {
+        params.append('fiscalYear', searchParams.fiscalYear.toString());
+      }
+      if (searchParams?.search) {
+        params.append('search', searchParams.search);
+      }
+      if (searchParams?.status) {
+        params.append('status', searchParams.status);
       }
 
       const url = `${this.baseUrl}/cost-codes${params.toString() ? `?${params.toString()}` : ''}`;
