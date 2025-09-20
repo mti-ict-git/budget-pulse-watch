@@ -8,3 +8,5 @@ DB_PORT=1433
 DB_ENCRYPT=true
 DB_TRUST_CERT=true
 
+
+Unexpected any. Specify a different type.eslint@typescript-eslint/no-explicit-any do not use any

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -8,11 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, FileText, Upload, Zap, CheckCircle, Save } from 'lucide-react';
+import { ArrowLeft, FileText, Upload, Zap, CheckCircle, Save, Paperclip } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import OCRUpload from '@/components/OCRUpload';
+import AdditionalFileUpload from '@/components/AdditionalFileUpload';
 import { toast } from '@/hooks/use-toast';
 import { authService } from '@/services/authService';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ExtractedPRFData {
   prfNo?: string;
@@ -110,6 +112,7 @@ const priorities = [
 
 const CreatePRF: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [createdPRF, setCreatedPRF] = useState<CreatedPRFData | null>(null);
   const [previewData, setPreviewData] = useState<ExtractedPRFData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -134,6 +137,21 @@ const CreatePRF: React.FC = () => {
     RequiredFor: "",
     BudgetYear: new Date().getFullYear()
   });
+
+  // Auto-populate SubmitBy field with current user information
+  useEffect(() => {
+    if (user) {
+      const userDisplayName = user.firstName && user.lastName 
+        ? `${user.firstName} ${user.lastName}` 
+        : user.username;
+      
+      setFormData(prev => ({
+        ...prev,
+        SubmitBy: userDisplayName,
+        Department: user.department || prev.Department
+      }));
+    }
+  }, [user]);
 
   const handlePRFCreated = (prfData: CreatedPRFData) => {
     setCreatedPRF(prfData);
@@ -184,12 +202,16 @@ const CreatePRF: React.FC = () => {
           description: "PRF created successfully!"
         });
         
-        // Reset form
+        // Reset form with current user information
+        const userDisplayName = user?.firstName && user?.lastName 
+          ? `${user.firstName} ${user.lastName}` 
+          : user?.username || "";
+        
         setFormData({
           PRFNo: "",
           Title: "",
           Description: "",
-          Department: "",
+          Department: user?.department || "",
           COAID: 1,
           RequestedAmount: 0,
           Priority: "Medium",
@@ -199,7 +221,7 @@ const CreatePRF: React.FC = () => {
           VendorContact: "",
           Notes: "",
           DateSubmit: new Date(),
-          SubmitBy: "",
+          SubmitBy: userDisplayName,
           SumDescriptionRequested: "",
           PurchaseCostCode: "",
           RequiredFor: "",
@@ -543,7 +565,7 @@ const CreatePRF: React.FC = () => {
                             id="submitBy"
                             value={formData.SubmitBy}
                             onChange={(e) => handleInputChange('SubmitBy', e.target.value)}
-                            placeholder="Person submitting this request"
+                            placeholder="Auto-filled from current user (editable)"
                           />
                         </div>
                         <div>
@@ -620,79 +642,93 @@ const CreatePRF: React.FC = () => {
         </Tabs>
       ) : (
         /* PRF Created Summary */
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>PRF Summary</CardTitle>
-              <CardDescription>
-                Details of the created PRF from OCR extraction
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700">PRF Number</label>
-                  <p className="text-lg font-semibold">{createdPRF.prf.PRFNo}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Status</label>
-                  <Badge variant="secondary">{createdPRF.prf.Status}</Badge>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Requested By</label>
-                  <p className="text-sm">{createdPRF.prf.RequestedBy}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Department</label>
-                  <p className="text-sm">{createdPRF.prf.Department}</p>
-                </div>
-                <div className="col-span-2">
-                  <label className="text-sm font-medium text-gray-700">Total Amount</label>
-                  <p className="text-xl font-bold text-green-600">
-                    {formatCurrency(createdPRF.prf.TotalAmount)}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>OCR Processing Details</CardTitle>
-              <CardDescription>
-                Information about the OCR extraction process
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Source Document</label>
-                <p className="text-sm">{createdPRF.originalFilename}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">OCR Confidence</label>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-600 h-2 rounded-full" 
-                      style={{ width: `${createdPRF.ocrConfidence * 100}%` }}
-                    />
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>PRF Summary</CardTitle>
+                <CardDescription>
+                  Details of the created PRF from OCR extraction
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">PRF Number</label>
+                    <p className="text-lg font-semibold">{createdPRF.prf.PRFNo}</p>
                   </div>
-                  <span className="text-sm font-medium">
-                    {Math.round(createdPRF.ocrConfidence * 100)}%
-                  </span>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Status</label>
+                    <Badge variant="secondary">{createdPRF.prf.Status}</Badge>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Requested By</label>
+                    <p className="text-sm">{createdPRF.prf.RequestedBy}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Department</label>
+                    <p className="text-sm">{createdPRF.prf.Department}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-sm font-medium text-gray-700">Total Amount</label>
+                    <p className="text-xl font-bold text-green-600">
+                      {formatCurrency(createdPRF.prf.TotalAmount)}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">Items Extracted</label>
-                <p className="text-sm">{createdPRF.items.length} items</p>
-              </div>
-              <div className="pt-4">
-                <Button onClick={handleViewPRF} className="w-full">
-                  View Complete PRF
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>OCR Processing Details</CardTitle>
+                <CardDescription>
+                  Information about the OCR extraction process
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Source Document</label>
+                  <p className="text-sm">{createdPRF.originalFilename}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">OCR Confidence</label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full" 
+                        style={{ width: `${createdPRF.ocrConfidence * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-medium">
+                      {Math.round(createdPRF.ocrConfidence * 100)}%
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Items Extracted</label>
+                  <p className="text-sm">{createdPRF.items.length} items</p>
+                </div>
+                <div className="pt-4">
+                  <Button onClick={handleViewPRF} className="w-full">
+                    View Complete PRF
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Additional File Upload Section */}
+          <AdditionalFileUpload
+            prfId={createdPRF.prf.PRFID}
+            prfNo={createdPRF.prf.PRFNo}
+            onUploadComplete={(files) => {
+              toast({
+                title: "Additional Files Uploaded",
+                description: `Successfully uploaded ${files.length} additional files to PRF ${createdPRF.prf.PRFNo}.`
+              });
+            }}
+          />
         </div>
       )}
     </div>

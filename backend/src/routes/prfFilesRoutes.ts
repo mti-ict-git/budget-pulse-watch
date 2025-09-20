@@ -59,6 +59,128 @@ router.get('/:prfId', async (req, res) => {
 });
 
 /**
+ * POST /api/prf-files/:prfId/upload-multiple
+ * Upload multiple additional files to a PRF
+ */
+router.post('/:prfId/upload-multiple', authenticateToken, requireContentManager, upload.array('files', 10), async (req, res) => {
+  try {
+    const prfId = parseInt(req.params.prfId);
+    const { description } = req.body;
+    
+    if (isNaN(prfId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid PRF ID'
+      });
+    }
+    
+    if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No files uploaded'
+      });
+    }
+    
+    const uploadResults = [];
+    const errors = [];
+    
+    // Load settings to configure shared storage
+    const settings = await loadSettings();
+    const sharedStorageConfig: SharedStorageConfig = {
+      basePath: settings.general?.sharedFolderPath || '',
+      enabled: !!(settings.general?.sharedFolderPath?.trim())
+    };
+    
+    const sharedStorageService = getSharedStorageService(sharedStorageConfig);
+    
+    // Get PRF number for shared storage path
+    // TODO: Fetch actual PRF number from database
+    const prfNo = `PRF-${prfId.toString().padStart(6, '0')}`;
+    
+    for (const file of req.files) {
+      try {
+        const { originalname, buffer, mimetype } = file;
+        const uploadId = uuidv4();
+        
+        // Save to temp directory first
+        const tempDir = path.join(process.cwd(), 'temp', 'prf-uploads');
+        await fs.mkdir(tempDir, { recursive: true });
+        
+        const fileExtension = path.extname(originalname);
+        const tempFilePath = path.join(tempDir, `${prfId}-${uploadId}${fileExtension}`);
+        await fs.writeFile(tempFilePath, buffer);
+        
+        // Copy to shared storage
+        const sharedStorageResult = await sharedStorageService.copyFileToSharedStorage(
+          tempFilePath,
+          prfNo,
+          originalname
+        );
+        
+        if (sharedStorageResult.success) {
+          // Save file metadata to database
+          const fileStats = await fs.stat(tempFilePath);
+          const fileRecord = await PRFFilesModel.create({
+            PRFID: prfId,
+            OriginalFileName: originalname,
+            FilePath: tempFilePath,
+            SharedPath: sharedStorageResult.sharedPath,
+            FileSize: fileStats.size,
+            FileType: fileExtension.toLowerCase().replace('.', ''),
+            MimeType: mimetype || 'application/octet-stream',
+            UploadedBy: 1, // TODO: Get from authenticated user
+            IsOriginalDocument: false,
+            Description: description || 'Additional document'
+          });
+          
+          uploadResults.push({
+            file: fileRecord,
+            sharedStorage: sharedStorageResult,
+            originalName: originalname
+          });
+          
+          console.log(`📁 File uploaded and saved: ${originalname}`);
+        } else {
+          errors.push({
+            fileName: originalname,
+            error: 'Failed to save to shared storage'
+          });
+          
+          // Clean up temp file
+          try {
+            await fs.unlink(tempFilePath);
+          } catch (cleanupError) {
+            console.error('Failed to clean up temp file:', cleanupError);
+          }
+        }
+      } catch (fileError) {
+        console.error(`Error processing file ${file.originalname}:`, fileError);
+        const errorMessage = fileError instanceof Error ? fileError.message : 'Unknown error';
+        errors.push({
+          fileName: file.originalname,
+          error: errorMessage
+        });
+      }
+    }
+    
+    return res.status(uploadResults.length > 0 ? 201 : 500).json({
+      success: uploadResults.length > 0,
+      message: `Uploaded ${uploadResults.length} of ${req.files.length} files successfully`,
+      data: {
+        uploaded: uploadResults,
+        errors: errors
+      }
+    });
+  } catch (error) {
+    console.error('Error uploading multiple files:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to upload files'
+    });
+  }
+});
+
+/**
  * POST /api/prf-files/:prfId/upload
  * Upload additional files to a PRF
  */
