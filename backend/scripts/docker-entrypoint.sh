@@ -15,8 +15,13 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # Mount network share if credentials are provided
-if [ -n "$DOMAIN_USERNAME" ] && [ -n "$DOMAIN_PASSWORD" ]; then
-    echo "🔗 Network credentials found, mounting shared folder..."
+if [ -n "$CIFS_USERNAME" ] && [ -n "$CIFS_PASSWORD" ]; then
+    echo "🔗 CIFS credentials found, mounting shared folder..."
+    
+    # Set environment variables for the mount script
+    export DOMAIN_USERNAME="$CIFS_USERNAME"
+    export DOMAIN_PASSWORD="$CIFS_PASSWORD"
+    export SHARED_FOLDER_PATH="//$CIFS_SERVER/$CIFS_SHARE"
     
     # Make the mount script executable
     chmod +x /app/scripts/mount-network-share.sh
@@ -26,8 +31,8 @@ if [ -n "$DOMAIN_USERNAME" ] && [ -n "$DOMAIN_PASSWORD" ]; then
     
     echo "✅ Network share setup completed"
 else
-    echo "⚠️  No network credentials provided, skipping network share mounting"
-    echo "   Set DOMAIN_USERNAME and DOMAIN_PASSWORD to enable network share access"
+    echo "⚠️  No CIFS credentials provided, skipping network share mounting"
+    echo "   Set CIFS_USERNAME and CIFS_PASSWORD to enable network share access"
 fi
 
 # Switch to nodejs user for running the application
