@@ -21,7 +21,14 @@ if [ -n "$CIFS_USERNAME" ] && [ -n "$CIFS_PASSWORD" ]; then
     # Set environment variables for the mount script
     export DOMAIN_USERNAME="$CIFS_USERNAME"
     export DOMAIN_PASSWORD="$CIFS_PASSWORD"
-    export SHARED_FOLDER_PATH="//$CIFS_SERVER/$CIFS_SHARE"
+    
+    # Only set SHARED_FOLDER_PATH if it's not already set to a Docker mount point
+    if [ -z "$SHARED_FOLDER_PATH" ] || [ "${SHARED_FOLDER_PATH#/app/}" = "$SHARED_FOLDER_PATH" ] && [ "${SHARED_FOLDER_PATH#/mnt/}" = "$SHARED_FOLDER_PATH" ]; then
+        export SHARED_FOLDER_PATH="//$CIFS_SERVER/$CIFS_SHARE"
+        echo "📁 Setting SHARED_FOLDER_PATH to: $SHARED_FOLDER_PATH"
+    else
+        echo "📁 Using existing Docker mount point: $SHARED_FOLDER_PATH"
+    fi
     
     # Make the mount script executable
     chmod +x /app/scripts/mount-network-share.sh
