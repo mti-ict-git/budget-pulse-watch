@@ -30,7 +30,10 @@ RUN addgroup -g 1001 -S nodejs && \
 # Copy built application from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Create nginx configuration with API proxy
+# Copy nginx configuration
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Create nginx site configuration with API proxy
 RUN echo 'server { \
     listen 8080; \
     server_name localhost; \
