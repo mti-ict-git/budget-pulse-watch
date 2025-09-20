@@ -156,34 +156,28 @@ export interface ChartOfAccounts {
 }
 
 export interface CreateCOARequest {
-  AccountCode: string;
-  AccountName: string;
-  AccountType?: string;
-  Description?: string;
+  COACode: string;
+  COAName: string;
   Category?: string;
-  ParentAccountID?: number;
+  Description?: string;
+  ParentCOAID?: number;
   IsActive?: boolean;
-  Department?: string;
 }
 
 export interface UpdateCOARequest {
-  AccountCode?: string;
-  AccountName?: string;
-  AccountType?: string;
-  Description?: string;
+  COACode?: string;
+  COAName?: string;
   Category?: string;
-  ParentAccountID?: number;
+  Description?: string;
+  ParentCOAID?: number;
   IsActive?: boolean;
-  Department?: string;
 }
 
 export interface COAQueryParams {
   page?: number;
   limit?: number;
   category?: string;
-  accountType?: string;
-  department?: string;
-  parentAccountId?: number;
+  parentCOAID?: number;
   isActive?: boolean;
   search?: string;
 }
@@ -191,23 +185,21 @@ export interface COAQueryParams {
 // COA parameter types for replacing 'any' types
 export interface UpdateCOAParams {
   COAID: number;
-  AccountCode?: string;
-  AccountName?: string;
-  AccountType?: string;
-  ParentAccountID?: number;
+  COACode?: string;
+  COAName?: string;
+  Category?: string;
+  ParentCOAID?: number;
   Description?: string;
   IsActive?: boolean;
-  Department?: string;
   [key: string]: unknown;
 }
 
 export interface COAFindAllParams {
   Offset?: number;
   Limit?: number;
-  AccountType?: string;
-  Department?: string;
+  Category?: string;
   IsActive?: boolean;
-  ParentAccountID?: number;
+  ParentCOAID?: number;
   Search?: string;
   [key: string]: unknown;
 }
@@ -218,8 +210,8 @@ export interface COABulkImportParams {
 
 export interface COAAccountUsage {
   COAID: number;
-  AccountCode: string;
-  AccountName: string;
+  COACode: string;
+  COAName: string;
   PRFCount: number;
   BudgetCount: number;
   TotalPRFAmount: number;
@@ -231,7 +223,7 @@ export interface COAStatistics {
   ActiveAccounts: number;
   InactiveAccounts: number;
   RootAccounts: number;
-  AccountTypes: number;
+  Categories: number;
   Departments: number;
 }
 
@@ -269,7 +261,7 @@ export interface BudgetUtilizationParams {
 }
 
 export interface COAExistsParams {
-  AccountCode: string;
+  COACode: string;
   ExcludeID?: number;
   [key: string]: unknown;
 }
@@ -277,9 +269,8 @@ export interface COAExistsParams {
 export interface BudgetAlert {
   BudgetID: number;
   COAID: number;
-  AccountCode: string;
-  AccountName: string;
-  Department: string;
+  COACode: string;
+  COAName: string;
   FiscalYear: number;
   AllocatedAmount: number;
   UtilizedAmount: number;
@@ -540,10 +531,9 @@ export interface BudgetSummary {
   FiscalYear: number;
   Quarter?: number;
   Month?: number;
-  AccountCode: string;
-  AccountName: string;
+  COACode: string;
+  COAName: string;
   Category?: string;
-  Department: string;
   BudgetType: string;
   AllocatedAmount: number;
   UtilizedAmount: number;

@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -11,9 +13,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Wallet, TrendingDown, TrendingUp, AlertTriangle, Download, RefreshCw } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Wallet, TrendingDown, TrendingUp, AlertTriangle, Download, RefreshCw, Plus, Search, MoreHorizontal, Edit, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { budgetService, type CostCodeBudget, type BudgetSummary } from '@/services/budgetService';
+import { budgetService, type CostCodeBudget, type BudgetSummary, type Budget, type BudgetQueryParams } from '@/services/budgetService';
+import { BudgetCreateDialog } from '@/components/budget/BudgetCreateDialog';
+import { BudgetEditDialog } from '@/components/budget/BudgetEditDialog';
+import { toast } from "sonner";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('id-ID', {
@@ -49,8 +60,19 @@ const getProgressColor = (percent: number) => {
 export default function BudgetOverview() {
   const [budgetData, setBudgetData] = useState<CostCodeBudget[]>([]);
   const [budgetSummary, setBudgetSummary] = useState<BudgetSummary | null>(null);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Search and filter state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [fiscalYearFilter, setFiscalYearFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  
+  // Dialog state
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
 
   const loadBudgetData = async () => {
     try {
@@ -72,9 +94,75 @@ export default function BudgetOverview() {
     }
   };
 
+  const loadBudgets = useCallback(async () => {
+    try {
+      const params: BudgetQueryParams = {
+        page: 1,
+        limit: 100,
+        search: searchTerm || undefined,
+        fiscalYear: fiscalYearFilter !== 'all' ? parseInt(fiscalYearFilter, 10) : undefined,
+      };
+
+      const response = await budgetService.getBudgets(params);
+      
+      if (response.success && response.data) {
+        setBudgets(response.data);
+      } else {
+        setError(response.message || 'Failed to load budgets');
+      }
+    } catch (err) {
+      setError('Failed to load budgets');
+      console.error('Error loading budgets:', err);
+    }
+  }, [searchTerm, fiscalYearFilter]);
+
+  const handleDeleteBudget = async (budgetId: number) => {
+    if (!confirm('Are you sure you want to delete this budget?')) {
+      return;
+    }
+
+    try {
+      const response = await budgetService.deleteBudget(budgetId);
+      
+      if (response.success) {
+        toast.success('Budget deleted successfully');
+        loadBudgets();
+        loadBudgetData(); // Refresh summary data
+      } else {
+        toast.error(response.message || 'Failed to delete budget');
+      }
+    } catch (err) {
+      toast.error('Failed to delete budget');
+      console.error('Error deleting budget:', err);
+    }
+  };
+
+  const handleEditBudget = (budget: Budget) => {
+    setSelectedBudget(budget);
+    setEditDialogOpen(true);
+  };
+
+  const handleBudgetCreated = () => {
+    loadBudgets();
+    loadBudgetData(); // Refresh summary data
+    setCreateDialogOpen(false);
+  };
+
+  const handleBudgetUpdated = () => {
+    loadBudgets();
+    loadBudgetData(); // Refresh summary data
+    setEditDialogOpen(false);
+    setSelectedBudget(null);
+  };
+
   useEffect(() => {
     loadBudgetData();
-  }, []);
+    loadBudgets();
+  }, [loadBudgets]);
+
+  useEffect(() => {
+    loadBudgets();
+  }, [loadBudgets]);
 
   const totalInitialBudget = budgetSummary?.totalBudgetAllocated || budgetSummary?.totalBudget || 0;
   const totalSpent = budgetSummary?.totalBudgetApproved || budgetSummary?.totalSpent || 0;
@@ -100,6 +188,10 @@ export default function BudgetOverview() {
           <Button variant="outline">
             <Download className="h-4 w-4" />
             Export Report
+          </Button>
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Create Budget
           </Button>
         </div>
       </div>
@@ -169,6 +261,49 @@ export default function BudgetOverview() {
         </Card>
       </div>
 
+      {/* Search and Filter Controls */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder="Search budgets by COA name or code..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Select value={fiscalYearFilter} onValueChange={setFiscalYearFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Fiscal Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Years</SelectItem>
+                  <SelectItem value="2024">2024</SelectItem>
+                  <SelectItem value="2023">2023</SelectItem>
+                  <SelectItem value="2022">2022</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="On Track">On Track</SelectItem>
+                  <SelectItem value="Under Budget">Under Budget</SelectItem>
+                  <SelectItem value="Over Budget">Over Budget</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Budget Details Table */}
       <Card className="dashboard-card">
         <CardHeader>
@@ -197,6 +332,7 @@ export default function BudgetOverview() {
                     <TableHead>Remaining</TableHead>
                     <TableHead>Utilization</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="w-[100px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -238,6 +374,40 @@ export default function BudgetOverview() {
                           </div>
                         </TableCell>
                         <TableCell>{getStatusBadge(budget.BudgetStatus)}</TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Open menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleEditBudget({
+                                BudgetID: parseInt(budget.PurchaseCostCode) || 0,
+                                AllocatedAmount: budget.GrandTotalAllocated || 0,
+                                COAID: parseInt(budget.COACode) || 0,
+                                FiscalYear: new Date().getFullYear(),
+                                UtilizedAmount: budget.GrandTotalActual || 0,
+                                RemainingAmount: (budget.GrandTotalAllocated || 0) - (budget.GrandTotalActual || 0),
+                                UtilizationPercentage: budget.GrandTotalAllocated ? ((budget.GrandTotalActual || 0) / budget.GrandTotalAllocated) * 100 : 0,
+                                CreatedBy: 1, // Default user ID, should be replaced with actual user ID from auth context
+                                CreatedAt: new Date(),
+                                UpdatedAt: new Date()
+                              })}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => handleDeleteBudget(parseInt(budget.PurchaseCostCode) || 0)}
+                                className="text-destructive"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -247,6 +417,22 @@ export default function BudgetOverview() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog Components */}
+      <BudgetCreateDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        onSuccess={handleBudgetCreated}
+      />
+
+      {selectedBudget && (
+        <BudgetEditDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          budget={selectedBudget}
+          onSuccess={handleBudgetUpdated}
+        />
+      )}
     </div>
   );
 }

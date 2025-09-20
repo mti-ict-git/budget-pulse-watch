@@ -15,10 +15,9 @@ router.get('/', async (req: Request, res: Response) => {
     const queryParams: COAQueryParams = {
       page: parseInt(req.query.page as string) || 1,
       limit: parseInt(req.query.limit as string) || 10,
-      accountType: req.query.accountType as string,
-      department: req.query.department as string,
+      category: req.query.category as string,
       isActive: req.query.isActive !== undefined ? req.query.isActive === 'true' : true,
-      parentAccountId: req.query.parentAccountId ? parseInt(req.query.parentAccountId as string) : undefined,
+      parentCOAID: req.query.parentCOAID ? parseInt(req.query.parentCOAID as string) : undefined,
       search: req.query.search as string
     };
 
@@ -84,15 +83,15 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 /**
- * @route GET /api/coa/code/:accountCode
+ * @route GET /api/coa/code/:coaCode
  * @desc Get COA by account code
  * @access Public (will be protected later)
  */
-router.get('/code/:accountCode', async (req: Request, res: Response) => {
+router.get('/code/:coaCode', async (req: Request, res: Response) => {
   try {
-    const accountCode = req.params.accountCode;
+    const coaCode = req.params.coaCode;
     
-    const coa = await ChartOfAccountsModel.findByAccountCode(accountCode);
+    const coa = await ChartOfAccountsModel.findByAccountCode(coaCode);
     
     if (!coa) {
       return res.status(404).json({
@@ -125,15 +124,15 @@ router.post('/', authenticateToken, requireContentManager, async (req: Request, 
     const coaData: CreateCOARequest = req.body;
     
     // Basic validation
-    if (!coaData.AccountCode || !coaData.AccountName || !coaData.AccountType) {
+    if (!coaData.COACode || !coaData.COAName || !coaData.Category) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: AccountCode, AccountName, AccountType'
+        message: 'Missing required fields: COACode, COAName, Category'
       });
     }
 
     // Check if account code already exists
-    const existingCOA = await ChartOfAccountsModel.findByAccountCode(coaData.AccountCode);
+    const existingCOA = await ChartOfAccountsModel.findByAccountCode(coaData.COACode);
     if (existingCOA) {
       return res.status(409).json({
         success: false,
@@ -185,8 +184,8 @@ router.put('/:id', authenticateToken, requireContentManager, async (req: Request
     }
 
     // Check if account code already exists (if being updated)
-    if (updateData.AccountCode) {
-      const codeExists = await ChartOfAccountsModel.accountCodeExists(updateData.AccountCode, coaId);
+    if (updateData.COACode) {
+      const codeExists = await ChartOfAccountsModel.accountCodeExists(updateData.COACode, coaId);
       if (codeExists) {
         return res.status(409).json({
           success: false,
@@ -338,16 +337,16 @@ router.get('/hierarchy', async (req: Request, res: Response) => {
  */
 router.get('/:id/children', async (req: Request, res: Response) => {
   try {
-    const parentAccountId = parseInt(req.params.id);
+    const parentCOAID = parseInt(req.params.id);
     
-    if (isNaN(parentAccountId)) {
+    if (isNaN(parentCOAID)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid parent account ID'
+        message: 'Invalid parent COA ID'
       });
     }
 
-    const children = await ChartOfAccountsModel.getChildAccounts(parentAccountId);
+    const children = await ChartOfAccountsModel.getChildAccounts(parentCOAID);
     
     return res.json({
       success: true,
@@ -387,15 +386,15 @@ router.get('/roots', async (req: Request, res: Response) => {
 });
 
 /**
- * @route GET /api/coa/type/:accountType
- * @desc Get accounts by type
+ * @route GET /api/coa/category/:category
+ * @desc Get accounts by category
  * @access Public (will be protected later)
  */
-router.get('/type/:accountType', async (req: Request, res: Response) => {
+router.get('/category/:category', async (req: Request, res: Response) => {
   try {
-    const accountType = req.params.accountType;
+    const category = req.params.category;
     
-    const accounts = await ChartOfAccountsModel.getAccountsByType(accountType);
+    const accounts = await ChartOfAccountsModel.getAccountsByType(category);
     
     return res.json({
       success: true,
@@ -406,31 +405,6 @@ router.get('/type/:accountType', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch accounts by type',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-/**
- * @route GET /api/coa/department/:department
- * @desc Get accounts by department
- * @access Public (will be protected later)
- */
-router.get('/department/:department', async (req: Request, res: Response) => {
-  try {
-    const department = req.params.department;
-    
-    const accounts = await ChartOfAccountsModel.getAccountsByDepartment(department);
-    
-    return res.json({
-      success: true,
-      data: accounts
-    });
-  } catch (error) {
-    console.error('Error fetching accounts by department:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to fetch accounts by department',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
@@ -486,10 +460,10 @@ router.post('/bulk-import', authenticateToken, requireContentManager, async (req
 
     // Basic validation for each account
     for (const account of accounts) {
-      if (!account.AccountCode || !account.AccountName || !account.AccountType) {
+      if (!account.COACode || !account.COAName || !account.Category) {
         return res.status(400).json({
           success: false,
-          message: 'Each account must have AccountCode, AccountName, and AccountType'
+          message: 'Each account must have COACode, COAName, and Category'
         });
       }
     }

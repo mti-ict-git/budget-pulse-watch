@@ -31,6 +31,8 @@ interface Budget {
   CreatedBy: number;
   CreatedAt: Date;
   UpdatedAt: Date;
+  Description?: string;
+  IsActive?: boolean;
   // Additional fields from joins
   COACode?: string;
   COAName?: string;
@@ -53,6 +55,8 @@ interface CreateBudgetRequest {
 }
 
 interface UpdateBudgetRequest {
+  COAID?: number;
+  FiscalYear?: number;
   AllocatedAmount?: number;
   UtilizedAmount?: number;
   Description?: string;
@@ -62,6 +66,7 @@ interface UpdateBudgetRequest {
   EndDate?: Date;
   Status?: string;
   Notes?: string;
+  IsActive?: boolean;
 }
 
 interface BudgetQueryParams {

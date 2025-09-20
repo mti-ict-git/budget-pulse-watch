@@ -178,7 +178,7 @@ export class BudgetModel {
       params.COAID = coaId;
     }
     if (search) {
-      whereConditions.push('(coa.AccountCode LIKE @Search OR coa.AccountName LIKE @Search OR b.Description LIKE @Search)');
+      whereConditions.push('(coa.COACode LIKE @Search OR coa.COAName LIKE @Search OR b.Description LIKE @Search)');
       params.Search = `%${search}%`;
     }
 
@@ -187,7 +187,7 @@ export class BudgetModel {
     const query = `
       SELECT * FROM vw_BudgetSummary
       ${whereClause}
-      ORDER BY FiscalYear DESC, AccountCode
+      ORDER BY FiscalYear DESC, COACode
       OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY
     `;
 
@@ -221,8 +221,8 @@ export class BudgetModel {
       SELECT 
         b.BudgetID,
         b.COAID,
-        coa.AccountCode,
-        coa.AccountName,
+        coa.COACode,
+        coa.COAName,
         b.FiscalYear,
         b.Department,
         b.AllocatedAmount,
@@ -245,7 +245,7 @@ export class BudgetModel {
         AND p.Status IN ('Approved', 'Completed')
       WHERE b.BudgetID = @BudgetID
       GROUP BY 
-        b.BudgetID, b.COAID, coa.AccountCode, coa.AccountName, 
+        b.BudgetID, b.COAID, coa.COACode, coa.COAName, 
         b.FiscalYear, b.Department, b.AllocatedAmount
     `;
     
@@ -269,8 +269,8 @@ export class BudgetModel {
       SELECT 
         b.BudgetID,
         b.COAID,
-        coa.AccountCode,
-        coa.AccountName,
+        coa.COACode,
+        coa.COAName,
         b.FiscalYear,
         b.Department,
         b.AllocatedAmount,
@@ -293,9 +293,9 @@ export class BudgetModel {
         AND p.Status IN ('Approved', 'Completed')
       WHERE ${whereConditions.join(' AND ')}
       GROUP BY 
-        b.BudgetID, b.COAID, coa.AccountCode, coa.AccountName, 
+        b.BudgetID, b.COAID, coa.COACode, coa.COAName, 
         b.FiscalYear, b.Department, b.AllocatedAmount
-      ORDER BY coa.AccountCode
+      ORDER BY coa.COACode
     `;
     
     const result = await executeQuery<BudgetUtilization>(query, params);
@@ -368,8 +368,8 @@ export class BudgetModel {
       SELECT 
         b.BudgetID,
         b.COAID,
-        coa.AccountCode,
-        coa.AccountName,
+        coa.COACode,
+        coa.COAName,
         b.Department,
         b.FiscalYear,
         b.AllocatedAmount,

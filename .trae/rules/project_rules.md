@@ -1,3 +1,4 @@
+sql credential
 DB_TYPE=mssql
 DB_HOST=10.60.10.47
 DB_SERVER=10.60.10.47
