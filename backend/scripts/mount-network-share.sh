@@ -63,28 +63,28 @@ echo "🔐 Trying multiple authentication approaches..."
 
 # Attempt 1: NTLM with domain
 if mount -t cifs "//$SHARE_HOST/$SHARE_PATH" "$MOUNT_POINT" \
-    -o username="$CLEAN_USER",password="$DOMAIN_PASS",domain=mbma,uid=0,gid=0,iocharset=utf8,file_mode=0644,dir_mode=0755,vers=3.0,sec=ntlm 2>/dev/null; then
+    -o username="$CLEAN_USER",password="$DOMAIN_PASS",domain=mbma,uid=1001,gid=65533,iocharset=utf8,file_mode=0644,dir_mode=0755,vers=3.0,sec=ntlm 2>/dev/null; then
     echo "✅ Mount successful with NTLM authentication"
 # Attempt 2: NTLMSSP with domain
 elif mount -t cifs "//$SHARE_HOST/$SHARE_PATH" "$MOUNT_POINT" \
-    -o username="$CLEAN_USER",password="$DOMAIN_PASS",domain=mbma,uid=0,gid=0,iocharset=utf8,file_mode=0644,dir_mode=0755,vers=3.0,sec=ntlmssp 2>/dev/null; then
+    -o username="$CLEAN_USER",password="$DOMAIN_PASS",domain=mbma,uid=1001,gid=65533,iocharset=utf8,file_mode=0644,dir_mode=0755,vers=3.0,sec=ntlmssp 2>/dev/null; then
     echo "✅ Mount successful with NTLMSSP authentication"
 # Attempt 3: No security (for older systems)
 elif mount -t cifs "//$SHARE_HOST/$SHARE_PATH" "$MOUNT_POINT" \
-    -o username="$CLEAN_USER",password="$DOMAIN_PASS",domain=mbma,uid=0,gid=0,iocharset=utf8,file_mode=0644,dir_mode=0755,vers=2.0,sec=none 2>/dev/null; then
+    -o username="$CLEAN_USER",password="$DOMAIN_PASS",domain=mbma,uid=1001,gid=65533,iocharset=utf8,file_mode=0644,dir_mode=0755,vers=2.0,sec=none 2>/dev/null; then
     echo "✅ Mount successful with no security (SMB 2.0)"
 # Attempt 4: Full domain\username format
 elif mount -t cifs "//$SHARE_HOST/$SHARE_PATH" "$MOUNT_POINT" \
-    -o username="$DOMAIN_USER",password="$DOMAIN_PASS",uid=0,gid=0,iocharset=utf8,file_mode=0644,dir_mode=0755,vers=3.0,sec=ntlm 2>/dev/null; then
+    -o username="$DOMAIN_USER",password="$DOMAIN_PASS",uid=1001,gid=65533,iocharset=utf8,file_mode=0644,dir_mode=0755,vers=3.0,sec=ntlm 2>/dev/null; then
     echo "✅ Mount successful with full domain\\username"
 # Attempt 5: SMB 1.0 (legacy)
 elif mount -t cifs "//$SHARE_HOST/$SHARE_PATH" "$MOUNT_POINT" \
-    -o username="$CLEAN_USER",password="$DOMAIN_PASS",domain=mbma,uid=0,gid=0,iocharset=utf8,file_mode=0644,dir_mode=0755,vers=1.0,sec=ntlm 2>/dev/null; then
+    -o username="$CLEAN_USER",password="$DOMAIN_PASS",domain=mbma,uid=1001,gid=65533,iocharset=utf8,file_mode=0644,dir_mode=0755,vers=1.0,sec=ntlm 2>/dev/null; then
     echo "✅ Mount successful with SMB 1.0"
 else
     echo "❌ All mount attempts failed. Trying final attempt with verbose output..."
     if ! mount -t cifs "//$SHARE_HOST/$SHARE_PATH" "$MOUNT_POINT" \
-        -o username="$CLEAN_USER",password="$DOMAIN_PASS",domain=mbma,uid=0,gid=0,iocharset=utf8,file_mode=0644,dir_mode=0755,vers=3.0,sec=ntlm; then
+        -o username="$CLEAN_USER",password="$DOMAIN_PASS",domain=mbma,uid=1001,gid=65533,iocharset=utf8,file_mode=0644,dir_mode=0755,vers=3.0,sec=ntlm; then
         echo "❌ Final mount attempt also failed"
     fi
 fi
