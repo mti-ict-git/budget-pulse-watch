@@ -226,11 +226,11 @@ export class BudgetModel {
         b.FiscalYear,
         b.Department,
         b.AllocatedAmount,
-        COALESCE(SUM(p.ApprovedAmount), 0) as UtilizedAmount,
-        b.AllocatedAmount - COALESCE(SUM(p.ApprovedAmount), 0) as RemainingAmount,
+        COALESCE(SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount)), 0) as UtilizedAmount,
+        b.AllocatedAmount - COALESCE(SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount)), 0) as RemainingAmount,
         CASE 
           WHEN b.AllocatedAmount > 0 
-          THEN (COALESCE(SUM(p.ApprovedAmount), 0) * 100.0 / b.AllocatedAmount)
+          THEN (COALESCE(SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount)), 0) * 100.0 / b.AllocatedAmount)
           ELSE 0 
         END as UtilizationPercentage,
         COUNT(p.PRFID) as TotalPRFs,
@@ -274,11 +274,11 @@ export class BudgetModel {
         b.FiscalYear,
         b.Department,
         b.AllocatedAmount,
-        COALESCE(SUM(p.ApprovedAmount), 0) as UtilizedAmount,
-        b.AllocatedAmount - COALESCE(SUM(p.ApprovedAmount), 0) as RemainingAmount,
+        COALESCE(SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount)), 0) as UtilizedAmount,
+        b.AllocatedAmount - COALESCE(SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount)), 0) as RemainingAmount,
         CASE 
           WHEN b.AllocatedAmount > 0 
-          THEN (COALESCE(SUM(p.ApprovedAmount), 0) * 100.0 / b.AllocatedAmount)
+          THEN (COALESCE(SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount)), 0) * 100.0 / b.AllocatedAmount)
           ELSE 0 
         END as UtilizationPercentage,
         COUNT(p.PRFID) as TotalPRFs,
@@ -322,7 +322,7 @@ export class BudgetModel {
       LEFT JOIN (
         SELECT 
           p.COAID,
-          SUM(p.ApprovedAmount) as UtilizedAmount
+          SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount)) as UtilizedAmount
         FROM PRF p
         WHERE p.Status IN ('Approved', 'Completed')
           AND YEAR(p.RequestDate) = @FiscalYear
@@ -344,7 +344,7 @@ export class BudgetModel {
     const query = `
       UPDATE Budget 
       SET UtilizedAmount = (
-        SELECT COALESCE(SUM(p.ApprovedAmount), 0)
+        SELECT COALESCE(SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount)), 0)
         FROM PRF p
         WHERE p.COAID = Budget.COAID
           AND p.RequestDate >= Budget.StartDate
@@ -389,7 +389,7 @@ export class BudgetModel {
       LEFT JOIN (
         SELECT 
           p.COAID,
-          SUM(p.ApprovedAmount) as UtilizedAmount
+          SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount)) as UtilizedAmount
         FROM PRF p
         WHERE p.Status IN ('Approved', 'Completed')
         GROUP BY p.COAID

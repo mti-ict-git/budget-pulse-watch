@@ -227,13 +227,13 @@ export default function BudgetOverview() {
                         <TableCell>
                           <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                              <span className={cn("text-sm font-medium", getUtilizationColor(budget.UtilizationPercentage))}>
-                                {budget.UtilizationPercentage.toFixed(1)}%
+                              <span className={cn("text-sm font-medium", getUtilizationColor(budget.UtilizationPercentage || 0))}>
+                                {(budget.UtilizationPercentage || 0).toFixed(1)}%
                               </span>
                             </div>
                             <Progress 
-                              value={Math.min(budget.UtilizationPercentage, 100)} 
-                              className={cn("h-2", getProgressColor(budget.UtilizationPercentage))}
+                              value={Math.min(budget.UtilizationPercentage || 0, 100)} 
+                              className={cn("h-2", getProgressColor(budget.UtilizationPercentage || 0))}
                             />
                           </div>
                         </TableCell>

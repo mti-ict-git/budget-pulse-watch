@@ -567,7 +567,7 @@ export class PRFModel {
         SUM(CASE WHEN Status = 'Completed' THEN 1 ELSE 0 END) as CompletedPRFs,
         SUM(CASE WHEN Status = 'Rejected' THEN 1 ELSE 0 END) as RejectedPRFs,
         SUM(RequestedAmount) as TotalRequestedAmount,
-        SUM(ApprovedAmount) as TotalApprovedAmount,
+        SUM(COALESCE(ApprovedAmount, RequestedAmount)) as TotalApprovedAmount,
         AVG(DATEDIFF(day, RequestDate, COALESCE(ApprovalDate, GETDATE()))) as AvgProcessingDays
       FROM PRF
       WHERE RequestDate >= DATEADD(year, -1, GETDATE())

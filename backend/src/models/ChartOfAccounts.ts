@@ -342,7 +342,7 @@ export class ChartOfAccountsModel {
         coa.AccountName,
         COUNT(DISTINCT p.PRFID) as PRFCount,
         COUNT(DISTINCT b.BudgetID) as BudgetCount,
-        SUM(CASE WHEN p.Status IN ('Approved', 'Completed') THEN p.ApprovedAmount ELSE 0 END) as TotalPRFAmount,
+        SUM(CASE WHEN p.Status IN ('Approved', 'Completed') THEN COALESCE(p.ApprovedAmount, p.RequestedAmount) ELSE 0 END) as TotalPRFAmount,
         SUM(b.AllocatedAmount) as TotalBudgetAmount
       FROM ChartOfAccounts coa
       LEFT JOIN PRF p ON coa.COAID = p.COAID

@@ -87,7 +87,7 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
           p.COAID,
           p.BudgetYear,
           SUM(CAST(p.RequestedAmount AS DECIMAL(18,2))) as TotalRequested,
-          SUM(CAST(p.ApprovedAmount AS DECIMAL(18,2))) as TotalApproved,
+          SUM(CAST(COALESCE(p.ApprovedAmount, p.RequestedAmount) AS DECIMAL(18,2))) as TotalApproved,
           SUM(CAST(p.ActualAmount AS DECIMAL(18,2))) as TotalActual,
           COUNT(*) as RequestCount
         FROM dbo.PRF p
@@ -113,7 +113,7 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
           MIN(cs.BudgetYear) as FirstYear,
           MAX(cs.BudgetYear) as LastYear
         FROM CostCodeSpending cs
-        LEFT JOIN BudgetAllocations ba ON cs.COAID = ba.COAID AND cs.BudgetYear = ba.FiscalYear
+        LEFT JOIN BudgetAllocations ba ON cs.PurchaseCostCode = ba.COACode AND cs.BudgetYear = ba.FiscalYear
         GROUP BY cs.PurchaseCostCode, cs.COAID, ba.COACode, ba.COAName
       )
       SELECT 

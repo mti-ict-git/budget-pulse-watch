@@ -17,6 +17,96 @@ interface CostCodeBudget {
   RemainingAmount?: number;
 }
 
+interface Budget {
+  BudgetID: number;
+  COAID: number;
+  FiscalYear: number;
+  Quarter?: number;
+  Month?: number;
+  AllocatedAmount: number;
+  UtilizedAmount: number;
+  RemainingAmount: number;
+  UtilizationPercentage: number;
+  Notes?: string;
+  CreatedBy: number;
+  CreatedAt: Date;
+  UpdatedAt: Date;
+  // Additional fields from joins
+  COACode?: string;
+  COAName?: string;
+  Department?: string;
+  BudgetType?: string;
+}
+
+interface CreateBudgetRequest {
+  COAID: number;
+  FiscalYear: number;
+  Quarter?: number;
+  Month?: number;
+  AllocatedAmount: number;
+  Description?: string;
+  Department: string;
+  BudgetType?: string;
+  StartDate?: Date;
+  EndDate?: Date;
+  Notes?: string;
+}
+
+interface UpdateBudgetRequest {
+  AllocatedAmount?: number;
+  UtilizedAmount?: number;
+  Description?: string;
+  Department?: string;
+  BudgetType?: string;
+  StartDate?: Date;
+  EndDate?: Date;
+  Status?: string;
+  Notes?: string;
+}
+
+interface BudgetQueryParams {
+  page?: number;
+  limit?: number;
+  fiscalYear?: number;
+  quarter?: number;
+  month?: number;
+  coaId?: number;
+  category?: string;
+  utilizationLevel?: string;
+  department?: string;
+  budgetType?: string;
+  status?: string;
+  search?: string;
+}
+
+interface BudgetListResponse {
+  success: boolean;
+  data?: Budget[];
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  message?: string;
+  error?: string;
+}
+
+interface BudgetResponse {
+  success: boolean;
+  data?: Budget;
+  message?: string;
+  error?: string;
+}
+
+interface ChartOfAccount {
+  COAID: number;
+  COACode: string;
+  COAName: string;
+  Description?: string;
+  Category?: string;
+}
+
 interface BudgetSummary {
   totalCostCodes: number;
   totalBudgetAllocated: number;
@@ -148,7 +238,200 @@ class BudgetService {
     if (total === 0) return 0;
     return Math.round((used / total) * 100);
   }
+
+  /**
+   * Get all budgets with filtering and pagination
+   */
+  async getBudgets(params?: BudgetQueryParams): Promise<BudgetListResponse> {
+    try {
+      const searchParams = new URLSearchParams();
+      
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            searchParams.append(key, value.toString());
+          }
+        });
+      }
+
+      const url = `${this.baseUrl}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch budgets');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching budgets:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+
+  /**
+   * Get a single budget by ID
+   */
+  async getBudgetById(id: number): Promise<BudgetResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/${id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch budget');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching budget:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+
+  /**
+   * Create a new budget
+   */
+  async createBudget(budgetData: CreateBudgetRequest): Promise<BudgetResponse> {
+    try {
+      const response = await fetch(this.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(budgetData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to create budget');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error creating budget:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+
+  /**
+   * Update an existing budget
+   */
+  async updateBudget(id: number, updateData: UpdateBudgetRequest): Promise<BudgetResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update budget');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error updating budget:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+
+  /**
+   * Delete a budget
+   */
+  async deleteBudget(id: number): Promise<{ success: boolean; message?: string }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to delete budget');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error deleting budget:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+
+  /**
+   * Get Chart of Accounts for budget creation
+   */
+  async getChartOfAccounts(): Promise<{ success: boolean; data?: ChartOfAccount[]; message?: string }> {
+    try {
+      const response = await fetch('/api/coa', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch chart of accounts');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching chart of accounts:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
 }
 
 export const budgetService = new BudgetService();
-export type { CostCodeBudget, BudgetSummary, CostCodeBudgetResponse };
+export type { 
+  CostCodeBudget, 
+  BudgetSummary, 
+  CostCodeBudgetResponse, 
+  Budget, 
+  CreateBudgetRequest, 
+  UpdateBudgetRequest, 
+  BudgetQueryParams,
+  BudgetListResponse,
+  BudgetResponse,
+  ChartOfAccount
+};
