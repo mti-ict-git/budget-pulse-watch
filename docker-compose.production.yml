@@ -14,8 +14,6 @@ services:
     networks:
       - app-network
     restart: unless-stopped
-    depends_on:
-      - nginx
     # Required for CIFS mounting
     user: root
     privileged: true
@@ -25,16 +23,27 @@ services:
     security_opt:
       - apparmor:unconfined
 
+  frontend:
+    build: .
+    ports:
+      - "5005:8080"
+    networks:
+      - app-network
+    restart: unless-stopped
+    depends_on:
+      - backend
+
   nginx:
     image: nginx:alpine
     ports:
-      - "5005:80"
       - "5443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     networks:
       - app-network
     restart: unless-stopped
+    depends_on:
+      - backend
 
 networks:
   app-network:
