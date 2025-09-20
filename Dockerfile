@@ -30,19 +30,40 @@ RUN addgroup -g 1001 -S nodejs && \
 # Copy built application from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Create a simple nginx configuration for frontend
+# Create nginx configuration with API proxy
 RUN echo 'server { \
     listen 8080; \
     server_name localhost; \
     root /usr/share/nginx/html; \
     index index.html; \
+    \
+    # API proxy to backend \
+    location /api/ { \
+        proxy_pass http://backend:3000/api/; \
+        proxy_http_version 1.1; \
+        proxy_set_header Upgrade $http_upgrade; \
+        proxy_set_header Connection "upgrade"; \
+        proxy_set_header Host $host; \
+        proxy_set_header X-Real-IP $remote_addr; \
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+        proxy_set_header X-Forwarded-Proto $scheme; \
+        proxy_cache_bypass $http_upgrade; \
+        proxy_read_timeout 86400; \
+    } \
+    \
+    # Health check for backend \
+    location /health { \
+        proxy_pass http://backend:3000/health; \
+        proxy_http_version 1.1; \
+        proxy_set_header Host $host; \
+        proxy_set_header X-Real-IP $remote_addr; \
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+        proxy_set_header X-Forwarded-Proto $scheme; \
+    } \
+    \
+    # Frontend routes \
     location / { \
         try_files $uri $uri/ /index.html; \
-    } \
-    location /health { \
-        access_log off; \
-        return 200 "healthy\\n"; \
-        add_header Content-Type text/plain; \
     } \
 }' > /etc/nginx/conf.d/default.conf
 
