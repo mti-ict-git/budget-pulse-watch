@@ -61,6 +61,18 @@ export class SharedStorageService {
    * @throws Error if authentication fails
    */
   private async ensureAuthentication(): Promise<void> {
+    // Skip authentication if running in Docker with pre-mounted share
+    if (isRunningInDocker()) {
+      const dockerMountPath = '/app/shared-documents';
+      try {
+        await fs.access(dockerMountPath);
+        console.log('🐳 [SharedStorage] Using Docker mount point - authentication not required');
+        return;
+      } catch (error) {
+        console.warn('⚠️ [SharedStorage] Docker mount point not accessible, attempting authentication');
+      }
+    }
+
     const authConfig = getNetworkAuthConfig();
     if (authConfig) {
       console.log('🔐 [SharedStorage] Authenticating with network share...');
@@ -71,6 +83,10 @@ export class SharedStorageService {
       console.log('✅ [SharedStorage] Network authentication successful');
     } else {
       console.warn('⚠️ [SharedStorage] No network authentication credentials found');
+      // In Docker environment, this is expected and not an error
+      if (!isRunningInDocker()) {
+        throw new Error('Network authentication credentials not configured');
+      }
     }
   }
 
