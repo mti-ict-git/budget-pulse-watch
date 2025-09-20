@@ -24,8 +24,12 @@ services:
     # Add capabilities for mounting
     cap_add:
       - SYS_ADMIN
+      - DAC_READ_SEARCH
     # Enable privileged mode for CIFS mounting
     privileged: true
+    # Security options for CIFS mounting
+    security_opt:
+      - apparmor:unconfined
     # Additional environment variables for network share
     environment:
       - SHARE_HOST=mbma.com
