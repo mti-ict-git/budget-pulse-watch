@@ -10,8 +10,8 @@ echo "🔗 Starting network share mounting..."
 # Use new CIFS environment variables
 SHARE_HOST="${NETWORK_SHARE_SERVER:-${CIFS_SERVER:-}}"
 SHARE_PATH="${NETWORK_SHARE_PATH:-${CIFS_SHARE:-}}"
-DOMAIN_USER="${DOMAIN_USERNAME:-}"
-DOMAIN_PASS="${DOMAIN_PASSWORD:-}"
+DOMAIN_USER="${CIFS_USERNAME:-${DOMAIN_USERNAME:-}}"
+DOMAIN_PASS="${CIFS_PASSWORD:-${DOMAIN_PASSWORD:-}}"
 
 # Create mount point for the share
 MOUNT_POINT="/app/shared-documents"
@@ -27,7 +27,7 @@ echo "   DOMAIN_USER: $DOMAIN_USER"
 
 # Check if required environment variables are set
 if [ -z "$DOMAIN_USER" ] || [ -z "$DOMAIN_PASS" ]; then
-    echo "❌ Error: DOMAIN_USERNAME and DOMAIN_PASSWORD must be set"
+    echo "❌ Error: CIFS_USERNAME/CIFS_PASSWORD or DOMAIN_USERNAME/DOMAIN_PASSWORD must be set"
     exit 1
 fi
 
