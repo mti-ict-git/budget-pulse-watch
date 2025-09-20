@@ -7,6 +7,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
+import { pool } from '../config/database';
 
 const router = express.Router();
 
@@ -94,8 +95,18 @@ router.post('/:prfId/upload-multiple', authenticateToken, requireContentManager,
     const sharedStorageService = getSharedStorageService(sharedStorageConfig);
     
     // Get PRF number for shared storage path
-    // TODO: Fetch actual PRF number from database
-    const prfNo = `PRF-${prfId.toString().padStart(6, '0')}`;
+    const prfResult = await pool.request()
+      .input('prfId', prfId)
+      .query('SELECT PRFNo FROM PRF WHERE PRFID = @prfId');
+    
+    if (prfResult.recordset.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'PRF not found'
+      });
+    }
+    
+    const prfNo = prfResult.recordset[0].PRFNo;
     
     for (const file of req.files) {
       try {
@@ -229,8 +240,18 @@ router.post('/:prfId/upload', authenticateToken, requireContentManager, upload.s
       const sharedStorageService = getSharedStorageService(sharedStorageConfig);
       
       // Get PRF number for shared storage path
-      // TODO: Fetch actual PRF number from database
-      const prfNo = `PRF-${prfId.toString().padStart(6, '0')}`;
+      const prfResult = await pool.request()
+        .input('prfId', prfId)
+        .query('SELECT PRFNo FROM PRF WHERE PRFID = @prfId');
+      
+      if (prfResult.recordset.length === 0) {
+        return res.status(500).json({
+          success: false,
+          message: 'PRF not found'
+        });
+      }
+      
+      const prfNo = prfResult.recordset[0].PRFNo;
       
       sharedStorageResult = await sharedStorageService.copyFileToSharedStorage(
         tempFilePath,
