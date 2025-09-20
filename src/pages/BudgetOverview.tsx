@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -10,57 +11,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Wallet, TrendingDown, TrendingUp, AlertTriangle, Download } from "lucide-react";
+import { Wallet, TrendingDown, TrendingUp, AlertTriangle, Download, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-// Mock budget data
-const budgetData = [
-  {
-    coa: "COA-001",
-    category: "IT Consumables",
-    initialBudget: 10000000,
-    spentAmount: 7200000,
-    remainingBudget: 2800000,
-    utilizationPercent: 72,
-    status: "healthy"
-  },
-  {
-    coa: "COA-002",
-    category: "Internet Services",
-    initialBudget: 10000000,
-    spentAmount: 4500000,
-    remainingBudget: 5500000,
-    utilizationPercent: 45,
-    status: "healthy"
-  },
-  {
-    coa: "COA-003",
-    category: "Software Licenses",
-    initialBudget: 10000000,
-    spentAmount: 8900000,
-    remainingBudget: 1100000,
-    utilizationPercent: 89,
-    status: "warning"
-  },
-  {
-    coa: "COA-004",
-    category: "Hardware",
-    initialBudget: 20000000,
-    spentAmount: 6800000,
-    remainingBudget: 13200000,
-    utilizationPercent: 34,
-    status: "healthy"
-  },
-  {
-    coa: "COA-005",
-    category: "Training & Development",
-    initialBudget: 5000000,
-    spentAmount: 5200000,
-    remainingBudget: -200000,
-    utilizationPercent: 104,
-    status: "overspent"
-  }
-];
+import { budgetService, type CostCodeBudget, type BudgetSummary } from '@/services/budgetService';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('id-ID', {
@@ -72,12 +25,12 @@ const formatCurrency = (amount: number) => {
 
 const getStatusBadge = (status: string) => {
   const statusConfig = {
-    healthy: { label: "Healthy", variant: "default" as const },
-    warning: { label: "Warning", variant: "warning" as const },
-    overspent: { label: "Overspent", variant: "destructive" as const }
+    'On Track': { label: "On Track", variant: "default" as const },
+    'Under Budget': { label: "Under Budget", variant: "secondary" as const },
+    'Over Budget': { label: "Over Budget", variant: "destructive" as const }
   };
   
-  const config = statusConfig[status as keyof typeof statusConfig];
+  const config = statusConfig[status as keyof typeof statusConfig] || { label: status, variant: "outline" as const };
   return <Badge variant={config.variant}>{config.label}</Badge>;
 };
 
@@ -94,10 +47,40 @@ const getProgressColor = (percent: number) => {
 };
 
 export default function BudgetOverview() {
-  const totalInitialBudget = budgetData.reduce((sum, item) => sum + item.initialBudget, 0);
-  const totalSpent = budgetData.reduce((sum, item) => sum + item.spentAmount, 0);
-  const totalRemaining = budgetData.reduce((sum, item) => sum + item.remainingBudget, 0);
-  const overallUtilization = (totalSpent / totalInitialBudget) * 100;
+  const [budgetData, setBudgetData] = useState<CostCodeBudget[]>([]);
+  const [budgetSummary, setBudgetSummary] = useState<BudgetSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadBudgetData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await budgetService.getCostCodeBudgets();
+      
+      if (response.success && response.data) {
+        setBudgetData(response.data.costCodes);
+        setBudgetSummary(response.data.summary);
+      } else {
+        setError(response.message || 'Failed to load budget data');
+      }
+    } catch (err) {
+      setError('Failed to load budget data');
+      console.error('Error loading budget data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadBudgetData();
+  }, []);
+
+  const totalInitialBudget = budgetSummary?.totalBudgetRequested || budgetSummary?.totalBudget || 0;
+  const totalSpent = budgetSummary?.totalBudgetActual || budgetSummary?.totalSpent || 0;
+  const totalRemaining = totalInitialBudget - totalSpent;
+  const overallUtilization = budgetSummary?.overallUtilization || 0;
+  const alertCount = budgetData.filter(b => b.BudgetStatus === 'Over Budget').length;
 
   return (
     <div className="space-y-6">
@@ -109,10 +92,16 @@ export default function BudgetOverview() {
             Monitor budget allocation and utilization across categories
           </p>
         </div>
-        <Button variant="outline">
-          <Download className="h-4 w-4" />
-          Export Report
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={loadBudgetData} disabled={loading}>
+            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            Refresh
+          </Button>
+          <Button variant="outline">
+            <Download className="h-4 w-4" />
+            Export Report
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -169,7 +158,7 @@ export default function BudgetOverview() {
             <div className="flex items-center justify-between">
               <div className="space-y-2">
                 <p className="text-sm font-medium text-muted-foreground">Alerts</p>
-                <p className="text-2xl font-bold text-warning">2</p>
+                <p className="text-2xl font-bold text-warning">{alertCount}</p>
                 <p className="text-xs text-muted-foreground">Categories need attention</p>
               </div>
               <div className="h-12 w-12 rounded-full bg-warning/10 flex items-center justify-center">
@@ -186,51 +175,69 @@ export default function BudgetOverview() {
           <CardTitle>Budget Details by Category</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>COA</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Initial Budget</TableHead>
-                  <TableHead>Spent</TableHead>
-                  <TableHead>Remaining</TableHead>
-                  <TableHead>Utilization</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {budgetData.map((budget) => (
-                  <TableRow key={budget.coa}>
-                    <TableCell className="font-medium">{budget.coa}</TableCell>
-                    <TableCell>{budget.category}</TableCell>
-                    <TableCell>{formatCurrency(budget.initialBudget)}</TableCell>
-                    <TableCell>{formatCurrency(budget.spentAmount)}</TableCell>
-                    <TableCell className={cn(
-                      "font-medium",
-                      budget.remainingBudget < 0 ? "text-destructive" : "text-foreground"
-                    )}>
-                      {formatCurrency(budget.remainingBudget)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className={cn("text-sm font-medium", getUtilizationColor(budget.utilizationPercent))}>
-                            {budget.utilizationPercent}%
-                          </span>
-                        </div>
-                        <Progress 
-                          value={Math.min(budget.utilizationPercent, 100)} 
-                          className={cn("h-2", getProgressColor(budget.utilizationPercent))}
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(budget.status)}</TableCell>
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="h-6 w-6 animate-spin" />
+              <span className="ml-2">Loading budget data...</span>
+            </div>
+          ) : error ? (
+            <div className="flex items-center justify-center py-8 text-destructive">
+              <AlertTriangle className="h-6 w-6" />
+              <span className="ml-2">{error}</span>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>COA</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Initial Budget</TableHead>
+                    <TableHead>Spent</TableHead>
+                    <TableHead>Remaining</TableHead>
+                    <TableHead>Utilization</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {budgetData.map((budget, index) => {
+                    const totalRequested = budget.GrandTotalRequested || 0;
+                    const totalActual = budget.GrandTotalActual || 0;
+                    const remainingAmount = totalRequested - totalActual;
+                    
+                    return (
+                      <TableRow key={`${budget.PurchaseCostCode}-${index}`}>
+                        <TableCell className="font-medium">{budget.PurchaseCostCode}</TableCell>
+                        <TableCell>Cost Code {budget.PurchaseCostCode}</TableCell>
+                        <TableCell>{formatCurrency(totalRequested)}</TableCell>
+                        <TableCell>{formatCurrency(totalActual)}</TableCell>
+                        <TableCell className={cn(
+                          "font-medium",
+                          remainingAmount < 0 ? "text-destructive" : "text-foreground"
+                        )}>
+                          {formatCurrency(remainingAmount)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className={cn("text-sm font-medium", getUtilizationColor(budget.UtilizationPercentage))}>
+                                {budget.UtilizationPercentage.toFixed(1)}%
+                              </span>
+                            </div>
+                            <Progress 
+                              value={Math.min(budget.UtilizationPercentage, 100)} 
+                              className={cn("h-2", getProgressColor(budget.UtilizationPercentage))}
+                            />
+                          </div>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(budget.BudgetStatus)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

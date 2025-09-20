@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Edit, Save, X } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { authService } from '@/services/authService';
+import AdditionalFileUpload from '@/components/AdditionalFileUpload';
 
 interface PRFData {
   id: string;
@@ -354,6 +355,16 @@ export function PRFEditDialog({ prf, onPRFUpdated }: PRFEditDialogProps) {
               </div>
             </CardContent>
           </Card>
+
+          {/* Additional Files */}
+          <AdditionalFileUpload 
+            prfId={parseInt(prf.id)}
+            prfNo={prf.prfNo}
+            onUploadComplete={(files) => {
+              console.log('Files uploaded:', files);
+              // Optionally refresh the PRF data or show success message
+            }}
+          />
 
           {/* Form Actions */}
           <div className="flex justify-end gap-3">

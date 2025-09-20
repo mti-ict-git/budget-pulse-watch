@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { BudgetModel } from '../models/Budget';
 import { CreateBudgetRequest, UpdateBudgetRequest, BudgetQueryParams } from '../models/types';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
+import { executeQuery } from '../config/database';
 
 const router = Router();
 
@@ -40,6 +41,136 @@ router.get('/', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch budgets',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Interface for cost code budget query result
+interface CostCodeBudgetRow {
+  CostCode: string;
+  Description: string;
+  PRFCount: number;
+  AllocatedAmount: number;
+  UtilizedAmount: number;
+  RemainingAmount: number;
+  UtilizationPercent: number;
+  Status: string;
+}
+
+/**
+ * @route GET /api/budgets/cost-codes
+ * @desc Get budget data grouped by cost codes from PRF data
+ * @access Public (will be protected later)
+ */
+router.get('/cost-codes', async (req: Request, res: Response) => {
+  try {
+    // Main query with CTEs for cost code budget analysis
+    const query = `
+      WITH CostCodeBudgets AS (
+        SELECT 
+          PurchaseCostCode,
+          BudgetYear,
+          SUM(CAST(RequestedAmount AS DECIMAL(18,2))) as TotalRequested,
+          SUM(CAST(ApprovedAmount AS DECIMAL(18,2))) as TotalApproved,
+          SUM(CAST(ActualAmount AS DECIMAL(18,2))) as TotalActual,
+          COUNT(*) as RequestCount
+        FROM dbo.PRF 
+        WHERE PurchaseCostCode IS NOT NULL 
+          AND PurchaseCostCode != ''
+          AND BudgetYear IS NOT NULL
+        GROUP BY PurchaseCostCode, BudgetYear
+      ),
+      CostCodeSummary AS (
+        SELECT 
+          PurchaseCostCode,
+          SUM(TotalRequested) as GrandTotalRequested,
+          SUM(TotalApproved) as GrandTotalApproved,
+          SUM(TotalActual) as GrandTotalActual,
+          SUM(RequestCount) as TotalRequests,
+          COUNT(DISTINCT BudgetYear) as YearsActive,
+          MIN(BudgetYear) as FirstYear,
+          MAX(BudgetYear) as LastYear
+        FROM CostCodeBudgets
+        GROUP BY PurchaseCostCode
+      )
+      SELECT 
+        cs.PurchaseCostCode,
+        cs.GrandTotalRequested,
+        cs.GrandTotalApproved,
+        cs.GrandTotalActual,
+        cs.TotalRequests,
+        cs.YearsActive,
+        cs.FirstYear,
+        cs.LastYear,
+        CASE 
+          WHEN cs.GrandTotalApproved > 0 
+          THEN ROUND((cs.GrandTotalActual / cs.GrandTotalApproved) * 100, 2)
+          ELSE 0 
+        END as UtilizationPercentage,
+        CASE 
+          WHEN cs.GrandTotalRequested > 0 
+          THEN ROUND((cs.GrandTotalApproved / cs.GrandTotalRequested) * 100, 2)
+          ELSE 0 
+        END as ApprovalRate,
+        CASE 
+          WHEN cs.GrandTotalActual < cs.GrandTotalApproved * 0.8 THEN 'Under Budget'
+          WHEN cs.GrandTotalActual > cs.GrandTotalApproved * 1.1 THEN 'Over Budget'
+          ELSE 'On Track'
+        END as BudgetStatus
+      FROM CostCodeSummary cs
+      ORDER BY cs.GrandTotalApproved DESC
+    `;
+
+    const result = await executeQuery(query);
+    
+    // Define interface for cost code budget row
+    interface CostCodeBudgetRow {
+      PurchaseCostCode: string;
+      GrandTotalRequested: number | string;
+      GrandTotalApproved: number | string;
+      GrandTotalActual: number | string;
+      TotalRequests: number;
+      YearsActive: number;
+      FirstYear: number;
+      LastYear: number;
+      UtilizationPercentage: number;
+      ApprovalRate: number;
+      BudgetStatus: string;
+    }
+    
+    // Calculate summary statistics
+    const recordset = result.recordset as CostCodeBudgetRow[];
+    const totalCostCodes: number = recordset.length;
+    const totalBudgetRequested: number = recordset.reduce((sum: number, row: CostCodeBudgetRow) => 
+      sum + (parseFloat(String(row.GrandTotalRequested)) || 0), 0);
+    const totalBudgetApproved: number = recordset.reduce((sum: number, row: CostCodeBudgetRow) => 
+      sum + (parseFloat(String(row.GrandTotalApproved)) || 0), 0);
+    const totalBudgetActual: number = recordset.reduce((sum: number, row: CostCodeBudgetRow) => 
+      sum + (parseFloat(String(row.GrandTotalActual)) || 0), 0);
+
+    return res.json({
+      success: true,
+      message: 'Cost code budget analysis retrieved successfully',
+      data: {
+        costCodes: recordset,
+        summary: {
+          totalCostCodes,
+          totalBudgetRequested: Math.round(totalBudgetRequested * 100) / 100,
+          totalBudgetApproved: Math.round(totalBudgetApproved * 100) / 100,
+          totalBudgetActual: Math.round(totalBudgetActual * 100) / 100,
+          overallUtilization: totalBudgetApproved > 0 ? 
+            Math.round((totalBudgetActual / totalBudgetApproved) * 100 * 100) / 100 : 0,
+          overallApprovalRate: totalBudgetRequested > 0 ? 
+            Math.round((totalBudgetApproved / totalBudgetRequested) * 100 * 100) / 100 : 0
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching cost code budgets:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch cost code budgets',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
