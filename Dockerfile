@@ -30,21 +30,14 @@ RUN addgroup -g 1001 -S nodejs && \
 # Copy built application from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy custom nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
+# Copy custom nginx configuration for frontend
+COPY nginx-frontend.conf /etc/nginx/nginx.conf
 
 # Set proper permissions
-RUN chown -R nextjs:nodejs /usr/share/nginx/html && \
-    chown -R nextjs:nodejs /var/cache/nginx && \
-    chown -R nextjs:nodejs /var/log/nginx && \
-    chown -R nextjs:nodejs /etc/nginx/conf.d
+RUN chown -R nginx:nginx /usr/share/nginx/html
 
 # Create nginx pid directory
-RUN mkdir -p /var/run/nginx && \
-    chown -R nextjs:nodejs /var/run/nginx
-
-# Switch to non-root user
-USER nextjs
+RUN mkdir -p /var/run/nginx
 
 # Expose port
 EXPOSE 8080
