@@ -12,6 +12,7 @@ import BudgetOverview from "./pages/BudgetOverview";
 import Settings from "./pages/Settings";
 import CreatePRF from "./pages/CreatePRF";
 import Login from "./pages/Login";
+import COAManagement from "./pages/COAManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,6 +41,7 @@ const AppRoutes = () => {
         <Route path="prf" element={<PRFMonitoring />} />
         <Route path="prf/create" element={<CreatePRF />} />
         <Route path="budget" element={<BudgetOverview />} />
+        <Route path="coa-management" element={<COAManagement />} />
         <Route path="reports" element={<div className="p-6">Reports coming soon...</div>} />
         <Route path="alerts" element={<div className="p-6">Alerts coming soon...</div>} />
         <Route path="settings" element={<Settings />} />

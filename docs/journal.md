@@ -2,6 +2,115 @@
 
 This file tracks all development activities, decisions, and implementations for the Budget Pulse Watch project.
 
+## 2025-09-21 12:37:52 - Fixed Description Column Truncation Error
+
+### Context
+Encountered a database truncation error when updating Chart of Accounts (COA) records with longer descriptions. The error message indicated: "String or binary data would be truncated in table 'PRFMonitoringDB.dbo.ChartOfAccounts', column 'Description'". The description being inserted was longer than the current column limit.
+
+### Problem Analysis
+1. **Current Column Size**: The `Description` column was set to `NVARCHAR(500)` (500 characters)
+2. **Data Requirements**: Users were trying to insert descriptions longer than 500 characters
+3. **Error Impact**: COA updates were failing with HTTP 500 errors when descriptions exceeded the limit
+
+### What was done
+
+#### 1. Column Size Investigation
+- Created `backend/check-description-column.js` to inspect current column specifications
+- Confirmed `Description` column was `NVARCHAR(500)`
+- Identified the need to increase column size for longer descriptions
+
+#### 2. Database Schema Update
+- Created `backend/increase-description-column.js` to modify column size:
+  ```sql
+  ALTER TABLE ChartOfAccounts 
+  ALTER COLUMN Description NVARCHAR(2000)
+  ```
+- Successfully increased column size from 500 to 2000 characters
+- Verified the change through database schema inspection
+
+#### 3. Migration Results
+- **Before**: `Description NVARCHAR(500)` - 500 character limit
+- **After**: `Description NVARCHAR(2000)` - 2000 character limit ✅
+- **Improvement**: 4x increase in description capacity
+
+### Technical Implementation
+- **Database Migration**: Used `ALTER TABLE` to modify existing column size
+- **Verification**: Confirmed schema change through `INFORMATION_SCHEMA.COLUMNS` query
+- **Zero Downtime**: Column size increase preserves existing data
+
+### Next Steps
+- Monitor COA update functionality for successful longer descriptions
+- Consider implementing frontend validation to warn users about character limits
+- Clean up temporary migration scripts
+
+## 2025-09-21 12:21:49 - Fixed COA Update 500 Error - Database Schema Mismatch
+
+### Context
+Encountered a 500 Internal Server Error when updating Chart of Accounts (COA) records through the frontend. The error was traced to `coaService.ts:223` and propagated to `COAForm.tsx:100:20`. Investigation revealed a database schema mismatch where the backend expected `Department` and `ExpenseType` columns in the `ChartOfAccounts` table, but these columns were missing from the actual database schema.
+
+### Problem Analysis
+1. **Backend Model Expectations**: The `ChartOfAccounts` model in `backend/src/models/ChartOfAccounts.ts` was trying to insert/update `Department` and `ExpenseType` columns
+2. **Database Reality**: The actual `ChartOfAccounts` table in the database only had columns: `COAID`, `COACode`, `COAName`, `Description`, `Category`, `ParentCOAID`, `IsActive`, `CreatedAt`
+3. **Migration Status**: Found that migration file `add_capex_opex_department.sql` existed but had not been successfully applied due to duplicate column errors
+
+### What was done
+
+#### 1. Database Schema Investigation
+- Created `backend/check-coa-schema.js` to inspect current table structure
+- Confirmed missing `Department` and `ExpenseType` columns
+- Identified that existing migration had failed due to duplicate column names in other tables
+
+#### 2. Custom Migration Script
+- Created `backend/add-coa-columns.js` to specifically add missing columns to `ChartOfAccounts` table:
+  ```javascript
+  // Add Department column
+  await pool.request().query(`
+    ALTER TABLE ChartOfAccounts 
+    ADD Department NVARCHAR(100) DEFAULT 'IT'
+  `);
+  
+  // Add ExpenseType column  
+  await pool.request().query(`
+    ALTER TABLE ChartOfAccounts 
+    ADD ExpenseType NVARCHAR(50) DEFAULT 'OPEX'
+  `);
+  
+  // Update existing records with default values
+  await pool.request().query(`
+    UPDATE ChartOfAccounts 
+    SET Department = 'IT', ExpenseType = 'OPEX' 
+    WHERE Department IS NULL OR ExpenseType IS NULL
+  `);
+  ```
+
+#### 3. Migration Execution
+- Successfully executed the custom migration script
+- Verified column addition with schema check
+- Confirmed default values were applied to existing records
+
+#### 4. Final Database Schema
+After migration, `ChartOfAccounts` table now includes:
+- `COAID` (int) NOT NULL
+- `COACode` (nvarchar) NOT NULL  
+- `COAName` (nvarchar) NOT NULL
+- `Description` (nvarchar) NULL
+- `Category` (nvarchar) NULL
+- `ParentCOAID` (int) NULL
+- `IsActive` (bit) NULL DEFAULT ((1))
+- `CreatedAt` (datetime2) NULL DEFAULT (getdate())
+- `ExpenseType` (nvarchar) NULL DEFAULT ('OPEX') ✅ **ADDED**
+- `Department` (nvarchar) NULL DEFAULT ('IT') ✅ **ADDED**
+
+### Technical Implementation
+- **Database Migration**: Custom script to add missing columns with appropriate defaults
+- **Schema Validation**: Created utility scripts to verify database structure
+- **Error Resolution**: Fixed the root cause of 500 errors during COA updates
+
+### Next Steps
+- Clean up temporary migration scripts
+- Monitor COA update functionality to ensure stable operation
+- Consider implementing automated schema validation in CI/CD pipeline
+
 ## 2025-09-21 11:49:23 - Enhanced Validation Error Display with PRF Numbers
 
 ### Context
@@ -68,6 +177,186 @@ Enhanced the validation error display system to include PRF numbers in error mes
 - Test the enhanced validation error display with sample Excel data
 - Verify that PRF numbers appear correctly in validation messages
 - Ensure the changes work properly in both development and production environments
+
+---
+
+## 2025-09-21 12:00:16 - Complete COA Management System Implementation
+
+### Context
+User requested to learn the current COA table structure and implement a comprehensive CRUD page for Chart of Accounts management.
+
+### What was done
+
+#### Backend Analysis
+- **Analyzed existing COA structure**: 
+  - Complete backend API already exists in `coaRoutes.ts`
+  - Full CRUD operations: GET, POST, PUT, DELETE (soft & hard)
+  - Proper validation and error handling
+  - Support for hierarchy with ParentCOAID
+  - Usage statistics and account filtering
+
+- **Database Schema**: 
+  ```sql
+  ChartOfAccounts table with fields:
+  - COAID (Primary Key)
+  - COACode (Unique account code)
+  - COAName (Account name)
+  - ParentCOAID (For hierarchy)
+  - ExpenseType (CAPEX/OPEX)
+  - Department, Category, Description
+  - IsActive, CreatedAt, UpdatedAt
+  ```
+
+#### Frontend Implementation
+
+##### 1. Enhanced COA Service (`src/services/coaService.ts`)
+```typescript
+// Comprehensive service with full CRUD operations
+export const coaService = {
+  getAll: (params?: COAQueryParams) => Promise<APIResponse<ChartOfAccounts[]>>,
+  getById: (id: number) => Promise<APIResponse<ChartOfAccounts>>,
+  create: (data: CreateCOARequest) => Promise<APIResponse<ChartOfAccounts>>,
+  update: (id: number, data: UpdateCOARequest) => Promise<APIResponse<ChartOfAccounts>>,
+  delete: (id: number, hard?: boolean) => Promise<APIResponse<void>>,
+  getAccountUsage: (id: number) => Promise<APIResponse<COAAccountUsage>>,
+  getStatistics: () => Promise<APIResponse<COAStatistics>>
+};
+```
+
+##### 2. COA Management Page (`src/pages/COAManagement.tsx`)
+- **Data Table**: Sortable, filterable table with pagination
+- **Search & Filters**: Real-time search, department/category filters
+- **CRUD Operations**: Add, edit, delete with confirmation dialogs
+- **Statistics Cards**: Total accounts, active/inactive counts
+- **Hierarchy Display**: Parent-child relationships
+- **Responsive Design**: Mobile-friendly layout
+
+##### 3. COA Form Component (`src/components/coa/COAForm.tsx`)
+- **Form Validation**: Zod schema with comprehensive validation
+- **Parent Account Selection**: Dropdown with existing accounts
+- **Expense Type Selection**: CAPEX/OPEX radio buttons
+- **Error Handling**: Toast notifications for success/error states
+- **Create/Edit Modes**: Single component for both operations
+
+##### 4. COA Details Modal (`src/components/coa/COADetailsModal.tsx`)
+- **Account Information**: Complete account details display
+- **Usage Statistics**: PRF count, budget entries, amounts
+- **Hierarchy View**: Parent account information
+- **Quick Actions**: Links to related PRFs and budgets
+- **Responsive Cards**: Clean, organized information layout
+
+#### Navigation Integration
+- **Added to Sidebar**: New "COA Management" menu item with BookOpen icon
+- **Route Configuration**: Added `/coa-management` route to App.tsx
+- **Proper Positioning**: Placed between Budget Overview and Reports
+
+### Key Features Implemented
+
+1. **Complete CRUD Operations**
+   - Create new accounts with validation
+   - Read/view accounts with detailed information
+   - Update existing accounts with form validation
+   - Delete accounts (soft delete with confirmation)
+
+2. **Advanced Data Management**
+   - Real-time search across account codes and names
+   - Filter by department, category, expense type
+   - Sort by any column (code, name, department, etc.)
+   - Pagination for large datasets
+
+3. **Account Hierarchy Support**
+   - Parent-child account relationships
+   - Visual hierarchy display in details modal
+   - Proper validation for circular references
+
+4. **Usage Analytics**
+   - Account usage statistics (PRF count, budget entries)
+   - Total amounts associated with accounts
+   - Visual statistics cards
+
+5. **User Experience**
+   - Responsive design for all screen sizes
+   - Loading states and error handling
+   - Toast notifications for user feedback
+   - Confirmation dialogs for destructive actions
+
+### Technical Implementation
+
+#### Type Safety
+```typescript
+// Comprehensive TypeScript interfaces
+interface ChartOfAccounts {
+  COAID: number;
+  COACode: string;
+  COAName: string;
+  ParentCOAID?: number;
+  ExpenseType: 'CAPEX' | 'OPEX';
+  Department: string;
+  Category?: string;
+  Description?: string;
+  IsActive: boolean;
+  CreatedAt: Date;
+  UpdatedAt: Date;
+}
+```
+
+#### Form Validation
+```typescript
+// Zod schema for robust validation
+const coaFormSchema = z.object({
+  COACode: z.string().min(1, "Account code is required"),
+  COAName: z.string().min(1, "Account name is required"),
+  ExpenseType: z.enum(['CAPEX', 'OPEX']),
+  Department: z.string().min(1, "Department is required"),
+  // ... additional validations
+});
+```
+
+#### API Integration
+```typescript
+// Consistent error handling and response formatting
+const response = await coaService.getAll(queryParams);
+if (response.success && response.data) {
+  setAccounts(response.data);
+} else {
+  toast({ title: "Error", description: response.message });
+}
+```
+
+### Files Created/Modified
+
+#### New Files Created:
+1. `src/services/coaService.ts` - Comprehensive COA service
+2. `src/pages/COAManagement.tsx` - Main management page
+3. `src/components/coa/COAForm.tsx` - Add/edit form component
+4. `src/components/coa/COADetailsModal.tsx` - Details view modal
+
+#### Modified Files:
+1. `src/App.tsx` - Added COA management route
+2. `src/components/layout/Sidebar.tsx` - Added navigation item
+
+### Testing Status
+- ✅ Frontend server running on http://localhost:8080
+- ✅ Backend server running and connected
+- ✅ All components compiled without TypeScript errors
+- ✅ Navigation properly integrated
+- 🔄 Ready for functional testing
+
+### Next Steps
+1. Test all CRUD operations in the browser
+2. Verify data validation and error handling
+3. Test responsive design on different screen sizes
+4. Validate account hierarchy functionality
+5. Test usage statistics display
+6. Perform integration testing with existing PRF/Budget systems
+
+### Architecture Notes
+- **Service Layer**: Clean separation between API calls and components
+- **Component Structure**: Modular, reusable components
+- **State Management**: Local state with proper loading/error states
+- **Type Safety**: Full TypeScript coverage with no `any` types
+- **Error Handling**: Comprehensive error handling with user feedback
+- **Responsive Design**: Mobile-first approach with Tailwind CSS
 
 ## 2025-09-21 11:30:00 - Enhanced Import Reporting Feature Implementation
 
@@ -1302,3 +1591,174 @@ After discovering that the database only had 23 COA codes instead of the complet
 2. **Verify Production Database**: Confirm all 48+ codes are properly inserted
 3. **Update Budget Allocations**: Set appropriate initial amounts for new COA codes
 4. **Monitor System**: Ensure all features work with expanded COA set
+
+---
+
+## 2025-09-21 12:10:03 - Added Page Size Selection to COA Management
+
+### Context
+User requested to add paging selection options (10, 50, 100) to the COA Management page. The existing implementation had fixed pagination with 10 items per page, but users needed flexibility to view more items at once for better data management.
+
+### What was done
+
+#### 1. **State Management Enhancement** (`src/pages/COAManagement.tsx`)
+- **Replaced Fixed Page Size**:
+  ```typescript
+  // Before: const itemsPerPage = 10;
+  // After: const [pageSize, setPageSize] = useState(10);
+  ```
+- **Updated fetchAccounts Function**:
+  ```typescript
+  const params: COAQueryParams = {
+    page: currentPage,
+    limit: pageSize, // Now uses dynamic pageSize instead of fixed itemsPerPage
+    // ... other parameters
+  };
+  ```
+
+#### 2. **Page Size Change Handler**
+- **Added handlePageSizeChange Function**:
+  ```typescript
+  const handlePageSizeChange = (newPageSize: string) => {
+    setPageSize(parseInt(newPageSize));
+    setCurrentPage(1); // Reset to first page when changing page size
+  };
+  ```
+- **Updated useEffect Dependencies**:
+  ```typescript
+  useEffect(() => {
+    fetchAccounts();
+  }, [currentPage, pageSize, showActiveOnly, searchTerm, selectedCategory, selectedExpenseType, selectedDepartment]);
+  ```
+
+#### 3. **Enhanced UI Components**
+- **Added Page Size Selector**:
+  ```typescript
+  <div className="flex items-center gap-2">
+    <span className="text-sm text-muted-foreground">Show:</span>
+    <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+      <SelectTrigger className="w-20">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="10">10</SelectItem>
+        <SelectItem value="50">50</SelectItem>
+        <SelectItem value="100">100</SelectItem>
+      </SelectContent>
+    </Select>
+  </div>
+  ```
+
+#### 4. **Improved Pagination Display**
+- **Enhanced Information Display**:
+  ```typescript
+  <div className="text-sm text-muted-foreground">
+    Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalAccounts)} of {totalAccounts} entries
+  </div>
+  ```
+- **Always Show Pagination Controls**: Now displays page size selector even when there's only one page
+- **Better Layout**: Organized pagination controls with proper spacing and alignment
+
+### Key Features
+- **Page Size Options**: 10, 50, 100 items per page
+- **Smart Reset**: Automatically resets to page 1 when changing page size
+- **Enhanced Display**: Shows current range (e.g., "Showing 1 to 10 of 45 entries")
+- **Consistent UX**: Follows the same pattern as PRF Monitoring page
+- **Responsive Design**: Maintains proper layout on different screen sizes
+
+### Technical Implementation
+- **Type Safety**: All functions maintain TypeScript type safety
+- **State Synchronization**: Page size changes trigger data refetch automatically
+- **Performance**: Efficient re-rendering with proper dependency management
+- **User Experience**: Immediate feedback and intuitive controls
+
+### Next Steps
+1. **User Testing**: Gather feedback on the new page size options
+2. **Performance Monitoring**: Monitor API response times with larger page sizes
+3. **Consider Additional Sizes**: Evaluate if 25 or 200 options would be beneficial
+4. **Apply to Other Pages**: Consider implementing similar functionality on other data tables
+
+---
+
+## 2025-09-21 12:13:40 - Category and Department Field Updates
+
+### Context
+Updated the category and department fields across the application based on user requirements:
+- **Category**: Changed from dropdown selection to free text input
+- **Department**: Simplified to only two options: "HR / IT" and "Non IT"
+
+### What was done
+
+#### 1. **COAForm Component Updates**
+- **Category Field**: Replaced Select dropdown with Input field for free text entry
+  ```typescript
+  // Before: Select dropdown with predefined categories
+  <Select onValueChange={field.onChange} defaultValue={field.value}>
+    <SelectContent>
+      <SelectItem value="none">No Category</SelectItem>
+      {categories.map((category) => (
+        <SelectItem key={category} value={category}>
+          {category}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+
+  // After: Free text input
+  <Input 
+    placeholder="Enter category (e.g., Assets, Expenses, etc.)" 
+    {...field} 
+  />
+  ```
+
+- **Department Field**: Updated department options to only two choices
+  ```typescript
+  // Before: Multiple department options
+  const departments = [
+    'IT', 'Finance', 'HR', 'Operations', 'Marketing', 'Sales', 
+    'Engineering', 'Legal', 'Procurement', 'Administration'
+  ];
+
+  // After: Simplified to two options
+  const departments = [
+    'HR / IT',
+    'Non IT'
+  ];
+  ```
+
+#### 2. **CreatePRF Page Updates**
+- **Updated Department Options**: Applied the same two-option department structure
+  ```typescript
+  const departments = [
+    "HR / IT",
+    "Non IT"
+  ];
+  ```
+
+#### 3. **PRFCreateDialog Component Updates**
+- **Updated Department Options**: Consistent department options across all PRF creation interfaces
+  ```typescript
+  const departments = [
+    "HR / IT",
+    "Non IT"
+  ];
+  ```
+
+### Key Features
+- **Flexible Categories**: Users can now enter any category text without being limited to predefined options
+- **Simplified Departments**: Clear distinction between HR/IT and Non-IT departments
+- **Consistent Interface**: All forms now use the same department options
+- **Type Safety**: Maintained TypeScript compliance across all changes
+- **User Experience**: More intuitive and flexible data entry
+
+### Technical Implementation
+- **Form Validation**: Category field remains optional with free text input
+- **Department Validation**: Still required field but with simplified options
+- **UI Consistency**: Maintained the same form layout and styling
+- **Data Integrity**: Changes are backward compatible with existing data
+
+### Next Steps
+1. **Database Migration**: Consider updating existing category data if needed
+2. **User Training**: Inform users about the new flexible category input
+3. **Data Analysis**: Monitor category entries to identify common patterns
+4. **Validation Rules**: Consider adding category validation rules if needed

@@ -1,5 +1,5 @@
 import { executeQuery } from '../config/database';
-import { ChartOfAccounts, CreateCOARequest, UpdateCOARequest, COAQueryParams, UpdateCOAParams, COAFindAllParams, COABulkImportParams, COAAccountUsage, COAStatistics, COAExistsParams } from './types';
+import { ChartOfAccounts, CreateCOARequest, UpdateCOARequest, COAQueryParams, UpdateCOAParams, COAFindAllParams, COABulkImportParams, COAAccountUsage, COAStatistics, COAExistsParams, BulkUpdateCOARequest, BulkDeleteCOARequest } from './types';
 
 // Interface for count query results
 interface CountResult {
@@ -389,5 +389,97 @@ export class ChartOfAccountsModel {
 
     const result = await executeQuery(query);
     return result.recordset[0] as COAStatistics;
+  }
+
+  /**
+   * Bulk update multiple COA records
+   */
+  static async bulkUpdate(bulkData: BulkUpdateCOARequest): Promise<ChartOfAccounts[]> {
+    const { accountIds, updates } = bulkData;
+    
+    if (accountIds.length === 0) {
+      return [];
+    }
+
+    // Build dynamic SET clause based on provided updates
+    const setClauses: string[] = [];
+    const params: Record<string, unknown> = {};
+
+    if (updates.Department !== undefined) {
+      setClauses.push('Department = @Department');
+      params.Department = updates.Department;
+    }
+    if (updates.ExpenseType !== undefined) {
+      setClauses.push('ExpenseType = @ExpenseType');
+      params.ExpenseType = updates.ExpenseType;
+    }
+    if (updates.Category !== undefined) {
+      setClauses.push('Category = @Category');
+      params.Category = updates.Category;
+    }
+    if (updates.IsActive !== undefined) {
+      setClauses.push('IsActive = @IsActive');
+      params.IsActive = updates.IsActive;
+    }
+
+    if (setClauses.length === 0) {
+      throw new Error('No updates provided');
+    }
+
+    // Add UpdatedAt
+    setClauses.push('UpdatedAt = GETDATE()');
+
+    // Create placeholders for account IDs
+    const idPlaceholders = accountIds.map((_, index) => `@id${index}`).join(', ');
+    accountIds.forEach((id, index) => {
+      params[`id${index}`] = id;
+    });
+
+    const query = `
+      UPDATE ChartOfAccounts 
+      SET ${setClauses.join(', ')}
+      OUTPUT INSERTED.*
+      WHERE COAID IN (${idPlaceholders})
+    `;
+
+    const result = await executeQuery<ChartOfAccounts>(query, params);
+    return result.recordset;
+  }
+
+  /**
+   * Bulk delete multiple COA records
+   */
+  static async bulkDelete(bulkData: BulkDeleteCOARequest): Promise<number> {
+    const { accountIds, hard = false } = bulkData;
+    
+    if (accountIds.length === 0) {
+      return 0;
+    }
+
+    // Create placeholders for account IDs
+    const idPlaceholders = accountIds.map((_, index) => `@id${index}`).join(', ');
+    const params: Record<string, unknown> = {};
+    accountIds.forEach((id, index) => {
+      params[`id${index}`] = id;
+    });
+
+    let query: string;
+    if (hard) {
+      // Hard delete - permanently remove records
+      query = `
+        DELETE FROM ChartOfAccounts 
+        WHERE COAID IN (${idPlaceholders})
+      `;
+    } else {
+      // Soft delete - set IsActive to false
+      query = `
+        UPDATE ChartOfAccounts 
+        SET IsActive = 0, UpdatedAt = GETDATE()
+        WHERE COAID IN (${idPlaceholders})
+      `;
+    }
+
+    const result = await executeQuery(query, params);
+    return result.rowsAffected[0] || 0;
   }
 }

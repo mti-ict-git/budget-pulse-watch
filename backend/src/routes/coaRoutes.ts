@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { ChartOfAccountsModel } from '../models/ChartOfAccounts';
-import { CreateCOARequest, UpdateCOARequest, COAQueryParams } from '../models/types';
+import { CreateCOARequest, UpdateCOARequest, COAQueryParams, BulkUpdateCOARequest, BulkDeleteCOARequest } from '../models/types';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
 
 const router = Router();
@@ -490,12 +490,11 @@ router.post('/bulk-import', authenticateToken, requireContentManager, async (req
 /**
  * @route GET /api/coa/statistics
  * @desc Get COA statistics
- * @access Public (will be protected later)
+ * @access Public
  */
 router.get('/statistics', async (req: Request, res: Response) => {
   try {
     const statistics = await ChartOfAccountsModel.getStatistics();
-    
     return res.json({
       success: true,
       data: statistics
@@ -505,6 +504,82 @@ router.get('/statistics', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch COA statistics',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @route PUT /api/coa/bulk-update
+ * @desc Bulk update multiple COA records
+ * @access Protected (Content Manager)
+ */
+router.put('/bulk-update', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
+  try {
+    const bulkData: BulkUpdateCOARequest = req.body;
+
+    // Validate request
+    if (!bulkData.accountIds || !Array.isArray(bulkData.accountIds) || bulkData.accountIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Account IDs are required and must be a non-empty array'
+      });
+    }
+
+    if (!bulkData.updates || Object.keys(bulkData.updates).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Updates are required'
+      });
+    }
+
+    const updatedAccounts = await ChartOfAccountsModel.bulkUpdate(bulkData);
+
+    return res.json({
+      success: true,
+      message: `Successfully updated ${updatedAccounts.length} accounts`,
+      data: updatedAccounts
+    });
+  } catch (error) {
+    console.error('Error in bulk update:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to bulk update accounts',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @route DELETE /api/coa/bulk-delete
+ * @desc Bulk delete multiple COA records
+ * @access Protected (Content Manager)
+ */
+router.delete('/bulk-delete', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
+  try {
+    const bulkData: BulkDeleteCOARequest = req.body;
+
+    // Validate request
+    if (!bulkData.accountIds || !Array.isArray(bulkData.accountIds) || bulkData.accountIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Account IDs are required and must be a non-empty array'
+      });
+    }
+
+    const deletedCount = await ChartOfAccountsModel.bulkDelete(bulkData);
+
+    const action = bulkData.hard ? 'permanently deleted' : 'deactivated';
+    return res.json({
+      success: true,
+      message: `Successfully ${action} ${deletedCount} accounts`,
+      data: { deletedCount, hard: bulkData.hard || false }
+    });
+  } catch (error) {
+    console.error('Error in bulk delete:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to bulk delete accounts',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }

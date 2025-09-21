@@ -195,6 +195,21 @@ export interface COAQueryParams {
   search?: string;
 }
 
+export interface BulkUpdateCOARequest {
+  accountIds: number[];
+  updates: {
+    Department?: string;
+    ExpenseType?: 'CAPEX' | 'OPEX';
+    Category?: string;
+    IsActive?: boolean;
+  };
+}
+
+export interface BulkDeleteCOARequest {
+  accountIds: number[];
+  hard?: boolean;
+}
+
 // COA parameter types for replacing 'any' types
 export interface UpdateCOAParams {
   COAID: number;

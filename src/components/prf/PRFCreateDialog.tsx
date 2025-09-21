@@ -49,15 +49,8 @@ interface PRFCreateDialogProps {
 }
 
 const departments = [
-  "IT",
-  "Finance",
-  "HR",
-  "Operations",
-  "Marketing",
-  "Sales",
-  "Procurement",
-  "Legal",
-  "Admin"
+  "HR / IT",
+  "Non IT"
 ];
 
 const priorities = [
