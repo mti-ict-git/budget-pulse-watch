@@ -36,6 +36,8 @@ export default function COAManagement() {
   const [selectedAccounts, setSelectedAccounts] = useState<Set<number>>(new Set());
   const [showBulkActions, setShowBulkActions] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [bulkDepartment, setBulkDepartment] = useState<string>('');
+  const [bulkExpenseType, setBulkExpenseType] = useState<string>('');
   
   const { toast } = useToast();
 
@@ -420,19 +422,16 @@ export default function COAManagement() {
                   {selectedAccounts.size} account{selectedAccounts.size !== 1 ? 's' : ''} selected
                 </span>
                 <div className="flex items-center gap-2">
-                  <Select>
+                  <Select value={bulkDepartment} onValueChange={setBulkDepartment}>
                     <SelectTrigger className="w-40">
                       <SelectValue placeholder="Set Department" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="IT">IT</SelectItem>
-                      <SelectItem value="HR">HR</SelectItem>
-                      <SelectItem value="Finance">Finance</SelectItem>
-                      <SelectItem value="Operations">Operations</SelectItem>
-                      <SelectItem value="Marketing">Marketing</SelectItem>
+                      <SelectItem value="HR / IT">HR / IT</SelectItem>
+                      <SelectItem value="Non IT">Non IT</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Select>
+                  <Select value={bulkExpenseType} onValueChange={setBulkExpenseType}>
                     <SelectTrigger className="w-32">
                       <SelectValue placeholder="Set Type" />
                     </SelectTrigger>
@@ -444,27 +443,39 @@ export default function COAManagement() {
                   <Button 
                     variant="outline" 
                     size="sm"
-                    disabled={bulkActionLoading}
+                    onClick={handleBulkUpdate}
+                    disabled={bulkActionLoading || (!bulkDepartment && !bulkExpenseType)}
                   >
                     <Users className="mr-2 h-4 w-4" />
-                    Apply Department
+                    Apply Changes
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    disabled={bulkActionLoading}
-                  >
-                    <Building className="mr-2 h-4 w-4" />
-                    Apply Type
-                  </Button>
-                  <Button 
-                    variant="destructive" 
-                    size="sm"
-                    disabled={bulkActionLoading}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Deactivate Selected
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        disabled={bulkActionLoading}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Deactivate Selected
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Confirm Bulk Deactivation</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to deactivate {selectedAccounts.size} selected account{selectedAccounts.size !== 1 ? 's' : ''}? 
+                          This action will set them as inactive but they can be reactivated later.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleBulkDeactivate} disabled={bulkActionLoading}>
+                          Deactivate
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
               <Button 
