@@ -284,6 +284,8 @@ async function importPRFData(
   
   const errors: Array<{ row: number; field: string; message: string; data?: unknown }> = [];
   const warnings: Array<{ row: number; message: string; data?: unknown }> = [];
+  const successfulPRFs: Array<{ prfNo: string; prfId: number; itemCount: number }> = [];
+  const failedPRFs: Array<{ prfNo: string; reason: string; rows: number[] }> = [];
   let importedRecords = 0;
   let skippedRecords = 0;
 
@@ -324,19 +326,19 @@ async function importPRFData(
 
   // Process each PRF group
   for (const [prfNo, records] of prfGroups) {
+    const firstRowNumber = rowNumbers.get(prfNo)![0];
+    const headerRecord = records[0];
+    const prfRows = rowNumbers.get(prfNo)!;
+    
     try {
-      // Use the first record for PRF header information
-      const headerRecord = records[0];
-      const firstRowNumber = rowNumbers.get(prfNo)![0];
-      
       // Check if PRF already exists
-      const existingPrfQuery = `SELECT PRFID FROM PRF WHERE PRFNo = @PRFNo`;
-      const existingResult = await executeQuery(existingPrfQuery, { PRFNo: prfNo });
+      const existingQuery = `SELECT PRFID FROM PRF WHERE PRFNo = @PRFNo`;
+      const existingResult = await executeQuery(existingQuery, { PRFNo: prfNo });
       
       let prfId: number;
+      let isNewPRF = false;
       
       if (existingResult.recordset.length > 0) {
-        // PRF exists
         prfId = (existingResult.recordset[0] as PRF).PRFID;
         
         if (options.skipDuplicates) {
@@ -345,6 +347,11 @@ async function importPRFData(
             message: `PRF ${prfNo} already exists - skipped`
           });
           skippedRecords += records.length;
+          failedPRFs.push({
+            prfNo,
+            reason: 'Already exists (skipped due to skipDuplicates option)',
+            rows: prfRows
+          });
           continue;
         } else if (options.updateExisting) {
           // Update existing PRF with header info from first record
@@ -357,9 +364,11 @@ async function importPRFData(
       } else {
         // Create new PRF
         prfId = await createNewPRF(headerRecord, defaultUserId, defaultCoaId, records);
+        isNewPRF = true;
       }
       
       // Add all records as PRF items
+      let successfulItems = 0;
       for (let i = 0; i < records.length; i++) {
         const record = records[i];
         const rowNumber = rowNumbers.get(prfNo)![i];
@@ -367,6 +376,7 @@ async function importPRFData(
         try {
           await createPRFItem(prfId, record, rowNumber);
           importedRecords++;
+          successfulItems++;
         } catch (itemError) {
           errors.push({
             row: rowNumber,
@@ -376,18 +386,36 @@ async function importPRFData(
         }
       }
       
+      // Track successful PRF
+      if (successfulItems > 0) {
+        successfulPRFs.push({
+          prfNo,
+          prfId,
+          itemCount: successfulItems
+        });
+      }
+      
     } catch (prfError) {
       const firstRowNumber = rowNumbers.get(prfNo)![0];
+      const errorMessage = prfError instanceof Error ? prfError.message : 'Failed to create PRF';
       errors.push({
         row: firstRowNumber,
         field: 'PRF',
-        message: prfError instanceof Error ? prfError.message : 'Failed to create PRF'
+        message: errorMessage
       });
       skippedRecords += records.length;
+      
+      // Track failed PRF
+      failedPRFs.push({
+        prfNo,
+        reason: errorMessage,
+        rows: prfRows
+      });
     }
   }
 
   console.log(`📊 Import summary: ${importedRecords} imported, ${skippedRecords} skipped, ${errors.length} errors`);
+  console.log(`📈 PRF summary: ${successfulPRFs.length} successful, ${failedPRFs.length} failed`);
 
   return {
     success: errors.length === 0,
@@ -395,7 +423,15 @@ async function importPRFData(
     importedRecords,
     skippedRecords,
     errors,
-    warnings
+    warnings,
+    // Enhanced reporting data
+    totalPRFs: prfGroups.size,
+    successfulPRFs: successfulPRFs.length,
+    failedPRFs: failedPRFs.length,
+    prfDetails: {
+      successful: successfulPRFs,
+      failed: failedPRFs
+    }
   };
 }
 
@@ -408,14 +444,35 @@ async function createNewPRF(
   defaultCoaId: number,
   allRecords: ExcelPRFData[]
 ): Promise<number> {
-  const prfNo = headerRecord['PRF No'].toString().trim();
-  const submitBy = headerRecord['Submit By'] || 'Unknown User';
-  const dateSubmit = headerRecord['Date Submit'] || new Date();
-  const budgetYear = headerRecord['Budget'];
-  const sumDescription = headerRecord['Sum Description Requested'] || 'Imported from Excel';
-  
-  // Calculate total amount from all items
-  const totalAmount = allRecords.reduce((sum, record) => sum + (record['Amount'] || 0), 0);
+  try {
+    const prfNo = headerRecord['PRF No'].toString().trim();
+    const submitBy = headerRecord['Submit By'] || 'Unknown User';
+    const dateSubmit = headerRecord['Date Submit'] || new Date();
+    const budgetYear = headerRecord['Budget'];
+    const sumDescription = headerRecord['Sum Description Requested'] || 'Imported from Excel';
+    
+    // Validate required fields
+    if (!prfNo) {
+      throw new Error('PRF No is required but missing');
+    }
+    
+    if (!sumDescription || sumDescription.trim() === '') {
+      throw new Error('Sum Description Requested is required but missing');
+    }
+    
+    // Calculate total amount from all items
+    const totalAmount = allRecords.reduce((sum, record) => {
+      const amount = record['Amount'] || 0;
+      if (isNaN(amount)) {
+        console.warn(`⚠️ Invalid amount in PRF ${prfNo}: ${record['Amount']}`);
+        return sum;
+      }
+      return sum + amount;
+    }, 0);
+    
+    if (totalAmount <= 0) {
+      throw new Error(`Total amount must be greater than 0, got ${totalAmount}`);
+    }
   
   const insertQuery = `
     INSERT INTO PRF (
@@ -453,11 +510,26 @@ async function createNewPRF(
     Notes: `Imported from Excel with ${allRecords.length} items`
   };
   
-  const result = await executeQuery(insertQuery, params);
-  const prfId = (result.recordset[0] as PRF).PRFID;
-  
-  console.log(`✅ Created PRF ${prfNo} with ID ${prfId}`);
-  return prfId;
+    const result = await executeQuery(insertQuery, params);
+    
+    if (!result.recordset || result.recordset.length === 0) {
+      throw new Error('Failed to create PRF - no ID returned from database');
+    }
+    
+    const prfId = (result.recordset[0] as PRF).PRFID;
+    
+    if (!prfId || prfId <= 0) {
+      throw new Error('Invalid PRF ID returned from database');
+    }
+    
+    console.log(`✅ Created PRF ${prfNo} with ID ${prfId}, total amount: ${totalAmount}`);
+    return prfId;
+    
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error creating PRF';
+    console.error(`❌ Failed to create PRF ${headerRecord['PRF No']}: ${errorMessage}`);
+    throw new Error(`PRF creation failed: ${errorMessage}`);
+  }
 }
 
 /**
@@ -468,17 +540,34 @@ async function createPRFItem(
   record: ExcelPRFData, 
   rowNumber: number
 ): Promise<void> {
-  // First, get COAID from ChartOfAccounts if cost code exists
-  let coaId = null;
-  const costCode = record['Purchase Cost Code'];
-  
-  if (costCode) {
-    const coaQuery = `SELECT COAID FROM ChartOfAccounts WHERE COACode = @COACode`;
-    const coaResult = await executeQuery<{ COAID: number }>(coaQuery, { COACode: costCode });
-    if (coaResult.recordset && coaResult.recordset.length > 0) {
-      coaId = coaResult.recordset[0].COAID;
+  try {
+    // Validate required parameters
+    if (!prfId || prfId <= 0) {
+      throw new Error(`Invalid PRF ID: ${prfId}`);
     }
-  }
+    
+    if (!record) {
+      throw new Error('Record data is missing');
+    }
+    
+    // First, get COAID from ChartOfAccounts if cost code exists
+    let coaId = null;
+    const costCode = record['Purchase Cost Code'];
+    
+    if (costCode) {
+      try {
+        const coaQuery = `SELECT COAID FROM ChartOfAccounts WHERE COACode = @COACode`;
+        const coaResult = await executeQuery<{ COAID: number }>(coaQuery, { COACode: costCode });
+        if (coaResult.recordset && coaResult.recordset.length > 0) {
+          coaId = coaResult.recordset[0].COAID;
+          console.log(`📋 Found COA ID ${coaId} for cost code ${costCode}`);
+        } else {
+          console.warn(`⚠️ Cost code ${costCode} not found in ChartOfAccounts`);
+        }
+      } catch (coaError) {
+        console.warn(`⚠️ Error looking up cost code ${costCode}: ${coaError instanceof Error ? coaError.message : 'Unknown error'}`);
+      }
+    }
   
   const insertQuery = `
     INSERT INTO PRFItems (
@@ -490,30 +579,45 @@ async function createPRFItem(
     )
   `;
   
-  const itemName = record['Sum Description Requested'] || record['Description'] || `Item from row ${rowNumber}`;
-  const description = record['Description'] || record['Sum Description Requested'] || '';
-  const amount = record['Amount'] || 0;
-  const budgetYear = record['Budget'] || new Date().getFullYear();
-  
-  const params = {
-    PRFID: prfId,
-    ItemName: itemName.substring(0, 200), // Limit to field length
-    Description: description.substring(0, 1000), // Limit to field length
-    Quantity: 1,
-    UnitPrice: amount,
-    PurchaseCostCode: costCode || null,
-    COAID: coaId,
-    BudgetYear: budgetYear,
-    Specifications: JSON.stringify({
-      originalRow: rowNumber,
-      requiredFor: record['Required for'],
-      statusInPronto: record['Status in Pronto']
-    })
-  };
-  
-  await executeQuery(insertQuery, params);
-  console.log(`✅ Created PRF item for row ${rowNumber} with cost code: ${costCode || 'none'}`);
-}
+    const itemName = record['Sum Description Requested'] || record['Description'] || `Item from row ${rowNumber}`;
+    const description = record['Description'] || record['Sum Description Requested'] || '';
+    const amount = record['Amount'] || 0;
+    const budgetYear = record['Budget'] || new Date().getFullYear();
+    
+    // Validate item data
+    if (!itemName || itemName.trim() === '') {
+      throw new Error(`Item name is required but missing for row ${rowNumber}`);
+    }
+    
+    if (isNaN(amount) || amount < 0) {
+      throw new Error(`Invalid amount ${amount} for row ${rowNumber}`);
+    }
+    
+    const params = {
+      PRFID: prfId,
+      ItemName: itemName.substring(0, 200), // Limit to field length
+      Description: description.substring(0, 1000), // Limit to field length
+      Quantity: 1,
+      UnitPrice: amount,
+      PurchaseCostCode: costCode || null,
+      COAID: coaId,
+      BudgetYear: budgetYear,
+      Specifications: JSON.stringify({
+        originalRow: rowNumber,
+        requiredFor: record['Required for'],
+        statusInPronto: record['Status in Pronto']
+      })
+    };
+    
+    await executeQuery(insertQuery, params);
+    console.log(`📦 Created PRF item for PRF ${prfId}, row ${rowNumber}, amount: ${amount}`);
+     
+   } catch (error) {
+     const errorMessage = error instanceof Error ? error.message : 'Unknown error creating PRF item';
+     console.error(`❌ Failed to create PRF item for PRF ${prfId}, row ${rowNumber}: ${errorMessage}`);
+     throw new Error(`PRF item creation failed: ${errorMessage}`);
+   }
+ }
 
  /**
   * Helper function to update existing PRF

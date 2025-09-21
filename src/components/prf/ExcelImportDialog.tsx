@@ -17,12 +17,14 @@ import { Progress } from "@/components/ui/progress";
 import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { authService } from "../../services/authService";
+import { ImportResultModal } from "./ImportResultModal";
 
 interface ValidationError {
   row: number;
   field: string;
   message: string;
   data?: unknown;
+  prfNo?: string;
 }
 
 interface ValidationResult {
@@ -44,13 +46,47 @@ interface ValidationResult {
   };
 }
 
+interface ImportError {
+  row: number;
+  field: string;
+  message: string;
+  data?: unknown;
+  prfNo?: string;
+}
+
+interface ImportWarning {
+  row: number;
+  message: string;
+  data?: unknown;
+  prfNo?: string;
+}
+
+interface PRFDetail {
+  prfNo: string;
+  prfId: number;
+  itemCount: number;
+}
+
+interface FailedPRF {
+  prfNo: string;
+  reason: string;
+  rows: number[];
+}
+
 interface ImportResult {
   success: boolean;
   message: string;
-  data?: {
-    imported: number;
-    skipped: number;
-    errors: string[];
+  totalRecords: number;
+  importedRecords: number;
+  skippedRecords: number;
+  errors: ImportError[];
+  warnings: ImportWarning[];
+  totalPRFs?: number;
+  successfulPRFs?: number;
+  failedPRFs?: number;
+  prfDetails?: {
+    successful: PRFDetail[];
+    failed: FailedPRF[];
   };
 }
 
@@ -62,6 +98,7 @@ export function ExcelImportDialog() {
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importProgress, setImportProgress] = useState(0);
+  const [showResultModal, setShowResultModal] = useState(false);
   
   // Import options
   const [skipDuplicates, setSkipDuplicates] = useState(true);
@@ -144,11 +181,37 @@ export function ExcelImportDialog() {
       setImportProgress(100);
 
       const result = await response.json();
-      setImportResult(result);
+      
+      // Ensure all required fields are present with defaults
+      const normalizedResult: ImportResult = {
+        success: result.success || false,
+        message: result.message || 'Import completed',
+        totalRecords: result.totalRecords || result.data?.totalRecords || 0,
+        importedRecords: result.importedRecords || result.data?.importedRecords || 0,
+        skippedRecords: result.skippedRecords || result.data?.skippedRecords || 0,
+        errors: result.errors || result.data?.errors || [],
+        warnings: result.warnings || result.data?.warnings || [],
+        totalPRFs: result.totalPRFs || result.data?.totalPRFs,
+        successfulPRFs: result.successfulPRFs || result.data?.successfulPRFs,
+        failedPRFs: result.failedPRFs || result.data?.failedPRFs,
+        prfDetails: result.prfDetails || result.data?.prfDetails,
+      };
+      
+      setImportResult(normalizedResult);
+      
+      // Show result modal after successful import
+      if (result.success) {
+        setShowResultModal(true);
+      }
     } catch (error) {
       setImportResult({
         success: false,
         message: 'Failed to import file. Please try again.',
+        totalRecords: 0,
+        importedRecords: 0,
+        skippedRecords: 0,
+        errors: [],
+        warnings: [],
       });
     } finally {
       setIsImporting(false);
@@ -160,6 +223,7 @@ export function ExcelImportDialog() {
     setValidationResult(null);
     setImportResult(null);
     setImportProgress(0);
+    setShowResultModal(false);
     setSkipDuplicates(true);
     setUpdateExisting(false);
   };
@@ -314,7 +378,9 @@ export function ExcelImportDialog() {
                   <h4 className="font-medium text-red-600">Validation Errors:</h4>
                   <ul className="text-sm text-red-600 space-y-1">
                     {validationResult.data.prfValidation.errors.slice(0, 5).map((error, index) => (
-                      <li key={index}>• Row {error.row}: {error.message}</li>
+                      <li key={index}>
+                        • Row {error.row}{error.prfNo ? ` (PRF: ${error.prfNo})` : ''}: {error.message}
+                      </li>
                     ))}
                     {validationResult.data.prfValidation.errors.length > 5 && (
                       <li>... and {validationResult.data.prfValidation.errors.length - 5} more errors</li>
@@ -349,15 +415,24 @@ export function ExcelImportDialog() {
                   {importResult.message}
                 </AlertDescription>
               </div>
-              {importResult.data && (
-                <div className="mt-2 text-sm space-y-1">
-                  <div>Imported: {importResult.data.imported} records</div>
-                  <div>Skipped: {importResult.data.skipped} records</div>
-                  {importResult.data.errors.length > 0 && (
-                    <div>Errors: {importResult.data.errors.length}</div>
-                  )}
-                </div>
-              )}
+              <div className="mt-2 text-sm space-y-1">
+                <div>Imported: {importResult.importedRecords || 0} records</div>
+                <div>Skipped: {importResult.skippedRecords || 0} records</div>
+                {importResult.errors && importResult.errors.length > 0 && (
+                  <div>Errors: {importResult.errors.length}</div>
+                )}
+                {importResult.success && (
+                  <div className="mt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowResultModal(true)}
+                    >
+                      View Detailed Report
+                    </Button>
+                  </div>
+                )}
+              </div>
             </Alert>
           )}
         </div>
@@ -376,6 +451,14 @@ export function ExcelImportDialog() {
           )}
         </DialogFooter>
       </DialogContent>
+      
+      {/* Import Result Modal */}
+      <ImportResultModal
+        open={showResultModal}
+        onOpenChange={setShowResultModal}
+        result={importResult}
+        filename={file?.name}
+      />
     </Dialog>
   );
 }

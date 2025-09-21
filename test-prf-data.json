@@ -1,0 +1,67 @@
+[
+  {
+    "No": 1,
+    "Budget": 2024,
+    "Date Submit": "2024-01-15",
+    "Submit By": "John Doe",
+    "PRF No": "PRF-2024-0001",
+    "Sum Description Requested": "IT Equipment Purchase",
+    "Description": "Laptop for development team",
+    "Purchase Cost Code": "MTIRMRAD496001",
+    "Amount": 15000000,
+    "Required for": "Development Team",
+    "Status in Pronto": "Pending"
+  },
+  {
+    "No": 2,
+    "Budget": 2024,
+    "Date Submit": "2024-01-16",
+    "Submit By": "Jane Smith",
+    "PRF No": "PRF-2024-0002",
+    "Sum Description Requested": "Office Supplies",
+    "Description": "Printer and paper supplies",
+    "Purchase Cost Code": "MTIRMRAD496002",
+    "Amount": 5000000,
+    "Required for": "Admin Office",
+    "Status in Pronto": "Approved"
+  },
+  {
+    "No": 3,
+    "Budget": 2024,
+    "Date Submit": "2024-01-17",
+    "Submit By": "Bob Wilson",
+    "PRF No": "PRF-2024-0003",
+    "Sum Description Requested": "Software License",
+    "Description": "Microsoft Office 365 licenses",
+    "Purchase Cost Code": "MTIRMRAD496003",
+    "Amount": 12000000,
+    "Required for": "All Departments",
+    "Status in Pronto": "In Progress"
+  },
+  {
+    "No": 4,
+    "Budget": 2024,
+    "Date Submit": "2024-01-18",
+    "Submit By": "Alice Brown",
+    "PRF No": "",
+    "Sum Description Requested": "",
+    "Description": "Network equipment upgrade",
+    "Purchase Cost Code": "INVALID_CODE",
+    "Amount": "invalid_amount",
+    "Required for": "IT Department",
+    "Status in Pronto": "Pending"
+  },
+  {
+    "No": 5,
+    "Budget": 2025,
+    "Date Submit": "2024-01-19",
+    "Submit By": "Charlie Davis",
+    "PRF No": "PRF-2024-0005",
+    "Sum Description Requested": "Security System",
+    "Description": "CCTV cameras and monitoring system",
+    "Purchase Cost Code": "MTIRMRAD496005",
+    "Amount": 25000000,
+    "Required for": "Security Department",
+    "Status in Pronto": "Pending"
+  }
+]

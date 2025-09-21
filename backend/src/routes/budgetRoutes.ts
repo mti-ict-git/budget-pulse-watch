@@ -60,6 +60,123 @@ interface CostCodeBudgetRow {
 }
 
 /**
+ * @route GET /api/budgets/prf/:prfId/cost-codes
+ * @desc Get cost code budget information for a specific PRF
+ * @access Public (will be protected later)
+ */
+router.get('/prf/:prfId/cost-codes', async (req: Request, res: Response) => {
+  try {
+    const prfId = req.params.prfId;
+    
+    const query = `
+      WITH PRFCostCodes AS (
+        -- Get all cost codes from PRF items (from JSON specifications)
+        SELECT DISTINCT
+          COALESCE(
+            JSON_VALUE(pi.Specifications, '$.PurchaseCostCode'),
+            JSON_VALUE(pi.Specifications, '$.purchaseCostCode'),
+            pi.PurchaseCostCode, 
+            p.PurchaseCostCode
+          ) as CostCode,
+          pi.TotalPrice as ItemAmount,
+          pi.ItemName,
+          pi.PRFItemID
+        FROM PRF p
+        LEFT JOIN PRFItems pi ON p.PRFID = pi.PRFID
+        WHERE p.PRFNo = @PRFId
+          AND (
+            JSON_VALUE(pi.Specifications, '$.PurchaseCostCode') IS NOT NULL OR
+            JSON_VALUE(pi.Specifications, '$.purchaseCostCode') IS NOT NULL OR
+            pi.PurchaseCostCode IS NOT NULL OR 
+            p.PurchaseCostCode IS NOT NULL
+          )
+      ),
+      CostCodeBudgets AS (
+        -- Get budget information for each cost code
+        SELECT 
+          coa.COACode as CostCode,
+          coa.COAName,
+          SUM(b.AllocatedAmount) as TotalAllocated,
+          SUM(b.UtilizedAmount) as TotalUtilized
+        FROM ChartOfAccounts coa
+        LEFT JOIN Budget b ON coa.COAID = b.COAID AND b.FiscalYear = YEAR(GETDATE())
+        WHERE coa.COACode IN (SELECT DISTINCT CostCode FROM PRFCostCodes WHERE CostCode IS NOT NULL)
+        GROUP BY coa.COACode, coa.COAName
+      ),
+      CostCodeSpending AS (
+        -- Get total spending for each cost code across all PRFs (from JSON specifications)
+        SELECT 
+          COALESCE(
+            JSON_VALUE(pi.Specifications, '$.PurchaseCostCode'),
+            JSON_VALUE(pi.Specifications, '$.purchaseCostCode'),
+            pi.PurchaseCostCode, 
+            p.PurchaseCostCode
+          ) as CostCode,
+          SUM(COALESCE(pi.TotalPrice, p.RequestedAmount)) as TotalSpent
+        FROM PRF p
+        LEFT JOIN PRFItems pi ON p.PRFID = pi.PRFID
+        WHERE (
+          JSON_VALUE(pi.Specifications, '$.PurchaseCostCode') IS NOT NULL OR
+          JSON_VALUE(pi.Specifications, '$.purchaseCostCode') IS NOT NULL OR
+          pi.PurchaseCostCode IS NOT NULL OR 
+          p.PurchaseCostCode IS NOT NULL
+        )
+          AND p.Status IN ('Approved', 'Completed')
+        GROUP BY COALESCE(
+          JSON_VALUE(pi.Specifications, '$.PurchaseCostCode'),
+          JSON_VALUE(pi.Specifications, '$.purchaseCostCode'),
+          pi.PurchaseCostCode, 
+          p.PurchaseCostCode
+        )
+      ),
+      PRFCostCodeSummary AS (
+        -- Get spending for this specific PRF by cost code
+        SELECT 
+          CostCode,
+          SUM(ItemAmount) as PRFSpent,
+          COUNT(*) as ItemCount,
+          STRING_AGG(ItemName, ', ') as ItemNames
+        FROM PRFCostCodes
+        WHERE CostCode IS NOT NULL
+        GROUP BY CostCode
+      )
+      SELECT 
+        ccb.CostCode,
+        ccb.COAName,
+        COALESCE(ccb.TotalAllocated, 0) as TotalBudget,
+        COALESCE(ccs.TotalSpent, 0) as TotalSpent,
+        COALESCE(ccb.TotalAllocated, 0) - COALESCE(ccs.TotalSpent, 0) as RemainingBudget,
+        COALESCE(pcs.PRFSpent, 0) as PRFSpent,
+        COALESCE(pcs.ItemCount, 0) as ItemCount,
+        COALESCE(pcs.ItemNames, '') as ItemNames,
+        CASE 
+          WHEN ccb.TotalAllocated > 0 
+          THEN ROUND((ccs.TotalSpent / ccb.TotalAllocated) * 100, 2)
+          ELSE 0 
+        END as UtilizationPercentage
+      FROM CostCodeBudgets ccb
+      LEFT JOIN CostCodeSpending ccs ON ccb.CostCode = ccs.CostCode
+      LEFT JOIN PRFCostCodeSummary pcs ON ccb.CostCode = pcs.CostCode
+      ORDER BY ccb.CostCode
+    `;
+
+    const result = await executeQuery(query, { PRFId: prfId });
+    
+    return res.json({
+      success: true,
+      data: result.recordset
+    });
+  } catch (error) {
+    console.error('Error fetching PRF cost code budgets:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch PRF cost code budgets',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
  * @route GET /api/budgets/cost-codes
  * @desc Get budget data grouped by cost codes with actual budget allocations vs spending
  * @access Public (will be protected later)

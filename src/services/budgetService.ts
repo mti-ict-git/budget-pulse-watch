@@ -137,6 +137,18 @@ interface BudgetSummary {
   healthyCount?: number;
 }
 
+interface PRFCostCodeBudget {
+  CostCode: string;
+  COAName: string;
+  TotalBudget: number;
+  TotalSpent: number;
+  RemainingBudget: number;
+  PRFSpent: number;
+  ItemCount: number;
+  ItemNames: string;
+  UtilizationPercentage: number;
+}
+
 interface CostCodeBudgetResponse {
   success: boolean;
   data?: {
@@ -433,6 +445,34 @@ class BudgetService {
       return data;
     } catch (error) {
       console.error('Error fetching chart of accounts:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+
+  /**
+   * Get cost code budget information for a specific PRF
+   */
+  async getPRFCostCodeBudgets(prfId: string): Promise<{ success: boolean; data?: PRFCostCodeBudget[]; message?: string }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/prf/${prfId}/cost-codes`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch PRF cost code budgets');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching PRF cost code budgets:', error);
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Unknown error occurred',

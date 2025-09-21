@@ -29,7 +29,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync, ChevronUp } from "lucide-react";
+import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync } from "lucide-react";
 import { PRFDetailDialog } from "@/components/prf/PRFDetailDialog";
 import { ExcelImportDialog } from "@/components/prf/ExcelImportDialog";
 import { PRFEditDialog } from "@/components/prf/PRFEditDialog";
@@ -182,7 +182,6 @@ export default function PRFMonitoring() {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [availableStatusValues, setAvailableStatusValues] = useState<string[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [expandedCostCodes, setExpandedCostCodes] = useState<Set<string>>(new Set());
   const [isBulkSyncing, setIsBulkSyncing] = useState(false);
   const [selectedItemForModification, setSelectedItemForModification] = useState<PRFItem | null>(null);
   const [isModificationModalOpen, setIsModificationModalOpen] = useState(false);
@@ -289,18 +288,7 @@ export default function PRFMonitoring() {
     return coa ? coa.COAName : `COA ID: ${coaId}`;
   };
 
-  // Helper function to toggle expanded cost codes
-  const toggleExpandedCostCodes = (prfId: string) => {
-    setExpandedCostCodes(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(prfId)) {
-        newSet.delete(prfId);
-      } else {
-        newSet.add(prfId);
-      }
-      return newSet;
-    });
-  };
+
 
   // Helper function to get cost code summary with amounts
   const getCostCodeSummary = (prf: PRFData) => {
@@ -314,117 +302,166 @@ export default function PRFMonitoring() {
     return Object.entries(costCodeAmounts);
   };
 
-  // Enhanced helper function to display multiple cost codes
-  const getCostCodeDisplay = (prf: PRFData) => {
-    // Get unique cost codes from items
-    const itemCostCodes = prf.items?.map(item => item.PurchaseCostCode).filter(Boolean) || [];
-    const uniqueItemCostCodes = [...new Set(itemCostCodes)];
-    const isExpanded = expandedCostCodes.has(prf.id);
-    
-    // If items have cost codes, show them; otherwise show PRF-level cost code
-    if (uniqueItemCostCodes.length > 0) {
-      if (uniqueItemCostCodes.length === 1) {
-        return <span className="font-mono text-sm">{uniqueItemCostCodes[0]}</span>;
-      } else {
-        const costCodeSummary = getCostCodeSummary(prf);
+  // Enhanced React component to display all cost codes with budget information
+  const CostCodeDisplay: React.FC<{ prf: PRFData }> = ({ prf }) => {
+    const [costCodeBudgets, setCostCodeBudgets] = React.useState<Array<{
+      CostCode: string;
+      COAName: string;
+      TotalBudget: number;
+      TotalSpent: number;
+      RemainingBudget: number;
+      PRFSpent: number;
+      ItemCount: number;
+      ItemNames: string;
+      UtilizationPercentage: number;
+    }>>([]);
+    const [isLoading, setIsLoading] = React.useState(false);
+
+    // Fetch cost code budget data when component mounts or PRF changes
+    React.useEffect(() => {
+      const fetchCostCodeBudgets = async () => {
+        if (!prf.prfNo) return;
         
-        return (
-          <div className="flex flex-col gap-1">
-            <span className="font-mono text-xs text-muted-foreground">
-              {uniqueItemCostCodes.length} codes:
-            </span>
-            <div className="flex flex-wrap gap-1">
-              {(isExpanded ? uniqueItemCostCodes : uniqueItemCostCodes.slice(0, 2)).map((code, index) => (
-                <Badge key={index} variant="secondary" className="text-xs font-mono">
-                  {code}
-                </Badge>
-              ))}
-              {uniqueItemCostCodes.length > 2 && (
-                <div className="flex gap-1">
-                  {!isExpanded && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Badge variant="outline" className="text-xs cursor-help">
-                            +{uniqueItemCostCodes.length - 2}
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <div className="max-w-xs">
-                            <p className="font-medium mb-2">All Cost Codes:</p>
-                            {uniqueItemCostCodes.map((code, index) => (
-                              <div key={index} className="text-sm font-mono">{code}</div>
-                            ))}
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-auto p-1 text-xs">
-                        <Badge variant="outline" className="text-xs cursor-pointer">
-                          Details
-                        </Badge>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-80">
-                      <div className="space-y-2">
-                        <h4 className="font-medium">Cost Code Breakdown</h4>
-                        {costCodeSummary.map(([code, amount], index) => (
-                          <div key={index} className="flex justify-between items-center">
-                            <span className="font-mono text-sm">{code}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {formatCurrency(amount)}
-                            </span>
-                          </div>
-                        ))}
-                        <div className="border-t pt-2 mt-2">
-                          <div className="flex justify-between items-center font-medium">
-                            <span>Total:</span>
-                            <span>{formatCurrency(prf.amount)}</span>
-                          </div>
+        setIsLoading(true);
+        try {
+          const response = await budgetService.getPRFCostCodeBudgets(prf.prfNo);
+          if (response.success && response.data) {
+            setCostCodeBudgets(response.data);
+          }
+        } catch (error) {
+          console.error('Error fetching cost code budgets:', error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      fetchCostCodeBudgets();
+    }, [prf.prfNo]);
+
+    if (isLoading) {
+      return <span className="text-muted-foreground text-sm">Loading...</span>;
+    }
+
+    if (costCodeBudgets.length === 0) {
+      // Fallback to PRF-level cost code if no budget data
+      return prf.purchaseCostCode ? (
+        <span className="font-mono text-sm">{prf.purchaseCostCode}</span>
+      ) : (
+        <span className="text-muted-foreground text-sm">No cost code</span>
+      );
+    }
+
+    if (costCodeBudgets.length === 1) {
+      const budget = costCodeBudgets[0];
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="font-mono text-sm cursor-help">
+                {budget.CostCode}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-sm">
+              <div className="space-y-2">
+                <div className="font-medium">{budget.CostCode}</div>
+                <div className="text-xs text-muted-foreground">{budget.COAName}</div>
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span>Total Budget:</span>
+                    <span className="font-mono">{formatCurrency(budget.TotalBudget)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Total Spent:</span>
+                    <span className="font-mono">{formatCurrency(budget.TotalSpent)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Remaining:</span>
+                    <span className={`font-mono ${budget.RemainingBudget < 0 ? 'text-red-500' : 'text-green-500'}`}>
+                      {formatCurrency(budget.RemainingBudget)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>This PRF:</span>
+                    <span className="font-mono">{formatCurrency(budget.PRFSpent)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Utilization:</span>
+                    <span className={`font-mono ${budget.UtilizationPercentage > 100 ? 'text-red-500' : budget.UtilizationPercentage > 80 ? 'text-yellow-500' : 'text-green-500'}`}>
+                      {budget.UtilizationPercentage.toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+                {budget.ItemNames && (
+                  <div className="border-t pt-2 mt-2">
+                    <div className="text-xs text-muted-foreground">
+                      Items ({budget.ItemCount}): {budget.ItemNames}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    } else {
+      const totalPRFSpent = costCodeBudgets.reduce((sum, budget) => sum + budget.PRFSpent, 0);
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="font-mono text-sm cursor-help">
+                {costCodeBudgets[0].CostCode} (+{costCodeBudgets.length - 1} more)
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-md">
+              <div className="space-y-2">
+                <div className="font-medium">Cost Code Budget Summary ({costCodeBudgets.length} codes):</div>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {costCodeBudgets.map((budget, index) => (
+                    <div key={index} className="border-b pb-2 last:border-b-0">
+                      <div className="font-mono text-sm font-medium">{budget.CostCode}</div>
+                      <div className="text-xs text-muted-foreground mb-1">{budget.COAName}</div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="flex justify-between">
+                          <span>Budget:</span>
+                          <span className="font-mono">{formatCurrency(budget.TotalBudget)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Spent:</span>
+                          <span className="font-mono">{formatCurrency(budget.TotalSpent)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Remaining:</span>
+                          <span className={`font-mono ${budget.RemainingBudget < 0 ? 'text-red-500' : 'text-green-500'}`}>
+                            {formatCurrency(budget.RemainingBudget)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>This PRF:</span>
+                          <span className="font-mono">{formatCurrency(budget.PRFSpent)}</span>
                         </div>
                       </div>
-                    </PopoverContent>
-                  </Popover>
+                      <div className="flex justify-between text-xs mt-1">
+                        <span>Utilization:</span>
+                        <span className={`font-mono ${budget.UtilizationPercentage > 100 ? 'text-red-500' : budget.UtilizationPercentage > 80 ? 'text-yellow-500' : 'text-green-500'}`}>
+                          {budget.UtilizationPercentage.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
-            {uniqueItemCostCodes.length > 2 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleExpandedCostCodes(prf.id);
-                }}
-                className="h-auto p-1 mt-1 text-xs self-start"
-              >
-                {isExpanded ? (
-                  <>
-                    <ChevronUp className="h-3 w-3 mr-1" />
-                    Show Less
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="h-3 w-3 mr-1" />
-                    Show All ({uniqueItemCostCodes.length})
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
-        );
-      }
+                <div className="border-t pt-2 mt-2">
+                  <div className="flex justify-between items-center font-medium text-sm">
+                    <span>Total PRF Amount:</span>
+                    <span className="font-mono">{formatCurrency(totalPRFSpent)}</span>
+                  </div>
+                </div>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
     }
-    
-    // Fallback to PRF-level cost code
-    return prf.purchaseCostCode ? (
-      <span className="font-mono text-sm">{prf.purchaseCostCode}</span>
-    ) : (
-      <span className="text-muted-foreground text-sm">No cost code</span>
-    );
   };
 
   // Fetch status values and Chart of Accounts on component mount
@@ -909,7 +946,7 @@ export default function PRFMonitoring() {
                           <TableCell>{new Date(prf.dateSubmit).toLocaleDateString('id-ID')}</TableCell>
                           <TableCell>{prf.submitBy}</TableCell>
                           <TableCell className="max-w-[200px] truncate" title={prf.description}>{prf.description}</TableCell>
-                          <TableCell>{getCostCodeDisplay(prf)}</TableCell>
+                          <TableCell><CostCodeDisplay prf={prf} /></TableCell>
                           <TableCell className="font-medium">{formatCurrency(prf.amount)}</TableCell>
                           <TableCell className="max-w-[150px] truncate" title={prf.requiredFor}>{prf.requiredFor}</TableCell>
                           <TableCell><Badge variant="outline">{prf.department}</Badge></TableCell>

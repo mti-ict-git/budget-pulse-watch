@@ -173,12 +173,17 @@ export class ExcelParserService {
    * Validate PRF data before import
    */
   static validatePRFData(prfData: ExcelPRFData[]): PRFImportResult {
-    const errors: Array<{ row: number; field: string; message: string; data?: unknown }> = [];
-    const warnings: Array<{ row: number; message: string; data?: unknown }> = [];
+    const errors: Array<{ row: number; field: string; message: string; data?: unknown; prfNo?: string }> = [];
+    const warnings: Array<{ row: number; message: string; data?: unknown; prfNo?: string }> = [];
     let validRecords = 0;
 
     prfData.forEach((record, index) => {
       const rowNumber = index + 2; // +2 because Excel rows start at 1 and we skip header
+      
+      // Get PRF number for error context (if available and valid)
+      const prfNo = record['PRF No'] && record['PRF No'].toString().trim().length > 0 
+        ? record['PRF No'].toString().trim() 
+        : undefined;
 
       // Required field validations
       // Note: 'No' column is ignored as per new requirements
@@ -189,7 +194,8 @@ export class ExcelParserService {
           row: rowNumber,
           field: 'Budget',
           message: 'Budget year is required',
-          data: record['Budget']
+          data: record['Budget'],
+          prfNo
         });
       } else {
         const budgetYear = parseInt(record['Budget'].toString());
@@ -198,7 +204,8 @@ export class ExcelParserService {
             row: rowNumber,
             field: 'Budget',
             message: 'Budget year must be between 2020-2030',
-            data: record['Budget']
+            data: record['Budget'],
+            prfNo
           });
         }
       }
@@ -209,7 +216,8 @@ export class ExcelParserService {
           row: rowNumber,
           field: 'Date Submit',
           message: 'Date submitted is required',
-          data: record['Date Submit']
+          data: record['Date Submit'],
+          prfNo
         });
       } else {
         const dateValue = record['Date Submit'];
@@ -230,7 +238,8 @@ export class ExcelParserService {
             row: rowNumber,
             field: 'Date Submit',
             message: 'Date submitted is not a valid date',
-            data: record['Date Submit']
+            data: record['Date Submit'],
+            prfNo
           });
         }
       }
@@ -241,7 +250,8 @@ export class ExcelParserService {
           row: rowNumber,
           field: 'Submit By',
           message: 'Submitter name is required and cannot be empty',
-          data: record['Submit By']
+          data: record['Submit By'],
+          prfNo
         });
       }
 
@@ -251,16 +261,18 @@ export class ExcelParserService {
           row: rowNumber,
           field: 'PRF No',
           message: 'PRF number is MANDATORY and cannot be empty',
-          data: record['PRF No']
+          data: record['PRF No'],
+          prfNo: undefined // PRF No is empty, so we can't include it
         });
       } else {
-        const prfNo = record['PRF No'].toString().trim();
-        if (!/\d/.test(prfNo)) {
+        const currentPrfNo = record['PRF No'].toString().trim();
+        if (!/\d/.test(currentPrfNo)) {
           errors.push({
             row: rowNumber,
             field: 'PRF No',
             message: 'PRF number must contain at least one digit',
-            data: record['PRF No']
+            data: record['PRF No'],
+            prfNo: currentPrfNo // Include the invalid PRF number for context
           });
         }
       }
@@ -271,7 +283,8 @@ export class ExcelParserService {
           row: rowNumber,
           field: 'Amount',
           message: 'Amount is required and must be positive',
-          data: record['Amount']
+          data: record['Amount'],
+          prfNo
         });
       }
 
@@ -280,7 +293,8 @@ export class ExcelParserService {
           row: rowNumber,
           field: 'Description',
           message: 'Description is required',
-          data: record['Description']
+          data: record['Description'],
+          prfNo
         });
       }
 
@@ -289,7 +303,8 @@ export class ExcelParserService {
         warnings.push({
           row: rowNumber,
           message: 'Sum Description Requested is missing',
-          data: record
+          data: record,
+          prfNo
         });
       }
 
@@ -297,7 +312,8 @@ export class ExcelParserService {
         warnings.push({
           row: rowNumber,
           message: 'Purchase Cost Code is missing',
-          data: record
+          data: record,
+          prfNo
         });
       }
 
@@ -305,7 +321,8 @@ export class ExcelParserService {
         warnings.push({
           row: rowNumber,
           message: 'Required for field is missing',
-          data: record
+          data: record,
+          prfNo
         });
       }
 

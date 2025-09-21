@@ -706,6 +706,22 @@ export interface PRFImportResult {
     message: string;
     data?: unknown;
   }>;
+  // Enhanced reporting fields
+  totalPRFs?: number;
+  successfulPRFs?: number;
+  failedPRFs?: number;
+  prfDetails?: {
+    successful: Array<{
+      prfNo: string;
+      prfId: number;
+      itemCount: number;
+    }>;
+    failed: Array<{
+      prfNo: string;
+      reason: string;
+      rows: number[];
+    }>;
+  };
 }
 
 export interface BulkPRFImportRequest {
