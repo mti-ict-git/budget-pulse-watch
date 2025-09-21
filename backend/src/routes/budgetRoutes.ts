@@ -213,11 +213,13 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
           b.FiscalYear,
           coa.COACode,
           coa.COAName,
+          coa.Department,
+          coa.ExpenseType,
           SUM(b.AllocatedAmount) as TotalAllocated,
           SUM(b.UtilizedAmount) as TotalUtilized
         FROM Budget b
         INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
-        GROUP BY b.COAID, b.FiscalYear, coa.COACode, coa.COAName
+        GROUP BY b.COAID, b.FiscalYear, coa.COACode, coa.COAName, coa.Department, coa.ExpenseType
       ),
       CostCodeSpending AS (
         -- Get spending data by cost codes
@@ -241,8 +243,10 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
         SELECT 
           cs.PurchaseCostCode,
           cs.COAID,
-          ba.COACode,
-          ba.COAName,
+          COALESCE(ba.COACode, coa.COACode) as COACode,
+          COALESCE(ba.COAName, coa.COAName) as COAName,
+          COALESCE(ba.Department, coa.Department) as Department,
+          COALESCE(ba.ExpenseType, coa.ExpenseType) as ExpenseType,
           COALESCE(SUM(ba.TotalAllocated), 0) as GrandTotalAllocated,
           SUM(cs.TotalRequested) as GrandTotalRequested,
           SUM(cs.TotalApproved) as GrandTotalApproved,
@@ -253,12 +257,15 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
           MAX(cs.BudgetYear) as LastYear
         FROM CostCodeSpending cs
         LEFT JOIN BudgetAllocations ba ON cs.PurchaseCostCode = ba.COACode AND cs.BudgetYear = ba.FiscalYear
-        GROUP BY cs.PurchaseCostCode, cs.COAID, ba.COACode, ba.COAName
+        LEFT JOIN ChartOfAccounts coa ON cs.PurchaseCostCode = coa.COACode
+        GROUP BY cs.PurchaseCostCode, cs.COAID, COALESCE(ba.COACode, coa.COACode), COALESCE(ba.COAName, coa.COAName), COALESCE(ba.Department, coa.Department), COALESCE(ba.ExpenseType, coa.ExpenseType)
       )
       SELECT 
         cbs.PurchaseCostCode,
         cbs.COACode,
         cbs.COAName,
+        cbs.Department,
+        cbs.ExpenseType,
         cbs.GrandTotalAllocated,
         cbs.GrandTotalRequested,
         cbs.GrandTotalApproved,
@@ -295,6 +302,8 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
       PurchaseCostCode: string;
       COACode: string;
       COAName: string;
+      Department: string;
+      ExpenseType: string;
       GrandTotalAllocated: number | string;
       GrandTotalRequested: number | string;
       GrandTotalApproved: number | string;

@@ -21,7 +21,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Wallet, TrendingDown, TrendingUp, AlertTriangle, Download, RefreshCw, Plus, Search, MoreHorizontal, Edit, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { budgetService, type CostCodeBudget, type BudgetSummary, type Budget } from '@/services/budgetService';
+import { budgetService, getUtilizationData, getUnallocatedBudgets, type CostCodeBudget, type BudgetSummary, type Budget, type DashboardMetrics, type UtilizationData, type UnallocatedBudgetData } from '@/services/budgetService';
+import { UtilizationChart } from '@/components/budget/UtilizationChart';
+import UnallocatedBudgets from '@/components/budget/UnallocatedBudgets';
 import { BudgetCreateDialog } from '@/components/budget/BudgetCreateDialog';
 import { BudgetEditDialog } from '@/components/budget/BudgetEditDialog';
 import { toast } from "sonner";
@@ -60,6 +62,9 @@ const getProgressColor = (percent: number) => {
 export default function BudgetOverview() {
   const [budgetData, setBudgetData] = useState<CostCodeBudget[]>([]);
   const [budgetSummary, setBudgetSummary] = useState<BudgetSummary | null>(null);
+  const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetrics | null>(null);
+  const [utilizationData, setUtilizationData] = useState<UtilizationData[]>([]);
+  const [unallocatedBudgets, setUnallocatedBudgets] = useState<UnallocatedBudgetData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -73,22 +78,48 @@ export default function BudgetOverview() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
+  const [selectedFiscalYear, setSelectedFiscalYear] = useState<number>(new Date().getFullYear());
 
   const loadBudgetData = async (searchParams?: { search?: string; status?: string; fiscalYear?: number }) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await budgetService.getCostCodeBudgets(searchParams);
+
+      const fiscalYear = searchParams?.fiscalYear && searchParams.fiscalYear !== 0 ? searchParams.fiscalYear : selectedFiscalYear;
       
-      if (response.success && response.data) {
-        setBudgetData(response.data.costCodes);
-        setBudgetSummary(response.data.summary);
+      // Load budget data, dashboard metrics, utilization data, and unallocated budgets in parallel
+       const [budgetResponse, dashboardResponse, utilizationResponse, unallocatedResponse] = await Promise.all([
+         budgetService.getCostCodeBudgets({
+           search: searchParams?.search,
+           fiscalYear: fiscalYear
+         }),
+         budgetService.getDashboardMetrics(fiscalYear),
+         getUtilizationData(fiscalYear),
+         getUnallocatedBudgets(fiscalYear)
+       ]);
+
+      if (budgetResponse.success && budgetResponse.data) {
+        setBudgetData(budgetResponse.data.costCodes);
+        setBudgetSummary(budgetResponse.data.summary);
       } else {
-        setError(response.message || 'Failed to load budget data');
+        setError(budgetResponse.message || 'Failed to load budget data');
       }
-    } catch (err) {
+
+      // Dashboard metrics - extract data from response
+      if (dashboardResponse.success && dashboardResponse.data) {
+        setDashboardMetrics(dashboardResponse.data);
+      } else {
+        setDashboardMetrics(null);
+      }
+
+      // Utilization data - direct array response
+      setUtilizationData(utilizationResponse || []);
+
+      // Unallocated budgets - direct data response
+      setUnallocatedBudgets(unallocatedResponse || null);
+    } catch (error) {
+      console.error('Error loading budget data:', error);
       setError('Failed to load budget data');
-      console.error('Error loading budget data:', err);
     } finally {
       setLoading(false);
     }
@@ -117,6 +148,61 @@ export default function BudgetOverview() {
   const handleEditBudget = (budget: Budget) => {
     setSelectedBudget(budget);
     setEditDialogOpen(true);
+  };
+
+  const handleEditCostCodeBudget = async (costCodeBudget: CostCodeBudget) => {
+    try {
+      setLoading(true);
+      
+      // First, get the COA by code to get the COAID
+      const coaResponse = await fetch(`/api/coa/code/${encodeURIComponent(costCodeBudget.COACode)}`);
+      const coaData = await coaResponse.json();
+      
+      if (!coaData.success || !coaData.data) {
+        console.error('COA not found for code:', costCodeBudget.COACode);
+        setError(`Chart of Account not found for code: ${costCodeBudget.COACode}`);
+        setLoading(false);
+        return;
+      }
+      
+      const coa = coaData.data;
+      
+      // Try to get existing budget for this COA and current fiscal year
+      const budgetResponse = await fetch(`/api/budgets/coa/${coa.COAID}/year/${selectedFiscalYear}`);
+      const budgetData = await budgetResponse.json();
+      
+      let budget: Budget;
+      
+      if (budgetData.success && budgetData.data) {
+        // Use existing budget
+        budget = budgetData.data;
+      } else {
+        // Create a new budget object for creation
+        budget = {
+          BudgetID: 0, // 0 indicates new budget
+          COAID: coa.COAID,
+          COACode: coa.COACode,
+          Department: coa.Department,
+          ExpenseType: coa.ExpenseType,
+          FiscalYear: selectedFiscalYear,
+          AllocatedAmount: 0,
+          UtilizedAmount: costCodeBudget.GrandTotalActual || 0,
+          RemainingAmount: 0,
+          UtilizationPercentage: 0,
+          CreatedBy: 1, // Should be replaced with actual user ID from auth context
+          CreatedAt: new Date(),
+          UpdatedAt: new Date()
+        };
+      }
+      
+      setSelectedBudget(budget);
+      setEditDialogOpen(true);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching budget data for edit:', error);
+      setError('Failed to load budget data for editing');
+      setLoading(false);
+    }
   };
 
   const handleBudgetCreated = () => {
@@ -150,11 +236,14 @@ export default function BudgetOverview() {
     return () => clearTimeout(timeoutId);
   }, [searchTerm, fiscalYearFilter, statusFilter, expenseTypeFilter]);
 
-  const totalInitialBudget = budgetSummary?.totalBudgetAllocated || budgetSummary?.totalBudget || 0;
-  const totalSpent = budgetSummary?.totalBudgetApproved || budgetSummary?.totalSpent || 0;
-  const totalRemaining = totalInitialBudget - totalSpent;
-  const overallUtilization = budgetSummary?.overallUtilization || 0;
-  const alertCount = budgetData.filter(b => b.BudgetStatus === 'Over Budget').length;
+  // Use dashboard metrics if available, fallback to budget summary
+  const totalInitialBudget = dashboardMetrics?.budget.totalBudget || budgetSummary?.totalBudgetAllocated || budgetSummary?.totalBudget || 0;
+  const totalSpent = dashboardMetrics?.budget.totalSpent || budgetSummary?.totalBudgetApproved || budgetSummary?.totalSpent || 0;
+  const totalRemaining = dashboardMetrics?.budget.totalRemaining || (totalInitialBudget - totalSpent);
+  const overallUtilization = dashboardMetrics?.budget.overallUtilization || budgetSummary?.overallUtilization || 0;
+  const alertCount = dashboardMetrics?.budget.overBudgetCount || budgetData.filter(b => b.BudgetStatus === 'Over Budget').length;
+  
+  // CAPEX and OPEX utilization data is now handled by the UtilizationChart component using utilizationData
 
   return (
     <div className="space-y-6">
@@ -183,7 +272,7 @@ export default function BudgetOverview() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="metric-card">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -245,43 +334,32 @@ export default function BudgetOverview() {
             </div>
           </CardContent>
         </Card>
-
-        {/* CAPEX Card */}
-        <Card className="metric-card">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">CAPEX Budget</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(budgetData.filter(b => b.ExpenseType === 'CAPEX').reduce((sum, b) => sum + (b.AllocatedAmount || 0), 0))}
-                </p>
-                <p className="text-xs text-muted-foreground">Capital Expenditure</p>
-              </div>
-              <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* OPEX Card */}
-        <Card className="metric-card">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">OPEX Budget</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {formatCurrency(budgetData.filter(b => b.ExpenseType === 'OPEX').reduce((sum, b) => sum + (b.AllocatedAmount || 0), 0))}
-                </p>
-                <p className="text-xs text-muted-foreground">Operational Expenditure</p>
-              </div>
-              <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-                <Wallet className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
+
+      {/* Utilization Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <UtilizationChart
+          title="CAPEX Utilization"
+          data={utilizationData}
+          expenseType="CAPEX"
+          className="h-[300px]"
+        />
+        
+        <UtilizationChart
+          title="OPEX Utilization"
+          data={utilizationData}
+          expenseType="OPEX"
+          className="h-[300px]"
+        />
+      </div>
+
+
+
+      {/* Unallocated Budgets Section - Hidden per user request */}
+       {/* <UnallocatedBudgets 
+         data={unallocatedBudgets}
+         loading={loading}
+       /> */}
 
       {/* Search and Filter Controls */}
       <Card>
@@ -299,15 +377,24 @@ export default function BudgetOverview() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Select value={fiscalYearFilter} onValueChange={setFiscalYearFilter}>
+              <Select 
+                value={selectedFiscalYear.toString()} 
+                onValueChange={(value) => {
+                  const year = parseInt(value);
+                  setSelectedFiscalYear(year);
+                  setFiscalYearFilter(value);
+                  loadBudgetData({ fiscalYear: year });
+                }}
+              >
                 <SelectTrigger className="w-[150px]">
                   <SelectValue placeholder="Fiscal Year" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Years</SelectItem>
+                  <SelectItem value="2025">2025</SelectItem>
                   <SelectItem value="2024">2024</SelectItem>
                   <SelectItem value="2023">2023</SelectItem>
                   <SelectItem value="2022">2022</SelectItem>
+                  <SelectItem value="2021">2021</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -434,18 +521,7 @@ export default function BudgetOverview() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleEditBudget({
-                                BudgetID: parseInt(budget.PurchaseCostCode) || 0,
-                                AllocatedAmount: budget.GrandTotalAllocated || 0,
-                                COAID: parseInt(budget.COACode) || 0,
-                                FiscalYear: new Date().getFullYear(),
-                                UtilizedAmount: budget.GrandTotalActual || 0,
-                                RemainingAmount: (budget.GrandTotalAllocated || 0) - (budget.GrandTotalActual || 0),
-                                UtilizationPercentage: budget.GrandTotalAllocated ? ((budget.GrandTotalActual || 0) / budget.GrandTotalAllocated) * 100 : 0,
-                                CreatedBy: 1, // Default user ID, should be replaced with actual user ID from auth context
-                                CreatedAt: new Date(),
-                                UpdatedAt: new Date()
-                              })}>
+                              <DropdownMenuItem onClick={() => handleEditCostCodeBudget(budget)}>
                                 <Edit className="mr-2 h-4 w-4" />
                                 Edit
                               </DropdownMenuItem>

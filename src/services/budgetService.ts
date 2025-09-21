@@ -2,6 +2,8 @@ interface CostCodeBudget {
   PurchaseCostCode: string;
   COACode: string;
   COAName: string;
+  Department: string;
+  ExpenseType: 'CAPEX' | 'OPEX';
   GrandTotalAllocated: number | null;
   GrandTotalRequested: number | null;
   GrandTotalApproved: number | null;
@@ -13,8 +15,6 @@ interface CostCodeBudget {
   UtilizationPercentage: number;
   ApprovalRate: number | null;
   BudgetStatus: string;
-  ExpenseType?: 'CAPEX' | 'OPEX';
-  Department?: string;
   // Computed properties for display
   RemainingAmount?: number;
   AllocatedAmount?: number;
@@ -135,6 +135,90 @@ interface BudgetSummary {
   criticalCount?: number;
   warningCount?: number;
   healthyCount?: number;
+}
+
+export interface DashboardMetrics {
+  fiscalYear: number;
+  budget: {
+    totalBudget: number;
+    totalSpent: number;
+    totalRemaining: number;
+    overallUtilization: number;
+    totalBudgetItems: number;
+    overBudgetCount: number;
+  };
+  prfs: {
+    totalPRFs: number;
+    approvedPRFs: number;
+    pendingPRFs: number;
+    rejectedPRFs: number;
+  };
+  expenseBreakdown: {
+    expenseType: string;
+    totalAllocated: number;
+    totalSpent: number;
+    budgetCount: number;
+    utilization: number;
+  }[];
+}
+
+interface UtilizationData {
+  category: string;
+  expenseType: string;
+  totalAllocated: number;
+  totalSpent: number;
+  utilizationPercentage: number;
+  budgetCount: number;
+  department?: string;
+}
+
+interface DashboardResponse {
+  success: boolean;
+  data?: DashboardMetrics;
+  message?: string;
+  error?: string;
+}
+
+interface UtilizationResponse {
+  success: boolean;
+  data?: UtilizationData[];
+  message?: string;
+  error?: string;
+}
+
+interface UnallocatedBudget {
+  budgetId: number;
+  purchaseCostCode: string;
+  coaCode: string;
+  coaName: string;
+  category: string;
+  department: string;
+  expenseType: string;
+  allocatedAmount: number;
+  totalSpent: number;
+  reasonType: 'Zero Allocation' | 'Non-IT Department' | 'Other';
+}
+
+interface UnallocatedBudgetSummary {
+  zeroAllocationCount: number;
+  nonITCount: number;
+  zeroAllocationSpent: number;
+  nonITBudget: number;
+  nonITSpent: number;
+  totalItems: number;
+}
+
+interface UnallocatedBudgetData {
+  fiscalYear: number;
+  budgets: UnallocatedBudget[];
+  summary: UnallocatedBudgetSummary;
+}
+
+interface UnallocatedBudgetResponse {
+  success: boolean;
+  data?: UnallocatedBudgetData;
+  message?: string;
+  error?: string;
 }
 
 interface PRFCostCodeBudget {
@@ -453,6 +537,83 @@ class BudgetService {
   }
 
   /**
+   * Get dashboard metrics including budget totals and utilization
+   */
+  async getDashboardMetrics(fiscalYear?: number, department?: string): Promise<DashboardResponse> {
+    try {
+      const params = new URLSearchParams();
+      
+      if (fiscalYear) {
+        params.append('fiscalYear', fiscalYear.toString());
+      }
+      if (department && department !== 'all') {
+        params.append('department', department);
+      }
+
+      const response = await fetch(`/api/reports/dashboard?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch dashboard metrics');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching dashboard metrics:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+
+  /**
+   * Get budget utilization data by category and expense type
+   */
+  async getBudgetUtilization(fiscalYear?: number, expenseType?: string, department?: string): Promise<UtilizationResponse> {
+    try {
+      const params = new URLSearchParams();
+      
+      if (fiscalYear) {
+        params.append('fiscalYear', fiscalYear.toString());
+      }
+      if (expenseType && expenseType !== 'all') {
+        params.append('expenseType', expenseType);
+      }
+      if (department && department !== 'all') {
+        params.append('department', department);
+      }
+
+      const response = await fetch(`/api/reports/budget-utilization?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch budget utilization');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching budget utilization:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+
+  /**
    * Get cost code budget information for a specific PRF
    */
   async getPRFCostCodeBudgets(prfId: string): Promise<{ success: boolean; data?: PRFCostCodeBudget[]; message?: string }> {
@@ -481,6 +642,59 @@ class BudgetService {
   }
 }
 
+export const getUtilizationData = async (fiscalYear?: number): Promise<UtilizationData[]> => {
+  try {
+    const params = new URLSearchParams();
+    if (fiscalYear) {
+      params.append('fiscalYear', fiscalYear.toString());
+    }
+
+    const response = await fetch(`/api/reports/utilization?${params}`);
+    const result: UtilizationResponse = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to fetch utilization data');
+    }
+
+    return result.data || [];
+  } catch (error) {
+    console.error('Error fetching utilization data:', error);
+    throw error;
+  }
+};
+
+export const getUnallocatedBudgets = async (fiscalYear?: number): Promise<UnallocatedBudgetData> => {
+  try {
+    const params = new URLSearchParams();
+    if (fiscalYear) {
+      params.append('fiscalYear', fiscalYear.toString());
+    }
+
+    const response = await fetch(`/api/reports/unallocated-budgets?${params}`);
+    const result: UnallocatedBudgetResponse = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to fetch unallocated budgets');
+    }
+
+    return result.data || {
+      fiscalYear: fiscalYear || new Date().getFullYear(),
+      budgets: [],
+      summary: {
+        zeroAllocationCount: 0,
+        nonITCount: 0,
+        zeroAllocationSpent: 0,
+        nonITBudget: 0,
+        nonITSpent: 0,
+        totalItems: 0
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching unallocated budgets:', error);
+    throw error;
+  }
+};
+
 export const budgetService = new BudgetService();
 export type { 
   CostCodeBudget, 
@@ -492,5 +706,9 @@ export type {
   BudgetQueryParams,
   BudgetListResponse,
   BudgetResponse,
-  ChartOfAccount
+  ChartOfAccount,
+  UtilizationData,
+  UnallocatedBudgetData,
+  UnallocatedBudget,
+  UnallocatedBudgetSummary
 };

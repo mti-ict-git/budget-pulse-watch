@@ -21,7 +21,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Edit, Save, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { budgetService, Budget, UpdateBudgetRequest, ChartOfAccount } from "@/services/budgetService";
+import { budgetService, Budget, UpdateBudgetRequest, CreateBudgetRequest, ChartOfAccount } from "@/services/budgetService";
 
 interface BudgetEditDialogProps {
   budget: Budget;
@@ -117,12 +117,27 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
     setIsSubmitting(true);
     
     try {
-      const result = await budgetService.updateBudget(budget.BudgetID, formData);
+      let result;
+      
+      if (budget.BudgetID === 0) {
+        // Create new budget
+        const createData: CreateBudgetRequest = {
+          COAID: formData.COAID!,
+          FiscalYear: formData.FiscalYear!,
+          AllocatedAmount: formData.AllocatedAmount!,
+          Description: formData.Description,
+          Department: formData.Department!
+        };
+        result = await budgetService.createBudget(createData);
+      } else {
+        // Update existing budget
+        result = await budgetService.updateBudget(budget.BudgetID, formData);
+      }
       
       if (result.success) {
         toast({
           title: "Success",
-          description: "Budget updated successfully!"
+          description: budget.BudgetID === 0 ? "Budget created successfully!" : "Budget updated successfully!"
         });
         
         setOpen(false);
@@ -131,15 +146,15 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
       } else {
         toast({
           title: "Error",
-          description: result.message || "Failed to update budget",
+          description: result.message || (budget.BudgetID === 0 ? "Failed to create budget" : "Failed to update budget"),
           variant: "destructive"
         });
       }
     } catch (error) {
-      console.error('Error updating budget:', error);
+      console.error('Error saving budget:', error);
       toast({
         title: "Error",
-        description: "An unexpected error occurred while updating the budget.",
+        description: `An unexpected error occurred while ${budget.BudgetID === 0 ? 'creating' : 'updating'} the budget.`,
         variant: "destructive"
       });
     } finally {
@@ -177,10 +192,10 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Edit className="h-5 w-5" />
-            Edit Budget (ID: {budget.BudgetID})
+            {budget.BudgetID === 0 ? 'Create New Budget' : `Edit Budget (ID: ${budget.BudgetID})`}
           </DialogTitle>
           <DialogDescription>
-            Update the budget allocation details below.
+            {budget.BudgetID === 0 ? 'Create a new budget allocation for this Chart of Account.' : 'Update the budget allocation details below.'}
           </DialogDescription>
         </DialogHeader>
 

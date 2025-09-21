@@ -16,6 +16,7 @@ import prfDocumentsRoutes from './routes/prfDocumentsRoutes';
 import authRoutes from './routes/auth';
 import ldapUsersRoutes from './routes/ldapUsers';
 import usersRoutes from './routes/users';
+import reportsRoutes from './routes/reports';
 import { initializeDatabase, ensureTablesExist } from './config/initializeDatabase';
 // TODO: Add error handling middleware later
 
@@ -60,6 +61,7 @@ app.use('/api/prf-documents', prfDocumentsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/ldap-users', ldapUsersRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/reports', reportsRoutes);
 
 // Basic error handling
 app.use((req, res) => {
