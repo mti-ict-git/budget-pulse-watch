@@ -196,6 +196,13 @@ export default function COAManagement() {
         updates,
       };
 
+      // Debug logging
+      console.log('Bulk update request payload:', {
+        accountIds: bulkData.accountIds,
+        updates: bulkData.updates,
+        selectedAccountsSize: selectedAccounts.size
+      });
+
       const response = await coaService.bulkUpdate(bulkData);
 
       if (response.success) {

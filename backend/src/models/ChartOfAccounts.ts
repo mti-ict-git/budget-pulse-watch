@@ -120,7 +120,7 @@ export class ChartOfAccountsModel {
   static async delete(coaId: number): Promise<boolean> {
     const query = `
       UPDATE ChartOfAccounts 
-      SET IsActive = 0, UpdatedAt = GETDATE()
+      SET IsActive = 0
       WHERE COAID = @COAID
     `;
     const result = await executeQuery(query, { COAID: coaId });
@@ -426,9 +426,6 @@ export class ChartOfAccountsModel {
       throw new Error('No updates provided');
     }
 
-    // Add UpdatedAt
-    setClauses.push('UpdatedAt = GETDATE()');
-
     // Create placeholders for account IDs
     const idPlaceholders = accountIds.map((_, index) => `@id${index}`).join(', ');
     accountIds.forEach((id, index) => {
@@ -441,6 +438,11 @@ export class ChartOfAccountsModel {
       OUTPUT INSERTED.*
       WHERE COAID IN (${idPlaceholders})
     `;
+
+    // Debug logging
+    console.log('Bulk update SQL query:', query);
+    console.log('Bulk update parameters:', params);
+    console.log('Account IDs:', accountIds);
 
     const result = await executeQuery<ChartOfAccounts>(query, params);
     return result.recordset;
@@ -474,7 +476,7 @@ export class ChartOfAccountsModel {
       // Soft delete - set IsActive to false
       query = `
         UPDATE ChartOfAccounts 
-        SET IsActive = 0, UpdatedAt = GETDATE()
+        SET IsActive = 0
         WHERE COAID IN (${idPlaceholders})
       `;
     }
