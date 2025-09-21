@@ -144,7 +144,10 @@ router.post('/create-from-document', authenticateToken, requireContentManager, u
           Description: item.partNumber ? `Part: ${item.partNumber}` : '',
           Quantity: item.quantity || 1,
           UnitPrice: item.unitPrice || 0,
-          Specifications: ''
+          Specifications: '',
+          PurchaseCostCode: item.purchaseCostCode || '',
+          COAID: item.coaid || undefined,
+          BudgetYear: item.budgetYear || new Date().getFullYear()
         }));
         
         try {

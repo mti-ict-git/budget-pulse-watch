@@ -19,6 +19,10 @@ export interface ExtractedPRFData {
     unitPrice?: number;
     totalPrice?: number;
     currency?: string;
+    // Cost code fields for multi-cost code support
+    purchaseCostCode?: string;
+    coaid?: number;
+    budgetYear?: number;
   }>;
   projectDescription?: string;
   projectId?: string;
@@ -184,16 +188,10 @@ Please extract:
    - Currency
    - Unit Price
    - Total Price
+   - Cost Code/General Ledger Code (CRITICAL: Extract the specific cost code for THIS item from the rightmost column. Each item may have a different cost code. Look for alphanumeric codes like 'MTIRMRAD496328' in the 'General Ledger Code/Project #' column for each individual item row)
 9. Project Description/Area (if not explicitly provided, generate a concise description based on the item descriptions)
 10. Project ID
 11. Reference Drawing Number
-12. Cost Code/General Ledger Code (IMPORTANT: Look for alphanumeric codes like 'MTIRMRAD496328' in the rightmost column of the items table, NOT the total amounts at the bottom. Cost codes are typically alphanumeric and appear in the 'General Ledger Code/Project #' column)
-   - Extract only alphanumeric codes from the rightmost column of the items table, not total amounts
-   - Cost codes appear in individual item rows, not in summary totals
-   - Look for cost codes in the "General Ledger Code/Project #" column (typically the last column)
-   - Cost codes are usually alphanumeric strings like "MTIRMRAD496328", not pure numbers
-   - Ignore large numeric values (>100,000) as these are likely totals, not cost codes
-   - Focus on the far-right side of each item row in the table
 13. Budgeted (Yes/No checkbox)
 14. Under ICT Control (Yes/No checkbox)
 15. Received PR date
@@ -224,13 +222,15 @@ Return ONLY a valid JSON object with this structure:
       "quantity": number,
       "unitPrice": number,
       "totalPrice": number,
-      "currency": "string"
+      "currency": "string",
+      "purchaseCostCode": "string", // Cost code specific to this item
+      "coaid": number, // Chart of Accounts ID if available
+      "budgetYear": number // Budget year for this item
     }
   ],
   "projectDescription": "string", // Auto-generate if not explicitly provided
   "projectId": "string",
-  "referenceDrawingNumber": "string",
-  "generalLedgerCode": "string", // This represents the cost code
+  "referenceDrawingNumber": "string", // This represents the cost code
   "requestFor": "string", // Extract 'FOR' text from item descriptions
   "budgeted": boolean,
   "underICTControl": boolean,

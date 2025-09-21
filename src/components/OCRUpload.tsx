@@ -27,6 +27,10 @@ interface ExtractedPRFData {
     unitPrice?: number;
     totalPrice?: number;
     currency?: string;
+    // Cost code fields for multi-cost code support
+    purchaseCostCode?: string;
+    coaid?: number;
+    budgetYear?: number;
   }>;
   projectDescription?: string;
   projectId?: string;
@@ -428,6 +432,29 @@ const OCRUpload: React.FC<OCRUploadProps> = ({ onPRFCreated, onPreviewData }) =>
                             <div>
                               <span className="font-medium">Total Price:</span> {formatCurrency(item.totalPrice)}
                             </div>
+                            {/* Cost Code Information */}
+                            {(item.purchaseCostCode || item.coaid || item.budgetYear) && (
+                              <>
+                                <div className="col-span-2 border-t pt-2 mt-2">
+                                  <span className="font-medium text-blue-600">Cost Code Information:</span>
+                                </div>
+                                {item.purchaseCostCode && (
+                                  <div>
+                                    <span className="font-medium">Purchase Cost Code:</span> {item.purchaseCostCode}
+                                  </div>
+                                )}
+                                {item.coaid && (
+                                  <div>
+                                    <span className="font-medium">COA ID:</span> {item.coaid}
+                                  </div>
+                                )}
+                                {item.budgetYear && (
+                                  <div>
+                                    <span className="font-medium">Budget Year:</span> {item.budgetYear}
+                                  </div>
+                                )}
+                              </>
+                            )}
                           </div>
                         </div>
                       ))}

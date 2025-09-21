@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, FileText, Upload, Zap, CheckCircle, Save, Paperclip } from 'lucide-react';
+import { ArrowLeft, FileText, Upload, Zap, CheckCircle, Save, Paperclip, Plus, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import OCRUpload from '@/components/OCRUpload';
 import AdditionalFileUpload from '@/components/AdditionalFileUpload';
@@ -45,6 +45,19 @@ interface ExtractedPRFData {
   confidence?: number;
 }
 
+interface CreatePRFItemRequest {
+  ItemName: string;
+  Description?: string;
+  Quantity: number;
+  UnitPrice: number;
+  Specifications?: string;
+  
+  // Cost code fields - enables multiple cost codes per PRF through item-level assignment
+  PurchaseCostCode?: string;
+  COAID?: number;
+  BudgetYear?: number;
+}
+
 interface CreatePRFRequest {
   PRFNo: string;
   Title: string;
@@ -58,6 +71,7 @@ interface CreatePRFRequest {
   VendorName?: string;
   VendorContact?: string;
   Notes?: string;
+  Items?: CreatePRFItemRequest[];
   DateSubmit?: Date;
   SubmitBy?: string;
   SumDescriptionRequested?: string;
@@ -130,6 +144,7 @@ const CreatePRF: React.FC = () => {
     VendorName: "",
     VendorContact: "",
     Notes: "",
+    Items: [],
     DateSubmit: new Date(),
     SubmitBy: "",
     SumDescriptionRequested: "",
@@ -164,14 +179,95 @@ const CreatePRF: React.FC = () => {
     }));
   };
 
+  // Item management functions
+  const addItem = () => {
+    const newItem: CreatePRFItemRequest = {
+      ItemName: "",
+      Description: "",
+      Quantity: 1,
+      UnitPrice: 0,
+      Specifications: "",
+      PurchaseCostCode: formData.PurchaseCostCode || "",
+      COAID: formData.COAID || 1,
+      BudgetYear: formData.BudgetYear || new Date().getFullYear()
+    };
+    
+    setFormData(prev => ({
+      ...prev,
+      Items: [...(prev.Items || []), newItem]
+    }));
+  };
+
+  const updateItem = (index: number, field: keyof CreatePRFItemRequest, value: string | number | undefined) => {
+    setFormData(prev => ({
+      ...prev,
+      Items: prev.Items?.map((item, i) => 
+        i === index ? { ...item, [field]: value } : item
+      ) || []
+    }));
+  };
+
+  const removeItem = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      Items: prev.Items?.filter((_, i) => i !== index) || []
+    }));
+  };
+
+  // Calculate total amount from items
+  const calculateTotalFromItems = () => {
+    const total = formData.Items?.reduce((sum, item) => 
+      sum + (item.Quantity * item.UnitPrice), 0
+    ) || 0;
+    
+    setFormData(prev => ({
+      ...prev,
+      RequestedAmount: total
+    }));
+  };
+
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Basic validation
-    if (!formData.PRFNo || !formData.Title || !formData.Department || !formData.RequestedAmount) {
+    if (!formData.PRFNo || !formData.Title || !formData.Department) {
       toast({
         title: "Validation Error",
-        description: "Please fill in all required fields: PRF No, Title, Department, and Requested Amount.",
+        description: "Please fill in all required fields: PRF No, Title, and Department.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Items validation
+    if (formData.Items && formData.Items.length > 0) {
+      for (let i = 0; i < formData.Items.length; i++) {
+        const item = formData.Items[i];
+        if (!item.ItemName || !item.Quantity || !item.UnitPrice) {
+          toast({
+            title: "Validation Error",
+            description: `Item ${i + 1}: Item Name, Quantity, and Unit Price are required.`,
+            variant: "destructive"
+          });
+          return;
+        }
+        if (!item.PurchaseCostCode || !item.COAID || !item.BudgetYear) {
+          toast({
+            title: "Validation Error",
+            description: `Item ${i + 1}: Purchase Cost Code, COA ID, and Budget Year are required.`,
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+      
+      // Calculate total from items if items exist
+      const calculatedTotal = formData.Items.reduce((sum, item) => sum + (item.Quantity * item.UnitPrice), 0);
+      formData.RequestedAmount = calculatedTotal;
+    } else if (!formData.RequestedAmount) {
+      toast({
+        title: "Validation Error",
+        description: "Please either add items or specify a Requested Amount.",
         variant: "destructive"
       });
       return;
@@ -225,7 +321,8 @@ const CreatePRF: React.FC = () => {
           SumDescriptionRequested: "",
           PurchaseCostCode: "",
           RequiredFor: "",
-          BudgetYear: new Date().getFullYear()
+          BudgetYear: new Date().getFullYear(),
+          Items: []
         });
         
         // Navigate back to PRF list
@@ -621,6 +718,173 @@ const CreatePRF: React.FC = () => {
                           rows={2}
                         />
                       </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Items Section */}
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle className="text-lg">PRF Items</CardTitle>
+                          <CardDescription>
+                            Add items to this PRF with individual cost codes
+                          </CardDescription>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button type="button" onClick={addItem} size="sm">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Item
+                          </Button>
+                          {formData.Items && formData.Items.length > 0 && (
+                            <Button type="button" onClick={calculateTotalFromItems} variant="outline" size="sm">
+                              Calculate Total
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {formData.Items && formData.Items.length > 0 ? (
+                        <div className="space-y-4">
+                          {formData.Items.map((item, index) => (
+                            <Card key={index} className="border-l-4 border-l-blue-500">
+                              <CardHeader className="pb-3">
+                                <div className="flex items-center justify-between">
+                                  <CardTitle className="text-base">Item {index + 1}</CardTitle>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removeItem(index)}
+                                    className="text-red-600 hover:text-red-700"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                    <Label htmlFor={`itemName-${index}`}>Item Name *</Label>
+                                    <Input
+                                      id={`itemName-${index}`}
+                                      value={item.ItemName}
+                                      onChange={(e) => updateItem(index, 'ItemName', e.target.value)}
+                                      placeholder="Enter item name"
+                                      required
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor={`specifications-${index}`}>Specifications</Label>
+                                    <Input
+                                      id={`specifications-${index}`}
+                                      value={item.Specifications || ''}
+                                      onChange={(e) => updateItem(index, 'Specifications', e.target.value)}
+                                      placeholder="Item specifications"
+                                    />
+                                  </div>
+                                </div>
+                                
+                                <div>
+                                  <Label htmlFor={`description-${index}`}>Description</Label>
+                                  <Textarea
+                                    id={`description-${index}`}
+                                    value={item.Description || ''}
+                                    onChange={(e) => updateItem(index, 'Description', e.target.value)}
+                                    placeholder="Item description"
+                                    rows={2}
+                                  />
+                                </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                  <div>
+                                    <Label htmlFor={`quantity-${index}`}>Quantity *</Label>
+                                    <Input
+                                      id={`quantity-${index}`}
+                                      type="number"
+                                      min="1"
+                                      value={item.Quantity}
+                                      onChange={(e) => updateItem(index, 'Quantity', parseInt(e.target.value) || 1)}
+                                      required
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor={`unitPrice-${index}`}>Unit Price *</Label>
+                                    <Input
+                                      id={`unitPrice-${index}`}
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      value={item.UnitPrice}
+                                      onChange={(e) => updateItem(index, 'UnitPrice', parseFloat(e.target.value) || 0)}
+                                      required
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label>Total Price</Label>
+                                    <div className="p-2 bg-gray-50 rounded border text-sm font-medium">
+                                      ${(item.Quantity * item.UnitPrice).toFixed(2)}
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {/* Cost Code Information */}
+                                <div className="border-t pt-4">
+                                  <h4 className="text-sm font-medium mb-3">Cost Code Information</h4>
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                      <Label htmlFor={`purchaseCostCode-${index}`}>Purchase Cost Code</Label>
+                                      <Input
+                                        id={`purchaseCostCode-${index}`}
+                                        value={item.PurchaseCostCode || ''}
+                                        onChange={(e) => updateItem(index, 'PurchaseCostCode', e.target.value)}
+                                        placeholder="Cost center code"
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label htmlFor={`coaid-${index}`}>COA ID</Label>
+                                      <Input
+                                        id={`coaid-${index}`}
+                                        type="number"
+                                        value={item.COAID || ''}
+                                        onChange={(e) => updateItem(index, 'COAID', parseInt(e.target.value) || undefined)}
+                                        placeholder="Chart of Accounts ID"
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label htmlFor={`budgetYear-${index}`}>Budget Year</Label>
+                                      <Input
+                                        id={`budgetYear-${index}`}
+                                        type="number"
+                                        value={item.BudgetYear || ''}
+                                        onChange={(e) => updateItem(index, 'BudgetYear', parseInt(e.target.value) || undefined)}
+                                        placeholder="Budget year"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                          
+                          {/* Items Summary */}
+                          <div className="bg-blue-50 p-4 rounded-lg">
+                            <div className="flex justify-between items-center">
+                              <span className="font-medium">Total Items: {formData.Items.length}</span>
+                              <span className="font-bold text-lg">
+                                Total Amount: ${formData.Items.reduce((sum, item) => sum + (item.Quantity * item.UnitPrice), 0).toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                          <p className="text-lg font-medium">No items added yet</p>
+                          <p className="text-sm">Click "Add Item" to start adding items to this PRF</p>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
 

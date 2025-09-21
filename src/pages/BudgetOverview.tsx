@@ -67,6 +67,7 @@ export default function BudgetOverview() {
   const [searchTerm, setSearchTerm] = useState('');
   const [fiscalYearFilter, setFiscalYearFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [expenseTypeFilter, setExpenseTypeFilter] = useState<string>('all');
   
   // Dialog state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -141,12 +142,13 @@ export default function BudgetOverview() {
         search: searchTerm || undefined,
         fiscalYear: fiscalYearFilter !== 'all' ? parseInt(fiscalYearFilter, 10) : undefined,
         status: statusFilter !== 'all' ? statusFilter : undefined,
+        expenseType: expenseTypeFilter !== 'all' ? expenseTypeFilter as 'CAPEX' | 'OPEX' : undefined,
       };
       loadBudgetData(searchParams);
     }, 300); // 300ms delay
 
     return () => clearTimeout(timeoutId);
-  }, [searchTerm, fiscalYearFilter, statusFilter]);
+  }, [searchTerm, fiscalYearFilter, statusFilter, expenseTypeFilter]);
 
   const totalInitialBudget = budgetSummary?.totalBudgetAllocated || budgetSummary?.totalBudget || 0;
   const totalSpent = budgetSummary?.totalBudgetApproved || budgetSummary?.totalSpent || 0;
@@ -181,7 +183,7 @@ export default function BudgetOverview() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-6">
         <Card className="metric-card">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -243,6 +245,42 @@ export default function BudgetOverview() {
             </div>
           </CardContent>
         </Card>
+
+        {/* CAPEX Card */}
+        <Card className="metric-card">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">CAPEX Budget</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {formatCurrency(budgetData.filter(b => b.ExpenseType === 'CAPEX').reduce((sum, b) => sum + (b.AllocatedAmount || 0), 0))}
+                </p>
+                <p className="text-xs text-muted-foreground">Capital Expenditure</p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                <TrendingUp className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* OPEX Card */}
+        <Card className="metric-card">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">OPEX Budget</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {formatCurrency(budgetData.filter(b => b.ExpenseType === 'OPEX').reduce((sum, b) => sum + (b.AllocatedAmount || 0), 0))}
+                </p>
+                <p className="text-xs text-muted-foreground">Operational Expenditure</p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+                <Wallet className="h-6 w-6 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Search and Filter Controls */}
@@ -283,6 +321,16 @@ export default function BudgetOverview() {
                   <SelectItem value="Over Budget">Over Budget</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={expenseTypeFilter} onValueChange={setExpenseTypeFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Expense Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="CAPEX">CAPEX</SelectItem>
+                  <SelectItem value="OPEX">OPEX</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardContent>
@@ -311,6 +359,8 @@ export default function BudgetOverview() {
                   <TableRow>
                     <TableHead>COA</TableHead>
                     <TableHead>Category</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Type</TableHead>
                     <TableHead>Initial Budget</TableHead>
                     <TableHead>Spent</TableHead>
                     <TableHead>Remaining</TableHead>
@@ -335,6 +385,23 @@ export default function BudgetOverview() {
                               <div className="text-sm text-muted-foreground">{budget.COACode}</div>
                             )}
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground">
+                            {budget.Department || 'N/A'}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className={cn(
+                            "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium",
+                            budget.ExpenseType === 'CAPEX' 
+                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                              : budget.ExpenseType === 'OPEX'
+                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                              : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+                          )}>
+                            {budget.ExpenseType || 'N/A'}
+                          </span>
                         </TableCell>
                         <TableCell>{formatCurrency(totalAllocated)}</TableCell>
                         <TableCell>{formatCurrency(totalSpent)}</TableCell>

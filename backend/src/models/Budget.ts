@@ -27,12 +27,12 @@ export class BudgetModel {
     const query = `
       INSERT INTO Budget (
         COAID, FiscalYear, AllocatedAmount, Description, 
-        Department, BudgetType, StartDate, EndDate
+        Department, BudgetType, ExpenseType, StartDate, EndDate
       )
       OUTPUT INSERTED.*
       VALUES (
         @COAID, @FiscalYear, @AllocatedAmount, @Description,
-        @Department, @BudgetType, @StartDate, @EndDate
+        @Department, @BudgetType, @ExpenseType, @StartDate, @EndDate
       )
     `;
     
@@ -43,6 +43,7 @@ export class BudgetModel {
       Description: budgetData.Description || null,
       Department: budgetData.Department,
       BudgetType: budgetData.BudgetType || 'Annual',
+      ExpenseType: budgetData.ExpenseType || 'OPEX',
       StartDate: budgetData.StartDate,
       EndDate: budgetData.EndDate
     };
@@ -103,6 +104,10 @@ export class BudgetModel {
       setClause.push('BudgetType = @BudgetType');
       params.BudgetType = updateData.BudgetType;
     }
+    if (updateData.ExpenseType) {
+      setClause.push('ExpenseType = @ExpenseType');
+      params.ExpenseType = updateData.ExpenseType;
+    }
     if (updateData.StartDate) {
       setClause.push('StartDate = @StartDate');
       params.StartDate = updateData.StartDate;
@@ -148,6 +153,7 @@ export class BudgetModel {
       fiscalYear,
       department,
       budgetType,
+      expenseType,
       status,
       coaId,
       search
@@ -168,6 +174,10 @@ export class BudgetModel {
     if (budgetType) {
       whereConditions.push('BudgetType = @BudgetType');
       params.BudgetType = budgetType;
+    }
+    if (expenseType) {
+      whereConditions.push('ExpenseType = @ExpenseType');
+      params.ExpenseType = expenseType;
     }
     if (status) {
       whereConditions.push('Status = @Status');

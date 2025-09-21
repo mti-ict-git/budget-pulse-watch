@@ -18,7 +18,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync, ChevronUp } from "lucide-react";
 import { PRFDetailDialog } from "@/components/prf/PRFDetailDialog";
 import { ExcelImportDialog } from "@/components/prf/ExcelImportDialog";
 import { PRFEditDialog } from "@/components/prf/PRFEditDialog";
@@ -26,6 +37,7 @@ import { PRFDeleteDialog } from "@/components/prf/PRFDeleteDialog";
 import { PRFItemModificationModal } from "@/components/prf/PRFItemModificationModal";
 import { toast } from "@/hooks/use-toast";
 import { authService } from "@/services/authService";
+import { budgetService, type ChartOfAccount } from "@/services/budgetService";
 import { useAuth } from "@/contexts/AuthContext";
 
 // PRF Item interface
@@ -47,6 +59,11 @@ interface PRFItem {
   UpdatedBy?: number;
   CreatedAt: Date;
   StatusOverridden?: boolean; // Indicates if item status was manually overridden vs following PRF status
+  
+  // Cost code fields - enables multiple cost codes per PRF through item-level assignment
+  PurchaseCostCode?: string;
+  COAID?: number;
+  BudgetYear?: number;
 }
 
 // PRF data interface
@@ -142,6 +159,8 @@ const getPriorityBadge = (priority: string) => {
   return <Badge variant={config.variant}>{config.label}</Badge>;
 };
 
+
+
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
@@ -163,6 +182,7 @@ export default function PRFMonitoring() {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [availableStatusValues, setAvailableStatusValues] = useState<string[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [expandedCostCodes, setExpandedCostCodes] = useState<Set<string>>(new Set());
   const [isBulkSyncing, setIsBulkSyncing] = useState(false);
   const [selectedItemForModification, setSelectedItemForModification] = useState<PRFItem | null>(null);
   const [isModificationModalOpen, setIsModificationModalOpen] = useState(false);
@@ -172,6 +192,7 @@ export default function PRFMonitoring() {
     total: 0,
     totalPages: 0
   });
+  const [chartOfAccounts, setChartOfAccounts] = useState<ChartOfAccount[]>([]);
 
   // Fetch PRF data from API
   const fetchPRFData = useCallback(async () => {
@@ -250,9 +271,166 @@ export default function PRFMonitoring() {
     }
   };
 
-  // Fetch status values on component mount
+  // Fetch Chart of Accounts data
+  const fetchChartOfAccounts = async () => {
+    try {
+      const result = await budgetService.getChartOfAccounts();
+      if (result.success && result.data) {
+        setChartOfAccounts(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching chart of accounts:', error);
+    }
+  };
+
+  // Helper function to get COA name by ID
+  const getCOAName = (coaId: number): string => {
+    const coa = chartOfAccounts.find(account => account.COAID === coaId);
+    return coa ? coa.COAName : `COA ID: ${coaId}`;
+  };
+
+  // Helper function to toggle expanded cost codes
+  const toggleExpandedCostCodes = (prfId: string) => {
+    setExpandedCostCodes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(prfId)) {
+        newSet.delete(prfId);
+      } else {
+        newSet.add(prfId);
+      }
+      return newSet;
+    });
+  };
+
+  // Helper function to get cost code summary with amounts
+  const getCostCodeSummary = (prf: PRFData) => {
+    const costCodeAmounts = prf.items?.reduce((acc, item) => {
+      if (item.PurchaseCostCode) {
+        acc[item.PurchaseCostCode] = (acc[item.PurchaseCostCode] || 0) + item.TotalPrice;
+      }
+      return acc;
+    }, {} as Record<string, number>) || {};
+
+    return Object.entries(costCodeAmounts);
+  };
+
+  // Enhanced helper function to display multiple cost codes
+  const getCostCodeDisplay = (prf: PRFData) => {
+    // Get unique cost codes from items
+    const itemCostCodes = prf.items?.map(item => item.PurchaseCostCode).filter(Boolean) || [];
+    const uniqueItemCostCodes = [...new Set(itemCostCodes)];
+    const isExpanded = expandedCostCodes.has(prf.id);
+    
+    // If items have cost codes, show them; otherwise show PRF-level cost code
+    if (uniqueItemCostCodes.length > 0) {
+      if (uniqueItemCostCodes.length === 1) {
+        return <span className="font-mono text-sm">{uniqueItemCostCodes[0]}</span>;
+      } else {
+        const costCodeSummary = getCostCodeSummary(prf);
+        
+        return (
+          <div className="flex flex-col gap-1">
+            <span className="font-mono text-xs text-muted-foreground">
+              {uniqueItemCostCodes.length} codes:
+            </span>
+            <div className="flex flex-wrap gap-1">
+              {(isExpanded ? uniqueItemCostCodes : uniqueItemCostCodes.slice(0, 2)).map((code, index) => (
+                <Badge key={index} variant="secondary" className="text-xs font-mono">
+                  {code}
+                </Badge>
+              ))}
+              {uniqueItemCostCodes.length > 2 && (
+                <div className="flex gap-1">
+                  {!isExpanded && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="outline" className="text-xs cursor-help">
+                            +{uniqueItemCostCodes.length - 2}
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <div className="max-w-xs">
+                            <p className="font-medium mb-2">All Cost Codes:</p>
+                            {uniqueItemCostCodes.map((code, index) => (
+                              <div key={index} className="text-sm font-mono">{code}</div>
+                            ))}
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-auto p-1 text-xs">
+                        <Badge variant="outline" className="text-xs cursor-pointer">
+                          Details
+                        </Badge>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80">
+                      <div className="space-y-2">
+                        <h4 className="font-medium">Cost Code Breakdown</h4>
+                        {costCodeSummary.map(([code, amount], index) => (
+                          <div key={index} className="flex justify-between items-center">
+                            <span className="font-mono text-sm">{code}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatCurrency(amount)}
+                            </span>
+                          </div>
+                        ))}
+                        <div className="border-t pt-2 mt-2">
+                          <div className="flex justify-between items-center font-medium">
+                            <span>Total:</span>
+                            <span>{formatCurrency(prf.amount)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+            </div>
+            {uniqueItemCostCodes.length > 2 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleExpandedCostCodes(prf.id);
+                }}
+                className="h-auto p-1 mt-1 text-xs self-start"
+              >
+                {isExpanded ? (
+                  <>
+                    <ChevronUp className="h-3 w-3 mr-1" />
+                    Show Less
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-3 w-3 mr-1" />
+                    Show All ({uniqueItemCostCodes.length})
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        );
+      }
+    }
+    
+    // Fallback to PRF-level cost code
+    return prf.purchaseCostCode ? (
+      <span className="font-mono text-sm">{prf.purchaseCostCode}</span>
+    ) : (
+      <span className="text-muted-foreground text-sm">No cost code</span>
+    );
+  };
+
+  // Fetch status values and Chart of Accounts on component mount
   useEffect(() => {
     fetchStatusValues();
+    fetchChartOfAccounts();
   }, []);
 
   // Fetch data on component mount and when filters change
@@ -731,7 +909,7 @@ export default function PRFMonitoring() {
                           <TableCell>{new Date(prf.dateSubmit).toLocaleDateString('id-ID')}</TableCell>
                           <TableCell>{prf.submitBy}</TableCell>
                           <TableCell className="max-w-[200px] truncate" title={prf.description}>{prf.description}</TableCell>
-                          <TableCell className="font-mono text-sm">{prf.purchaseCostCode}</TableCell>
+                          <TableCell>{getCostCodeDisplay(prf)}</TableCell>
                           <TableCell className="font-medium">{formatCurrency(prf.amount)}</TableCell>
                           <TableCell className="max-w-[150px] truncate" title={prf.requiredFor}>{prf.requiredFor}</TableCell>
                           <TableCell><Badge variant="outline">{prf.department}</Badge></TableCell>
@@ -785,9 +963,64 @@ export default function PRFMonitoring() {
                                         {item.Description && (
                                           <div className="text-xs text-gray-600 mt-1">{item.Description}</div>
                                         )}
+                                        
+                                        {/* Cost Code Information */}
+                                        <div className="flex flex-wrap gap-2 mt-2">
+                                          {item.PurchaseCostCode && (
+                                            <Badge variant="secondary" className="text-xs font-mono">
+                                              Cost: {item.PurchaseCostCode}
+                                            </Badge>
+                                          )}
+                                          {item.COAID && (
+                                            <Badge variant="outline" className="text-xs" title={`COA ID: ${item.COAID}`}>
+                                              COA: {getCOAName(item.COAID)}
+                                            </Badge>
+                                          )}
+                                          {item.BudgetYear && (
+                                            <Badge variant="outline" className="text-xs">
+                                              Year: {item.BudgetYear}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        
                                         {item.Specifications && (
                                           <div className="text-xs text-gray-500 mt-1">
-                                            Specs: {JSON.parse(item.Specifications).originalRow ? `Row ${JSON.parse(item.Specifications).originalRow}` : 'N/A'}
+                                            <details className="cursor-pointer">
+                                              <summary className="hover:text-gray-700">
+                                                Specifications {JSON.parse(item.Specifications).originalRow ? `(Row ${JSON.parse(item.Specifications).originalRow})` : ''}
+                                              </summary>
+                                              <div className="mt-1 pl-2 border-l-2 border-gray-200">
+                                                {(() => {
+                                                  try {
+                                                    const specs = JSON.parse(item.Specifications);
+                                                    return (
+                                                      <div className="space-y-1">
+                                                        {specs.originalRow && (
+                                                          <div><strong>Row:</strong> {specs.originalRow}</div>
+                                                        )}
+                                                        {(specs.purchaseCostCode || specs.PurchaseCostCode) && (
+                                                          <div><strong>Cost Code:</strong> {specs.purchaseCostCode || specs.PurchaseCostCode}</div>
+                                                        )}
+                                                        {(specs.coaid || specs.COAID) && (
+                                                          <div><strong>COA:</strong> {getCOAName(specs.coaid || specs.COAID)} (ID: {specs.coaid || specs.COAID})</div>
+                                                        )}
+                                                        {(specs.budgetYear || specs.BudgetYear) && (
+                                                          <div><strong>Budget Year:</strong> {specs.budgetYear || specs.BudgetYear}</div>
+                                                        )}
+                                                        {Object.entries(specs).map(([key, value]) => {
+                                                          if (!['originalRow', 'PurchaseCostCode', 'COAID', 'BudgetYear'].includes(key) && value) {
+                                                            return <div key={key}><strong>{key}:</strong> {String(value)}</div>;
+                                                          }
+                                                          return null;
+                                                        })}
+                                                      </div>
+                                                    );
+                                                  } catch {
+                                                    return <div>{item.Specifications}</div>;
+                                                  }
+                                                })()}
+                                              </div>
+                                            </details>
                                           </div>
                                         )}
                                         {item.PickedUpBy && (

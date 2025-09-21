@@ -19,6 +19,7 @@ router.get('/', async (req: Request, res: Response) => {
       fiscalYear: req.query.fiscalYear ? parseInt(req.query.fiscalYear as string) : undefined,
       department: req.query.department as string,
       budgetType: req.query.budgetType as string,
+      expenseType: req.query.expenseType as 'CAPEX' | 'OPEX',
       status: req.query.status as string,
       coaId: req.query.coaId ? parseInt(req.query.coaId as string) : undefined,
       search: req.query.search as string

@@ -18,12 +18,12 @@ export class ChartOfAccountsModel {
     const query = `
       INSERT INTO ChartOfAccounts (
         COACode, COAName, Category, ParentCOAID, 
-        Description, IsActive
+        Description, ExpenseType, Department, IsActive
       )
       OUTPUT INSERTED.*
       VALUES (
         @COACode, @COAName, @Category, @ParentCOAID,
-        @Description, @IsActive
+        @Description, @ExpenseType, @Department, @IsActive
       )
     `;
     
@@ -33,6 +33,8 @@ export class ChartOfAccountsModel {
       Category: coaData.Category,
       ParentCOAID: coaData.ParentCOAID || null,
       Description: coaData.Description || null,
+      ExpenseType: coaData.ExpenseType || 'OPEX',
+      Department: coaData.Department || 'IT',
       IsActive: coaData.IsActive !== undefined ? coaData.IsActive : true
     };
     
@@ -88,6 +90,14 @@ export class ChartOfAccountsModel {
       setClause.push('Description = @Description');
       params.Description = updateData.Description;
     }
+    if (updateData.ExpenseType) {
+      setClause.push('ExpenseType = @ExpenseType');
+      params.ExpenseType = updateData.ExpenseType;
+    }
+    if (updateData.Department) {
+      setClause.push('Department = @Department');
+      params.Department = updateData.Department;
+    }
     if (updateData.IsActive !== undefined) {
       setClause.push('IsActive = @IsActive');
       params.IsActive = updateData.IsActive;
@@ -135,6 +145,8 @@ export class ChartOfAccountsModel {
       limit = 10,
       isActive = true,
       parentCOAID,
+      expenseType,
+      department,
       search
     } = queryParams;
 
@@ -153,6 +165,14 @@ export class ChartOfAccountsModel {
         whereConditions.push('ParentCOAID = @ParentCOAID');
         params.ParentCOAID = parentCOAID;
       }
+    }
+    if (expenseType) {
+      whereConditions.push('ExpenseType = @ExpenseType');
+      params.ExpenseType = expenseType;
+    }
+    if (department) {
+      whereConditions.push('Department = @Department');
+      params.Department = department;
     }
     if (search) {
       whereConditions.push('(COACode LIKE @Search OR COAName LIKE @Search OR Description LIKE @Search)');

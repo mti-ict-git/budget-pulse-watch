@@ -18,6 +18,8 @@ router.get('/', async (req: Request, res: Response) => {
       category: req.query.category as string,
       isActive: req.query.isActive !== undefined ? req.query.isActive === 'true' : true,
       parentCOAID: req.query.parentCOAID ? parseInt(req.query.parentCOAID as string) : undefined,
+      expenseType: req.query.expenseType as 'CAPEX' | 'OPEX',
+      department: req.query.department as string,
       search: req.query.search as string
     };
 

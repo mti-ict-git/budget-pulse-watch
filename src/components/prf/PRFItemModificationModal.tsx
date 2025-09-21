@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -6,8 +6,13 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Badge } from '../ui/badge';
-import { Calendar, User, Clock, FileText, AlertTriangle } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
+import { Calendar, User, Clock, FileText, AlertTriangle, Check, ChevronsUpDown } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { authService } from '../../services/authService';
+import { budgetService, ChartOfAccount } from '../../services/budgetService';
+import { cn } from '../../lib/utils';
 
 interface PRFItem {
   PRFItemID: number;
@@ -26,6 +31,11 @@ interface PRFItem {
   UpdatedBy?: number;
   CreatedAt: Date;
   StatusOverridden?: boolean; // Indicates if item status was manually overridden vs following PRF status
+  
+  // Cost code fields - enables multiple cost codes per PRF through item-level assignment
+  PurchaseCostCode?: string;
+  COAID?: number;
+  BudgetYear?: number;
 }
 
 interface PRFItemModificationModalProps {
@@ -51,12 +61,121 @@ export const PRFItemModificationModal: React.FC<PRFItemModificationModalProps> =
 }) => {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [isLookingUpCOA, setIsLookingUpCOA] = useState(false);
+  const [coaName, setCOAName] = useState<string>('');
+  const [chartOfAccounts, setChartOfAccounts] = useState<ChartOfAccount[]>([]);
+  const [costCodeComboOpen, setCostCodeComboOpen] = useState(false);
+  
+  // Function to lookup COA ID from purchase cost code
+  const lookupCOAID = async (purchaseCostCode: string) => {
+    if (!purchaseCostCode.trim()) {
+      return null;
+    }
+    
+    try {
+      setIsLookingUpCOA(true);
+      const response = await fetch(`/api/coa/code/${encodeURIComponent(purchaseCostCode)}`, {
+        headers: authService.getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          return {
+            COAID: data.data.COAID,
+            COAName: data.data.COAName
+          };
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to lookup COA ID:', error);
+      return null;
+    } finally {
+      setIsLookingUpCOA(false);
+    }
+  };
+
+  // Function to fetch Chart of Accounts data
+  const fetchChartOfAccounts = async () => {
+    try {
+      const result = await budgetService.getChartOfAccounts();
+      if (result.success && result.data) {
+        setChartOfAccounts(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching chart of accounts:', error);
+    }
+  };
+
+  // Helper function to extract cost code data from specifications
+  const extractCostCodeFromSpecs = (specifications: string) => {
+    try {
+      const specs = JSON.parse(specifications || '{}');
+      return {
+        PurchaseCostCode: specs.purchaseCostCode || specs.PurchaseCostCode || '',
+        COAID: specs.coaid || specs.COAID ? (specs.coaid || specs.COAID).toString() : '',
+        BudgetYear: specs.budgetYear || specs.BudgetYear ? (specs.budgetYear || specs.BudgetYear).toString() : ''
+      };
+    } catch {
+      return {
+        PurchaseCostCode: '',
+        COAID: '',
+        BudgetYear: ''
+      };
+    }
+  };
+
+  // Initialize form data
+  const costCodeData = extractCostCodeFromSpecs(item.Specifications);
   const [formData, setFormData] = useState({
     Status: item.Status || 'Pending',
     PickedUpBy: item.PickedUpBy || '',
     PickedUpDate: item.PickedUpDate ? new Date(item.PickedUpDate).toISOString().split('T')[0] : '',
     Notes: item.Notes || '',
+    PurchaseCostCode: item.PurchaseCostCode || costCodeData.PurchaseCostCode,
+    COAID: item.COAID ? item.COAID.toString() : costCodeData.COAID,
+    BudgetYear: item.BudgetYear || parseInt(costCodeData.BudgetYear) || new Date().getFullYear(),
   });
+
+  // Reset form data when item changes
+  useEffect(() => {
+    const costCodeData = extractCostCodeFromSpecs(item.Specifications);
+    setFormData({
+      Status: item.Status || 'Pending',
+      PickedUpBy: item.PickedUpBy || '',
+      PickedUpDate: item.PickedUpDate ? new Date(item.PickedUpDate).toISOString().split('T')[0] : '',
+      Notes: item.Notes || '',
+      PurchaseCostCode: item.PurchaseCostCode || costCodeData.PurchaseCostCode,
+      COAID: item.COAID ? item.COAID.toString() : costCodeData.COAID,
+      BudgetYear: item.BudgetYear || parseInt(costCodeData.BudgetYear) || new Date().getFullYear(),
+    });
+    setCOAName(''); // Reset COA name when item changes
+  }, [item]);
+
+  // Automatically lookup COA ID when purchase cost code changes
+  useEffect(() => {
+    const timeoutId = setTimeout(async () => {
+      if (formData.PurchaseCostCode && formData.PurchaseCostCode.trim()) {
+        const coaData = await lookupCOAID(formData.PurchaseCostCode);
+        if (coaData) {
+          setFormData(prev => ({ ...prev, COAID: coaData.COAID.toString() }));
+          setCOAName(coaData.COAName);
+        } else {
+          setCOAName('');
+        }
+      } else {
+        setCOAName('');
+      }
+    }, 500); // Debounce for 500ms
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.PurchaseCostCode]);
+
+  // Fetch Chart of Accounts on component mount
+  useEffect(() => {
+    fetchChartOfAccounts();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,6 +187,9 @@ export const PRFItemModificationModal: React.FC<PRFItemModificationModalProps> =
         Status: formData.Status as PRFItem['Status'],
         Notes: formData.Notes,
         UpdatedBy: user.id,
+        PurchaseCostCode: formData.PurchaseCostCode,
+        COAID: formData.COAID ? parseInt(formData.COAID.toString()) : undefined,
+        BudgetYear: formData.BudgetYear,
       };
 
       // Only include pickup fields if status is "Picked Up"
@@ -169,6 +291,15 @@ export const PRFItemModificationModal: React.FC<PRFItemModificationModalProps> =
                     </Badge>
                   )}
                 </div>
+              </div>
+              <div>
+                <span className="font-medium">Cost Code:</span> {item.PurchaseCostCode || 'Not assigned'}
+              </div>
+              <div>
+                <span className="font-medium">COA ID:</span> {item.COAID || 'Not assigned'}
+              </div>
+              <div>
+                <span className="font-medium">Budget Year:</span> {item.BudgetYear || 'Not assigned'}
               </div>
             </div>
             {item.Description && (
@@ -281,6 +412,97 @@ export const PRFItemModificationModal: React.FC<PRFItemModificationModalProps> =
                   </div>
                 </>
               )}
+            </div>
+
+            {/* Cost Code Fields */}
+            <div className="space-y-4">
+              <h4 className="font-medium text-gray-900">Cost Code Information</h4>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="purchaseCostCode">Purchase Cost Code</Label>
+                  <Popover open={costCodeComboOpen} onOpenChange={setCostCodeComboOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={costCodeComboOpen}
+                        className="w-full justify-between"
+                      >
+                        {formData.PurchaseCostCode || "Select cost code..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0">
+                      <Command>
+                        <CommandInput placeholder="Search cost codes..." />
+                        <CommandList>
+                          <CommandEmpty>No cost code found.</CommandEmpty>
+                          <CommandGroup>
+                            {chartOfAccounts.map((coa) => (
+                              <CommandItem
+                                key={coa.COAID}
+                                value={coa.COACode}
+                                onSelect={(currentValue) => {
+                                  const selectedCOA = chartOfAccounts.find(c => c.COACode === currentValue);
+                                  if (selectedCOA) {
+                                    setFormData(prev => ({ 
+                                      ...prev, 
+                                      PurchaseCostCode: selectedCOA.COACode,
+                                      COAID: selectedCOA.COAID.toString()
+                                    }));
+                                    setCOAName(selectedCOA.COAName);
+                                  }
+                                  setCostCodeComboOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    formData.PurchaseCostCode === coa.COACode ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{coa.COACode}</span>
+                                  <span className="text-sm text-muted-foreground">{coa.COAName}</span>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  {isLookingUpCOA && (
+                    <p className="text-sm text-blue-600 mt-1">Looking up COA ID...</p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="coaid">COA ID</Label>
+                  <Input
+                    id="coaid"
+                    type="number"
+                    value={formData.COAID}
+                    placeholder="Auto-populated from cost code"
+                    readOnly
+                    className="bg-gray-50 cursor-not-allowed"
+                  />
+                  {coaName && (
+                    <p className="text-sm text-green-600 mt-1">{coaName}</p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="budgetYear">Budget Year</Label>
+                  <Input
+                    id="budgetYear"
+                    type="number"
+                    value={formData.BudgetYear}
+                    onChange={(e) => setFormData(prev => ({ ...prev, BudgetYear: parseInt(e.target.value) || new Date().getFullYear() }))}
+                    placeholder="Enter budget year"
+                    min="2020"
+                    max="2030"
+                  />
+                </div>
+              </div>
             </div>
 
             <div>

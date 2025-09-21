@@ -429,7 +429,7 @@ export class PRFModel {
    */
   static async addItems(prfId: number, items: CreatePRFItemRequest[]): Promise<PRFItem[]> {
     const insertValues = items.map((_, index) => 
-      `(@PRFID, @ItemName${index}, @Description${index}, @Quantity${index}, @UnitPrice${index}, @Specifications${index})`
+      `(@PRFID, @ItemName${index}, @Description${index}, @Quantity${index}, @UnitPrice${index}, @Specifications${index}, @PurchaseCostCode${index}, @COAID${index}, @BudgetYear${index})`
     ).join(', ');
 
     const params: AddPRFItemsParams = { PRFID: prfId };
@@ -439,10 +439,13 @@ export class PRFModel {
       params[`Quantity${index}`] = item.Quantity;
       params[`UnitPrice${index}`] = item.UnitPrice;
       params[`Specifications${index}`] = item.Specifications || null;
+      params[`PurchaseCostCode${index}`] = item.PurchaseCostCode || null;
+      params[`COAID${index}`] = item.COAID || null;
+      params[`BudgetYear${index}`] = item.BudgetYear || null;
     });
 
     const query = `
-      INSERT INTO PRFItems (PRFID, ItemName, Description, Quantity, UnitPrice, Specifications)
+      INSERT INTO PRFItems (PRFID, ItemName, Description, Quantity, UnitPrice, Specifications, PurchaseCostCode, COAID, BudgetYear)
       OUTPUT INSERTED.*
       VALUES ${insertValues}
     `;
@@ -529,6 +532,20 @@ export class PRFModel {
           params.CascadedStatus = mappedStatus;
         }
       }
+    }
+    
+    // Cost code fields
+    if (updateData.PurchaseCostCode !== undefined) {
+      setClause.push('PurchaseCostCode = @PurchaseCostCode');
+      params.PurchaseCostCode = updateData.PurchaseCostCode;
+    }
+    if (updateData.COAID !== undefined) {
+      setClause.push('COAID = @COAID');
+      params.COAID = updateData.COAID;
+    }
+    if (updateData.BudgetYear !== undefined) {
+      setClause.push('BudgetYear = @BudgetYear');
+      params.BudgetYear = updateData.BudgetYear;
     }
 
     if (setClause.length === 0) {

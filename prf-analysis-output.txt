@@ -1,0 +1,2547 @@
+Total PRF records: 528
+Records with amounts > 0: 506
+
+=== PRF RECORDS WITH AMOUNTS ===
+1. PRF 22148: MTIRMRAD496314 - Rp 753.717
+   Description: Tagihan Jasa Layanan Informasi IMIP
+   Submit By: Indah
+   Status: Completed
+
+2. PRF 22644: MTIRMRAD496769 - Rp 600.000
+   Description: Stanley Pisau Cutter Classic 99 Retractable Utility Knife 10-099
+   Submit By: Adriana
+   Status: Completed
+
+3. PRF 22644: MTIRMRAD496769 - Rp 1.400.000
+   Description: BARDI Extension Power Strip
+   Submit By: Adriana
+   Status: Completed
+
+4. PRF 22644: MTIRMRAD496769 - Rp 7.000.000
+   Description: DEWALT DCG405 GERINDA CORDLESS 20V
+   Submit By: Adriana
+   Status: Completed
+
+5. PRF 22644: MTIRMRAD496769 - Rp 2.000.000
+   Description: Bosch Hand Blower Dust Extraction GBL 82-270
+   Submit By: Adriana
+   Status: Completed
+
+6. PRF 22644: MTIRMRAD496250 - Rp 650.000
+   Description: Kabel ties 300mm
+   Submit By: Adriana
+   Status: Completed
+
+7. PRF 22644: MTIRMRAD496250 - Rp 300.000
+   Description: Kabel ties 200mm
+   Submit By: Adriana
+   Status: Completed
+
+8. PRF 22644: MTIRMRAD496250 - Rp 1.500.000
+   Description: Kabel ties 500mm
+   Submit By: Adriana
+   Status: Completed
+
+9. PRF 22644: MTIRMRAD496250 - Rp 450.000
+   Description: RG6 KONEKTOR PCT TRSXL-6LM RG6 CONNECTOR
+   Submit By: Adriana
+   Status: Completed
+
+10. PRF 22644: MTIRMRAD496250 - Rp 1.200.000
+   Description: Pipa conduit 20mm
+   Submit By: Adriana
+   Status: Completed
+
+11. PRF 22644: MTIRMRAD496250 - Rp 2.650.000
+   Description: Multiswitch Kaon KS-5524LC Cascade Aktif Adaptor
+   Submit By: Adriana
+   Status: Completed
+
+12. PRF 22644: MTIRMRAD496250 - Rp 6.000.000
+   Description: SFP-1G-BD-SM-10KM Mikrobits
+   Submit By: Adriana
+   Status: Completed
+
+13. PRF 22644: MTIRMRAD496250 - Rp 600.000
+   Description: U Green adaptor Multiport 4IN1 3USB+LAN
+   Submit By: Adriana
+   Status: Completed
+
+14. PRF 22644: MTIRMRAD496250 - Rp 350.000
+   Description: Flexible Conduit 20mm Clipsal @50mtr/roll
+   Submit By: Adriana
+   Status: Completed
+
+15. PRF 22644: MTIRMRAD496769 - Rp 10.000.000
+   Description: CISCO SFP BIDI 10KM SFP-10G-BXD-I & SFP-10G-BXU-I, Single mode, Single Core, LC connector
+   Submit By: Adriana
+   Status: Completed
+
+16. PRF 22644: MTIRMRAD496250 - Rp 1.000.000
+   Description: Brand FS - MGBBX1 Cisco Linksys MGBBX1 Compatible 1000BASE-BX-U BiDi SFP 1310nm-TX/1490nm-RX 20km DOM Simplex LC SMF Transceiver Module
+   Submit By: Adriana
+   Status: Completed
+
+17. PRF 22644: MTIRMRAD496250 - Rp 1.250.000
+   Description: Brand FS - MGBBX1D Cisco Linksys MGBBX1D Compatible 1000BASE-BX BiDi SFP 1490nm-TX/1310nm-RX 20km DOM Simplex LC SMF Transceiver Module
+   Submit By: Adriana
+   Status: Completed
+
+18. PRF 22644: MTIRMRAD496769 - Rp 82.000.000
+   Description: SUMITOMO T81C FUSION SPLICER (SPLECING TOOLS FIBER OPTIC)
+   Submit By: Adriana
+   Status: Completed
+
+19. PRF 22644: MTIRMRAD496769 - Rp 3.000.000
+   Description: TRANSCEIVER MODULE, GLC-T, PORTS CISCO, COMPATIBLE 1000BASE-T SFP, COPPER, RJ-45, 100M
+   Submit By: Adriana
+   Status: Completed
+
+20. PRF 22644: MTIRMRAD496769 - Rp 3.000.000
+   Description: SFP TRANSCEIVER (RJ45), SFP-1GE-45, PORTS
+   Submit By: Adriana
+   Status: Completed
+
+21. PRF 22644: MTIRMRAD496769 - Rp 900.000
+   Description: SSD DOCKING STATION, 8IN1, M.2 ENCLOSURE, RJ45 ETHERNET PORT, BRAND ORICO
+   Submit By: Adriana
+   Status: Completed
+
+22. PRF 22789: MTIRMRAD496250 - Rp 2.000.000
+   Description: Battery Replacement for New Hire Laptop (Service Tag: D3NTJR3)
+   Submit By: Indah
+   Status: Completed
+
+23. PRF 23469: MTIRMRAD496769 - Rp 2.500.000
+   Description: Tibox TJ-AG-1212 125x125x100mm
+   Submit By: Adriana
+   Status: Completed
+
+24. PRF 23469: MTIRMRAD496769 - Rp 510.000
+   Description: USB-C 6 IN 1 ADPT, LAN RJ45, HDMI, USB HUB 3.0, USB-C PD, ROBOOST
+   Submit By: Adriana
+   Status: Completed
+
+25. PRF 22916: MTIRMRAD496250 - Rp 330.000
+   Description: Connector Cable RJ45 Cat5E 50pcs per pack, Belden - Nov24[1]
+   Submit By: Adriana
+   Status: Completed
+
+26. PRF 23090: MTIRMRAD496313 - Rp 152.985.000
+   Description: TAGIHAN INTERNET CROSSNET - PERIODE SEPT 24
+   Submit By: Adriana
+   Status: Completed
+
+27. PRF 23091: MTIRMRAD496313 - Rp 153.434.500
+   Description: TAGIHAN INTERNET CROSSNET - PERIODE OKT 24
+   Submit By: Adriana
+   Status: Completed
+
+28. PRF 23469: MTIRMRAD496769 - Rp 170.000
+   Description: 6in1 OTG Hub Adapter Lightning Type C USB TF Micro SD Card Reader
+   Submit By: Adriana
+   Status: Completed
+
+29. PRF 23469: MTIRMRAD496769 - Rp 750.000
+   Description: Cable HDML 5 Meter
+   Submit By: Adriana
+   Status: Completed
+
+30. PRF 23469: MTIRMRAD496769 - Rp 4.000.000
+   Description: VIDEO CONFERENCE, PTZ, 3X ZOOM, JETE
+   Submit By: Adriana
+   Status: Completed
+
+31. PRF 23345: MTIRMRAD496328 - Rp 9.158.109
+   Description: 3 LCD LATITUDE REPLACEMENT - FOR RIZWAN, JOKO, WAFI
+   Submit By: Adriana
+   Status: Completed
+
+32. PRF 23505: MTIRMRAD496232 - Rp 2.500.000
+   Description: Battery for Dell Precision 3561 - Ery Wardjito
+   Submit By: Adriana
+   Status: Completed
+
+33. PRF 23505: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery for Dell Latitude 5420 - Isma Khoirun
+   Submit By: Adriana
+   Status: Completed
+
+34. PRF 23505: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery for Dell Latitude 5420 - Rahmatullah Rajab
+   Submit By: Adriana
+   Status: Completed
+
+35. PRF 23505: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery for Dell Latitude 3420 - Andi Reski
+   Submit By: Adriana
+   Status: Completed
+
+36. PRF 23505: MTIRMRAD496328 - Rp 1.800.000
+   Description: Battery for Dell Latitude 5420 - Hendrawan Silondae
+   Submit By: Adriana
+   Status: Completed
+
+37. PRF 23505: MTIRMRAD496328 - Rp 1.800.000
+   Description: Battery for Dell Latitude 3420 - Eris Rismansyah
+   Submit By: Adriana
+   Status: Completed
+
+38. PRF 23505: MTIRMRAD496328 - Rp 1.800.000
+   Description: Battery for Dell Latitude 5420 - Hendrawan Pambudi
+   Submit By: Adriana
+   Status: Completed
+
+39. PRF 23853: AMITINO1.6250 - Rp 72.000.000
+   Description: TELEVISION, SMART TV, SAMSUNG 70AU8000, CRYSTAL 4K UHD, UA70UA8000KXXD, 70 Inch
+   Submit By: Adriana
+   Status: Completed
+
+40. PRF 23853: AMITINO1.6250 - Rp 5.400.000
+   Description: BRACKET, NORTH BAYOU, NB AVA1800-70-1P, 55-80 IN
+   Submit By: Adriana
+   Status: Completed
+
+41. PRF 23853: AMITINO1.6250 - Rp 67.500.000
+   Description: COMPUTER, DELL OPTIPLEX SFF 5090, INTEL PROC I7-10700 2.9GHZ UP TO 4.8GHZ, 16MB
+   Submit By: Adriana
+   Status: Completed
+
+42. PRF 23853: AMITINO1.6250 - Rp 4.500.000
+   Description: HUB, NETWORK, MST HUB, B156-004-HD-V3, 4
+   Submit By: Adriana
+   Status: Completed
+
+43. PRF 23853: AMITINO1.6250 - Rp 56.000.000
+   Description: XIAOMI POCO X3 NFC
+   Submit By: Adriana
+   Status: Completed
+
+44. PRF 23462: MTIRMRAD496014 - Rp 6.250.000
+   Description: Training Document Control & Filling System - For Adriana Riska Rante
+   Submit By: Adriana
+   Status: Completed
+
+45. PRF 23463: MTIRMRAD496014 - Rp 6.250.000
+   Description: Training Document Control & Filling System - For Indah Mutia Ayudita
+   Submit By: Adriana
+   Status: Completed
+
+46. PRF 23853: AMITINO1.6250 - Rp 14.214.000
+   Description: BELDEN STP Cable Outdoor CAT 6 50106F
+   Submit By: Adriana
+   Status: Completed
+
+47. PRF 23853: AMITINO1.6250 - Rp 29.000.000
+   Description: Dekstop PCs Dell OptiPlex 3000SFF. Intel Core i5, 8 GB DDR, SSD 512 GB.
+   Submit By: Adriana
+   Status: Completed
+
+48. PRF 23892: MTIRMRAD4963265 - Rp 71.000.000
+   Description: SOFTWARE, HEIMDAL (EPDR), WISESA CONSULTING INDONESIA
+   Submit By: Adriana
+   Status: Completed
+
+49. PRF 23906: MTIRMRAD496250 - Rp 61.273.250
+   Description: Tagihan Printer Astragraphia - Dec 24
+   Submit By: Indah
+   Status: Completed
+
+50. PRF 24566: MTIRMRAD496328 - Rp 9.230.000
+   Description: ChatGPT
+   Submit By: Indah
+   Status: Completed
+
+51. PRF 24730: MTIRMRAD496328 - Rp 71.824.000
+   Description: Email License Office 365 E3 - for MTI Beijing - JAN25 - License Office365 E3 (No teams)
+   Submit By: Adriana 
+   Status: Completed
+
+52. PRF 24730: MTIRMRAD496328 - Rp 71.824.000
+   Description: Email License Office 365 E3 - for MTI Beijing - JAN25 - Ms Teams Enterprise
+   Submit By: Adriana 
+   Status: Completed
+
+53. PRF 23854: AMPLME05.6250 - Rp 48.900.000
+   Description: COMPUTER, OPTIPLEX 7000 MICRO FORM FACTOR, MINI BUSINESS DESKTOP, DELL, CORE I7, 16GB, 1TB
+   Submit By: Adriana
+   Status: Completed
+
+54. PRF 23854: AMPLME05.6250 - Rp 9.300.000
+   Description: MONITOR, DELL 27 IN, P2719H
+   Submit By: Adriana
+   Status: Completed
+
+55. PRF 23854: AMPLME05.6250 - Rp 3.900.000
+   Description: HUB, NETWORK, MST HUB, B156-004-HD-V3, 4
+   Submit By: Adriana
+   Status: Completed
+
+56. PRF 24920: AMPLCM01.6250 - Rp 12.879.000
+   Description: QNAP 4-bay 1U short-depth 12inc NAS/ Mar
+   Submit By: Adriana 
+   Status: Completed
+
+57. PRF 24920: AMPLCM01.6250 - Rp 1.892.000
+   Description: QNAP Rack Slide Rail Kit
+   Submit By: Adriana 
+   Status: Completed
+
+58. PRF 23921: MTIRMRAD496314 - Rp 23.531.950
+   Description: Tagihan KartuHALO Telkomsel - Periode Dec  2024
+   Submit By: Adriana
+   Status: Completed
+
+59. PRF 24033: MTIRMRAD496232 - Rp 5.300.000
+   Description: Repair 4 Radio HT to CN
+   Submit By: Indah
+   Status: Completed
+
+60. PRF 24171: MTIRMRAD496232 - Rp 22.000.000
+   Description: 11 Adaptor replacement
+   Submit By: Indah
+   Status: Completed
+
+61. PRF 24171: MTIRMRAD496250 - Rp 1.950.000
+   Description: Label Printer
+   Submit By: Indah
+   Status: Completed
+
+62. PRF 24228: MTIRMRAD496328 - Rp 59.000.000
+   Description: Renewal Annual License Firewall Fortigate
+   Submit By: Indah
+   Status: Completed
+
+63. PRF 24257: MTIRMRAD496250 - Rp 13.800.000
+   Description: CABLE, FIBER OPTIC, 24 CORE, 24/4T DUCT G652D (U) 2000M/ROL
+- Cable FO untuk speed up reroute FO Labota
+   Submit By: Indah
+   Status: Completed
+
+64. PRF 24258: MTIRMRAD496250 - Rp 4.750.000
+   Description: 5 Zebra Ribbon Color YMCKO
+   Submit By: Indah
+   Status: Completed
+
+65. PRF 24258: MTIRMRAD496250 - Rp 700.000
+   Description: Aqara Smart Hub Gateway
+   Submit By: Indah
+   Status: Completed
+
+66. PRF 24258: MTIRMRAD496250 - Rp 2.450.000
+   Description: Sandisk SSD Internal 1TB for Mulyono Maintenance
+   Submit By: Indah
+   Status: Completed
+
+67. PRF 24259: MTIRMRAD496313 - Rp 155.000.000
+   Description: Tagihan Internet CrossNet - Periode Des 24
+   Submit By: Indah
+   Status: Completed
+
+68. PRF 24920: AMPLCM01.6250 - Rp 17.028.000
+   Description: Seagate Hard Disk Ent. Exos SATA 10TB
+   Submit By: Adriana 
+   Status: Completed
+
+69. PRF 24920: AMPLCM01.6250 - Rp 1.738.000
+   Description: Kingston SSD 512G KC3000 PCIe 4.0 NVMe M.2 SSD
+   Submit By: Adriana 
+   Status: Completed
+
+70. PRF 24920: AMPLCM01.6250 - Rp 237.600.000
+   Description: PowerEdge R450 - Historian MTI
+   Submit By: Adriana 
+   Status: Completed
+
+71. PRF 24920: AMPLCM01.6250 - Rp 35.500.000
+   Description: MICROSOFT WINDOWS SERVER 2025 STANDARD - 16 CORE LICENSE PACK (DG7GMGF0PWHC0003 )
+   Submit By: Adriana 
+   Status: Completed
+
+72. PRF 24920: AMPLCM01.6250 - Rp 1.700.000
+   Description: MICROSOFT WINDOWS SERVER 2025 - 1 USER CAL ( DG7GMGF0PWHT0002 )
+   Submit By: Adriana 
+   Status: Completed
+
+73. PRF 24920: AMPLCM01.6250 - Rp 15.000.000
+   Description: MICROSOFT SQL SERVER 2022 STANDARD EDITION ( DG7GMGF0M80J0002 )
+   Submit By: Adriana 
+   Status: Completed
+
+74. PRF 24920: AMPLCM01.6250 - Rp 7.000.000
+   Description: MICROSOFT SQL SERVER 2022 - 1 USER CAL (DG7GMGF0MF3T0002 )
+   Submit By: Adriana 
+   Status: Completed
+
+75. PRF 25818: MTIRMRAD496313 - Rp 59.842.294
+   Description: Tagihan Biaya Sewa Internet Icon Plus - Periode Jan 25
+   Submit By: Adriana 
+   Status: Completed
+
+76. PRF 24318: MTIRMRTS606250 - Rp 22.000.000
+   Description: Set PC Desktop Dell 7010 for Metlab Room
+   Submit By: Indah
+   Status: Completed
+
+77. PRF 24330: MTIRMRAD496313 - Rp 64.000.000
+   Description: Tagihan Icon+ Dec 24
+   Submit By: Indah
+   Status: Completed
+
+78. PRF 24342: MTIRMRHR606014 - Rp 7.000.000
+   Description: Training IT Infrastructure Library Foundation 4 for Widji Santoso
+   Submit By: Indah
+   Status: Completed
+
+79. PRF 26037: MTIRMRAD496250 - Rp 9.654.200
+   Description: Tagihan Astragraphia Feb 2025 (Pyrite Lt 2)
+   Submit By: Indah
+   Status: Completed
+
+80. PRF 26037: 51211325.6250 - Rp 5.643.500
+   Description: Tagihan Astragraphia Feb 2025 (CCP)
+   Submit By: Indah
+   Status: Completed
+
+81. PRF 26037: MTIRMRAD496250 - Rp 6.456.750
+   Description: Tagihan Astragraphia Feb 2025 (Acid Roaster)
+   Submit By: Indah
+   Status: Completed
+
+82. PRF 26037: MTIRMRAD496250 - Rp 8.171.250
+   Description: Tagihan Astragraphia Feb 2025 (Pyrite WHS)
+   Submit By: Indah
+   Status: Completed
+
+83. PRF 26037: MTIRMRAD496250 - Rp 11.308.250
+   Description: Tagihan Astragraphia Feb 2025 (Acid Lt2)
+   Submit By: Indah
+   Status: Completed
+
+84. PRF 26037: MTIRMRAD496250 - Rp 7.846.500
+   Description: Tagihan Astragraphia Feb 2025 (Acid MTC Lt2)
+   Submit By: Indah
+   Status: Completed
+
+85. PRF 26037: MTIRMRAD496250 - Rp 5.600.000
+   Description: Tagihan Astragraphia Feb 2025 (WHS Labota)
+   Submit By: Indah
+   Status: Completed
+
+86. PRF 26037: MTIRMRAD496250 - Rp 7.910.000
+   Description: Tagihan Astragraphia Feb 2025 (Acid Lt1)
+   Submit By: Indah
+   Status: Completed
+
+87. PRF 26037: MTIRMRAD496250 - Rp 9.141.750
+   Description: Tagihan Astragraphia Feb 2025 (Chloride)
+   Submit By: Indah
+   Status: Completed
+
+88. PRF 24921: AMPLCM01.6250 - Rp 2.250.000
+   Description: Join Closure 24 Inch
+   Submit By: Adriana 
+   Status: Completed
+
+89. PRF 24926: MTIRMRAD496314 - Rp 8.900.000
+   Description: TAGIHAN JAYA LAYANAN INFORMASI IMIP - PERIDO DEC 24
+   Submit By: Adriana 
+   Status: Completed
+
+90. PRF 25083: MTIRMRAD496250 - Rp 600.000
+   Description: CABLE HDMI 5 M - FOR 4 WHS TEAM - 030225
+   Submit By: Adriana 
+   Status: Completed
+
+91. PRF 25206: MTIRMRAD496313 - Rp 155.000.000
+   Description: TAGIHAN INTERNETCROSNET JAN25
+   Submit By: Adriana 
+   Status: Completed
+
+92. PRF 25257: MTIRMRAD496250 - Rp 360.000
+   Description: CONNECTOR RJ45 CAT5E - FOR IT INFRA - 070225
+   Submit By: Adriana 
+   Status: Completed
+
+93. PRF 25258: MTIRMRAD496314 - Rp 24.641.812
+   Description: TAGIHAN KARTU HALO TSEL MTI - PERIODE JAN 25
+   Submit By: Adriana 
+   Status: Completed
+
+94. PRF 25343: MTIRMRAD496250 - Rp 87.772.800
+   Description: TAGIHAN BIAYA SEWA PRINTER ASTRAGRAPHIA - PERIOD JAN25
+   Submit By: Adriana 
+   Status: Completed
+
+95. PRF 25433: MTIRMRAD496314 - Rp 766.448
+   Description: JASA LAYANAN INFORMASI IMIP - JAN25.
+   Submit By: Adriana 
+   Status: Completed
+
+96. PRF 26043: MTIRMRAD496314 - Rp 155.000.000
+   Description: TAGIHAN INTERNET CROSSNET - PERIODE NOV 24
+   Submit By: Adriana 
+   Status: Completed
+
+97. PRF 25818: MTIRMRAD496313 - Rp 59.842.294
+   Description: Internet Icon+ Periode Jan 25 
+   Submit By: Indah
+   Status: Completed
+
+98. PRF 22666: MTIRMRAD496232 - Rp 52.000.000
+   Description: SSD SATA 4TB - FOR REPLACEMENT STORAGE QNAP SERVER
+   Submit By: Adriana
+   Status: On order
+
+99. PRF 22829: MTIRMRAD496328 - Rp 14.000.000
+   Description: Revisi PO 20975 untuk item APC Rack Air side distribution unit
+   Submit By: Adriana
+   Status: Cancelled
+
+100. PRF 23089: MTIRMRHR606014 - Rp 3.000.000
+   Description: TRAINING VMWARE VSPHERE ADMIN - FOR PEGGY LEKSANA P.M
+   Submit By: Adriana
+   Status: On order
+
+101. PRF 23092: MTIRMRAD496328 - Rp 14.000.000
+   Description: LICENSE MS OFFICE 365 BASIC - NOV24- LICENSE MS OFFICE 365 BASIC - NOV24
+   Submit By: Adriana
+   Status: Completed
+
+102. PRF 23196: MTIRMRAD496328 - Rp 21.600.000
+   Description: EMAIL LICENSE FOR MMP 2025 - NOV24
+   Submit By: Adriana
+   Status: On order
+
+103. PRF 24316: MTIRMRAD496769 - Rp 7.000.000
+   Description: DEWALT DCG405 GERINDA CORDLESS 20V
+   Submit By: Indah
+   Status: Cancelled
+
+104. PRF 24316: MTIRMRAD496250 - Rp 1.200.000
+   Description: Pipa conduit 20mm
+   Submit By: Indah
+   Status: Cancelled
+
+105. PRF 24316: MTIRMRAD496250 - Rp 2.650.000
+   Description: Multiswitch Kaon KS-5524LC Cascade Aktif Adaptor
+   Submit By: Indah
+   Status: Cancelled
+
+106. PRF 24316: MTIRMRAD496250 - Rp 600.000
+   Description: U Green adaptor Multiport 4IN1 3USB+LAN
+   Submit By: Indah
+   Status: Cancelled
+
+107. PRF 24316: MTIRMRAD496769 - Rp 10.000.000
+   Description: CISCO SFP BIDI 10KM SFP-10G-BXD-I & SFP-10G-BXU-I, Single mode, Single Core, LC connector
+   Submit By: Indah
+   Status: Cancelled
+
+108. PRF 24316: MTIRMRAD496769 - Rp 3.000.000
+   Description: TRANSCEIVER MODULE, GLC-T, PORTS CISCO, COMPATIBLE 1000BASE-T SFP, COPPER, RJ-45, 100M
+   Submit By: Indah
+   Status: Cancelled
+
+109. PRF 24316: MTIRMRAD496769 - Rp 3.000.000
+   Description: SFP TRANSCEIVER (RJ45), SFP-1GE-45, PORTSSSD DOCKING STATION, 8IN1, M.2 ENCLOSURE
+   Submit By: Indah
+   Status: Cancelled
+
+110. PRF 24316: MTIRMRAD496769 - Rp 900.000
+   Description: RJ45 ETHERNET PORT, BRAND ORICO
+   Submit By: Indah
+   Status: Cancelled
+
+111. PRF 24488: MTIRMRAD496769 - Rp 5.500.000
+   Description: Tangga 6x2, 12 meter, sleeding naik turun, kondisi normal 6 meter fiberglass
+   Submit By: Indah
+   Status: Completed
+
+112. PRF 24488: MTIRMRAD496232 - Rp 1.350.000
+   Description: Tali webbing
+   Submit By: Indah
+   Status: Completed
+
+113. PRF 24488: MTIRMRAD496232 - Rp 2.500.000
+   Description: TIBOX TJ-AG-1212
+   Submit By: Indah
+   Status: Completed
+
+114. PRF 24488: MTIRMRAD496232 - Rp 200.000
+   Description: USB to RS232 ATEN UC-232A
+   Submit By: Indah
+   Status: Completed
+
+115. PRF 24488: MTIRMRAD496232 - Rp 1.700.000
+   Description: Vention Network Splitter LAN 1 to 2 way
+   Submit By: Indah
+   Status: Completed
+
+116. PRF 24488: MTIRMRAD496232 - Rp 15.600.000
+   Description: Perfect Aire Dehumidifier 50 Ltr
+   Submit By: Indah
+   Status: Completed
+
+117. PRF 24488: MTIRMRAD496232 - Rp 300.000
+   Description: Isolasi Listrik Hitam 3M 1500 GU Lakban Selotip kabel Hitam
+   Submit By: Indah
+   Status: Completed
+
+118. PRF 24488: MTIRMRAD496232 - Rp 100.000
+   Description: Isolasi Listrik Warna 3M 1500 GU Lakban  - KUNING
+   Submit By: Indah
+   Status: Completed
+
+119. PRF 24488: MTIRMRAD496232 - Rp 100.000
+   Description: Isolasi Listrik Warna 3M 1500 GU Lakban Selotip - Biru
+   Submit By: Indah
+   Status: Completed
+
+120. PRF 24488: MTIRMRAD496232 - Rp 700.000
+   Description: Barel RJ45 Waterproof Outdoor RJ45 Barrel Coupler
+   Submit By: Indah
+   Status: Completed
+
+121. PRF 24488: MTIRMRAD496232 - Rp 1.500.000
+   Description: Connector RJ45 Belden CAT 5e
+   Submit By: Indah
+   Status: Completed
+
+122. PRF 24488: MTIRMRAD496232 - Rp 1.000.000
+   Description: Kabel power CPU AC16A 1,5M
+   Submit By: Indah
+   Status: Completed
+
+123. PRF 24488: MTIRMRAD496232 - Rp 600.000
+   Description: 1 Set Tombol PTT HT Motorola XiR P6620i Plastik
+   Submit By: Indah
+   Status: Completed
+
+124. PRF 24488: MTIRMRAD496232 - Rp 1.000.000
+   Description: Flexibel Microphone HT P6600 Xir P6620 Motorola
+   Submit By: Indah
+   Status: Completed
+
+125. PRF 24488: MTIRMRAD496232 - Rp 1.000.000
+   Description: Potensio Xir P6620 P6620i Motorola Volume Switch
+   Submit By: Indah
+   Status: Completed
+
+126. PRF 24488: MTIRMRAD496232 - Rp 1.800.000
+   Description: Flexible XIR P6620I 1 Paket Flexible Mainboard dan Flexible Keyboard
+   Submit By: Indah
+   Status: Completed
+
+127. PRF 24488: MTIRMRAD496232 - Rp 2.500.000
+   Description: Encoder HDMI IP Live Streaming Video - 1 HDMI
+   Submit By: Indah
+   Status: Completed
+
+128. PRF 24488: MTIRMRAD496232 - Rp 300.000
+   Description: 4K USB 3.0 HD Video Capture Card-Compatible 1080P 60fps HD Video Recorder
+   Submit By: Indah
+   Status: Completed
+
+129. PRF 24488: MTIRMRAD496232 - Rp 1.500.000
+   Description: 5X Internal Speaker For XIR P6620i DEP570e And So On
+   Submit By: Indah
+   Status: Completed
+
+130. PRF 24488: MTIRMRAD496232 - Rp 3.000.000
+   Description: ROSET, FIBER OPTIC (FO), 8 CORE, SC CONNECTOR, INCL ACCSRS
+   Submit By: Indah
+   Status: Completed
+
+131. PRF 24488: MTIRMRAD496232 - Rp 2.400.000
+   Description: JOINT CLOSURE FIBER OPTIC, CAP 24 CORE
+   Submit By: Indah
+   Status: Completed
+
+132. PRF 25000: MTIRMRAD496137 - Rp 7.400.000
+   Description: MANAGEENGINE ADAUDIT PLUS ADDONS, ANNUAL SUBSCRIPTION FEE FOR 2 FILE SERVERS
+   Submit By: Adriana 
+   Status: Completed
+
+133. PRF 25475: MTIRMRAD496326 - Rp 50.516.000
+   Description: Veeam License Includes Enterprise Plus Edition Features
+   Submit By: Adriana 
+   Status: Completed
+
+134. PRF 25564: MTIRMRAD496314 - Rp 32.752.000
+   Description: Perpanjangan Layanan Tahunan 17 Unit GPS PT MTI - Periode 22Mar25 - 21Mar26
+   Submit By: Adriana 
+   Status: Completed
+
+135. PRF 25762: MTIRMRAD496326 - Rp 59.000.000
+   Description: Perpanjangan License Forti - For Renew Before 23032025
+   Submit By: Adriana 
+   Status: Completed
+
+136. PRF 25796: MTIRMRAD496014 - Rp 3.300.000
+   Description: TRAINING DEVOPS (DEVELOPER & OPERATIONS) FOR MAHATHIR MUHAMMAD - 210225
+   Submit By: Adriana 
+   Status: On order
+
+137. PRF 25902: MTIRMRAD496250 - Rp 1.060.000
+   Description: Screen Protector Anti Radiasi
+   Submit By: Adriana 
+   Status: Completed
+
+138. PRF 25902: MTIRMRAD496250 - Rp 450.000
+   Description: HDMI Cable 1.5Meter
+   Submit By: Adriana 
+   Status: Completed
+
+139. PRF 25999: MTIRMRAD496250 - Rp 49.315.312
+   Description: SSD SATA 4TB - FOR REPLACEMENT SSD STORAGE QNAP SERVER EXPANSION - FEB25
+   Submit By: Adriana 
+   Status: Completed
+
+140. PRF 26275: MTIRMRAD496250 - Rp 3.800.000
+   Description: kabel jaringan cat 6
+   Submit By: Indah
+   Status: Completed
+
+141. PRF 26275: MTIRMRAD496250 - Rp 1.080.000
+   Description: konektor rj45 cat5 
+   Submit By: Indah
+   Status: Completed
+
+142. PRF 26275: MTIRMRAD496250 - Rp 760.000
+   Description: RJ45 CONNECTOR, CAT6, BELDEN
+   Submit By: Indah
+   Status: Completed
+
+143. PRF 26275: MTIRMRAD496250 - Rp 500.000
+   Description: BARREL COUPLER, RJ45, CAT5/6, OUTDOOR, W/PROOF
+   Submit By: Indah
+   Status: Completed
+
+144. PRF 26275: MTIRMRAD496250 - Rp 600.000
+   Description: KNOB, HT XIR P6620I
+   Submit By: Indah
+   Status: Completed
+
+145. PRF 26275: MTIRMRAD496250 - Rp 720.000
+   Description: Joinwit FO LC to SC Adapter
+   Submit By: Indah
+   Status: Completed
+
+146. PRF 26275: MTIRMRAD496250 - Rp 1.500.000
+   Description: Junction box/Duradus, TJ-AG-1212-S
+   Submit By: Indah
+   Status: Completed
+
+147. PRF 26275: MTIRMRAD496250 - Rp 1.000.000
+   Description: Clipsal Conduit pipe PVC 20MM, Length 3M
+   Submit By: Indah
+   Status: Completed
+
+148. PRF 26275: MTIRMRAD496250 - Rp 100.000
+   Description: solasi listrik
+   Submit By: Indah
+   Status: Completed
+
+149. PRF 26275: MTIRMRAD496250 - Rp 750.000
+   Description: kertas print label casio
+   Submit By: Indah
+   Status: Completed
+
+150. PRF 26275: MTIRMRAD496250 - Rp 250.000
+   Description: solasi rubber 3 m
+   Submit By: Indah
+   Status: Completed
+
+151. PRF 26275: MTIRMRAD496250 - Rp 3.345.720
+   Description: CCTV Security Camera Punch Free Steel Structure Support I-beam Section Metal Mount Panel Clamp Plate White
+   Submit By: Indah
+   Status: Completed
+
+152. PRF 26275: MTIRMRAD496250 - Rp 4.995.000
+   Description: Rack Panel Besi / Box Panel Outdoor 800x600x300mm Plat 1,2mm Fmbo806030 Fort
+   Submit By: Indah
+   Status: Completed
+
+153. PRF 26275: MTIRMRAD496250 - Rp 1.400.000
+   Description: Mifare 1 Kbyte Philips ------------------------------400
+   Submit By: Indah
+   Status: Completed
+
+154. PRF 26280: MTIRMRAD496769 - Rp 840.000
+   Description: INGCO TOOLS BACKPACK 20KG TAS RANSEL PERKAKAS INGCO HBP010028 ----------------------- 3
+   Submit By: Indah
+   Status: Completed
+
+155. PRF 26280: MTIRMRAD496232 - Rp 1.500.000
+   Description: Multiswitch 5x24 Kaon KS-5524LC Cascade Aktif Adaptor (untuk switch sumber matv) ------------- 1
+   Submit By: Indah
+   Status: Completed
+
+156. PRF 26280: MTIRMRAD496769 - Rp 260.000
+   Description: Mata Bor SDS Plus Beton 16mm x 600mm Carrson Panjang Tembok 16 mm 60cm ----------------- 2
+   Submit By: Indah
+   Status: Completed
+
+157. PRF 26280: MTIRMRAD496769 - Rp 5.750.000
+   Description: tangga Stadex Tangga Teleskopik 10 mtr double Aluminium ------------------------ 1
+   Submit By: Indah
+   Status: Completed
+
+158. PRF 26280: MTIRMRAD496232 - Rp 4.275.000
+   Description: SSD Samsung 980 PRO NVME M.2 1TB PCIE 4.0 GEN 4x4 --------------- 3 pcs
+   Submit By: Indah
+   Status: Completed
+
+159. PRF 26325: MTIRMRAD496328 - Rp 1.900.000
+   Description: Microsoft 365 Business Basic (expired license 6 mar 25) 2
+   Submit By: Indah
+   Status: Completed
+
+160. PRF 26437: MTIRMRAD496232 - Rp 720.000
+   Description: Connector RJ45 CAT5E AMP Commscope 50
+   Submit By: Indah
+   Status: Completed
+
+161. PRF 26437: MTIRMRAD496232 - Rp 2.250.000
+   Description: Join Closure 24 Core Universal
+   Submit By: Indah
+   Status: Completed
+
+162. PRF 26564: MTIRMRAD496250 - Rp 900.000
+   Description: ORICO Kabel HDMI to HDMI 2 meter (5pcs, 1 for Bagas HR, 4 spare IT)
+   Submit By: Indah
+   Status: Completed
+
+163. PRF 26564: MTIRMRAD496250 - Rp 110.000
+   Description: TATAKAN / MATRAS ANTISTATIS (LATEX) (for IT Support)
+   Submit By: Indah
+   Status: Completed
+
+164. PRF 26608: MTIRMRMT266769 - Rp 5.025.000
+   Description: UPS for DCS Demin 4706 PC Desktop for Hardiyanto (MTC)
+   Submit By: Indah
+   Status: Completed
+
+165. PRF 26723: MTIRMRAD496313 - Rp 152.783.500
+   Description: Crossnet Periode Feb 25
+   Submit By: Indah
+   Status: Completed
+
+166. PRF 27072: MTIRMRAD496313 - Rp 24.922.517
+   Description: Kartu Halo Tsel Payment MTI - Periode Mar25
+   Submit By: Adriana
+   Status: Completed
+
+167. PRF 26974: MTIRMRAD496328 - Rp 40.500.000
+   Description: LICENSE WEB API - VAULT ACCESS SECURITY SYSTEM - 260325
+   Submit By: Adriana
+   Status: In transit
+
+168. PRF 27348: MTIRMRMT266733 - Rp 2.400.000
+   Description: Printer Epson Nl3250 support Mtc at CCP's Office
+   Submit By: Reni
+   Status: Completed
+
+169. PRF 24665: AMPLCM01.6250 - Rp 1.051.819.031
+   Description: Historian Software for Maintenance
+   Submit By: Indah
+   Status: On order
+
+170. PRF 23919: MTIRMRAD496250 - Rp 400.000
+   Description: CHARGER, BATTERY, ADPT CHARGER, TYPE-C, LA65NM190/HA65NM190, 65W, 3.25A, 20V
+   Submit By: Adriana
+   Status: Completed
+
+171. PRF 23919: MTIRMRAD496328 - Rp 15.000.000
+   Description: Logitech Tap Scheduler
+   Submit By: Adriana
+   Status: Completed
+
+172. PRF 23919: MTIRMRAD4963265 - Rp 2.500.000
+   Description: License Remote Desktop ELSA
+   Submit By: Adriana
+   Status: Completed
+
+173. PRF 26336: AMITCM16.6250 - Rp 62.000.000
+   Description: Cisco C1300-48T-4G; include SMARTNET warranty
+   Submit By: Indah
+   Status: Completed
+
+174. PRF 26336: AMITCM16.6250 - Rp 15.000.000
+   Description: Ruijie RG-CS83-24GT4XS-P
+   Submit By: Indah
+   Status: Completed
+
+175. PRF 26336: AMITCM16.6250 - Rp 15.000.000
+   Description: Ruijie RG-S2915-10GT2MS-P-L
+   Submit By: Indah
+   Status: Completed
+
+176. PRF 26336: AMITCM16.6250 - Rp 14.500.000
+   Description: Ruigie RG-WS6008; NextGen Wireless Controller.
+   Submit By: Indah
+   Status: Completed
+
+177. PRF 26336: AMITCM16.6250 - Rp 19.250.000
+   Description: Ruigie RIG-LIC-WS-128; Upgrade License Wireless Controller for 128 AP
+   Submit By: Indah
+   Status: Completed
+
+178. PRF 26336: AMITCM16.6250 - Rp 18.000.000
+   Description: Ruigie RG-AP180P-L; Wall Plate, Wifi6
+   Submit By: Indah
+   Status: Completed
+
+179. PRF 26336: AMITCM16.6250 - Rp 28.750.000
+   Description: Ruigie RG-AP840-L; WiFi 6.
+   Submit By: Indah
+   Status: Completed
+
+180. PRF 26336: AMITCM16.6250 - Rp 7.800.000
+   Description: Ruigie RG-EST350 V2; Access Point Outdoor Ruijie
+   Submit By: Indah
+   Status: Completed
+
+181. PRF 26877: MTIRMRAD496328 - Rp 1.400.000
+   Description: Chat GPT 4.o Teams Subscription per akun/bulan
+   Submit By: Indah
+   Status: Completed
+
+182. PRF 26983: MTIRMRAD496326 - Rp 10.500.000
+   Description: LICENSE MICROSOFT OFFICE 365 BUSINESS - BASIC
+   Submit By: Adriana
+   Status: Rejected
+
+183. PRF 26983: MTIRMRAD496326 - Rp 12.000.000
+   Description: LICENSE MICROSOFT OFFICE 365 BUSINESS - BASIC
+   Submit By: Adriana
+   Status: Rejected
+
+184. PRF 27497: AMPLCM01.6250 - Rp 35.500.000
+   Description: MICROSOFT WINDOWS SERVER 2025 STANDARD - 16 CORE LICENSE PACK (DG7GMGF0PWHC0003 )
+   Submit By: Adriana
+   Status: Completed
+
+185. PRF 27497: AMPLCM01.6250 - Rp 1.700.000
+   Description: MICROSOFT WINDOWS SERVER 2025 - 1 USER CAL ( DG7GMGF0PWHT0002 )
+   Submit By: Adriana
+   Status: Completed
+
+186. PRF 27497: AMPLCM01.6250 - Rp 15.000.000
+   Description: MICROSOFT SQL SERVER 2022 STANDARD EDITION ( DG7GMGF0M80J0002 )
+   Submit By: Adriana
+   Status: Completed
+
+187. PRF 27497: AMPLCM01.6250 - Rp 7.000.000
+   Description: MICROSOFT SQL SERVER 2022 - 1 USER CAL (DG7GMGF0MF3T0002 )
+   Submit By: Adriana
+   Status: Completed
+
+188. PRF 27543: MTIRMRAD496232 - Rp 3.052.703
+   Description: LCD for Latitude 5420 / ST: BBZ32T3
+   Submit By: Adriana
+   Status: Completed
+
+189. PRF 27654: MTIRMRAD496137 - Rp 152.854.000
+   Description: KnowBe4 Security Awareness Training
+   Submit By: Reni
+   Status: Rejected
+
+190. PRF 27672: MTIRMRAD496250 - Rp 152.854.000
+   Description: 1set_PCDell&Monitor24in
+   Submit By: Reni
+   Status: Completed
+
+191. PRF 28109: MTIRMRAD496313 - Rp 85.000.000
+   Description: Tagihan Meta Telekomunikasi Asia Periode Mar25
+   Submit By: Adriana
+   Status: Completed
+
+192. PRF 28106: MTIRMRAD496250 - Rp 1.125.000
+   Description: GIGABIT ETHERNET ADAPTER CONVERTER USB UGREEN -170425
+   Submit By: Adriana
+   Status: Completed
+
+193. PRF 27983: MTIRMRAD496250 - Rp 4.000.000
+   Description: Kabel UTP Commscope CAT 5E 305 METER
+   Submit By: Adriana
+   Status: Completed
+
+194. PRF 27983: MTIRMRAD496250 - Rp 360.000
+   Description: Connector UTP RJ45 Commscope CAT5E 50 PCS
+   Submit By: Adriana
+   Status: On order
+
+195. PRF 28134: AMITCM19.6250 - Rp 618.000.000
+   Description: Radio, Motorola XIR P6620I VHF, Original
+   Submit By: Adriana
+   Status: Updated:DOMTU010017
+
+196. PRF 28134: AMITCM19.6250 - Rp 38.500.000
+   Description: REPEATER, MOTOROLA SLR5300, VHF 136-174MHZ
+   Submit By: Adriana
+   Status: Updated:DOMTU010017
+
+197. PRF 28137: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery Original for Laptop Dell Latitude 5420 S/N F152FK3 - bonus.maryono
+   Submit By: Adriana
+   Status: Updated:DOMTU010017
+
+198. PRF 28137: MTIRMRAD496232 - Rp 1.800.000
+   Description: evidence
+   Submit By: Adriana
+   Status: Updated:DOMTU010017
+
+199. PRF 28137: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery Original for Laptop Dell Latitude 5420 S/N 6FCZFK3 - sugiharto
+   Submit By: Adriana
+   Status: Updated:DOMTU010017
+
+200. PRF 28137: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery Original for Laptop Dell Latitude 5420 S/N 8SRNDK3 - rendra.pratama
+   Submit By: Adriana
+   Status: Updated:DOMTU010017
+
+201. PRF 28137: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery Original for Laptop Dell Latitude 5420 S/N 5LDP2J3 - astrid.caroline
+   Submit By: Adriana
+   Status: Updated:DOMTU010017
+
+202. PRF 28137: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery Original for Laptop Dell Latitude 5420 S/N 144DCK3 - cahyana.saputra
+   Submit By: Adriana
+   Status: Updated:DOMTU010017
+
+203. PRF 28137: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery Original for Laptop Dell Latitude 7320 S/N C8NJ6M3 - ichsan.manzali
+   Submit By: Adriana
+   Status: Updated:DOMTU010017
+
+204. PRF 28139: MTIRMRAD496250 - Rp 2.000.000
+   Description: Thermal Paste ARCTIC MX-6 (4 Gram) - MX6 ULTIMATE
+   Submit By: Adriana
+   Status: Completed
+
+205. PRF 28151: MTIRMRAD496326 - Rp 71.000.000
+   Description: Heimdal EPDR & Ransomware Encryption Protection - ELSA -SKU = H-EPDR & REP - ELSA
+   Submit By: Adriana
+   Status: On order
+
+206. PRF 28151: MTIRMRAD496326 - Rp 3.752.000
+   Description: Heimdal Remote Desktop -SKU = RDP ELSA
+   Submit By: Adriana
+   Status: On order
+
+207. PRF 28222: MTIRMRAD496250 - Rp 1.000.000
+   Description: Samsung 8GB 3200 DDR4 3200MHz Memory RAM for Laptop
+   Submit By: Adriana
+   Status: On order
+
+208. PRF 28210: MTIRMRAD496250 - Rp 3.000.000
+   Description: Flexible XIR P6620I 1 Paket Flexible Mainboard dan Flexible Keyboard
+   Submit By: Adriana
+   Status: Updated:19333
+
+209. PRF 28210: MTIRMRAD496250 - Rp 1.170.000
+   Description: Kabel PigTail FO SC-LC 2 meter
+   Submit By: Adriana
+   Status: Updated:19333
+
+210. PRF 28210: MTIRMRAD496313 - Rp 34.200.000
+   Description: GPS Intertec, request SS (Detail Type)
+   Submit By: Adriana
+   Status: Updated:19333
+
+211. PRF 28210: AMITCM19.6250 - Rp 61.100.000
+   Description: Docking Charger Radio HT Motorola XIR P6620I
+   Submit By: Adriana
+   Status: Updated:19333
+
+212. PRF 28210: MTIRMRAD496250 - Rp 1.500.000
+   Description: Isolasi 3M Scotch 23 Rubber
+   Submit By: Adriana
+   Status: Updated:19333
+
+213. PRF 28210: MTIRMRAD496250 - Rp 1.500.000
+   Description: Konektor RJ45 belden cat 6
+   Submit By: Adriana
+   Status: Updated:19333
+
+214. PRF 28210: MTIRMRAD496250 - Rp 90.000
+   Description: Sock Pipa PVC Conduit Boss 20mm
+   Submit By: Adriana
+   Status: Updated:19333
+
+215. PRF 28210: MTIRMRAD496250 - Rp 750.000
+   Description: klem Pipa PVC Conduit Boss 20mm
+   Submit By: Adriana
+   Status: Updated:19333
+
+216. PRF 28210: MTIRMRAD496250 - Rp 20.000.000
+   Description: Kabel UTP cat 6 commscope
+   Submit By: Adriana
+   Status: Updated:19333
+
+217. PRF 28210: MTIRMRAD496250 - Rp 500.000
+   Description: FLUX MASTERPIECE PREMIUM FLUX 30 ML
+   Submit By: Adriana
+   Status: Updated:19333
+
+218. PRF 28210: MTIRMRAD496250 - Rp 200.000
+   Description: WEP 929D-V Tin Sucker Electric Desoldering Iron Solder Sucker Desolder
+   Submit By: Adriana
+   Status: Updated:19333
+
+219. PRF 28210: MTIRMRAD496250 - Rp 500.000
+   Description: Contact Cleaner Flammable Crc 2016 
+   Submit By: Adriana
+   Status: Updated:19333
+
+220. PRF 28248: AMITCM19.6250 - Rp 105.000.000
+   Description: Kable NYY 3x2.5 mm2 (batch 1 sudah Order 4000m)
+   Submit By: Adriana
+   Status: Completed
+
+221. PRF 28248: AMITCM19.6250 - Rp 984.000
+   Description: Tube Marker 3mm (PVC tube suitable for cable 1,5mm2). @1roll/200meter
+   Submit By: Adriana
+   Status: Completed
+
+222. PRF 28248: AMITCM19.6250 - Rp 1.080.000
+   Description: Tube Marker 3,5mm (PVC tube suitable for cable 1,5mm2). @1roll/200meter
+   Submit By: Adriana
+   Status: Completed
+
+223. PRF 28248: AMITCM19.6250 - Rp 612.000
+   Description: Tube Marker 4mm (PVC tube suitable for cable 2,5mm2). @1roll/200meter
+   Submit By: Adriana
+   Status: Completed
+
+224. PRF 28248: AMITCM19.6250 - Rp 5.000.000
+   Description: Cable Marker Refill Metal Emboss label for DYMO Rhino M1011. 32500, Size : 12 mm x 6,4 meter
+   Submit By: Adriana
+   Status: Completed
+
+225. PRF 28248: AMITCM19.6250 - Rp 8.100.000
+   Description: Dymo Embossing Rhino Heavy Duty Tool Kit M1011
+   Submit By: Adriana
+   Status: Completed
+
+226. PRF 28248: AMITCM19.6250 - Rp 225.000
+   Description: Cable Skun Ferrules TYPE PIN 1,5mm Hitam @1pack/100EA
+   Submit By: Adriana
+   Status: Completed
+
+227. PRF 28248: AMITCM19.6250 - Rp 180.000
+   Description: Cable Skun Ferrules TYPE PIN 2,5mm Hitam @1pack/100EA
+   Submit By: Adriana
+   Status: Completed
+
+228. PRF 28248: AMITCM19.6250 - Rp 90.000
+   Description: Skun type Y for cable 2,5 mm2 c/w Insulation black colour. @1pack/100EA
+   Submit By: Adriana
+   Status: Completed
+
+229. PRF 28248: AMITCM19.6250 - Rp 3.650.000
+   Description: Isolasi 3M Scotch Vinyl - Hitam
+   Submit By: Adriana
+   Status: Completed
+
+230. PRF 28248: AMITCM19.6250 - Rp 3.650.000
+   Description: Isolasi 3M Scotch Vinyl - Biru
+   Submit By: Adriana
+   Status: Completed
+
+231. PRF 28248: AMITCM19.6250 - Rp 43.500.000
+   Description: HDG Besi Angle 5cmx5cmx4mm 6meter
+   Submit By: Adriana
+   Status: Completed
+
+232. PRF 28248: AMITCM19.6250 - Rp 660.000
+   Description: T dus 20mm clipsal
+   Submit By: Adriana
+   Status: Completed
+
+233. PRF 28248: AMITCM19.6250 - Rp 499.000
+   Description: Cleaver FO FM-20 Fujitomo
+   Submit By: Adriana
+   Status: Completed
+
+234. PRF 28248: AMITCM19.6250 - Rp 1.550.000
+   Description: Commscope Crimping tool Rj45
+   Submit By: Adriana
+   Status: Completed
+
+235. PRF 28248: AMITCM19.6250 - Rp 222.000
+   Description: Pita Label Tape Printer Brother 12mm TZe-231 Label Tape
+   Submit By: Adriana
+   Status: Completed
+
+236. PRF 28296: MTIRMRAD496313 - Rp 83.222.350
+   Description: TAGIHAN BIAYA SEWA PRINTER ASTRAGRAPHIA - PERIOD MAR25
+   Submit By: Adriana
+   Status: Completed
+
+237. PRF 28083: MTIRMRAD496313 - Rp 75.120.850
+   Description: TAGIHAN BIAYA SEWA PRINTER ASTRAGRAPHIA - PERIOD APR25
+   Submit By: Adriana
+   Status: Completed
+
+238. PRF 28361: MTIRMRAD496250 - Rp 260.000
+   Description: Belden connector RJ45 Cat5E, 50pcs/pack			
+   Submit By: Adriana
+   Status: Completed
+
+239. PRF 28361: MTIRMRAD496109 - Rp 850.000
+   Description: Vention Network Splitter LAN 1 to 2 way
+   Submit By: Adriana
+   Status: Completed
+
+240. PRF 28361: AMITCM16 - Rp 24.750.000
+   Description: Switch Ruijie RG-NBS3100-8GT2SFP-P-V2
+   Submit By: Adriana
+   Status: Completed
+
+241. PRF 28361: MTIRMRAD496250 - Rp 7.991.556
+   Description: IP CAM UNV Varifocal IPC2322LB-ADZK-G
+   Submit By: Adriana
+   Status: Completed
+
+242. PRF 28361: MTIRMRAD496109 - Rp 12.000.000
+   Description: Box Panel Outdoor 80x60x30 Plat 1,2mm FMBO806030 FORT
+   Submit By: Adriana
+   Status: Completed
+
+243. PRF 28361: MTIRMRAD496109 - Rp 37.739.778
+   Description: CAMERA, CCTV, UNV, PTZ IPC6622SR-X25-VF
+   Submit By: Adriana
+   Status: Completed
+
+244. PRF 28364: MTIRMRAD496232 - Rp 3.800.000
+   Description: Indorack Wallmount Rack Single Door WIR6012S - 12U
+   Submit By: Adriana
+   Status: Completed
+
+245. PRF 28364: MTIRMRAD496232 - Rp 195.000
+   Description: Indorack Cantilever Shelf CS01 - 1U
+   Submit By: Adriana
+   Status: Completed
+
+246. PRF 28364: MTIRMRAD496232 - Rp 115.000
+   Description: Indorack Wire Management Panel WM01 - 1U
+   Submit By: Adriana
+   Status: Completed
+
+247. PRF 28364: MTIRMRAD496232 - Rp 200.000
+   Description: Roset Fiber Optic 8 core SC, Single mode, include pigtail and accessories
+   Submit By: Adriana
+   Status: Completed
+
+248. PRF 28364: MTIRMRAD496232 - Rp 7.200.000
+   Description: UPS APC SMC1
+   Submit By: Adriana
+   Status: Completed
+
+249. PRF 28082: MTIRMRAD496313 - Rp 23.430.931
+   Description: Tagihan Kartu Halo Tsel Payment MTI - Periode Apr25
+   Submit By: Adriana
+   Status: Completed
+
+250. PRF 28394: AMITCM18.6250 - Rp 32.000.000
+   Description: Samsung 8GB 3200 DDR4 3200MHz Memory RAM for Laptop
+   Submit By: Peggy
+   Status: On order
+
+251. PRF 28359: AMITCM20.6250 - Rp 226.600.000
+   Description: Radio, Motorola XIR P6620I VHF, Original
+   Submit By: Adriana
+   Status: Completed
+
+252. PRF 28359: AMITCM20.6250 - Rp 9.152.000
+   Description: Radio, RIG, Motorola XIR M3688, VHF
+   Submit By: Adriana
+   Status: Completed
+
+253. PRF 28359: AMITCM20.6250 - Rp 855.000
+   Description: Antenna, VHY, Radio RIG, Motorola, XIR M8668i, With Bracket Magnet
+   Submit By: Adriana
+   Status: Completed
+
+254. PRF 28359: AMITCM20.6250 - Rp 7.000.000
+   Description: Antenna Hy-gain V2R VHY
+   Submit By: Adriana
+   Status: Completed
+
+255. PRF 28440: MTIRMRAD496328 - Rp 12.500.000
+   Description: Extension Warranty 1year for Server Dell PowerEdge R750xs
+   Submit By: Peggy
+   Status: Completed
+
+256. PRF 28359: AMITCM20.6250 - Rp 4.000.000
+   Description: Power Supply Alinco DM-30G SW 30A
+   Submit By: Adriana
+   Status: Completed
+
+257. PRF 28359: AMITCM20.6250 - Rp 150.000
+   Description: Connector Amphenol PL259 male RG8
+   Submit By: Adriana
+   Status: Completed
+
+258. PRF 28359: AMITCM20.6250 - Rp 250.000
+   Description: Amphenol N Connector male for RG8 - Crimping
+   Submit By: Adriana
+   Status: Completed
+
+259. PRF 28359: AMITCM20.6250 - Rp 125.000
+   Description: Konektor PL female to BNC female Antenna Radio
+   Submit By: Adriana
+   Status: Completed
+
+260. PRF 28359: AMITCM20.6250 - Rp 125.000
+   Description: Connector Converter Adaptor to Mobile Antenna, Usable for Radio Rig Motorola GM 338, GM 3688 BNC PL
+   Submit By: Adriana
+   Status: Completed
+
+261. PRF 28359: AMITCM20.6250 - Rp 13.500.000
+   Description: Cable Belden RG8-9913
+   Submit By: Adriana
+   Status: Completed
+
+262. PRF 28359: AMITCM20.6250 - Rp 75.000
+   Description: Lotfett soldering Grease 50 Grams 
+   Submit By: Adriana
+   Status: Completed
+
+263. PRF 28359: AMITCM20.6250 - Rp 150.000
+   Description: Solder Timah 1mm 250 Gr, Kentaro
+   Submit By: Adriana
+   Status: Completed
+
+264. PRF 28359: AMITCM20.6250 - Rp 500.000
+   Description: Niso PCV Duct TC-4
+   Submit By: Adriana
+   Status: Completed
+
+265. PRF 28475: MTIRMRAD496313 - Rp 151.714.000
+   Description: TAGIHAN INTERNET CROSSNET - PERIODE APR 2025
+   Submit By: Reni
+   Status: Completed
+
+266. PRF 28443: MTIRMRAD496250 - Rp 37.000.000
+   Description: Module, P570 PBX SYS, YEASTAR P570 PBX System
+   Submit By: Reni
+   Status: Completed
+
+267. PRF 28617: MTIRMRAD496328 - Rp 5.300.000
+   Description: Canva Teams Annual License For 3 User
+   Submit By: Reni
+   Status: Completed
+
+268. PRF 28625: AMITCM18.6250 - Rp 15.000.000
+   Description: Computer, Optilex 7020 SFF +Dell, Core I5 Gen 13 th, 2x8 GB RAM Win 11 Pro, Wifi 6
+   Submit By: Reni
+   Status: Completed
+
+269. PRF 28649: MTIRMRAD496232 - Rp 100.000
+   Description: Relocation and reinstallation of GPS device + disconnection of device (ex. MTI 068 LV)
+   Submit By: Reni
+   Status: Completed
+
+270. PRF 28649: MTIRMRAD496232 - Rp 100.000
+   Description: Relocation and reinstallation of GPS device + disconnection of device (ex. MTI 066 LV )
+   Submit By: Reni
+   Status: Completed
+
+271. PRF 28649: MTIRMRAD496232 - Rp 100.000
+   Description: Relocation and reinstallation of GPS device + disconnection of device (ex. MTI 060 LV)
+   Submit By: Reni
+   Status: Completed
+
+272. PRF 28761: AMITCM21 - Rp 34.200.000
+   Description: CAMERA, DASHCAM, GPS TRACKER4G JC400, INTELLITRAC, C/W 16GB MEM CARD
+   Submit By: Reni
+   Status: On order
+
+273. PRF 28761: AMITCM21 - Rp 17.325.000
+   Description: SOFTWARE, CLOUD & SYS,USED F/ DASHCAM JC-400
+   Submit By: Reni
+   Status: On order
+
+274. PRF 28715: AMITCM16.6250 - Rp 221.000.000
+   Description: Hardware And Subscription, Forti FAZ-150G
+   Submit By: Reni
+   Status: On order
+
+275. PRF 28715: AMITCM16.6250 - Rp 6.250.000
+   Description: Fortisubscription, FC1-10-EMS04-428-01-12, Format: Forticlient VPN/ZTNA
+   Submit By: Reni
+   Status: On order
+
+276. PRF 28755: MTIRMRAD496250 - Rp 37.000.000
+   Description: MODULE, P570 PBX SYS, YEASTAR
+   Submit By: Reni
+   Status: On order
+
+277. PRF 28756: MTIRMRAD496232 - Rp 54.000.000
+   Description: CCTV, UNV, PTZ IPC6622SR-X25-VF
+   Submit By: Reni
+   Status: On order
+
+278. PRF 28762: MTIRMRHS606250 - Rp 6.500.000
+   Description: Corel Draw Graphic Suite
+   Submit By: Reni
+   Status: Completed
+
+279. PRF 29000: AMITCM18.6250 - Rp 364.000.000
+   Description: Laptop Dell i5 5450 pro, 16 GB
+   Submit By: Reni
+   Status: Req. Approved
+
+280. PRF 29005: MTIRMRAD496328 - Rp 9.000.000
+   Description: Al Notulensi
+   Submit By: Reni
+   Status: Completed
+
+281. PRF 29054: MTIRMRAD496313 - Rp 64.000.000
+   Description: Tagihan Icon PLus periode Maret 2025
+   Submit By: Reni
+   Status: Completed
+
+282. PRF 29085: MTIRMRAD496313 - Rp 64.000.000
+   Description: Tagihan Icon PLus periode April  2025
+   Submit By: Reni
+   Status: Completed
+
+283. PRF 27348: MTIRMRMT26 - Rp 2.400.000
+   Description: Printer Epson L3250
+   Submit By: Reni
+   Status: Completed
+
+284. PRF 29224: MTIRMRAD496313 - Rp 23.198.539
+   Description: Kartu Halo Tsel Payment MTI - Periode May25
+   Submit By: Adriana
+   Status: Completed
+
+285. PRF 29227: MTIRMRHS606279 - Rp 4.700.000
+   Description: SPEAKER TOA TYPE ZH 652 T
+   Submit By: Adriana
+   Status: In transit
+
+286. PRF 29227: MTIRMRHS606279 - Rp 10.400.000
+   Description: MICROPHONE, TYPE: WIRELESS, SET, ZW T502H AS,
+   Submit By: Adriana
+   Status: In transit
+
+287. PRF 29227: MTIRMRHS606279 - Rp 9.072.000
+   Description: AMPLIFIER, TYPE: AUDIO AMPLIFIER TOA ZA-230 PA, RATING: 220V 30W
+   Submit By: Adriana
+   Status: In transit
+
+288. PRF 29227: MTIRMRHS606279 - Rp 1.200.000
+   Description: KABEL SPEAKER PARAGON Tipe : NYMHY (Oval cord) Ukuran : 2 x 0.75 mm
+   Submit By: Adriana
+   Status: In transit
+
+289. PRF 29294: MTIRMRAD496328 - Rp 12.000.000
+   Description: Starlink Internet Rent 12 Month (1 year) - For Backup internel all plant
+   Submit By: Adriana
+   Status: Cancelled
+
+290. PRF 29440: MTIRMRMT266014 - Rp 7.500.000
+   Description: PROJECTOR, ANDROID SMART PROJECTOR LCD, MAXM20, EROC, DISPLAY TECHNOLOGY : LCD LT SOURCE - LED NATIVE RES : 1920*1080 DECODING
+   Submit By: Reni
+   Status: Completed
+
+291. PRF 29440: MTIRMRMT266014 - Rp 1.800.000
+   Description: SCREEN, PROJECTOR SCREEN, MAS-2121, 84IN, BRITE, MANUAL PULL DOWN
+   Submit By: Reni
+   Status: Completed
+
+292. PRF 29440: MTIRMRMT266014 - Rp 5.000.000
+   Description: TELEVISION, GOOGLE TV, P635, 55IN, TCL, UHD, 4K HDR
+   Submit By: Reni
+   Status: Completed
+
+293. PRF 29440: MTIRMRMT266014 - Rp 800.000
+   Description: BRACKET, NORTH BAYOU, NB AVA1800-70-1P, 55-80 IN
+   Submit By: Reni
+   Status: Completed
+
+294. PRF 29440: MTIRMRMT266014 - Rp 1.500.000
+   Description: POINTER, SPOTLIGHT PRESENTATION REMO
+BRAND LOGITECH
+   Submit By: Reni
+   Status: Completed
+
+295. PRF 29440: MTIRMRMT266014 - Rp 700.000
+   Description: POINTER, WIRELESS, LOGITECH, R400
+   Submit By: Reni
+   Status: Completed
+
+296. PRF 29440: MTIRMRMT266014 - Rp 3.000.000
+   Description: PRINTER, L5290, EPSON
+   Submit By: Reni
+   Status: Completed
+
+297. PRF 29440: MTIRMRMT266014 - Rp 200.000
+   Description: SOCKET, ELEC, EXTN CABLE, 5 HOLE, C/W 5M CABLE LG
+   Submit By: Reni
+   Status: Completed
+
+298. PRF 29440: MTIRMRMT266014 - Rp 2.400.000
+   Description: SPEAKER, SAMSUNG SOUNDBAR HW-T420, 2.1 CH
+   Submit By: Reni
+   Status: Completed
+
+299. PRF 29417: MTIRMRPRD06769 - Rp 9.450.000
+   Description: LED MONITOR SAMSUNG S24A310 24IN (For CCP Employees (Aojun, Martino, Rusbudi, Gusti Ayu,Dyah Retno, Robin, George)
+   Submit By: Adriana
+   Status: Completed
+
+300. PRF 29395: MTIRMRMT266733 - Rp 1.350.000
+   Description: MONITOR LED EXTEND - FOR HIKAM AL MAINTENANC
+   Submit By: Adriana
+   Status: Rejected
+
+301. PRF 29509: MTIRMRAD496313 - Rp 6.632.150
+   Description: Printer FuljiFilm C3070 SN: 382135 (Pyrite Lt 2) - MEI25
+   Submit By: Reni
+   Status: Completed
+
+302. PRF 29509: 51211325.6250 - Rp 6.840.000
+   Description: Printer Apeos C3570S SN: 383273 (CCP) -MEI25
+   Submit By: Reni
+   Status: Completed
+
+303. PRF 29509: MTIRMRAD496313 - Rp 6.133.750
+   Description: Printer Apeos C3570 SN: 383293 (Acid Roaster) - MEI25
+   Submit By: Reni
+   Status: Completed
+
+304. PRF 29509: MTIRMRAD496313 - Rp 5.885.750
+   Description: Printer Apeos C3570 SN: 383294 (Pyrite Whs) - MEI25
+   Submit By: Reni
+   Status: Completed
+
+305. PRF 29509: MTIRMRAD496313 - Rp 8.870.250
+   Description: Printer Apeos C3570 SN: 383354 (Acid Lt2) -MEI25
+   Submit By: Reni
+   Status: Completed
+
+306. PRF 29509: MTIRMRAD496313 - Rp 5.937.250
+   Description: Printer Apeos C3570 SN: 383355 (Acid Mtc Lt2) - MEI25
+   Submit By: Reni
+   Status: Completed
+
+307. PRF 29509: MTIRMRAD496313 - Rp 8.850.000
+   Description: Printer Apeos C3570 SN: 383393 (Whs Labota) - MEI25
+   Submit By: Reni
+   Status: Completed
+
+308. PRF 29509: MTIRMRAD496313 - Rp 6.587.500
+   Description: Printer Apeos C3570 SN: 383395 (Acid Lt1) - MEI25
+   Submit By: Reni
+   Status: Completed
+
+309. PRF 29629: MTIRMRAD496313 - Rp 60.795.699
+   Description: Tagihan Icon PLus periode Mei  2025
+   Submit By: Reni
+   Status: Completed
+
+310. PRF 30987: MTIRMRAD496313 - Rp 85.000.000
+   Description: Tagihan Meta Telekomunikasi Asia - Periode Apr 25
+   Submit By: Adriana
+   Status: Completed
+
+311. PRF 29777: MTIRMRAD496328 - Rp 68.850.000
+   Description: FortiGuard OT Security Servive 
+   Submit By: Reni
+   Status: On order
+
+312. PRF 29840:  MTIRMRHS606250 - Rp 3.900.000
+   Description: MONITOR, LED, S24A310, SAMSUNG, 24IN
+   Submit By: Reni
+   Status: Rejected
+
+313. PRF 29891: MTIRMRAD496769 - Rp 26.400.000
+   Description: AIRFIBER, AF-5XHD & AF-5G30-S45, UBIQUITI, ACCESS PT & 
+DISH ANTENNA
+   Submit By: Reni
+   Status: Completed
+
+314. PRF 29891: MTIRMRAD496250 - Rp 8.750.000
+   Description: CMPTR, UNIFI UAP-AC-HD
+   Submit By: Reni
+   Status: Completed
+
+315. PRF 29891: MTIRMRAD496250 - Rp 2.500.000
+   Description: JOINT CLOSURE FIBER OPTIC, CAP 24 CORE 
+   Submit By: Reni
+   Status: Completed
+
+316. PRF 29891: MTIRMRAD496250 - Rp 314.000
+   Description: Rust-resistant paint
+   Submit By: Reni
+   Status: Completed
+
+317. PRF 29990: MTIRMRAD496250 - Rp 450.000
+   Description: USB to LAN Converter
+   Submit By: Adriana
+   Status: Completed
+
+318. PRF 29990: MTIRMRAD496250 - Rp 2.400.000
+   Description: SSD Internal 1TB 2.5INCH 7MM
+   Submit By: Adriana
+   Status: Completed
+
+319. PRF 29990: MTIRMRAD496250 - Rp 500.000
+   Description: Adhesive Card/Kartu Stiker Adhesive CR-80
+   Submit By: Adriana
+   Status: Completed
+
+320. PRF 29990: MTIRMRAD496250 - Rp 77.000
+   Description: rokeet Air Duster 2 in 1 Vacuum Blower Cleaner Portable Laptop PC
+   Submit By: Adriana
+   Status: Completed
+
+321. PRF 29987: MTIRMRMT266137 - Rp 290.000.000
+   Description: Falco Controller Access Door CTRL-2DRPoE-CF16M PoE (Double Door)
+   Submit By: Reni
+   Status: Rejected
+
+322. PRF 29987: MTIRMRMT266137 - Rp 112.500.000
+   Description: Falco Controller Access Door CTRL-1DRPoE-CF-PCB (Single Door)
+   Submit By: Reni
+   Status: Rejected
+
+323. PRF 29987: MTIRMRMT266137 - Rp 27.000.000
+   Description: Cable Belden 9506 CMG 6PR24 SHIELDED 1000 FT
+   Submit By: Reni
+   Status: Rejected
+
+324. PRF 29987: MTIRMRMT266137 - Rp 3.000.000
+   Description: CONDUIT BOSS 20MM 3 METER
+   Submit By: Reni
+   Status: Rejected
+
+325. PRF 29987: MTIRMRMT266137 - Rp 380.000
+   Description: Klem Pipa Conduit 20mm Boss = 400 Pcs
+   Submit By: Reni
+   Status: Rejected
+
+326. PRF 29987: MTIRMRMT266137 - Rp 120.000
+   Description: Shock Conduit 20mm  4 Pack = 400 Pcs
+   Submit By: Reni
+   Status: Rejected
+
+327. PRF 29987: MTIRMRMT266137 - Rp 11.400.000
+   Description: Panel Box Ukuran 500MM*500MM*300MM 
+   Submit By: Reni
+   Status: Rejected
+
+328. PRF 29987: MTIRMRMT266137 - Rp 51.000.000
+   Description: Switch Ruijie RG-CS8324GT4XS 
+   Submit By: Reni
+   Status: Rejected
+
+329. PRF 29987: MTIRMRMT266137 - Rp 400.000
+   Description: flexible conduit Boss 20mm = 50 M
+   Submit By: Reni
+   Status: Rejected
+
+330. PRF 29987: MTIRMRMT266137 - Rp 330.000
+   Description: Skrup Roofing 3cm = 300 pcs
+   Submit By: Reni
+   Status: Rejected
+
+331. PRF 29987: MTIRMRMT266137 - Rp 12.600.000
+   Description: Cable AMP Commscope Cat 6 UTP Blue 305m
+   Submit By: Reni
+   Status: Rejected
+
+332. PRF 29998: MTIRMRMT266733 - Rp 2.900.000
+   Description: CANVA TEAMS PRE LICENSE - FOR OHS TEAM
+   Submit By: Adriana
+   Status: Rejected
+
+333. PRF 29991: MTIRMRAD496250 - Rp 41.300.000
+   Description: HARDDISK DRIVE ONE TOUCH DESK - JUN25[2]
+   Submit By: Adriana
+   Status: Completed
+
+334. PRF 29997: MTIRMRAD496313 - Rp 152.318.500
+   Description: TAGIHAN INTERNET CROSSNET -  PERIODE MAY25_250620_155550
+   Submit By: Adriana
+   Status: Completed
+
+335. PRF 29293: MTIRMRAD496328 - Rp 71.000.000
+   Description: HEIMDAL (EPDR) LICENSE - JUN25
+   Submit By: Adriana
+   Status: On order
+
+336. PRF 30110: AMITCM22.6250 - Rp 96.000.000
+   Description: 25Gb iSCSI4 Port Single Controller, Customer Kit SKU: 403-BCQU
+   Submit By: Reni
+   Status: On order
+
+337. PRF 30110: AMITCM22.6250 - Rp 49.920.000
+   Description: 1.2TB 10K RPM SAS 12Gbps 2.5in Hot-plug Hard  Drive,CusKit SKU: 400-AJPD
+   Submit By: Reni
+   Status: On order
+
+338. PRF 30110: AMITCM22.6250 - Rp 7.200.000
+   Description: Dell Networking, Cable, SFP28 to SFP28, 25GbE, Passive Copper Twinax Direct Attach Cable, 3 Meter, Cust Kit SKU: 470-ACEU
+   Submit By: Reni
+   Status: On order
+
+339. PRF 30110: AMITCM22.6250 - Rp 31.349.000
+   Description: QSW-M5216-1T 16-Port 25GbE SFP28 fiber Managed Switch 
+   Submit By: Reni
+   Status: On order
+
+340. PRF 30105: MTIRMRMT236137 - Rp 4.500.000
+   Description: ICA UPS CE600 Capacity 600 VA
+   Submit By: Reni
+   Status: Completed
+
+341. PRF 30105: r - Rp 36.720.000
+   Description: COMPUTER, DESKTOP, OPTIPLEX 7000, DELL, MICRO FORM FACTOR, 
+CORE I7, WINDOWS 10
+   Submit By: Reni
+   Status: Completed
+
+342. PRF 30111: AMITCM22.6250 - Rp 12.350.000
+   Description: Dell 64 GB 2Rx4 DDR5 RDIMM 5600 MT/s 
+   Submit By: Reni
+   Status: On order
+
+343. PRF 30111: AMITCM22.6250 - Rp 25.220.000
+   Description: Dell 960GB SSD SATA 3.5in Hot-Plug 3DWPD 
+   Submit By: Reni
+   Status: On order
+
+344. PRF 30291: MTIRMRHS606250 - Rp 24.000.000
+   Description: Dell Optiplex 7010 SFF 2. Intel Core i5-13500 13th Gen  16GB SSD 1TB, MONITOR 24INCH
+   Submit By: Adriana
+   Status: Completed
+
+345. PRF 30183: AMITCM18.6250 - Rp 15.000.000
+   Description: COMPUTER, OPTIPLEX 7020 SFF +, DELL, CORE I5 GEN 13TH, 2X8GB RAM, WIN 11 PRO, WIFI 6, 3/3/
+   Submit By: Reni
+   Status: On order
+
+346. PRF 30183: AMITCM18.6250 - Rp 1.180.000
+   Description: MONITOR, S24C310, SAMSUNG, 24IN DISPLAY SCREEN 
+   Submit By: Reni
+   Status: On order
+
+347. PRF 30183: MTIRMRPRC06250 - Rp 260.000
+   Description: PATCH, CABLE, PATCH CORD, SGL MODE, DUP, UPC, LC TO LC, 2M 
+   Submit By: Reni
+   Status: On order
+
+348. PRF 30183: MTIRMRPRC06250 - Rp 310.000
+   Description: CONNECTOR, COMMS, RJ45 CONNECTOR, CAT6
+   Submit By: Reni
+   Status: On order
+
+349. PRF 30183: MTIRMRPRC06250 - Rp 600.000
+   Description: Media Converter Fiber Optik to LAN, Netlink 1 core singgle mode SC 
+   Submit By: Reni
+   Status: On order
+
+350. PRF 30183: MTIRMRPRC06250 - Rp 380.000
+   Description: Patch cord fiber optik SC - LC 2M
+   Submit By: Reni
+   Status: On order
+
+351. PRF 30183: MTIRMRPRC06250 - Rp 1.272.000
+   Description: Kabel Fiber Optik Single Mode 24Core
+   Submit By: Reni
+   Status: On order
+
+352. PRF 30183: MTIRMRPRC06250 - Rp 900.000
+   Description: Box Panel Plastik 300x400 x 180 mm ABS Junction + Base Plate Durabox 
+   Submit By: Reni
+   Status: On order
+
+353. PRF 30183: MTIRMRPRC06250 - Rp 500.000
+   Description: Roset Fiber optik 8 core include accessories
+   Submit By: Reni
+   Status: On order
+
+354. PRF 30183: MTIRMRPRC06250 - Rp 236.000
+   Description: Kabel jaringan LAN UTP cat 6
+   Submit By: Reni
+   Status: On order
+
+355. PRF 30183: MTIRMRPRC06250 - Rp 80.000
+   Description: CONNECTOR, CABLE/CONDUIT, GLAND CONDT
+   Submit By: Reni
+   Status: On order
+
+356. PRF 30183: MTIRMRPRC06250 - Rp 190.000
+   Description: PATCH, CABLE, PATCH CORD, SGL MODE, LC-SC, 2M
+   Submit By: Reni
+   Status: On order
+
+357. PRF 30183: MTIRMRPRC06250 - Rp 60.000
+   Description: CONNECTOR, CABLE/CONDUIT
+   Submit By: Reni
+   Status: On order
+
+358. PRF 30293: MTIRMRAD496232 - Rp 600.000
+   Description: CHARGER ORIGINAL LAPTOP DELL L5420 - FOR GRACIA'S REPLACEMENT BROKE & SPARE
+   Submit By: Adriana
+   Status: On order
+
+359. PRF 30294: AMITCM18.6250 - Rp 1.700.000
+   Description: COMPUTER, MINI PC, B1 PRO, BMAX, RAM 8GB DDR4, ROM 128GB
+   Submit By: Adriana
+   Status: On order
+
+360. PRF 30294: AMITCM18.6250 - Rp 1.350.000
+   Description: MONITOR, LED, SAMSUNG, 24IN
+   Submit By: Adriana
+   Status: On order
+
+361. PRF 30335: MTIRMRAD496250 - Rp 10.000.000
+   Description: MIFARE Card 
+   Submit By: Adriana
+   Status: Completed
+
+362. PRF 30335: MTIRMRAD496250 - Rp 8.400.000
+   Description: Ribbon Color
+   Submit By: Adriana
+   Status: Completed
+
+363. PRF 30436: MTIRMRPRD06769 - Rp 2.700.000
+   Description: PRINTER DOT MATRIX EPSON LX-310
+   Submit By: Adriana
+   Status: Rejected
+
+364. PRF 30436: MTIRMRPRD06769 - Rp 1.600.000
+   Description: PAPER CONTINUOUS FOR TYPE PRINTER  EPSON LX-310
+   Submit By: Adriana
+   Status: Rejected
+
+365. PRF 30610: MTIRMRAD496314 - Rp 32.725.000
+   Description: Iuran Tahunan 17 unit GPS (Periode 01 July 2025 s/d 30 June 2026 ) - for Site Service
+   Submit By: Adriana
+   Status: Completed
+
+366. PRF 30448: MTIRMRAD496314 - Rp 22.650.068
+   Description: Kartu Halo Tsel Payment MTI - Periode June25
+   Submit By: Adriana
+   Status: Completed
+
+367. PRF 30611: MTIRMRAD496328 - Rp 12.000.000
+   Description: MS 365 Apps for Business
+   Submit By: Adriana
+   Status: On order
+
+368. PRF 30611: MTIRMRAD496328 - Rp 3.500.000
+   Description: Email License MS 365 Business Standard (No Teams)
+   Submit By: Adriana
+   Status: On order
+
+369. PRF 30611: MTIRMRAD496328 - Rp 19.000.000
+   Description: Email License MS 365 Business Basic
+   Submit By: Adriana
+   Status: On order
+
+370. PRF 30471: MTIRMRMT236137 - Rp 720.000
+   Description: GIGABIT ETHERNET ADPT CONVR, USB A 3.0 TO LAN, UGREEN, 50922
+   Submit By: Adriana
+   Status: On order
+
+371. PRF 30471: MTIRMRMT236137 - Rp 4.950.000
+   Description: NETWORK, SW, RG-NBS3100-8GT2SFP
+   Submit By: Adriana
+   Status: On order
+
+372. PRF 30631: MTIRMRMT266137 - Rp 600.000.000
+   Description: Renewal Annual Warranty Support Maintelegence Software by Maint. Dept.
+   Submit By: Adriana
+   Status: On order
+
+373. PRF 30715: MTIRMRHS446279 - Rp 4.050.000
+   Description: MONITOR LED EXTEND SAMSUNG 24INCH - FOR IMAN, MAHRIVAI, LIU CUNGUI ENVIRO TEAM
+   Submit By: Adriana
+   Status: Completed
+
+374. PRF 30716: MTIRMRAD496313 - Rp 8.486.900
+   Description: Printer FuljiFilm C3070 SN: 382135 (Pyrite Lt 2) - JUN25
+   Submit By: Adriana
+   Status: Completed
+
+375. PRF 30716: MTIRMRAD496250 - Rp 8.764.750
+   Description: Printer Apeos C3570S SN: 383273 (CCP) - JUN25
+   Submit By: Adriana
+   Status: Completed
+
+376. PRF 30716: MTIRMRAD496313 - Rp 7.922.250
+   Description: Printer Apeos C3570 SN: 383293 (Acid Roaster) - JUN25
+   Submit By: Adriana
+   Status: Completed
+
+377. PRF 30716: MTIRMRAD496313 - Rp 7.124.250
+   Description: Printer Apeos C3570 SN: 383294 (Pyrite Whs) - JUN25
+   Submit By: Adriana
+   Status: Completed
+
+378. PRF 30716: MTIRMRAD496313 - Rp 22.617.500
+   Description: Printer Apeos C3570 SN: 383354 (Acid Lt2) - JUN25
+   Submit By: Adriana
+   Status: Completed
+
+379. PRF 30716: MTIRMRAD496313 - Rp 8.864.750
+   Description: Printer Apeos C3570 SN: 383355 (Acid Mtc Lt2) - JUN25
+   Submit By: Adriana
+   Status: Completed
+
+380. PRF 30716: MTIRMRAD496313 - Rp 24.949.500
+   Description: Printer Apeos C3570 SN: 383393 (Whs Labota) - JUN25
+   Submit By: Adriana
+   Status: Completed
+
+381. PRF 30716: MTIRMRAD496313 - Rp 9.877.500
+   Description: Printer Apeos C3570 SN: 383395 (Acid Lt1) - JUN25
+   Submit By: Adriana
+   Status: Completed
+
+382. PRF 30730: AMITCM18.6250 - Rp 30.000.000
+   Description: PC OPTIPLEX 7020 SFF + DELL I5 SET - FOR SITE SERVICE TEAM - JUL25
+   Submit By: Adriana
+   Status: Req. Approved
+
+383. PRF 30732: MTIRMRAD496328 - Rp 3.000.000
+   Description: Subscription AI Software Lovable Pro - Jul 25
+   Submit By: Adriana
+   Status: On order
+
+384. PRF 30733: MTIRMRAD496313 - Rp 64.000.000
+   Description: Biaya Sewa Internet ICON Plus - Periode June25
+   Submit By: Adriana
+   Status: Completed
+
+385. PRF 30734: MTIRMRAD496313 - Rp 85.000.000
+   Description: Tagihan Meta Telekomunikasi Asia - Periode MEI 25
+   Submit By: Adriana
+   Status: Completed
+
+386. PRF 30874: MTIRMRAD496232 - Rp 400.000
+   Description: Power Adaptor adjustable 3-24 VDC - For IT team
+   Submit By: 
+   Status: On order
+
+387. PRF 31376: MTIRMRPRD06769 - Rp 3.500.000
+   Description: SPEAKER, SPEAKER MEETING, PASPRO 15F3, POLYTRON, C/W RADIO
+   Submit By: Reni
+   Status: Updated:20161
+
+388. PRF 31410: MTIRMRAD496250 - Rp 7.571.550
+   Description: Printer FuljiFilm C3070 SN: 382135 (Pyrite Lt 2) - JUL25
+   Submit By: Reni
+   Status: Completed
+
+389. PRF 31410: MTIRMRAD496250 - Rp 7.245.000
+   Description: Printer Apeos C3570S SN: 383273 (CCP) - JUL25
+   Submit By: Reni
+   Status: Completed
+
+390. PRF 31410: MTIRMRAD496250 - Rp 6.823.250
+   Description: Printer Apeos C3570 SN: 383293 (Acid Roaster) - JUL25
+   Submit By: Reni
+   Status: Completed
+
+391. PRF 31410: MTIRMRAD496250 - Rp 6.063.250
+   Description: Printer Apeos C3570 SN: 383294 (Pyrite Whs) - JUL25
+   Submit By: Reni
+   Status: Completed
+
+392. PRF 31410: MTIRMRAD496250 - Rp 12.965.000
+   Description: Printer Apeos C3570 SN: 383354 (Acid Lt2) - JUL25
+   Submit By: Reni
+   Status: Completed
+
+393. PRF 31410: MTIRMRAD496250 - Rp 6.865.000
+   Description: Printer Apeos C3570 SN: 383355 (Acid Mtc Lt2) - JUL25
+   Submit By: Reni
+   Status: Completed
+
+394. PRF 31410: MTIRMRAD496250 - Rp 9.941.500
+   Description: Printer Apeos C3570 SN: 383393 (Whs Labota) - JUL25
+   Submit By: Reni
+   Status: Completed
+
+395. PRF 31410: MTIRMRAD496250 - Rp 7.185.000
+   Description: Printer Apeos C3570 SN: 383395 (Acid Lt1) - JUL25
+   Submit By: Reni
+   Status: Completed
+
+396. PRF 31092: MTIRMRAD426249 - Rp 2.900.000
+   Description: POLYTRON SPEAKER
+   Submit By: Adriana
+   Status: Completed
+
+397. PRF 31555: MTIRMRAD496232 - Rp 750.000
+   Description: Flexible XIR P6620I 1 Paket Flexible Mainboard dan Flexible Keyboard
+   Submit By: Reni
+   Status: Req. Approved
+
+398. PRF 31555: MTIRMRAD496232 - Rp 225.000
+   Description: Kabel PigTail FO SC-LC 2 meter
+   Submit By: Reni
+   Status: Req. Approved
+
+399. PRF 31555: MTIRMRAD496232 - Rp 875.000
+   Description: SWITCHPUSHBUTTON,, SET, PTT HT, RBR & PLASTIC XIR P6620I, MOTOROLA
+   Submit By: Reni
+   Status: Req. Approved
+
+400. PRF 31555: MTIRMRAD496232 - Rp 1.250.000
+   Description: Flexibel Microphone HT P6600 Xir P6620 Motorola
+   Submit By: Reni
+   Status: Req. Approved
+
+401. PRF 31555: MTIRMRAD496232 - Rp 800.000
+   Description: Potensio Xir P6620 P6620i Motorola Volume Switch
+   Submit By: Reni
+   Status: Req. Approved
+
+402. PRF 31555: MTIRMRAD496232 - Rp 4.500.000
+   Description: Docking Charger Radio HT Motorola XIR P6620I
+   Submit By: Reni
+   Status: Req. Approved
+
+403. PRF 31555: MTIRMRAD496232 - Rp 750.000
+   Description: Isolasi 3M Scotch 23 Rubber
+   Submit By: Reni
+   Status: Req. Approved
+
+404. PRF 31555: MTIRMRAD496232 - Rp 1.850.000
+   Description: Konektor RJ45 belden cat 6
+   Submit By: Reni
+   Status: Req. Approved
+
+405. PRF 31555: MTIRMRAD496232 - Rp 87.000
+   Description: Sock Pipa PVC Conduit Boss 20mm
+   Submit By: Reni
+   Status: Req. Approved
+
+406. PRF 31555: MTIRMRAD496232 - Rp 90.000
+   Description: klem Pipa PVC Conduit Boss 20mm
+   Submit By: Reni
+   Status: Req. Approved
+
+407. PRF 31555: MTIRMRAD496232 - Rp 2.300.000
+   Description: CABLE, COAXIAL, TOUGHCABLE BELDEN UTP CAT 6
+   Submit By: Reni
+   Status: Req. Approved
+
+408. PRF 31555: MTIRMRAD496232 - Rp 150.000
+   Description: CONNECTOR, COMMS, BARREL COUPLER, RJ45, CAT5/6, OUTDOOR, W/PROOF
+   Submit By: Reni
+   Status: Req. Approved
+
+409. PRF 31555: MTIRMRAD496232 - Rp 700.000
+   Description: CONNECTOR, ELEC, BELDEN, RJ45 CAT5E, 50PCS/PACK
+   Submit By: Reni
+   Status: Req. Approved
+
+410. PRF 31555: MTIRMRAD496232 - Rp 1.150.000
+   Description: CONNECTOR, COMMS, ROSET, FIBER OPTIC (FO), 8 CORE, SC CONNECTOR, INCL ACCSRS
+   Submit By: Reni
+   Status: Req. Approved
+
+411. PRF 31555: MTIRMRAD496232 - Rp 185.000
+   Description: JOINT CLOSURE FIBER OPTIC, CAP 24 CORE
+   Submit By: Reni
+   Status: Req. Approved
+
+412. PRF 31555: MTIRMRAD496232 - Rp 200.000
+   Description: Kabel ties 300mm
+   Submit By: Reni
+   Status: Req. Approved
+
+413. PRF 31555: MTIRMRAD496232 - Rp 450.000
+   Description: RG6 KONEKTOR PCT TRSXL-6LM RG6 CONNECTOR
+   Submit By: Reni
+   Status: Req. Approved
+
+414. PRF 31555: MTIRMRAD496232 - Rp 75.000
+   Description: Pipa conduit 20mm
+   Submit By: Reni
+   Status: Req. Approved
+
+415. PRF 31555: MTIRMRAD496232 - Rp 310.000
+   Description: Flexible Conduit 20mm Clipsal @50mtr/roll
+   Submit By: Reni
+   Status: Req. Approved
+
+416. PRF 31555: MTIRMRAD496232 - Rp 2.335.000
+   Description: SFP-1G-BD-SM-10KM Mikrobits
+   Submit By: Reni
+   Status: Req. Approved
+
+417. PRF 31555: MTIRMRAD496232 - Rp 325.000
+   Description: Kabel power CPU AC16A 1,5M
+   Submit By: Reni
+   Status: Req. Approved
+
+418. PRF 31555: MTIRMRAD496232 - Rp 120.000
+   Description: CABLE, ORICO, HDMI, HD303-15, 1.5M
+   Submit By: Reni
+   Status: Req. Approved
+
+419. PRF 31555: MTIRMRAD496232 - Rp 80.000
+   Description: CARD, ID CARD, ADHESIVE, STICKER, ULTRACARD CR-80, HID, 82266, PVC
+   Submit By: Reni
+   Status: Req. Approved
+
+420. PRF 31555: MTIRMRAD496232 - Rp 50.000
+   Description: MIFARE CARD 1KBYTE PHILIPS 0.8 X 54 X 85.6 mm
+   Submit By: Reni
+   Status: Req. Approved
+
+421. PRF 31555: MTIRMRAD496232 - Rp 725.000
+   Description: Zebra Ribbon color YMCKO for ZC300
+   Submit By: Reni
+   Status: Req. Approved
+
+422. PRF 31571: MTIRMRPRA06250 - Rp 2.700.000
+   Description: MONITOR, LED, SAMSUNG, 24IN
+   Submit By: Reni
+   Status: On order
+
+423. PRF 31573: MTIRMRHS446250 - Rp 1.350.000
+   Description: MONITOR, LED, SAMSUNG, 24IN
+   Submit By: Reni
+   Status: On order
+
+424. PRF 31674: MTIRMRAD496313 - Rp 100.000.000
+   Description: Cross Network Periode Juni 2025
+   Submit By: Reni
+   Status: Updated:20026
+
+425. PRF 31690: MTIRMRAD496314 - Rp 22.382.997
+   Description: Month Billing Telkomsel periode Juli 2025
+   Submit By: Reni
+   Status: Completed
+
+426. PRF 30988: MTIRMRAD496313 - Rp 92.000.000
+   Description: Meta Telekomunikasi Asia Periode Juni 2025
+   Submit By: Adriana 
+   Status: On order
+
+427. PRF 31815:  MTIRMRAD416769 - Rp 1.000.000
+   Description: Standing Bracket TV
+   Submit By: Reni
+   Status: On order
+
+428. PRF 31882: MTIRMRAD496313 - Rp 98.800.000
+   Description: Cross Network Periode Juli 2025
+   Submit By: Reni
+   Status: On order
+
+429. PRF 31885: MTIRMRAD416250 - Rp 27.400.000
+   Description: COMPUTER, DESKTOP TC NEO 50S G5 (12XFCTO1WW), WINDOWS 
+11 PRO 64BIT PROC : 14TH GENERATION
+   Submit By: Reni
+   Status: On order
+
+430. PRF 31922: AMITCM23 - Rp 16.000.000
+   Description: CCTV, OUTDOOR, UNV, IPC2322LB-ADZK-G, 2MP VARIFOCAL, UNIVIEW
+   Submit By: Reni
+   Status: Req. Approved
+
+431. PRF 31922: AMITCM23 - Rp 19.000.000
+   Description: CAMERA, CCTV, UNV, PTZ IPC6622SR-X25-VF
+   Submit By: Reni
+   Status: Req. Approved
+
+432. PRF 31922: AMITCM16 - Rp 4.200.000
+   Description: HUB, NETWORK, GIGABIT MANAGED SW, SMART CLOUD, POE, RG-ES210GS-P, 10 PORT
+   Submit By: Reni
+   Status: Req. Approved
+
+433. PRF 31922: MTIRMRAD496232 - Rp 3.800.000
+   Description: CABLE, COAXIAL, UTP, CAT 6, 300M LG, COOMMSCOPE 1427071-4
+   Submit By: Reni
+   Status: Req. Approved
+
+434. PRF 31922: MTIRMRAD496232 - Rp 310.000
+   Description: CONNECTOR, COMMS, RJ45 CONNECTOR, CAT6, BELDEN, P/N P700008
+   Submit By: Reni
+   Status: Req. Approved
+
+435. PRF 31922: MTIRMRAD496232 - Rp 1.000.000
+   Description: PANEL, ELEC, BX, OUTDOOR, 30X40X18CM, TIBOX, PVC
+   Submit By: Reni
+   Status: Req. Approved
+
+436. PRF 31922: MTIRMRAD496232 - Rp 60.000
+   Description: SOCKET, ELECTRICAL, TYPE: GPO OUTLET POWER, OUTBOW, TERMINAL: 4 HOLE, AMPERAGE: 16A, VOLTAGE: 220V
+   Submit By: Reni
+   Status: Req. Approved
+
+437. PRF 31922: MTIRMRAD496232 - Rp 13.500.000
+   Description: CABLE, FIBER OPTIC, AERIAL, 12 CORE, SGL MODE, 2KM
+   Submit By: Reni
+   Status: Req. Approved
+
+438. PRF 31922: MTIRMRAD496232 - Rp 225.000
+   Description: MEDIA CONVR, FO TO UTP, HTB-GS-03 A/B, NETLINK
+   Submit By: Reni
+   Status: Req. Approved
+
+439. PRF 31922: MTIRMRAD496232 - Rp 35.000
+   Description: PATCH, CABLE, FIBER, SC-LC, 1M, SGL MODE
+   Submit By: Reni
+   Status: Req. Approved
+
+440. PRF 31922: MTIRMRAD496232 - Rp 67.500
+   Description: PATCH, CABLE, FIBER, SC-SC, 1M, SGL MODE
+   Submit By: Reni
+   Status: Req. Approved
+
+441. PRF 31922: MTIRMRAD496232 - Rp 120.000
+   Description: BOX, ROSET OPTIC 4 CORE SC/MM ADPT PIGTAIL TERM BX FO
+   Submit By: Reni
+   Status: Req. Approved
+
+442. PRF 31922: MTIRMRAD496232 - Rp 250.000
+   Description: TRANSCEIVER, TYPE: DUPLEX, 1000BASE-LH, PORTS: N/A, ELECTRICAL RATING: N/A, ADDITIONAL FEATURE: 6COM, SFP 1310NMM 10KM, DDM SMF
+   Submit By: Reni
+   Status: Req. Approved
+
+443. PRF 31922: MTIRMRAD496232 - Rp 9.000
+   Description: PIPE, 28/32, PN10, HDPE, USED F/ FIBER OPTIC
+   Submit By: Reni
+   Status: Req. Approved
+
+444. PRF 31922: MTIRMRAD496232 - Rp 12.000
+   Description: CONDUIT, PIPE, CLIPSAL, 20MM DIA
+   Submit By: Reni
+   Status: Req. Approved
+
+445. PRF 31922: MTIRMRAD496232 - Rp 90.000
+   Description: CLAMP, PIPE, CONDT, 20MM
+   Submit By: Reni
+   Status: Req. Approved
+
+446. PRF 31922: MTIRMRAD496232 - Rp 96.000
+   Description: COUPLING, PIPE, CONDT, SKT, 20MM
+   Submit By: Reni
+   Status: Req. Approved
+
+447. PRF 31922: MTIRMRAD496232 - Rp 385.000
+   Description: Baut Sekrup Baja Ringan 10x19 - BLUE - 1 KOTAK 1000
+   Submit By: Reni
+   Status: Req. Approved
+
+448. PRF 31947: AMITCM23 - Rp 14.000.000
+   Description: CCTV, INDOOR DOME, VARIFOCAL, IPC3232SB-ADZK-I0, 2MP, UNIVIEW
+   Submit By: Reni
+   Status: On order
+
+449. PRF 31947: MTIRMRAD496250 - Rp 900.000
+   Description: VENTION ADAPTER, COMMS, SPLITTER ETHERNET ADPT, LAN, 1 TO 2 WAY
+   Submit By: Reni
+   Status: On order
+
+450. PRF 32309: MTIRMRTS606250 - Rp 1.850.000
+   Description: 	MONITOR, LED, SAMSUNG, 24IN a/n Fadelta Figraf
+   Submit By: Reni
+   Status: On order
+
+451. PRF 32307: AMITCM21.6250 - Rp 60.000.000
+   Description: OWER SUPPLY, UNINTERRUPTIBLE PWR SUPPLY (UPS), 120-276VAC, 45-55HZ/54-66 HZ ± 3 %, 220/23
+   Submit By: Reni
+   Status: On order
+
+452. PRF 32397: MTIRMRAD496313 - Rp 64.000.000
+   Description: Biaya Sewa Internet ICON Plus - Periode Juli 25
+   Submit By: Reni
+   Status: Req. Approved
+
+453. PRF 32419: MTIRMRAD496328 - Rp 45.592.000
+   Description: SERVICE, RENEWAL LISENCE LANSWEEPER PROFESIONAL, MAINT
+   Submit By: Reni
+   Status: On order
+
+454. PRF 32423: MTIRMRAD496314 - Rp 2.893.825
+   Description: JASA LAYANAN INFORMASI IMIP - PERIODE FEBRUARI - JULI 2025
+   Submit By: Reni
+   Status: updated:20113
+
+455. PRF 32555: MTIRMRPR226250 - Rp 14.500.000
+   Description: LAPTOP, THINKPAD E14, GEN7, LENOVO, CORE I3, RAM 16GB DDR5, 512
+   Submit By: Reni
+   Status: Req. Approved
+
+456. PRF 32751: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery Original for Dell Latitude 5420 SN 9SZDCK3 - andre.ramdhani
+   Submit By: Peggy
+   Status: Req. Approved
+
+457. PRF 32751: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery Original for Dell Latitude 5420 SN 72TDCK3 - isma.khoirun
+   Submit By: Peggy
+   Status: Req. Approved
+
+458. PRF 32751: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery Original for Dell Latitude 5420 SN JH9DCK3 - muhammad.yasir
+   Submit By: Peggy
+   Status: Req. Approved
+
+459. PRF 32751: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery Original for Dell Latitude 5420 SN JMZDCK3 - widi.irwandi
+   Submit By: Peggy
+   Status: Req. Approved
+
+460. PRF 32751: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery Original for Dell Latitude5420 SN 5F01FK3 astrifo.kabangnga
+   Submit By: Peggy
+   Status: Req. Approved
+
+461. PRF 32751: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery Original for Dell Latitude 5420 SN 26XGCK3 - arif.fadillah
+   Submit By: Peggy
+   Status: Req. Approved
+
+462. PRF 32751: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery Original for Dell Latitude5420 SN BRD2FK3 mulyono
+   Submit By: Peggy
+   Status: Req. Approved
+
+463. PRF 32751: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery Original for Dell Latitude 5420 SN J7C1FK3 - muh.haris
+   Submit By: Peggy
+   Status: Req. Approved
+
+464. PRF 32751: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery Original for Dell Latitude 5420 SN FBBFCK3 syamsuddin
+   Submit By: Peggy
+   Status: Req. Approved
+
+465. PRF 32751: MTIRMRAD496232 - Rp 1.800.000
+   Description: Battery Original for Dell Latitude 5420 SN 9ZRNDK3 m.subhan
+   Submit By: Peggy
+   Status: Req. Approved
+
+466. PRF 32852: AMITCM14.6718 - Rp 2.500.000
+   Description: Rack Panel Besi / Box Panel Outdoor 80x60x30 Plat 1,2mm Fmbo806030 Fort
+   Submit By: Adriana
+   Status: Req. Approved
+
+467. PRF 32852: AMITCM14.6718 - Rp 7.800.000
+   Description: Kabel Belden Cat 6
+   Submit By: Adriana
+   Status: Req. Approved
+
+468. PRF 32852: AMITCM14.6718 - Rp 360.000
+   Description: BOLT, ANCHOR, DYNABOLT, M10, 100MM
+   Submit By: Adriana
+   Status: Req. Approved
+
+469. PRF 32853: MTIRMRAD496328 - Rp 284.000.000
+   Description: Heimdal EPDR & Ransomware Encryption Protection -ELSA SKU = H-EPDR & REP - ELSA
+   Submit By: Adriana
+   Status: Req. Approved
+
+470. PRF 32853: MTIRMRAD496328 - Rp 52.150.000
+   Description: Heimdal Remote Desktop-ELSA SKU = RDP ELSA
+   Submit By: Adriana
+   Status: Req. Approved
+
+471. PRF 32867: W0171197.6769 - Rp 22.580.000
+   Description: PRINTER, LABEL, LABEL MKR, PT-E850TKW
+   Submit By: Adriana
+   Status: Req. Approved
+
+472. PRF 32867: W0171197.6769 - Rp 6.750.000
+   Description: TUBING, HEAT SHRINK, HSE-241, BROTHER
+   Submit By: Adriana
+   Status: Req. Approved
+
+473. PRF 32867: W0171197.6769 - Rp 6.500.000
+   Description: TUBING, HEAT SHRINK, HSE-231, BROTHER
+   Submit By: Adriana
+   Status: Req. Approved
+
+474. PRF 32867: W0171197.6769 - Rp 6.000.000
+   Description: TUBING, HEAT SHRINK, HSE-221, BROTHER
+   Submit By: Adriana
+   Status: Req. Approved
+
+475. PRF 32867: W0171197.6769 - Rp 5.500.000
+   Description: TUBING, HEAT SHRINK, HSE-211, BROTHER
+   Submit By: Adriana
+   Status: Req. Approved
+
+476. PRF 32867: W0171197.6769 - Rp 16.350.000
+   Description: PRINTER, LABEL, PT-P950NW
+   Submit By: Adriana
+   Status: Req. Approved
+
+477. PRF 33041: MTIRMRAD496250 - Rp 7.559.950
+   Description: Printer FuljiFilm C3070 SN: 382135 (Pyrite Lt 2) - AUG25
+   Submit By: Adriana
+   Status: Req. Approved
+
+478. PRF 33041: MTIRMRAD496250 - Rp 6.452.500
+   Description: Printer Apeos C3570S SN: 383273 (CCP) -  AUG25
+   Submit By: Adriana
+   Status: Req. Approved
+
+479. PRF 33041: MTIRMRAD496250 - Rp 6.812.500
+   Description: Printer Apeos C3570 SN: 383293 (Acid Roaster) - AUG25
+   Submit By: Adriana
+   Status: Req. Approved
+
+480. PRF 33041: MTIRMRAD496250 - Rp 6.885.500
+   Description: Printer Apeos C3570 SN: 383294 (Pyrite Whs) - AUG25
+   Submit By: Adriana
+   Status: Req. Approved
+
+481. PRF 33041: MTIRMRAD496250 - Rp 11.668.750
+   Description: Printer Apeos C3570 SN: 383354 (Acid Lt2) - AUG25
+   Submit By: Adriana
+   Status: Req. Approved
+
+482. PRF 33041: MTIRMRAD496250 - Rp 6.966.000
+   Description: Printer Apeos C3570 SN: 383355 (Acid Mtc Lt2) - AUG25
+   Submit By: Adriana
+   Status: Req. Approved
+
+483. PRF 33041: MTIRMRAD496250 - Rp 9.854.750
+   Description: Printer Apeos C3570 SN: 383393 (Whs Labota) - AUG25
+   Submit By: Adriana
+   Status: Req. Approved
+
+484. PRF 33041: MTIRMRAD496250 - Rp 8.560.000
+   Description: Printer Apeos C3570 SN: 383395 (Acid Lt1) - AUG25
+   Submit By: Adriana
+   Status: Req. Approved
+
+485. PRF 33113: AMITCM19.6250 - Rp 37.000.000
+   Description: Repeater HT Revision from PO 28134 due to price change, requested by Buyer.
+   Submit By: Adriana
+   Status: Req. Approved
+
+486. PRF 33157: AMITBD01 - Rp 542.500.000
+   Description: Falco controller 1 Door Model : CTRL-1DR-CF/IP(2.0A)-PCB include :
+a. Controller single door
+b. Metal Casing Box
+c. Battery FA-12-7E
+d. POE Injector
+e. Kabel Power Adaptor
+   Submit By: Adriana
+   Status: Req. Approved
+
+487. PRF 33157: AMITBD01 - Rp 108.500.000
+   Description: SMART CARD READER HID SER10 ICLASS (for IN tap)
+   Submit By: Adriana
+   Status: Req. Approved
+
+488. PRF 33157: AMITBD01 - Rp 130.200.000
+   Description: LOCK SET, MAGNETIC LOCK & ZL BRACKET, FA-1200 FALCO
+   Submit By: Adriana
+   Status: Req. Approved
+
+489. PRF 33157: AMITBD01 - Rp 9.300.000
+   Description: FALCO Magnetic Metal Door Contact MC-57
+   Submit By: Adriana
+   Status: Req. Approved
+
+490. PRF 33157: AMITBD01 - Rp 60.450.000
+   Description: POWER SUPPLY COMPLETE, 12V, 3A (for Magnetic Lock)
+   Submit By: Adriana
+   Status: Req. Approved
+
+491. PRF 33157: AMITBD01 - Rp 7.750.000
+   Description: FA-102 Emergency Breakglass
+   Submit By: Adriana
+   Status: Req. Approved
+
+492. PRF 33157: AMITBD01 - Rp 18.000.000
+   Description: Cable Belden 9506 CMG 6PR24 SHIELDED 1000 FT
+   Submit By: Adriana
+   Status: Req. Approved
+
+493. PRF 33157: AMITBD01 - Rp 2.400.000
+   Description: CONDUIT BOSS 20MM 3 METER
+   Submit By: Adriana
+   Status: Req. Approved
+
+494. PRF 33157: AMITBD01 - Rp 380.000
+   Description: Klem Pipa Conduit 20mm Boss = 400 Pcs
+   Submit By: Adriana
+   Status: Req. Approved
+
+495. PRF 33157: AMITBD01 - Rp 120.000
+   Description: Shock Conduit 20mm 4 Pack = 400 Pcs
+   Submit By: Adriana
+   Status: Req. Approved
+
+496. PRF 33157: AMITBD01 - Rp 400.000
+   Description: flexible conduit Boss 20mm = 50 M
+   Submit By: Adriana
+   Status: Req. Approved
+
+497. PRF 33157: AMITBD01 - Rp 330.000
+   Description: Skrup Roofing 3cm = 300 pcs
+   Submit By: Adriana
+   Status: Req. Approved
+
+498. PRF 33157: AMITBD01 - Rp 8.400.000
+   Description: Cable AMP Commscope Cat 6 UTP Blue 305m
+   Submit By: Adriana
+   Status: Req. Approved
+
+499. PRF 33157: AMITBD01 - Rp 18.000.000
+   Description: KABEL NYYHY 3X1,5MM SUPREME 100METER
+   Submit By: Adriana
+   Status: Req. Approved
+
+500. PRF 33157: AMITBD01 - Rp 186.000
+   Description: Box Saklar Stopkontak 3 X 3
+   Submit By: Adriana
+   Status: Req. Approved
+
+501. PRF 33157: AMITBD01 - Rp 1.860.000
+   Description: LEGRAND Mallia Sense Stopkontak Schuko 16A
+   Submit By: Adriana
+   Status: Req. Approved
+
+502. PRF 33157: AMITBD01 - Rp 186.000
+   Description: Gland Cabel PG7
+   Submit By: Adriana
+   Status: Req. Approved
+
+503. PRF 33121: MTIRMRAD496314 - Rp 26.093.084
+   Description: Tagihan Telkomsel Kartu Halo - Periode Aug 25
+   Submit By: Adriana
+   Status: Req. Approved
+
+504. PRF 33344: MTIRMRAD496313 - Rp 92.000.000
+   Description: Meta Telekomunikasi Asia Periode Juli 2025
+   Submit By: Reni
+   Status: Req. Approved
+
+505. PRF 33850: MTIRMRHS606250 - Rp 1.850.000
+   Description: 	MONITOR, LED, SAMSUNG, 24IN FOR Supporting OHS a/n M. Rama & Emil Azali
+   Submit By: Reni
+   Status: Req. Approved
+
+506. PRF 33852: MTIRMRMT26.6137 - Rp 51.400.000
+   Description: License Remote Dekstop Server 2019 CAL untuk 20 Users Maintenance
+   Submit By: Reni
+   Status: 
+
+
+Unique COA codes with amounts: 49
+COA codes:  MTIRMRAD416769,  MTIRMRHS606250, 51211325.6250, AMITBD01, AMITCM14.6718, AMITCM16, AMITCM16.6250, AMITCM18.6250, AMITCM19.6250, AMITCM20.6250, AMITCM21, AMITCM21.6250, AMITCM22.6250, AMITCM23, AMITINO1.6250, AMPLCM01.6250, AMPLME05.6250, MTIRMRAD416250, MTIRMRAD426249, MTIRMRAD496014, MTIRMRAD496109, MTIRMRAD496137, MTIRMRAD496232, MTIRMRAD496250, MTIRMRAD496313, MTIRMRAD496314, MTIRMRAD496326, MTIRMRAD4963265, MTIRMRAD496328, MTIRMRAD496769, MTIRMRHR606014, MTIRMRHS446250, MTIRMRHS446279, MTIRMRHS606250, MTIRMRHS606279, MTIRMRMT236137, MTIRMRMT26, MTIRMRMT26.6137, MTIRMRMT266014, MTIRMRMT266137, MTIRMRMT266733, MTIRMRMT266769, MTIRMRPR226250, MTIRMRPRA06250, MTIRMRPRC06250, MTIRMRPRD06769, MTIRMRTS606250, W0171197.6769, r

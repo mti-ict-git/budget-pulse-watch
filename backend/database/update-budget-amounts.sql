@@ -37,7 +37,7 @@ USING (
             WHEN 'AMITCM16.6250' THEN 180300000.00     -- Network Device & Ruijie
             WHEN 'AMITCM19.6250' THEN 892602000.00     -- CCP Project
             WHEN 'AMITCM20.6250' THEN 340048000.00     -- 44 Radio HT
-            WHEN 'AMITNO1.6250' THEN 248614000.00      -- EA CRO
+            WHEN 'AMITINO1.6250' THEN 248614000.00     -- EA CRO
             WHEN 'AMPLCM01.6250' THEN 143606000.00     -- Server Historian
             WHEN 'AMPLME05.6250' THEN 62100000.00      -- DCS AP
             ELSE 100000000.00  -- Default amount for other codes
@@ -49,7 +49,7 @@ USING (
         'MTIRMRAD496232', 'MTIRMRAD496250', 'MTIRMRAD496309', 'MTIRMRAD496313',
         'MTIRMRAD496314', 'MTIRMRAD496326', 'MTIRMRAD496328', 'MTIRMRAD496769',
         'MTIRMRAD496014', 'AMITCM16.6250', 'AMITCM19.6250', 'AMITCM20.6250',
-        'AMITNO1.6250', 'AMPLCM01.6250', 'AMPLME05.6250'
+        'AMITINO1.6250', 'AMPLCM01.6250', 'AMPLME05.6250'
     )
 ) AS source (COAID, FiscalYear, Quarter, NewAllocatedAmount, CreatedBy, Notes)
 ON target.COAID = source.COAID AND target.FiscalYear = source.FiscalYear
@@ -78,7 +78,7 @@ USING (
         ('AMITCM16.6250', 'Network Device & Ruijie', 'AMIT CM16.6250 - Network Device & Ruijie', 'IT'),
         ('AMITCM19.6250', 'CCP Project', 'AMIT CM19.6250 - CCP Project', 'Project'),
         ('AMITCM20.6250', '44 Radio HT', 'AMIT CM20.6250 - 44 Radio HT', 'Communications'),
-        ('AMITNO1.6250', 'EA CRO', 'AMIT NO1.6250 - EA CRO', 'Services'),
+        ('AMITINO1.6250', 'EA CRO', 'AMIT INO1.6250 - EA CRO', 'Services'),
         ('AMPLCM01.6250', 'Server Historian', 'AMPL CM01.6250 - Server Historian', 'IT'),
         ('AMPLME05.6250', 'DCS AP', 'AMPL ME05.6250 - DCS AP', 'IT')
 ) AS source (COACode, COAName, Description, Category)
@@ -122,7 +122,7 @@ WHERE coa.COACode IN (
     'MTIRMRAD496232', 'MTIRMRAD496250', 'MTIRMRAD496309', 'MTIRMRAD496313',
     'MTIRMRAD496314', 'MTIRMRAD496326', 'MTIRMRAD496328', 'MTIRMRAD496769',
     'MTIRMRAD496014', 'AMITCM16.6250', 'AMITCM19.6250', 'AMITCM20.6250',
-    'AMITNO1.6250', 'AMPLCM01.6250', 'AMPLME05.6250'
+    'AMITINO1.6250', 'AMPLCM01.6250', 'AMPLME05.6250'
 )
 ORDER BY b.AllocatedAmount DESC;
 

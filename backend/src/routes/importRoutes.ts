@@ -468,17 +468,32 @@ async function createPRFItem(
   record: ExcelPRFData, 
   rowNumber: number
 ): Promise<void> {
+  // First, get COAID from ChartOfAccounts if cost code exists
+  let coaId = null;
+  const costCode = record['Purchase Cost Code'];
+  
+  if (costCode) {
+    const coaQuery = `SELECT COAID FROM ChartOfAccounts WHERE COACode = @COACode`;
+    const coaResult = await executeQuery<{ COAID: number }>(coaQuery, { COACode: costCode });
+    if (coaResult.recordset && coaResult.recordset.length > 0) {
+      coaId = coaResult.recordset[0].COAID;
+    }
+  }
+  
   const insertQuery = `
     INSERT INTO PRFItems (
-      PRFID, ItemName, Description, Quantity, UnitPrice, Specifications
+      PRFID, ItemName, Description, Quantity, UnitPrice, Specifications,
+      PurchaseCostCode, COAID, BudgetYear
     ) VALUES (
-      @PRFID, @ItemName, @Description, @Quantity, @UnitPrice, @Specifications
+      @PRFID, @ItemName, @Description, @Quantity, @UnitPrice, @Specifications,
+      @PurchaseCostCode, @COAID, @BudgetYear
     )
   `;
   
   const itemName = record['Sum Description Requested'] || record['Description'] || `Item from row ${rowNumber}`;
   const description = record['Description'] || record['Sum Description Requested'] || '';
   const amount = record['Amount'] || 0;
+  const budgetYear = record['Budget'] || new Date().getFullYear();
   
   const params = {
     PRFID: prfId,
@@ -486,17 +501,19 @@ async function createPRFItem(
     Description: description.substring(0, 1000), // Limit to field length
     Quantity: 1,
     UnitPrice: amount,
+    PurchaseCostCode: costCode || null,
+    COAID: coaId,
+    BudgetYear: budgetYear,
     Specifications: JSON.stringify({
       originalRow: rowNumber,
-      purchaseCostCode: record['Purchase Cost Code'],
       requiredFor: record['Required for'],
       statusInPronto: record['Status in Pronto']
     })
   };
   
   await executeQuery(insertQuery, params);
-   console.log(`✅ Created PRF item for row ${rowNumber}`);
- }
+  console.log(`✅ Created PRF item for row ${rowNumber} with cost code: ${costCode || 'none'}`);
+}
 
  /**
   * Helper function to update existing PRF

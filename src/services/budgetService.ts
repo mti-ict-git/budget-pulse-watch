@@ -13,8 +13,11 @@ interface CostCodeBudget {
   UtilizationPercentage: number;
   ApprovalRate: number | null;
   BudgetStatus: string;
+  ExpenseType?: 'CAPEX' | 'OPEX';
+  Department?: string;
   // Computed properties for display
   RemainingAmount?: number;
+  AllocatedAmount?: number;
 }
 
 interface Budget {
@@ -33,6 +36,7 @@ interface Budget {
   UpdatedAt: Date;
   Description?: string;
   IsActive?: boolean;
+  ExpenseType?: 'CAPEX' | 'OPEX';
   // Additional fields from joins
   COACode?: string;
   COAName?: string;
@@ -49,6 +53,7 @@ interface CreateBudgetRequest {
   Description?: string;
   Department: string;
   BudgetType?: string;
+  ExpenseType?: 'CAPEX' | 'OPEX';
   StartDate?: Date;
   EndDate?: Date;
   Notes?: string;
@@ -62,6 +67,7 @@ interface UpdateBudgetRequest {
   Description?: string;
   Department?: string;
   BudgetType?: string;
+  ExpenseType?: 'CAPEX' | 'OPEX';
   StartDate?: Date;
   EndDate?: Date;
   Status?: string;
@@ -80,6 +86,7 @@ interface BudgetQueryParams {
   utilizationLevel?: string;
   department?: string;
   budgetType?: string;
+  expenseType?: 'CAPEX' | 'OPEX';
   status?: string;
   search?: string;
 }

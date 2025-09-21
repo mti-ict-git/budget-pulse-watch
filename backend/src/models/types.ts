@@ -120,6 +120,11 @@ export interface UpdatePRFItemParams {
   Notes?: string;
   UpdatedBy?: number;
   StatusOverridden?: boolean;
+  
+  // Cost code fields - enables multiple cost codes per PRF through item-level assignment
+  PurchaseCostCode?: string;
+  COAID?: number;
+  BudgetYear?: number;
   [key: string]: unknown;
 }
 
@@ -151,6 +156,8 @@ export interface ChartOfAccounts {
   Description?: string;
   Category?: string;
   ParentCOAID?: number;
+  ExpenseType: 'CAPEX' | 'OPEX';
+  Department: string;
   IsActive: boolean;
   CreatedAt: Date;
 }
@@ -161,6 +168,8 @@ export interface CreateCOARequest {
   Category?: string;
   Description?: string;
   ParentCOAID?: number;
+  ExpenseType?: 'CAPEX' | 'OPEX';
+  Department?: string;
   IsActive?: boolean;
 }
 
@@ -170,6 +179,8 @@ export interface UpdateCOARequest {
   Category?: string;
   Description?: string;
   ParentCOAID?: number;
+  ExpenseType?: 'CAPEX' | 'OPEX';
+  Department?: string;
   IsActive?: boolean;
 }
 
@@ -178,6 +189,8 @@ export interface COAQueryParams {
   limit?: number;
   category?: string;
   parentCOAID?: number;
+  expenseType?: 'CAPEX' | 'OPEX';
+  department?: string;
   isActive?: boolean;
   search?: string;
 }
@@ -311,6 +324,8 @@ export interface Budget {
   UtilizedAmount: number;
   RemainingAmount: number;
   UtilizationPercentage: number;
+  ExpenseType: 'CAPEX' | 'OPEX';
+  Department: string;
   Notes?: string;
   CreatedBy: number;
   CreatedAt: Date;
@@ -323,6 +338,7 @@ export interface CreateBudgetRequest {
   Quarter?: number;
   Month?: number;
   AllocatedAmount: number;
+  ExpenseType?: 'CAPEX' | 'OPEX';
   Description?: string;
   Department: string;
   BudgetType?: string;
@@ -337,6 +353,7 @@ export interface UpdateBudgetRequest {
   Description?: string;
   Department?: string;
   BudgetType?: string;
+  ExpenseType?: 'CAPEX' | 'OPEX';
   StartDate?: Date;
   EndDate?: Date;
   Status?: string;
@@ -447,6 +464,11 @@ export interface PRFItem {
   UpdatedBy?: number;
   CreatedAt: Date;
   StatusOverridden?: boolean; // Indicates if item status was manually overridden vs following PRF status
+  
+  // Cost code fields - enables multiple cost codes per PRF through item-level assignment
+  PurchaseCostCode?: string;
+  COAID?: number;
+  BudgetYear?: number;
 }
 
 export interface CreatePRFItemRequest {
@@ -455,6 +477,11 @@ export interface CreatePRFItemRequest {
   Quantity: number;
   UnitPrice: number;
   Specifications?: string;
+  
+  // Cost code fields - enables multiple cost codes per PRF through item-level assignment
+  PurchaseCostCode?: string;
+  COAID?: number;
+  BudgetYear?: number;
 }
 
 export interface PRFApproval {
@@ -604,6 +631,7 @@ export interface BudgetQueryParams {
   utilizationLevel?: string;
   department?: string;
   budgetType?: string;
+  expenseType?: 'CAPEX' | 'OPEX';
   status?: string;
   search?: string;
   [key: string]: unknown;
