@@ -204,7 +204,7 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
       searchConditions += ` AND cbs.LastYear = ${fiscalYear}`;
     }
 
-    // Query that properly joins Budget allocations with PRF spending by cost codes
+    // Query that includes both cost code budgets and standalone budgets without cost codes
     const query = `
       WITH BudgetAllocations AS (
         -- Get actual budget allocations by COA and fiscal year
@@ -219,6 +219,7 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
           SUM(b.UtilizedAmount) as TotalUtilized
         FROM Budget b
         INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
+        ${fiscalYear ? `WHERE b.FiscalYear = ${fiscalYear}` : ''}
         GROUP BY b.COAID, b.FiscalYear, coa.COACode, coa.COAName, coa.Department, coa.ExpenseType
       ),
       CostCodeSpending AS (
@@ -236,6 +237,7 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
           AND p.PurchaseCostCode != ''
           AND p.BudgetYear IS NOT NULL
           AND p.COAID IS NOT NULL
+          ${fiscalYear ? `AND p.BudgetYear = ${fiscalYear}` : ''}
         GROUP BY p.PurchaseCostCode, p.COAID, p.BudgetYear
       ),
       CostCodeBudgetSummary AS (
@@ -259,6 +261,32 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
         LEFT JOIN BudgetAllocations ba ON cs.PurchaseCostCode = ba.COACode AND cs.BudgetYear = ba.FiscalYear
         LEFT JOIN ChartOfAccounts coa ON cs.PurchaseCostCode = coa.COACode
         GROUP BY cs.PurchaseCostCode, cs.COAID, COALESCE(ba.COACode, coa.COACode), COALESCE(ba.COAName, coa.COAName), COALESCE(ba.Department, coa.Department), COALESCE(ba.ExpenseType, coa.ExpenseType)
+        
+        UNION ALL
+        
+        -- Include budgets without cost code mappings
+        SELECT 
+          'NO_COST_CODE_' + ba.COACode as PurchaseCostCode,
+          ba.COAID,
+          ba.COACode,
+          ba.COAName,
+          ba.Department,
+          ba.ExpenseType,
+          SUM(ba.TotalAllocated) as GrandTotalAllocated,
+          0 as GrandTotalRequested,
+          0 as GrandTotalApproved,
+          0 as GrandTotalActual,
+          0 as TotalRequests,
+          COUNT(DISTINCT ba.FiscalYear) as YearsActive,
+          MIN(ba.FiscalYear) as FirstYear,
+          MAX(ba.FiscalYear) as LastYear
+        FROM BudgetAllocations ba
+        WHERE ba.COACode NOT IN (
+          SELECT DISTINCT p.PurchaseCostCode 
+          FROM dbo.PRF p 
+          WHERE p.PurchaseCostCode IS NOT NULL AND p.PurchaseCostCode != ''
+        )
+        GROUP BY ba.COAID, ba.COACode, ba.COAName, ba.Department, ba.ExpenseType
       )
       SELECT 
         cbs.PurchaseCostCode,
@@ -453,6 +481,14 @@ router.post('/', authenticateToken, requireContentManager, async (req: Request, 
       });
     }
 
+    // Ensure user is authenticated
+    if (!req.user?.UserID) {
+      return res.status(401).json({
+        success: false,
+        message: 'User authentication required'
+      });
+    }
+
     // Check if budget already exists for this COA and fiscal year
     const existingBudget = await BudgetModel.findByCOAAndYear(budgetData.COAID, budgetData.FiscalYear);
     if (existingBudget) {
@@ -462,7 +498,7 @@ router.post('/', authenticateToken, requireContentManager, async (req: Request, 
       });
     }
     
-    const budget = await BudgetModel.create(budgetData);
+    const budget = await BudgetModel.create(budgetData, req.user.UserID);
     
     return res.status(201).json({
       success: true,

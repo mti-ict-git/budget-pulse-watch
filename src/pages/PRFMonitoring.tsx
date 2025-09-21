@@ -302,6 +302,20 @@ export default function PRFMonitoring() {
     return Object.entries(costCodeAmounts);
   };
 
+  // Helper function to safely format percentage values
+  const formatPercentage = (value: number | null | undefined): string => {
+    if (value == null || isNaN(value)) return '0.0';
+    return value.toFixed(1);
+  };
+
+  // Helper function to get percentage color class
+  const getPercentageColorClass = (value: number | null | undefined): string => {
+    if (value == null || isNaN(value)) return 'text-green-500';
+    if (value > 100) return 'text-red-500';
+    if (value > 80) return 'text-yellow-500';
+    return 'text-green-500';
+  };
+
   // Enhanced React component to display all cost codes with budget information
   const CostCodeDisplay: React.FC<{ prf: PRFData }> = ({ prf }) => {
     const [costCodeBudgets, setCostCodeBudgets] = React.useState<Array<{
@@ -313,7 +327,7 @@ export default function PRFMonitoring() {
       PRFSpent: number;
       ItemCount: number;
       ItemNames: string;
-      UtilizationPercentage: number;
+      UtilizationPercentage: number | null;
     }>>([]);
     const [isLoading, setIsLoading] = React.useState(false);
 
@@ -386,8 +400,8 @@ export default function PRFMonitoring() {
                   </div>
                   <div className="flex justify-between">
                     <span>Utilization:</span>
-                    <span className={`font-mono ${budget.UtilizationPercentage > 100 ? 'text-red-500' : budget.UtilizationPercentage > 80 ? 'text-yellow-500' : 'text-green-500'}`}>
-                      {budget.UtilizationPercentage.toFixed(1)}%
+                    <span className={`font-mono ${getPercentageColorClass(budget.UtilizationPercentage)}`}>
+                      {formatPercentage(budget.UtilizationPercentage)}%
                     </span>
                   </div>
                 </div>
@@ -443,8 +457,8 @@ export default function PRFMonitoring() {
                       </div>
                       <div className="flex justify-between text-xs mt-1">
                         <span>Utilization:</span>
-                        <span className={`font-mono ${budget.UtilizationPercentage > 100 ? 'text-red-500' : budget.UtilizationPercentage > 80 ? 'text-yellow-500' : 'text-green-500'}`}>
-                          {budget.UtilizationPercentage.toFixed(1)}%
+                        <span className={`font-mono ${getPercentageColorClass(budget.UtilizationPercentage)}`}>
+                          {formatPercentage(budget.UtilizationPercentage)}%
                         </span>
                       </div>
                     </div>
@@ -838,7 +852,7 @@ export default function PRFMonitoring() {
               </Button>
             </div>
           ) : (
-            <>
+            <div>
               {/* Expand/Collapse All Controls */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -865,32 +879,33 @@ export default function PRFMonitoring() {
                   {filteredData.filter(prf => prf.items && prf.items.length > 0).length} expandable rows
                 </div>
               </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">
-                      <input
-                        type="checkbox"
-                        checked={selectedItems.size === filteredData.length && filteredData.length > 0}
-                        onChange={(e) => handleSelectAll(e.target.checked)}
-                        className="rounded border-gray-300"
-                      />
-                    </TableHead>
-                    <TableHead className="w-8"></TableHead>
-                    <TableHead>PRF No</TableHead>
-                    <TableHead>Date Submit</TableHead>
-                    <TableHead>Submit By</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Cost Code</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Required For</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Priority</TableHead>
-                    <TableHead>Budget Year</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
+              <div className="overflow-x-auto">
+                <Table className="min-w-full">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12 sticky left-0 bg-background z-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.size === filteredData.length && filteredData.length > 0}
+                          onChange={(e) => handleSelectAll(e.target.checked)}
+                          className="rounded border-gray-300"
+                        />
+                      </TableHead>
+                      <TableHead className="w-8 sticky left-12 bg-background z-10"></TableHead>
+                      <TableHead className="min-w-[120px] sticky left-20 bg-background z-10 font-medium">PRF No</TableHead>
+                      <TableHead className="min-w-[100px]">Date Submit</TableHead>
+                      <TableHead className="min-w-[120px]">Submit By</TableHead>
+                      <TableHead className="min-w-[200px]">Description</TableHead>
+                      <TableHead className="min-w-[140px]">Cost Code</TableHead>
+                      <TableHead className="min-w-[100px] text-right">Amount</TableHead>
+                      <TableHead className="min-w-[150px]">Required For</TableHead>
+                      <TableHead className="min-w-[100px]">Department</TableHead>
+                      <TableHead className="min-w-[80px]">Priority</TableHead>
+                      <TableHead className="min-w-[80px]">Budget Year</TableHead>
+                      <TableHead className="min-w-[100px]">Status</TableHead>
+                      <TableHead className="min-w-[120px] sticky right-0 bg-background z-10">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
@@ -914,7 +929,7 @@ export default function PRFMonitoring() {
                           className={`${prf.items && prf.items.length > 0 ? 'cursor-pointer hover:bg-gray-50' : ''}`}
                           onClick={() => prf.items && prf.items.length > 0 && toggleRowExpansion(prf.id)}
                         >
-                          <TableCell onClick={(e) => e.stopPropagation()}>
+                          <TableCell className="sticky left-0 bg-background z-10" onClick={(e) => e.stopPropagation()}>
                             <input
                               type="checkbox"
                               checked={selectedItems.has(prf.id)}
@@ -922,7 +937,7 @@ export default function PRFMonitoring() {
                               className="rounded border-gray-300"
                             />
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="sticky left-12 bg-background z-10">
                             {prf.items && prf.items.length > 0 && (
                               <div className="flex items-center justify-center">
                                 {expandedRows.has(prf.id) ? (
@@ -933,28 +948,28 @@ export default function PRFMonitoring() {
                               </div>
                             )}
                           </TableCell>
-                          <TableCell className="font-medium">
+                          <TableCell className="font-medium sticky left-20 bg-background z-10">
                             <div className="flex items-center gap-2">
-                              <span>{prf.prfNo}</span>
+                              <span className="whitespace-nowrap">{prf.prfNo}</span>
                               {prf.items && prf.items.length > 0 && (
-                                <Badge variant="secondary" className="text-xs">
+                                <Badge variant="secondary" className="text-xs whitespace-nowrap">
                                   {prf.items.length} items
                                 </Badge>
                               )}
                             </div>
                           </TableCell>
-                          <TableCell>{new Date(prf.dateSubmit).toLocaleDateString('id-ID')}</TableCell>
-                          <TableCell>{prf.submitBy}</TableCell>
-                          <TableCell className="max-w-[200px] truncate" title={prf.description}>{prf.description}</TableCell>
+                          <TableCell className="whitespace-nowrap">{new Date(prf.dateSubmit).toLocaleDateString('id-ID')}</TableCell>
+                          <TableCell className="truncate max-w-[120px]" title={prf.submitBy}>{prf.submitBy}</TableCell>
+                          <TableCell className="truncate max-w-[200px]" title={prf.description}>{prf.description}</TableCell>
                           <TableCell><CostCodeDisplay prf={prf} /></TableCell>
-                          <TableCell className="font-medium">{formatCurrency(prf.amount)}</TableCell>
-                          <TableCell className="max-w-[150px] truncate" title={prf.requiredFor}>{prf.requiredFor}</TableCell>
-                          <TableCell><Badge variant="outline">{prf.department}</Badge></TableCell>
+                          <TableCell className="font-medium text-right whitespace-nowrap">{formatCurrency(prf.amount)}</TableCell>
+                          <TableCell className="truncate max-w-[150px]" title={prf.requiredFor}>{prf.requiredFor}</TableCell>
+                          <TableCell><Badge variant="outline" className="whitespace-nowrap">{prf.department}</Badge></TableCell>
                           <TableCell>{getPriorityBadge(prf.priority)}</TableCell>
-                          <TableCell>{prf.budgetYear}</TableCell>
+                          <TableCell className="whitespace-nowrap">{prf.budgetYear}</TableCell>
                           <TableCell>{getStatusBadge(prf.progress)}</TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center gap-2">
+                          <TableCell className="sticky right-0 bg-background z-10" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1">
                               <PRFDetailDialog prf={prf} />
                               <PRFEditDialog prf={prf} onPRFUpdated={fetchPRFData} />
                               <PRFDeleteDialog prf={prf} onPRFDeleted={fetchPRFData} />
@@ -1100,6 +1115,7 @@ export default function PRFMonitoring() {
                   )}
                 </TableBody>
               </Table>
+              </div>
               
               {/* Pagination Controls */}
               {pagination.totalPages > 1 && (
@@ -1130,7 +1146,7 @@ export default function PRFMonitoring() {
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
         </CardContent>
       </Card>

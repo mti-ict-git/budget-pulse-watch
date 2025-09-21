@@ -306,8 +306,9 @@ router.get('/utilization', asyncHandler(async (req, res) => {
       SELECT 
         coa.Category as category,
         coa.ExpenseType as expenseType,
-        SUM(b.AllocatedAmount) as allocatedAmount,
-        SUM(COALESCE(prf_spent.TotalSpent, 0)) as spentAmount,
+        SUM(b.AllocatedAmount) as totalAllocated,
+        SUM(COALESCE(prf_spent.TotalSpent, 0)) as totalSpent,
+        COUNT(b.BudgetID) as budgetCount,
         CASE 
           WHEN SUM(b.AllocatedAmount) > 0 
           THEN ROUND((SUM(COALESCE(prf_spent.TotalSpent, 0)) * 100.0 / SUM(b.AllocatedAmount)), 2)
@@ -367,21 +368,30 @@ router.get('/budget-utilization', asyncHandler(async (req, res) => {
     }
     
     const query = `
+      WITH BudgetSummary AS (
+        SELECT 
+          b.COAID,
+          SUM(b.AllocatedAmount) as TotalAllocated
+        FROM Budget b
+        ${whereClause}
+          AND b.AllocatedAmount > 0
+        GROUP BY b.COAID
+      )
       SELECT 
         coa.Category,
         coa.ExpenseType,
         coa.Department,
-        COUNT(b.BudgetID) as BudgetCount,
-        SUM(b.AllocatedAmount) as TotalAllocated,
+        COUNT(DISTINCT bs.COAID) as BudgetCount,
+        SUM(bs.TotalAllocated) as TotalAllocated,
         SUM(COALESCE(prf_spent.TotalSpent, 0)) as TotalSpent,
-        SUM(b.AllocatedAmount) - SUM(COALESCE(prf_spent.TotalSpent, 0)) as TotalRemaining,
+        SUM(bs.TotalAllocated) - SUM(COALESCE(prf_spent.TotalSpent, 0)) as TotalRemaining,
         CASE 
-          WHEN SUM(b.AllocatedAmount) > 0 
-          THEN ROUND((SUM(COALESCE(prf_spent.TotalSpent, 0)) * 100.0 / SUM(b.AllocatedAmount)), 2)
+          WHEN SUM(bs.TotalAllocated) > 0 
+          THEN ROUND((SUM(COALESCE(prf_spent.TotalSpent, 0)) * 100.0 / SUM(bs.TotalAllocated)), 2)
           ELSE 0 
         END as UtilizationPercentage
-      FROM Budget b
-      INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
+      FROM BudgetSummary bs
+      INNER JOIN ChartOfAccounts coa ON bs.COAID = coa.COAID
       LEFT JOIN (
         SELECT 
           p.COAID,
@@ -390,9 +400,7 @@ router.get('/budget-utilization', asyncHandler(async (req, res) => {
         WHERE p.Status IN ('Approved', 'Completed')
           AND YEAR(p.RequestDate) = @FiscalYear
         GROUP BY p.COAID
-      ) prf_spent ON b.COAID = prf_spent.COAID
-      ${whereClause}
-        AND b.AllocatedAmount > 0
+      ) prf_spent ON bs.COAID = prf_spent.COAID
       GROUP BY coa.Category, coa.ExpenseType, coa.Department
       ORDER BY coa.ExpenseType, coa.Category
     `;

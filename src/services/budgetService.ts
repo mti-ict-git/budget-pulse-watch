@@ -1,3 +1,5 @@
+import { authService } from './authService';
+
 interface CostCodeBudget {
   PurchaseCostCode: string;
   COACode: string;
@@ -403,6 +405,7 @@ class BudgetService {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          ...authService.getAuthHeaders(),
         },
       });
 
@@ -431,6 +434,7 @@ class BudgetService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...authService.getAuthHeaders(),
         },
         body: JSON.stringify(budgetData),
       });
@@ -460,6 +464,7 @@ class BudgetService {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          ...authService.getAuthHeaders(),
         },
         body: JSON.stringify(updateData),
       });
@@ -489,6 +494,7 @@ class BudgetService {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
+          ...authService.getAuthHeaders(),
         },
       });
 
@@ -513,10 +519,12 @@ class BudgetService {
    */
   async getChartOfAccounts(): Promise<{ success: boolean; data?: ChartOfAccount[]; message?: string }> {
     try {
-      const response = await fetch('/api/coa', {
+      // Request a large limit to get all COA records for the dropdown
+      const response = await fetch('/api/coa?limit=1000&isActive=true', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          ...authService.getAuthHeaders(),
         },
       });
 
@@ -554,6 +562,7 @@ class BudgetService {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          ...authService.getAuthHeaders(),
         },
       });
 
@@ -594,6 +603,7 @@ class BudgetService {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          ...authService.getAuthHeaders(),
         },
       });
 
@@ -622,6 +632,7 @@ class BudgetService {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          ...authService.getAuthHeaders(),
         },
       });
 
@@ -649,7 +660,9 @@ export const getUtilizationData = async (fiscalYear?: number): Promise<Utilizati
       params.append('fiscalYear', fiscalYear.toString());
     }
 
-    const response = await fetch(`/api/reports/utilization?${params}`);
+    const response = await fetch(`/api/reports/utilization?${params}`, {
+      headers: authService.getAuthHeaders(),
+    });
     const result: UtilizationResponse = await response.json();
 
     if (!result.success) {
@@ -670,7 +683,9 @@ export const getUnallocatedBudgets = async (fiscalYear?: number): Promise<Unallo
       params.append('fiscalYear', fiscalYear.toString());
     }
 
-    const response = await fetch(`/api/reports/unallocated-budgets?${params}`);
+    const response = await fetch(`/api/reports/unallocated-budgets?${params}`, {
+      headers: authService.getAuthHeaders(),
+    });
     const result: UnallocatedBudgetResponse = await response.json();
 
     if (!result.success) {

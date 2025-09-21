@@ -15,6 +15,8 @@ export function UtilizationChart({ title, data, expenseType, className }: Utiliz
   // Filter data by expense type
   const filteredData = data.filter(item => item.expenseType === expenseType);
 
+
+
   // Sort by utilization percentage (highest first)
   const sortedData = filteredData.sort((a, b) => b.utilizationPercentage - a.utilizationPercentage);
 
@@ -48,25 +50,28 @@ export function UtilizationChart({ title, data, expenseType, className }: Utiliz
   }
 
   return (
-    <Card className={className}>
-      <CardHeader>
+    <Card className={`${className} flex flex-col`}>
+      <CardHeader className="pb-3">
         <CardTitle className="text-lg font-semibold">{title}</CardTitle>
         <p className="text-sm text-muted-foreground">
           Budget utilization by category (spent vs allocated)
         </p>
+
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 flex-1 overflow-y-auto">
         {sortedData.map((item, index) => (
-          <div key={`${item.category}-${index}`} className="space-y-2">
-            <div className="flex justify-between items-center">
-              <div className="flex-1">
-                <h4 className="font-medium text-sm">{item.category}</h4>
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Spent: {formatCurrency(item.totalSpent)}</span>
+          <div key={`${item.category}-${index}`} className="space-y-2 p-3 border rounded-lg bg-card/50">
+            <div className="flex justify-between items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <h4 className="font-medium text-sm truncate" title={item.category}>
+                  {item.category}
+                </h4>
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-xs text-muted-foreground">
+                  <span>Spent: {formatCurrency(Number(item.totalSpent) || 0)}</span>
                   <span>Budget: {formatCurrency(item.totalAllocated)}</span>
                 </div>
               </div>
-              <div className={`text-sm font-semibold ${getUtilizationTextColor(item.utilizationPercentage)}`}>
+              <div className={`text-sm font-semibold whitespace-nowrap ${getUtilizationTextColor(item.utilizationPercentage)}`}>
                 {item.utilizationPercentage.toFixed(1)}%
               </div>
             </div>
@@ -85,8 +90,8 @@ export function UtilizationChart({ title, data, expenseType, className }: Utiliz
                 </div>
               )}
             </div>
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Remaining: {formatCurrency(Math.max(0, item.totalAllocated - item.totalSpent))}</span>
+            <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-xs text-muted-foreground">
+              <span>Remaining: {formatCurrency(Math.max(0, Number(item.totalAllocated) - Number(item.totalSpent)))}</span>
               <span>{item.budgetCount} budget item{item.budgetCount !== 1 ? 's' : ''}</span>
             </div>
           </div>

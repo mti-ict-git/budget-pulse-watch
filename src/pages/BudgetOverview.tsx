@@ -78,14 +78,24 @@ export default function BudgetOverview() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
-  const [selectedFiscalYear, setSelectedFiscalYear] = useState<number>(new Date().getFullYear());
+  const [selectedFiscalYear, setSelectedFiscalYear] = useState<string>(new Date().getFullYear().toString());
 
-  const loadBudgetData = async (searchParams?: { search?: string; status?: string; fiscalYear?: number }) => {
+  const loadBudgetData = async (searchParams?: { search?: string; status?: string; fiscalYear?: number | string }) => {
     try {
       setLoading(true);
       setError(null);
 
-      const fiscalYear = searchParams?.fiscalYear && searchParams.fiscalYear !== 0 ? searchParams.fiscalYear : selectedFiscalYear;
+      // Determine the fiscal year to use
+      let fiscalYear: number | undefined;
+      if (searchParams?.fiscalYear !== undefined) {
+        fiscalYear = typeof searchParams.fiscalYear === 'string' && searchParams.fiscalYear !== 'all' 
+          ? parseInt(searchParams.fiscalYear) 
+          : typeof searchParams.fiscalYear === 'number' 
+            ? searchParams.fiscalYear 
+            : undefined;
+      } else if (selectedFiscalYear !== 'all') {
+        fiscalYear = parseInt(selectedFiscalYear);
+      }
       
       // Load budget data, dashboard metrics, utilization data, and unallocated budgets in parallel
        const [budgetResponse, dashboardResponse, utilizationResponse, unallocatedResponse] = await Promise.all([
@@ -226,7 +236,7 @@ export default function BudgetOverview() {
     const timeoutId = setTimeout(() => {
       const searchParams = {
         search: searchTerm || undefined,
-        fiscalYear: fiscalYearFilter !== 'all' ? parseInt(fiscalYearFilter, 10) : undefined,
+        fiscalYear: fiscalYearFilter !== 'all' ? fiscalYearFilter : 'all',
         status: statusFilter !== 'all' ? statusFilter : undefined,
         expenseType: expenseTypeFilter !== 'all' ? expenseTypeFilter as 'CAPEX' | 'OPEX' : undefined,
       };
@@ -246,90 +256,149 @@ export default function BudgetOverview() {
   // CAPEX and OPEX utilization data is now handled by the UtilizationChart component using utilizationData
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Budget Overview</h1>
-          <p className="text-muted-foreground">
-            Monitor budget allocation and utilization across categories
-          </p>
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto p-4 lg:p-6 space-y-6">
+        {/* Page Header */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-4 border-b">
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Budget Overview</h1>
+            <p className="text-muted-foreground mt-1">
+              Monitor budget allocation and utilization across categories
+            </p>
+          </div>
+          <div className="flex gap-2 w-full lg:w-auto">
+            <Button variant="outline" onClick={() => loadBudgetData()} disabled={loading} className="flex-1 lg:flex-none">
+              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+              Refresh
+            </Button>
+            <Button variant="outline" className="flex-1 lg:flex-none">
+              <Download className="h-4 w-4" />
+              Export Report
+            </Button>
+            <Button onClick={() => setCreateDialogOpen(true)} className="flex-1 lg:flex-none">
+              <Plus className="h-4 w-4" />
+              Create Budget
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => loadBudgetData()} disabled={loading}>
-            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-            Refresh
-          </Button>
-          <Button variant="outline">
-            <Download className="h-4 w-4" />
-            Export Report
-          </Button>
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="h-4 w-4" />
-            Create Budget
-          </Button>
-        </div>
-      </div>
+
+        {/* Search and Filter Controls */}
+        <Card className="p-4">
+          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+            <div className="flex flex-col sm:flex-row gap-3 flex-1 w-full lg:w-auto">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder="Search budgets by code, name, category, or department..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select 
+                value={selectedFiscalYear} 
+                onValueChange={(value) => {
+                  setSelectedFiscalYear(value);
+                  setFiscalYearFilter(value);
+                  loadBudgetData({ fiscalYear: value });
+                }}
+              >
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Fiscal Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Years</SelectItem>
+                  <SelectItem value="2025">2025</SelectItem>
+                  <SelectItem value="2024">2024</SelectItem>
+                  <SelectItem value="2023">2023</SelectItem>
+                  <SelectItem value="2022">2022</SelectItem>
+                  <SelectItem value="2021">2021</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="On Track">On Track</SelectItem>
+                  <SelectItem value="Under Budget">Under Budget</SelectItem>
+                  <SelectItem value="Over Budget">Over Budget</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={expenseTypeFilter} onValueChange={setExpenseTypeFilter}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Expense Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="CAPEX">CAPEX</SelectItem>
+                  <SelectItem value="OPEX">OPEX</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </Card>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="metric-card">
-          <CardContent className="p-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+        <Card className="metric-card min-h-[120px]">
+          <CardContent className="p-4 lg:p-6">
             <div className="flex items-center justify-between">
               <div className="space-y-2">
                 <p className="text-sm font-medium text-muted-foreground">Total Budget</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalInitialBudget)}</p>
+                <p className="text-xl lg:text-2xl font-bold break-words">{formatCurrency(totalInitialBudget)}</p>
               </div>
-              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <Wallet className="h-6 w-6 text-primary" />
+              <div className="h-10 w-10 lg:h-12 lg:w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Wallet className="h-5 w-5 lg:h-6 lg:w-6 text-primary" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="metric-card">
-          <CardContent className="p-6">
+        <Card className="metric-card min-h-[120px]">
+          <CardContent className="p-4 lg:p-6">
             <div className="flex items-center justify-between">
               <div className="space-y-2">
                 <p className="text-sm font-medium text-muted-foreground">Total Spent</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalSpent)}</p>
+                <p className="text-xl lg:text-2xl font-bold break-words">{formatCurrency(totalSpent)}</p>
                 <p className="text-xs text-muted-foreground">
                   {overallUtilization.toFixed(1)}% utilized
                 </p>
               </div>
-              <div className="h-12 w-12 rounded-full bg-expense/10 flex items-center justify-center">
-                <TrendingDown className="h-6 w-6 text-expense" />
+              <div className="h-10 w-10 lg:h-12 lg:w-12 rounded-full bg-expense/10 flex items-center justify-center">
+                <TrendingDown className="h-5 w-5 lg:h-6 lg:w-6 text-expense" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="metric-card">
-          <CardContent className="p-6">
+        <Card className="metric-card min-h-[120px]">
+          <CardContent className="p-4 lg:p-6">
             <div className="flex items-center justify-between">
               <div className="space-y-2">
                 <p className="text-sm font-medium text-muted-foreground">Remaining</p>
-                <p className={cn("text-2xl font-bold", totalRemaining < 0 ? "text-destructive" : "text-foreground")}>
+                <p className={cn("text-xl lg:text-2xl font-bold break-words", totalRemaining < 0 ? "text-destructive" : "text-foreground")}>
                   {formatCurrency(totalRemaining)}
                 </p>
               </div>
-              <div className="h-12 w-12 rounded-full bg-success/10 flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-success" />
+              <div className="h-10 w-10 lg:h-12 lg:w-12 rounded-full bg-success/10 flex items-center justify-center">
+                <TrendingUp className="h-5 w-5 lg:h-6 lg:w-6 text-success" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="metric-card">
-          <CardContent className="p-6">
+        <Card className="metric-card min-h-[120px]">
+          <CardContent className="p-4 lg:p-6">
             <div className="flex items-center justify-between">
               <div className="space-y-2">
                 <p className="text-sm font-medium text-muted-foreground">Alerts</p>
-                <p className="text-2xl font-bold text-warning">{alertCount}</p>
+                <p className="text-xl lg:text-2xl font-bold text-warning">{alertCount}</p>
                 <p className="text-xs text-muted-foreground">Categories need attention</p>
               </div>
-              <div className="h-12 w-12 rounded-full bg-warning/10 flex items-center justify-center">
-                <AlertTriangle className="h-6 w-6 text-warning" />
+              <div className="h-10 w-10 lg:h-12 lg:w-12 rounded-full bg-warning/10 flex items-center justify-center">
+                <AlertTriangle className="h-5 w-5 lg:h-6 lg:w-6 text-warning" />
               </div>
             </div>
           </CardContent>
@@ -337,19 +406,19 @@ export default function BudgetOverview() {
       </div>
 
       {/* Utilization Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 lg:gap-6 mb-6">
         <UtilizationChart
           title="CAPEX Utilization"
           data={utilizationData}
           expenseType="CAPEX"
-          className="h-[300px]"
+          className="min-h-[350px]"
         />
         
         <UtilizationChart
           title="OPEX Utilization"
           data={utilizationData}
           expenseType="OPEX"
-          className="h-[300px]"
+          className="min-h-[350px]"
         />
       </div>
 
@@ -361,81 +430,24 @@ export default function BudgetOverview() {
          loading={loading}
        /> */}
 
-      {/* Search and Filter Controls */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                <Input
-                  placeholder="Search budgets by code, name, category, or department..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Select 
-                value={selectedFiscalYear.toString()} 
-                onValueChange={(value) => {
-                  const year = parseInt(value);
-                  setSelectedFiscalYear(year);
-                  setFiscalYearFilter(value);
-                  loadBudgetData({ fiscalYear: year });
-                }}
-              >
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Fiscal Year" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="2025">2025</SelectItem>
-                  <SelectItem value="2024">2024</SelectItem>
-                  <SelectItem value="2023">2023</SelectItem>
-                  <SelectItem value="2022">2022</SelectItem>
-                  <SelectItem value="2021">2021</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="On Track">On Track</SelectItem>
-                  <SelectItem value="Under Budget">Under Budget</SelectItem>
-                  <SelectItem value="Over Budget">Over Budget</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={expenseTypeFilter} onValueChange={setExpenseTypeFilter}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Expense Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="CAPEX">CAPEX</SelectItem>
-                  <SelectItem value="OPEX">OPEX</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+
 
       {/* Budget Details Table */}
-      <Card className="dashboard-card">
-        <CardHeader>
-          <CardTitle>Budget Details by Category</CardTitle>
+      <Card className="mt-6">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg">Budget Details by Category</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            {budgetData.length} budget{budgetData.length !== 1 ? 's' : ''} found
+          </p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {loading ? (
-            <div className="flex items-center justify-center py-8">
+            <div className="flex items-center justify-center py-12">
               <RefreshCw className="h-6 w-6 animate-spin" />
               <span className="ml-2">Loading budget data...</span>
             </div>
           ) : error ? (
-            <div className="flex items-center justify-center py-8 text-destructive">
+            <div className="flex items-center justify-center py-12 text-destructive">
               <AlertTriangle className="h-6 w-6" />
               <span className="ml-2">{error}</span>
             </div>
@@ -443,101 +455,111 @@ export default function BudgetOverview() {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>COA</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Initial Budget</TableHead>
-                    <TableHead>Spent</TableHead>
-                    <TableHead>Remaining</TableHead>
-                    <TableHead>Utilization</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
+                  <TableRow className="border-b">
+                    <TableHead className="min-w-[120px]">COA</TableHead>
+                    <TableHead className="min-w-[200px]">Category</TableHead>
+                    <TableHead className="min-w-[120px]">Department</TableHead>
+                    <TableHead className="min-w-[80px]">Type</TableHead>
+                    <TableHead className="min-w-[120px] text-right">Initial Budget</TableHead>
+                    <TableHead className="min-w-[100px] text-right">Spent</TableHead>
+                    <TableHead className="min-w-[120px] text-right">Remaining</TableHead>
+                    <TableHead className="min-w-[120px]">Utilization</TableHead>
+                    <TableHead className="min-w-[100px]">Status</TableHead>
+                    <TableHead className="min-w-[120px] text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {budgetData.map((budget, index) => {
-                    const totalAllocated = budget.GrandTotalAllocated || 0;
-                    const totalSpent = budget.GrandTotalApproved || 0;
-                    const remainingAmount = totalAllocated - totalSpent;
-                    
-                    return (
-                      <TableRow key={`${budget.PurchaseCostCode}-${index}`}>
-                        <TableCell className="font-medium">{budget.PurchaseCostCode}</TableCell>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{budget.COAName || `Cost Code ${budget.PurchaseCostCode}`}</div>
-                            {budget.COACode && (
-                              <div className="text-sm text-muted-foreground">{budget.COACode}</div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm text-muted-foreground">
-                            {budget.Department || 'N/A'}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <span className={cn(
-                            "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium",
-                            budget.ExpenseType === 'CAPEX' 
-                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                              : budget.ExpenseType === 'OPEX'
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                              : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
-                          )}>
-                            {budget.ExpenseType || 'N/A'}
-                          </span>
-                        </TableCell>
-                        <TableCell>{formatCurrency(totalAllocated)}</TableCell>
-                        <TableCell>{formatCurrency(totalSpent)}</TableCell>
-                        <TableCell className={cn(
-                          "font-medium",
-                          remainingAmount < 0 ? "text-destructive" : "text-foreground"
-                        )}>
-                          {formatCurrency(remainingAmount)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className={cn("text-sm font-medium", getUtilizationColor(budget.UtilizationPercentage || 0))}>
-                                {(budget.UtilizationPercentage || 0).toFixed(1)}%
-                              </span>
+                  {budgetData.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
+                        No budgets found matching your criteria
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    budgetData.map((budget, index) => {
+                      const totalAllocated = budget.GrandTotalAllocated || 0;
+                      const totalSpent = budget.GrandTotalApproved || 0;
+                      const remainingAmount = totalAllocated - totalSpent;
+                      
+                      return (
+                        <TableRow key={`${budget.PurchaseCostCode}-${index}`} className="hover:bg-muted/50">
+                          <TableCell className="font-medium">{budget.PurchaseCostCode}</TableCell>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium max-w-[180px] truncate" title={budget.COAName || `Cost Code ${budget.PurchaseCostCode}`}>
+                                {budget.COAName || `Cost Code ${budget.PurchaseCostCode}`}
+                              </div>
+                              {budget.COACode && (
+                                <div className="text-sm text-muted-foreground">{budget.COACode}</div>
+                              )}
                             </div>
-                            <Progress 
-                              value={Math.min(budget.UtilizationPercentage || 0, 100)} 
-                              className={cn("h-2", getProgressColor(budget.UtilizationPercentage || 0))}
-                            />
-                          </div>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(budget.BudgetStatus)}</TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Open menu</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleEditCostCodeBudget(budget)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                onClick={() => handleDeleteBudget(parseInt(budget.PurchaseCostCode) || 0)}
-                                className="text-destructive"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-muted-foreground max-w-[100px] truncate" title={budget.Department || 'N/A'}>
+                              {budget.Department || 'N/A'}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span className={cn(
+                              "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium",
+                              budget.ExpenseType === 'CAPEX' 
+                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                                : budget.ExpenseType === 'OPEX'
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+                            )}>
+                              {budget.ExpenseType || 'N/A'}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right font-medium">{formatCurrency(totalAllocated)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(totalSpent)}</TableCell>
+                          <TableCell className={cn(
+                            "text-right font-medium",
+                            remainingAmount < 0 ? "text-destructive" : "text-foreground"
+                          )}>
+                            {formatCurrency(remainingAmount)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className={cn("text-sm font-medium", getUtilizationColor(budget.UtilizationPercentage || 0))}>
+                                  {(budget.UtilizationPercentage || 0).toFixed(1)}%
+                                </span>
+                              </div>
+                              <Progress 
+                                value={Math.min(budget.UtilizationPercentage || 0, 100)} 
+                                className={cn("h-2", getProgressColor(budget.UtilizationPercentage || 0))}
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell>{getStatusBadge(budget.BudgetStatus)}</TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                  <span className="sr-only">Open menu</span>
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleEditCostCodeBudget(budget)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleDeleteBudget(parseInt(budget.PurchaseCostCode) || 0)}
+                                  className="text-destructive"
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
                 </TableBody>
               </Table>
             </div>
@@ -560,6 +582,7 @@ export default function BudgetOverview() {
           onSuccess={handleBudgetUpdated}
         />
       )}
+      </div>
     </div>
   );
 }

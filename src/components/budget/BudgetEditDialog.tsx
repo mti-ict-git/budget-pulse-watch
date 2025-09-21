@@ -18,10 +18,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Edit, Save, X } from "lucide-react";
+import { Edit, Save, X, Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { budgetService, Budget, UpdateBudgetRequest, CreateBudgetRequest, ChartOfAccount } from "@/services/budgetService";
+
+// Department options
+const departments = ["HR / IT", "Non IT"];
 
 interface BudgetEditDialogProps {
   budget: Budget;
@@ -39,6 +56,7 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [chartOfAccounts, setChartOfAccounts] = useState<ChartOfAccount[]>([]);
   const [isLoadingCOA, setIsLoadingCOA] = useState(false);
+  const [coaOpen, setCoaOpen] = useState(false);
   const { toast } = useToast();
   
   const [formData, setFormData] = useState<UpdateBudgetRequest>({
@@ -210,22 +228,54 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
                 <Label htmlFor="coaid" className="text-sm font-medium">
                   Chart of Account <span className="text-red-500">*</span>
                 </Label>
-                <Select
-                  value={formData.COAID?.toString() || ""}
-                  onValueChange={(value) => handleInputChange('COAID', parseInt(value))}
-                  disabled={isLoadingCOA}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={isLoadingCOA ? "Loading accounts..." : "Select Chart of Account"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {chartOfAccounts.map((account) => (
-                      <SelectItem key={account.COAID} value={account.COAID.toString()}>
-                        {account.COACode} - {account.COAName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={coaOpen} onOpenChange={setCoaOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={coaOpen}
+                      className="w-full justify-between"
+                      disabled={isLoadingCOA}
+                    >
+                      {formData.COAID ? 
+                        (() => {
+                          const selectedAccount = chartOfAccounts.find(account => account.COAID === formData.COAID);
+                          return selectedAccount ? `${selectedAccount.COACode} - ${selectedAccount.COAName}` : "Select Chart of Account";
+                        })()
+                        : (isLoadingCOA ? "Loading accounts..." : "Select Chart of Account")
+                      }
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0">
+                    <Command>
+                      <CommandInput placeholder="Search chart of accounts..." />
+                      <CommandList>
+                        <CommandEmpty>No chart of account found.</CommandEmpty>
+                        <CommandGroup>
+                          {chartOfAccounts.map((account) => (
+                            <CommandItem
+                              key={account.COAID}
+                              value={`${account.COACode} - ${account.COAName}`}
+                              onSelect={() => {
+                                handleInputChange('COAID', account.COAID);
+                                setCoaOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  formData.COAID === account.COAID ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {account.COACode} - {account.COAName}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* Allocated Amount */}
@@ -267,14 +317,21 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
                 <Label htmlFor="department" className="text-sm font-medium">
                   Department
                 </Label>
-                <Input
-                  id="department"
-                  type="text"
-                  placeholder="Enter department"
-                  value={formData.Department || ''}
-                  onChange={(e) => handleInputChange('Department', e.target.value)}
-                  className="w-full"
-                />
+                <Select
+                  value={formData.Department || ""}
+                  onValueChange={(value) => handleInputChange('Department', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((department) => (
+                      <SelectItem key={department} value={department}>
+                        {department}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Description */}

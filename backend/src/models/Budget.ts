@@ -23,16 +23,16 @@ export class BudgetModel {
   /**
    * Create a new budget
    */
-  static async create(budgetData: CreateBudgetRequest): Promise<Budget> {
+  static async create(budgetData: CreateBudgetRequest, createdBy: number): Promise<Budget> {
     const query = `
       INSERT INTO Budget (
         COAID, FiscalYear, AllocatedAmount, Description, 
-        Department, BudgetType, ExpenseType, StartDate, EndDate
+        Department, BudgetType, ExpenseType, StartDate, EndDate, CreatedBy
       )
       OUTPUT INSERTED.*
       VALUES (
         @COAID, @FiscalYear, @AllocatedAmount, @Description,
-        @Department, @BudgetType, @ExpenseType, @StartDate, @EndDate
+        @Department, @BudgetType, @ExpenseType, @StartDate, @EndDate, @CreatedBy
       )
     `;
     
@@ -45,7 +45,8 @@ export class BudgetModel {
       BudgetType: budgetData.BudgetType || 'Annual',
       ExpenseType: budgetData.ExpenseType || 'OPEX',
       StartDate: budgetData.StartDate,
-      EndDate: budgetData.EndDate
+      EndDate: budgetData.EndDate,
+      CreatedBy: createdBy
     };
     
     const result = await executeQuery<Budget>(query, params);
