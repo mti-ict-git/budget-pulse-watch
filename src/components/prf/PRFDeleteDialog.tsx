@@ -93,22 +93,22 @@ export function PRFDeleteDialog({ prf, onPRFDeleted }: PRFDeleteDialogProps) {
             <AlertTriangle className="h-5 w-5 text-red-500" />
             Delete PRF {prf.prfNo}
           </AlertDialogTitle>
-          <AlertDialogDescription className="space-y-2">
-            <p>
-              Are you sure you want to delete this Purchase Request Form? This action cannot be undone.
-            </p>
-            <div className="bg-gray-50 p-3 rounded-md space-y-1 text-sm">
-              <p><strong>PRF No:</strong> {prf.prfNo}</p>
-              <p><strong>Description:</strong> {prf.description}</p>
-              <p><strong>Amount:</strong> Rp {prf.amount.toLocaleString('id-ID')}</p>
-              <p><strong>Department:</strong> {prf.department}</p>
-              <p><strong>Status:</strong> {prf.progress}</p>
-            </div>
-            <p className="text-red-600 font-medium">
-              ⚠️ This will permanently delete the PRF and all associated data including items and documents.
-            </p>
+          <AlertDialogDescription>
+            Are you sure you want to delete this Purchase Request Form? This action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
+        <div className="space-y-3">
+          <div className="bg-gray-50 p-3 rounded-md space-y-1 text-sm">
+            <p><strong>PRF No:</strong> {prf.prfNo}</p>
+            <p><strong>Description:</strong> {prf.description}</p>
+            <p><strong>Amount:</strong> Rp {prf.amount.toLocaleString('id-ID')}</p>
+            <p><strong>Department:</strong> {prf.department}</p>
+            <p><strong>Status:</strong> {prf.progress}</p>
+          </div>
+          <p className="text-red-600 font-medium">
+            ⚠️ This will permanently delete the PRF and all associated data including items and documents.
+          </p>
+        </div>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isDeleting}>
             Cancel

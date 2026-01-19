@@ -11,3 +11,5 @@ DB_TRUST_CERT=true
 
 
 Unexpected any. Specify a different type.eslint@typescript-eslint/no-explicit-any do not use any
+
+we have sqlcmd installed

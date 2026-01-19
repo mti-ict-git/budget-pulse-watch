@@ -19,10 +19,6 @@ export interface ExtractedPRFData {
     unitPrice?: number;
     totalPrice?: number;
     currency?: string;
-    // Cost code fields for multi-cost code support
-    purchaseCostCode?: string;
-    coaid?: number;
-    budgetYear?: number;
   }>;
   projectDescription?: string;
   projectId?: string;
@@ -192,19 +188,26 @@ Please extract:
 9. Project Description/Area (if not explicitly provided, generate a concise description based on the item descriptions)
 10. Project ID
 11. Reference Drawing Number
+12. Cost Code/General Ledger Code (CRITICAL: Extract cost codes from the rightmost column of the items table. Cost codes can be alphanumeric (e.g., 'MTIRMRAD496328') or numeric (e.g., '12710806.6250'). DO NOT use total amounts, subtotals, or summary values from the bottom of the form)
+   - Extract cost codes from the rightmost column of the items table, not total amounts
+   - Cost codes appear in individual item rows, not in summary totals
+   - Look for cost codes in the "General Ledger Code/Project #" column (typically the last column)
+   - Cost codes can be alphanumeric strings like "MTIRMRAD496328" or numeric like "12710806.6250"
+   - Avoid extracting values that appear in summary/total sections at the bottom of the form
+   - Focus on the far-right side of each item row in the table
 13. Budgeted (Yes/No checkbox)
 14. Under ICT Control (Yes/No checkbox)
 15. Received PR date
 16. Entry date
 17. Any status information
-18. Request For (extract from item descriptions any text that starts with 'FOR' or 'For', e.g., 'FOR Supporting OHS a/n M. Rama & Emil Azali')
+18. Request For (extract from item descriptions any text that starts with 'FOR' or 'For'. But if For pattern not found, you have to make conclution from the item description).
 
 IMPORTANT INSTRUCTIONS:
 - If Project Description/Area is not explicitly filled in the form, automatically generate a brief, professional description based on the item descriptions
 - Look for 'FOR' or 'For' text in item descriptions and extract it as 'Request For' information
 - The generated project description should summarize what the items are for in 1-2 sentences
-- CRITICAL: For Cost Code/General Ledger Code, ONLY extract alphanumeric codes from the rightmost column of the items table (e.g., 'MTIRMRAD496328'). DO NOT use total amounts, subtotals, or any pure numeric values from the bottom of the form
-- Cost codes are typically alphanumeric strings that appear in individual item rows, not summary totals
+- CRITICAL: For Cost Code/General Ledger Code, extract codes from the rightmost column of the items table. Cost codes can be alphanumeric (e.g., 'MTIRMRAD496328') or numeric (e.g., '12710806.6250'). DO NOT use total amounts, subtotals, or summary values from the bottom of the form
+- Cost codes can be alphanumeric strings or numeric values that appear in individual item rows, not summary totals
 
 Return ONLY a valid JSON object with this structure:
 {
@@ -298,20 +301,26 @@ Please extract:
 9. Project Description/Area (if not explicitly provided, generate a concise description based on the item descriptions)
 10. Project ID
 11. Reference Drawing Number
-12. Cost Code/General Ledger Code (IMPORTANT: Look for alphanumeric codes like 'MTIRMRAD496328' in the rightmost column of the items table, NOT the total amounts at the bottom. Cost codes are typically alphanumeric and appear in the 'General Ledger Code/Project #' column)
+12. Cost Code/General Ledger Code (CRITICAL: Extract cost codes from the rightmost column of the items table. Cost codes can be alphanumeric (e.g., 'MTIRMRAD496328') or numeric (e.g., '12710806.6250'). DO NOT use total amounts, subtotals, or summary values from the bottom of the form)
+   - Extract cost codes from the rightmost column of the items table, not total amounts
+   - Cost codes appear in individual item rows, not in summary totals
+   - Look for cost codes in the "General Ledger Code/Project #" column (typically the last column)
+   - Cost codes can be alphanumeric strings like "MTIRMRAD496328" or numeric like "12710806.6250"
+   - Avoid extracting values that appear in summary/total sections at the bottom of the form
+   - Focus on the far-right side of each item row in the table
 13. Budgeted (Yes/No checkbox)
 14. Under ICT Control (Yes/No checkbox)
 15. Received PR date
 16. Entry date
 17. Any status information
-18. Request For (extract from item descriptions any text that starts with 'FOR' or 'For', e.g., 'FOR Supporting OHS a/n M. Rama & Emil Azali')
+18. Request For (extract from item descriptions any text that starts with 'FOR' or 'For'. But if For pattern not found, you have to make conclution from the item description).
 
 IMPORTANT INSTRUCTIONS:
 - If Project Description/Area is not explicitly filled in the form, automatically generate a brief, professional description based on the item descriptions
 - Look for 'FOR' or 'For' text in item descriptions and extract it as 'Request For' information
 - The generated project description should summarize what the items are for in 1-2 sentences
-- CRITICAL: For Cost Code/General Ledger Code, ONLY extract alphanumeric codes from the rightmost column of the items table (e.g., 'MTIRMRAD496328'). DO NOT use total amounts, subtotals, or any pure numeric values from the bottom of the form
-- Cost codes are typically alphanumeric strings that appear in individual item rows, not summary totals
+- CRITICAL: For Cost Code/General Ledger Code, extract codes from the rightmost column of the items table. Cost codes can be alphanumeric (e.g., 'MTIRMRAD496328') or numeric (e.g., '12710806.6250'). DO NOT use total amounts, subtotals, or summary values from the bottom of the form
+- Cost codes can be alphanumeric strings or numeric values that appear in individual item rows, not summary totals
 
 Return ONLY a valid JSON object with this structure:
 {
@@ -600,23 +609,24 @@ For requestFor: look for text starting with 'FOR' or 'For' in item descriptions 
   }
 
   private isLikelyNotCostCode(code: string): boolean {
-    // Pure numbers that are likely amounts
-    if (/^\d+$/.test(code)) {
-      const numValue = parseInt(code, 10);
-      // Large numbers are likely totals/amounts, not cost codes
-      if (numValue > 100000) return true;
-      // Very small numbers (1-3 digits) are likely quantities, not cost codes
-      if (numValue < 100 && code.length <= 3) return true;
+    // Very small numbers (1-3 digits) are likely quantities, not cost codes
+    if (/^\d{1,3}$/.test(code)) {
+      return true;
     }
     
-    // Common non-cost-code patterns
+    // Common non-cost-code patterns (but exclude valid numeric cost codes)
     const nonCostCodePatterns = [
       /^\d{1,2}$/, // Single/double digits (quantities)
-      /^\d+\.\d+$/, // Decimal numbers (prices)
-      /^\d{1,3}(,\d{3})*$/, // Formatted numbers with commas
-      /^[0-9.,]+$/, // Numbers with only digits, commas, and periods
+      /^\d{1,3}(,\d{3})*$/, // Formatted numbers with commas (amounts)
       /^(yes|no|n\/a|tbd|pending)$/i, // Common form values
     ];
+    
+    // Check for obvious price patterns (small decimal amounts)
+    if (/^\d+\.\d+$/.test(code)) {
+      const numValue = parseFloat(code);
+      // Small decimal amounts (< 10000) are likely prices, not cost codes
+      if (numValue < 10000) return true;
+    }
     
     return nonCostCodePatterns.some(pattern => pattern.test(code));
   }
@@ -632,11 +642,9 @@ For requestFor: look for text starting with 'FOR' or 'For' in item descriptions 
       /^\d+[A-Z]+$/i, // Numbers followed by letters (123ABC)
       /^[A-Z0-9]+-[A-Z0-9]+$/i, // Alphanumeric with dash (PROJECT-001)
       /^[A-Z]{1,4}\d{3,}$/i, // 1-4 letters + 3+ digits (MT123456)
+      /^\d{6,}\.\d{4}$/i, // Numeric cost codes with decimal (12710806.6250)
+      /^\d{8,}$/i, // Long numeric cost codes (12710806)
     ];
-    
-    // Must contain at least one letter (prevents pure numbers)
-    const hasLetters = /[A-Za-z]/.test(code);
-    if (!hasLetters) return false;
     
     // Check if it matches any valid pattern
     return costCodePatterns.some(pattern => pattern.test(code));
