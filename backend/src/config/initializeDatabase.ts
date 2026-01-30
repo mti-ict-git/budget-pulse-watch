@@ -78,6 +78,48 @@ export const ensureTablesExist = async (): Promise<void> => {
       await executeQuery(createTableQuery);
       console.log('✅ Users table created');
     }
+
+    const checkSettingsTable = `
+      SELECT COUNT(*) as TableCount
+      FROM INFORMATION_SCHEMA.TABLES 
+      WHERE TABLE_NAME = 'AppSettings'
+    `;
+    const settingsResult = await executeQuery<{ TableCount: number }>(checkSettingsTable);
+    const settingsTableExists = settingsResult.recordset[0]?.TableCount > 0;
+    if (!settingsTableExists) {
+      console.log('📋 Creating AppSettings table...');
+      const createSettingsQuery = `
+        CREATE TABLE AppSettings (
+          SettingsID INT IDENTITY(1,1) PRIMARY KEY,
+          Provider NVARCHAR(20) NOT NULL CHECK (Provider IN ('gemini','openai')),
+          GeminiApiKeyEnc NVARCHAR(MAX) NULL,
+          OpenAIApiKeyEnc NVARCHAR(MAX) NULL,
+          Enabled BIT NOT NULL DEFAULT 0,
+          Model NVARCHAR(100) NULL,
+          SharedFolderPath NVARCHAR(500) NULL,
+          UpdatedAt DATETIME2 NOT NULL DEFAULT GETDATE()
+        )
+      `;
+      await executeQuery(createSettingsQuery);
+      console.log('✅ AppSettings table created');
+    }
+
+    const checkSettingsRow = `SELECT COUNT(*) AS Count FROM AppSettings`;
+    const settingsCount = await executeQuery<{ Count: number }>(checkSettingsRow);
+    const hasSettingsRow = (settingsCount.recordset[0]?.Count || 0) > 0;
+    if (!hasSettingsRow) {
+      console.log('🌱 Seeding default AppSettings row...');
+      const insertDefault = `
+        INSERT INTO AppSettings (Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath)
+        VALUES (@Provider, NULL, NULL, @Enabled, @Model, NULL)
+      `;
+      await executeQuery(insertDefault, {
+        Provider: 'gemini',
+        Enabled: 0,
+        Model: 'gemini-1.5-flash'
+      });
+      console.log('✅ Default AppSettings row inserted');
+    }
   } catch (error) {
     console.error('❌ Table creation failed:', error);
     throw error;

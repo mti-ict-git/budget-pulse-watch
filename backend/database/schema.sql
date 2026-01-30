@@ -16,6 +16,19 @@ CREATE TABLE Users (
     UpdatedAt DATETIME2 DEFAULT GETDATE()
 );
 
+-- Application Settings table for storing OCR and general app configuration
+CREATE TABLE AppSettings (
+    SettingsID INT IDENTITY(1,1) PRIMARY KEY,
+    Provider NVARCHAR(20) NOT NULL CHECK (Provider IN ('gemini','openai')),
+    GeminiApiKeyEnc NVARCHAR(MAX) NULL,
+    OpenAIApiKeyEnc NVARCHAR(MAX) NULL,
+    Enabled BIT NOT NULL DEFAULT 0,
+    Model NVARCHAR(100) NULL,
+    SharedFolderPath NVARCHAR(500) NULL,
+    UpdatedAt DATETIME2 NOT NULL DEFAULT GETDATE()
+);
+GO
+
 -- Chart of Accounts (COA) for budget categories
 CREATE TABLE ChartOfAccounts (
     COAID INT IDENTITY(1,1) PRIMARY KEY,

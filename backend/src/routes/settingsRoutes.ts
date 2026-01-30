@@ -3,10 +3,10 @@ import { Request, Response } from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
+import { executeQuery } from '../config/database';
 
 const router = express.Router();
 
-// Settings file path
 const SETTINGS_FILE = path.join(__dirname, '../../data/settings.json');
 const ENCRYPTION_KEY = process.env.SETTINGS_ENCRYPTION_KEY || 'default-key-change-in-production';
 
@@ -25,6 +25,15 @@ interface GeneralSettings {
 interface AppSettings {
   ocr: OCRSettings;
   general?: GeneralSettings;
+}
+
+interface DbAppSettingsRow {
+  Provider: 'gemini' | 'openai';
+  GeminiApiKeyEnc: string | null;
+  OpenAIApiKeyEnc: string | null;
+  Enabled: number;
+  Model: string | null;
+  SharedFolderPath: string | null;
 }
 
 // Encryption helpers
@@ -55,7 +64,6 @@ function decrypt(encryptedText: string): string {
   return decrypted;
 }
 
-// Ensure data directory exists
 async function ensureDataDirectory() {
   const dataDir = path.dirname(SETTINGS_FILE);
   try {
@@ -65,62 +73,95 @@ async function ensureDataDirectory() {
   }
 }
 
-// Load settings from file
 async function loadSettings(): Promise<AppSettings> {
   try {
-    await ensureDataDirectory();
-    const data = await fs.readFile(SETTINGS_FILE, 'utf8');
-    const settings = JSON.parse(data) as AppSettings;
-    
-    // Decrypt API keys if they exist
-    if (settings.ocr?.geminiApiKey) {
-      try {
-        settings.ocr.geminiApiKey = decrypt(settings.ocr.geminiApiKey);
-      } catch (error) {
-        console.error('Failed to decrypt Gemini API key:', error);
-        settings.ocr.geminiApiKey = '';
-      }
+    const result = await executeQuery<DbAppSettingsRow>(
+      'SELECT TOP 1 Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath FROM AppSettings ORDER BY SettingsID DESC'
+    );
+    const row = result.recordset[0];
+    if (row) {
+      const geminiKey = row.GeminiApiKeyEnc ? decrypt(row.GeminiApiKeyEnc) : '';
+      const openaiKey = row.OpenAIApiKeyEnc ? decrypt(row.OpenAIApiKeyEnc) : '';
+      const settings: AppSettings = {
+        ocr: {
+          provider: row.Provider,
+          geminiApiKey: geminiKey,
+          openaiApiKey: openaiKey,
+          enabled: !!row.Enabled,
+          model: row.Model || (row.Provider === 'openai' ? 'gpt-4o-mini' : 'gemini-1.5-flash')
+        },
+        general: {
+          sharedFolderPath: row.SharedFolderPath || ''
+        }
+      };
+      return settings;
     }
-    
-    if (settings.ocr?.openaiApiKey) {
-      try {
-        settings.ocr.openaiApiKey = decrypt(settings.ocr.openaiApiKey);
-      } catch (error) {
-        console.error('Failed to decrypt OpenAI API key:', error);
-        settings.ocr.openaiApiKey = '';
-      }
+    try {
+      await ensureDataDirectory();
+      const data = await fs.readFile(SETTINGS_FILE, 'utf8');
+      const fileSettings = JSON.parse(data) as AppSettings;
+      return {
+        ocr: {
+          provider: fileSettings.ocr.provider || 'gemini',
+          geminiApiKey: fileSettings.ocr.geminiApiKey ? decrypt(fileSettings.ocr.geminiApiKey) : '',
+          openaiApiKey: fileSettings.ocr.openaiApiKey ? decrypt(fileSettings.ocr.openaiApiKey) : '',
+          enabled: fileSettings.ocr.enabled || false,
+          model: fileSettings.ocr.model || 'gemini-1.5-flash'
+        },
+        general: fileSettings.general ? { sharedFolderPath: fileSettings.general.sharedFolderPath || '' } : { sharedFolderPath: '' }
+      };
+    } catch {
+      return {
+        ocr: {
+          enabled: false,
+          provider: 'gemini',
+          model: 'gemini-1.5-flash'
+        },
+        general: { sharedFolderPath: '' }
+      };
     }
-    
-    return settings;
-  } catch (error) {
-    // Return default settings if file doesn't exist or is corrupted
+  } catch {
     return {
       ocr: {
         enabled: false,
-        provider: 'gemini' as const,
+        provider: 'gemini',
         model: 'gemini-1.5-flash'
-      }
+      },
+      general: { sharedFolderPath: '' }
     };
   }
 }
 
-// Save settings to file
 async function saveSettings(settings: AppSettings): Promise<void> {
-  await ensureDataDirectory();
-  
-  // Create a copy for encryption
-  const settingsToSave = JSON.parse(JSON.stringify(settings));
-  
-  // Encrypt API keys before saving
-  if (settingsToSave.ocr?.geminiApiKey) {
-    settingsToSave.ocr.geminiApiKey = encrypt(settingsToSave.ocr.geminiApiKey);
+  const encGemini = settings.ocr.geminiApiKey ? encrypt(settings.ocr.geminiApiKey) : null;
+  const encOpenAI = settings.ocr.openaiApiKey ? encrypt(settings.ocr.openaiApiKey) : null;
+  const existing = await executeQuery<{ Count: number }>('SELECT COUNT(*) AS Count FROM AppSettings');
+  const hasRow = (existing.recordset[0]?.Count || 0) > 0;
+  if (hasRow) {
+    await executeQuery(
+      'UPDATE AppSettings SET Provider=@Provider, GeminiApiKeyEnc=@GeminiApiKeyEnc, OpenAIApiKeyEnc=@OpenAIApiKeyEnc, Enabled=@Enabled, Model=@Model, SharedFolderPath=@SharedFolderPath, UpdatedAt=GETDATE()',
+      {
+        Provider: settings.ocr.provider,
+        GeminiApiKeyEnc: encGemini,
+        OpenAIApiKeyEnc: encOpenAI,
+        Enabled: settings.ocr.enabled ? 1 : 0,
+        Model: settings.ocr.model || null,
+        SharedFolderPath: settings.general?.sharedFolderPath || null
+      }
+    );
+  } else {
+    await executeQuery(
+      'INSERT INTO AppSettings (Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath) VALUES (@Provider, @GeminiApiKeyEnc, @OpenAIApiKeyEnc, @Enabled, @Model, @SharedFolderPath)',
+      {
+        Provider: settings.ocr.provider,
+        GeminiApiKeyEnc: encGemini,
+        OpenAIApiKeyEnc: encOpenAI,
+        Enabled: settings.ocr.enabled ? 1 : 0,
+        Model: settings.ocr.model || null,
+        SharedFolderPath: settings.general?.sharedFolderPath || null
+      }
+    );
   }
-  
-  if (settingsToSave.ocr?.openaiApiKey) {
-    settingsToSave.ocr.openaiApiKey = encrypt(settingsToSave.ocr.openaiApiKey);
-  }
-  
-  await fs.writeFile(SETTINGS_FILE, JSON.stringify(settingsToSave, null, 2));
 }
 
 // GET /api/settings/ocr - Get OCR settings
@@ -164,8 +205,6 @@ router.post('/ocr', async (req: Request, res: Response) => {
     }
     
     const currentSettings = await loadSettings();
-    
-    // Update OCR settings
     currentSettings.ocr = {
       enabled,
       provider: provider || currentSettings.ocr.provider || 'gemini',
@@ -173,7 +212,6 @@ router.post('/ocr', async (req: Request, res: Response) => {
       openaiApiKey: openaiApiKey || currentSettings.ocr.openaiApiKey || '',
       model: model || currentSettings.ocr.model || (provider === 'openai' ? 'gpt-4o-mini' : 'gemini-1.5-flash')
     };
-    
     await saveSettings(currentSettings);
     
     return res.json({ 
@@ -261,12 +299,9 @@ router.post('/general', async (req: Request, res: Response) => {
     }
     
     const currentSettings = await loadSettings();
-    
-    // Update general settings
     currentSettings.general = {
       sharedFolderPath: sharedFolderPath || ''
     };
-    
     await saveSettings(currentSettings);
     
     return res.json({ 

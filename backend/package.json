@@ -11,7 +11,8 @@
     "clean": "rimraf dist",
     "import:historical": "ts-node src/scripts/importHistoricalData.ts",
     "migrate:usernames": "ts-node src/scripts/runUsernameMigration.ts",
-    "migrate:usernames:live": "ts-node src/scripts/runUsernameMigration.ts --live"
+    "migrate:usernames:live": "ts-node src/scripts/runUsernameMigration.ts --live",
+    "dev:migrateschema": "ts-node src/scripts/migrateSchema.ts"
   },
   "keywords": [
     "prf",
