@@ -138,12 +138,65 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
  * @access  Private
  */
 router.get('/budget-summary', asyncHandler(async (req, res) => {
-  // TODO: Implement budget summary report
-  res.json({
-    success: true,
-    message: 'Get budget summary report endpoint - Coming soon',
-    data: []
-  });
+  const { fiscalYear = new Date().getFullYear(), department, expenseType } = req.query;
+  try {
+    const { executeQuery } = await import('../config/database');
+    let whereClause = 'WHERE b.FiscalYear = @FiscalYear AND b.AllocatedAmount > 0';
+    const params: Record<string, unknown> = { FiscalYear: fiscalYear };
+    if (department && department !== 'all') {
+      whereClause += ' AND coa.Department = @Department';
+      params.Department = department;
+    }
+    if (expenseType && (expenseType === 'CAPEX' || expenseType === 'OPEX')) {
+      whereClause += ' AND coa.ExpenseType = @ExpenseType';
+      params.ExpenseType = expenseType;
+    }
+    const query = `
+      WITH BudgetTotals AS (
+        SELECT b.COAID, SUM(b.AllocatedAmount) AS TotalAllocated
+        FROM Budget b
+        INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
+        ${whereClause}
+        GROUP BY b.COAID
+      ), PRFTotals AS (
+        SELECT p.COAID, SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) AS TotalSpent
+        FROM PRF p
+        WHERE p.Status IN ('Approved', 'Completed') AND YEAR(p.RequestDate) = @FiscalYear
+        GROUP BY p.COAID
+      )
+      SELECT coa.Category, coa.ExpenseType, COUNT(DISTINCT bt.COAID) AS BudgetCount,
+             SUM(bt.TotalAllocated) AS TotalAllocated,
+             SUM(COALESCE(pt.TotalSpent, 0)) AS TotalSpent,
+             SUM(bt.TotalAllocated) - SUM(COALESCE(pt.TotalSpent, 0)) AS TotalRemaining,
+             CASE WHEN SUM(bt.TotalAllocated) > 0 THEN ROUND((SUM(COALESCE(pt.TotalSpent, 0)) * 100.0 / SUM(bt.TotalAllocated)), 2) ELSE 0 END AS UtilizationPercentage
+      FROM BudgetTotals bt
+      INNER JOIN ChartOfAccounts coa ON bt.COAID = coa.COAID
+      LEFT JOIN PRFTotals pt ON bt.COAID = pt.COAID
+      GROUP BY coa.Category, coa.ExpenseType
+      ORDER BY coa.ExpenseType, coa.Category
+    `;
+    interface BudgetSummaryRow {
+      Category: string;
+      ExpenseType: string;
+      BudgetCount: number;
+      TotalAllocated: number;
+      TotalSpent: number;
+      TotalRemaining: number;
+      UtilizationPercentage: number;
+    }
+    const result = await executeQuery<BudgetSummaryRow>(query, params);
+    res.json({
+      success: true,
+      message: 'Budget summary retrieved successfully',
+      data: result.recordset
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get budget summary data',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 }));
 
 /**
@@ -277,18 +330,52 @@ router.get('/unallocated-budgets', asyncHandler(async (req, res) => {
  * @access  Private
  */
 router.get('/prf-trend', asyncHandler(async (req, res) => {
-  // TODO: Implement PRF trend analysis
-  const { year, period = 'monthly' } = req.query;
-  
-  res.json({
-    success: true,
-    message: 'Get PRF trend report endpoint - Coming soon',
-    data: {
-      period,
-      year,
-      trends: []
+  const { year = new Date().getFullYear(), period = 'monthly', department } = req.query;
+  try {
+    const { executeQuery } = await import('../config/database');
+    const isMonthly = !period || period === 'monthly';
+    const periodExpr = isMonthly ? 'MONTH(RequestDate)' : 'DATEPART(QUARTER, RequestDate)';
+    let whereClause = 'WHERE YEAR(RequestDate) = @Year';
+    const params: Record<string, unknown> = { Year: year };
+    if (department && department !== 'all') {
+      whereClause += ' AND Department = @Department';
+      params.Department = department;
     }
-  });
+    const query = `
+      SELECT ${periodExpr} AS Period,
+             COUNT(*) AS TotalPRFs,
+             COUNT(CASE WHEN Status IN ('Approved','Completed') THEN 1 END) AS ApprovedPRFs,
+             SUM(RequestedAmount) AS TotalRequested,
+             SUM(COALESCE(ApprovedAmount, 0)) AS TotalApproved
+      FROM PRF
+      ${whereClause}
+      GROUP BY ${periodExpr}
+      ORDER BY ${periodExpr}
+    `;
+    interface TrendRow {
+      Period: number;
+      TotalPRFs: number;
+      ApprovedPRFs: number;
+      TotalRequested: number;
+      TotalApproved: number;
+    }
+    const result = await executeQuery<TrendRow>(query, params);
+    res.json({
+      success: true,
+      message: 'PRF trend retrieved successfully',
+      data: {
+        period: isMonthly ? 'monthly' : 'quarterly',
+        year: parseInt(String(year)),
+        trends: result.recordset
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get PRF trend data',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 }));
 
 /**
@@ -428,17 +515,98 @@ router.get('/budget-utilization', asyncHandler(async (req, res) => {
  * @access  Private
  */
 router.get('/alerts', asyncHandler(async (req, res) => {
-  // TODO: Implement alerts calculation
-  res.json({
-    success: true,
-    message: 'Get system alerts endpoint - Coming soon',
-    data: {
-      overBudgetPRFs: [],
-      highUtilizationBudgets: [],
-      pendingApprovals: [],
-      totalAlerts: 0
+  const { fiscalYear = new Date().getFullYear() } = req.query;
+  try {
+    const { executeQuery } = await import('../config/database');
+    interface BudgetAlertRow {
+      BudgetID: number;
+      FiscalYear: number;
+      AllocatedAmount: number;
+      UtilizedAmount: number;
+      UtilizationPercentage: number;
+      COACode: string;
+      COAName: string;
+      UtilizationLevel: string;
     }
-  });
+    interface OverBudgetPRFRow {
+      PRFID: number;
+      PRFNo: string;
+      Department: string;
+      Amount: number;
+      BudgetAllocated: number;
+      COACode: string;
+      COAName: string;
+    }
+    interface PendingApprovalRow {
+      PRFID: number;
+      PRFNo: string;
+      Department: string;
+      RequestDate: Date;
+      MaxLevel: number;
+    }
+    const budgetQuery = `
+      SELECT b.BudgetID, b.FiscalYear, b.AllocatedAmount, b.UtilizedAmount, b.UtilizationPercentage,
+             coa.COACode, coa.COAName,
+             CASE 
+               WHEN b.UtilizationPercentage > 90 THEN 'Critical'
+               WHEN b.UtilizationPercentage > 75 THEN 'High'
+               WHEN b.UtilizationPercentage > 50 THEN 'Medium'
+               ELSE 'Low'
+             END AS UtilizationLevel
+      FROM Budget b
+      INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
+      WHERE b.FiscalYear = @FiscalYear AND b.AllocatedAmount > 0 AND b.UtilizationPercentage >= 75
+      ORDER BY b.UtilizationPercentage DESC
+    `;
+    const overPrfQuery = `
+      WITH BudgetAlloc AS (
+        SELECT COAID, FiscalYear, SUM(AllocatedAmount) AS Alloc
+        FROM Budget
+        WHERE FiscalYear = @FiscalYear
+        GROUP BY COAID, FiscalYear
+      ), PRFSpend AS (
+        SELECT PRFID, PRFNo, Department, COAID, YEAR(RequestDate) AS FiscalYear,
+               COALESCE(ApprovedAmount, RequestedAmount, 0) AS Amount
+        FROM PRF
+        WHERE YEAR(RequestDate) = @FiscalYear
+      )
+      SELECT s.PRFID, s.PRFNo, s.Department, s.Amount, a.Alloc AS BudgetAllocated, coa.COACode, coa.COAName
+      FROM PRFSpend s
+      INNER JOIN BudgetAlloc a ON s.COAID = a.COAID AND s.FiscalYear = a.FiscalYear
+      INNER JOIN ChartOfAccounts coa ON s.COAID = coa.COAID
+      WHERE s.Amount > a.Alloc
+      ORDER BY s.Amount DESC
+    `;
+    const pendingQuery = `
+      SELECT TOP 50 p.PRFID, p.PRFNo, p.Department, p.RequestDate, MAX(a.ApprovalLevel) AS MaxLevel
+      FROM PRFApprovals a
+      INNER JOIN PRF p ON a.PRFID = p.PRFID
+      WHERE a.Status = 'Pending'
+      GROUP BY p.PRFID, p.PRFNo, p.Department, p.RequestDate
+      ORDER BY p.RequestDate DESC
+    `;
+    const params = { FiscalYear: fiscalYear };
+    const [budgetRes, overPrfRes, pendingRes] = await Promise.all([
+      executeQuery<BudgetAlertRow>(budgetQuery, params),
+      executeQuery<OverBudgetPRFRow>(overPrfQuery, params),
+      executeQuery<PendingApprovalRow>(pendingQuery)
+    ]);
+    const overBudgetPRFs = overPrfRes.recordset;
+    const highUtilizationBudgets = budgetRes.recordset;
+    const pendingApprovals = pendingRes.recordset;
+    const totalAlerts = overBudgetPRFs.length + highUtilizationBudgets.length + pendingApprovals.length;
+    res.json({
+      success: true,
+      message: 'Alerts retrieved successfully',
+      data: { overBudgetPRFs, highUtilizationBudgets, pendingApprovals, totalAlerts }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get alerts',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 }));
 
 /**
@@ -447,19 +615,82 @@ router.get('/alerts', asyncHandler(async (req, res) => {
  * @access  Private
  */
 router.get('/export', asyncHandler(async (req, res) => {
-  // TODO: Implement data export functionality
-  const { type = 'csv', data = 'all', year } = req.query;
-  
-  res.json({
-    success: true,
-    message: 'Export data endpoint - Coming soon',
-    data: {
-      type,
-      dataType: data,
-      year,
-      downloadUrl: null
+  const { type = 'csv', data = 'budget-summary', year = new Date().getFullYear(), department, expenseType } = req.query;
+  try {
+    const { executeQuery } = await import('../config/database');
+    if (type !== 'csv') {
+      res.status(400).json({ success: false, message: 'Only CSV export is supported' });
+      return;
     }
-  });
+    let whereClause = 'WHERE b.FiscalYear = @FiscalYear AND b.AllocatedAmount > 0';
+    const params: Record<string, unknown> = { FiscalYear: year };
+    if (department && department !== 'all') {
+      whereClause += ' AND coa.Department = @Department';
+      params.Department = department;
+    }
+    if (expenseType && (expenseType === 'CAPEX' || expenseType === 'OPEX')) {
+      whereClause += ' AND coa.ExpenseType = @ExpenseType';
+      params.ExpenseType = expenseType;
+    }
+    if (data !== 'budget-summary') {
+      res.status(400).json({ success: false, message: 'Unsupported data type for export' });
+      return;
+    }
+    const query = `
+      WITH BudgetTotals AS (
+        SELECT b.COAID, SUM(b.AllocatedAmount) AS TotalAllocated
+        FROM Budget b
+        INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
+        ${whereClause}
+        GROUP BY b.COAID
+      ), PRFTotals AS (
+        SELECT p.COAID, SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) AS TotalSpent
+        FROM PRF p
+        WHERE p.Status IN ('Approved', 'Completed') AND YEAR(p.RequestDate) = @FiscalYear
+        GROUP BY p.COAID
+      )
+      SELECT coa.Category AS Category, coa.ExpenseType AS ExpenseType,
+             COUNT(DISTINCT bt.COAID) AS BudgetCount,
+             SUM(bt.TotalAllocated) AS TotalAllocated,
+             SUM(COALESCE(pt.TotalSpent, 0)) AS TotalSpent,
+             SUM(bt.TotalAllocated) - SUM(COALESCE(pt.TotalSpent, 0)) AS TotalRemaining,
+             CASE WHEN SUM(bt.TotalAllocated) > 0 THEN ROUND((SUM(COALESCE(pt.TotalSpent, 0)) * 100.0 / SUM(bt.TotalAllocated)), 2) ELSE 0 END AS UtilizationPercentage
+      FROM BudgetTotals bt
+      INNER JOIN ChartOfAccounts coa ON bt.COAID = coa.COAID
+      LEFT JOIN PRFTotals pt ON bt.COAID = pt.COAID
+      GROUP BY coa.Category, coa.ExpenseType
+      ORDER BY coa.ExpenseType, coa.Category
+    `;
+    interface Row {
+      Category: string;
+      ExpenseType: string;
+      BudgetCount: number;
+      TotalAllocated: number;
+      TotalSpent: number;
+      TotalRemaining: number;
+      UtilizationPercentage: number;
+    }
+    const result = await executeQuery<Row>(query, params);
+    const dataRows = result.recordset;
+    const headers = ['Category','ExpenseType','BudgetCount','TotalAllocated','TotalSpent','TotalRemaining','UtilizationPercentage'];
+    const escape = (v: unknown) => {
+      const s = String(v ?? '');
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"';
+      return s;
+    };
+    const csv = [headers.join(',')].concat(
+      dataRows.map(r => [r.Category, r.ExpenseType, r.BudgetCount, r.TotalAllocated, r.TotalSpent, r.TotalRemaining, r.UtilizationPercentage].map(escape).join(','))
+    ).join('\n');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="budget_summary.csv"');
+    res.status(200).send(csv);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to export data',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 }));
 
 /**
