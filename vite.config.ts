@@ -5,7 +5,7 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  const apiTarget = process.env.VITE_API_URL || 'http://localhost:3001';
+	const apiTarget = process.env.VITE_API_URL || 'http://localhost:3000';
   
   return {
     server: {

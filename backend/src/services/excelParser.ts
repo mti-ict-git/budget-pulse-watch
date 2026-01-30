@@ -11,10 +11,16 @@ export class ExcelParserService {
    */
   static parseExcelFile(buffer: Buffer): { prfData: ExcelPRFData[], budgetData: ExcelBudgetData[] } {
     const workbook = XLSX.read(buffer, { type: 'buffer' });
-    console.log('📋 Excel workbook sheets:', workbook.SheetNames);
-    
-    // Extract PRF data from first sheet
-    const prfSheetName = workbook.SheetNames[0];
+    const sheetNames = workbook.SheetNames;
+    console.log('📋 Excel workbook sheets:', sheetNames);
+
+    // Prefer PRF Detail sheet; fall back to first sheet if not found
+    const prfSheetName =
+      sheetNames.find(name => name.toLowerCase() === 'prf detail') ??
+      sheetNames.find(name => name.toLowerCase().includes('prf detail')) ??
+      sheetNames[0];
+
+    console.log('📄 Using PRF sheet:', prfSheetName);
     const prfWorksheet = workbook.Sheets[prfSheetName];
     const prfData = XLSX.utils.sheet_to_json(prfWorksheet, {
       header: 1,
@@ -27,10 +33,14 @@ export class ExcelParserService {
       console.log('📄 First data row:', prfData[1]);
     }
 
-    // Extract Budget data from second sheet (if exists)
+    // Extract Budget data from Budget Detail sheet (if exists)
     let budgetData: unknown[][] = [];
-    if (workbook.SheetNames.length > 1) {
-      const budgetSheetName = workbook.SheetNames[1];
+    const budgetSheetName =
+      sheetNames.find(name => name.toLowerCase() === 'budget detail') ??
+      sheetNames.find(name => name.toLowerCase().includes('budget detail'));
+
+    if (budgetSheetName) {
+      console.log('📄 Using Budget sheet:', budgetSheetName);
       const budgetWorksheet = workbook.Sheets[budgetSheetName];
       budgetData = XLSX.utils.sheet_to_json(budgetWorksheet, {
         header: 1,
@@ -65,6 +75,11 @@ export class ExcelParserService {
       headers.forEach((header: string, colIndex: number) => {
         record[header] = row[colIndex];
       });
+
+      // Normalize PRF number column: support legacy "PR/PO No" header
+      if (!record['PRF No'] && record['PR/PO No']) {
+        record['PRF No'] = record['PR/PO No'];
+      }
 
       // Convert Excel date serial numbers to Date objects
       if (record['Date Submit'] && typeof record['Date Submit'] === 'number') {

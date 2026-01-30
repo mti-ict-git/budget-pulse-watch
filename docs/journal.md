@@ -15,6 +15,15 @@ COALESCE(
 - Added dev:migrateschema script to run consolidated schema updates
 - Verified migration execution and TypeScript typecheck
 
-2026-01-30 11:08:30 +08:00
-- Tested dev:migrateschema runner; benign duplicates skipped
-- Verified AppSettings exists (Cnt=1) and latest row: Provider=openai, Enabled=1, Model=gpt-4o-mini
+18→2026-01-30 11:08:30 +08:00
+19→- Tested dev:migrateschema runner; benign duplicates skipped
+20→- Verified AppSettings exists (Cnt=1) and latest row: Provider=openai, Enabled=1, Model=gpt-4o-mini
+21→
+22→2026-01-30 22:19:03 +0800
+23→- Updated dev API URL to http://localhost:3000 for frontend
+24→- Synced Vite proxy default API target to port 3000
+25→
+26→2026-01-30 22:58:22 +0800
+27→- Updated Excel parsing to select PRF Detail and Budget Detail sheets
+28→- Mapped legacy "PR/PO No" header to required "PRF No" field
+29→- Verified PRF validation now recognizes 835 valid records from sample Excel
