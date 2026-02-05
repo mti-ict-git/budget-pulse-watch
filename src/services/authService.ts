@@ -36,8 +36,21 @@ class AuthService {
         },
         body: JSON.stringify(credentials),
       });
-
-      const data = await response.json();
+      const contentType = response.headers.get('content-type') || '';
+      let data: LoginResponse;
+      if (contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        try {
+          data = JSON.parse(text) as LoginResponse;
+        } catch {
+          return {
+            success: false,
+            message: `Server error ${response.status}`,
+          };
+        }
+      }
 
       if (response.ok) {
         // Store authentication data
