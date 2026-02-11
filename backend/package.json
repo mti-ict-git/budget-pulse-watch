@@ -12,7 +12,8 @@
     "import:historical": "ts-node src/scripts/importHistoricalData.ts",
     "migrate:usernames": "ts-node src/scripts/runUsernameMigration.ts",
     "migrate:usernames:live": "ts-node src/scripts/runUsernameMigration.ts --live",
-    "dev:migrateschema": "ts-node src/scripts/migrateSchema.ts"
+    "dev:migrateschema": "ts-node src/scripts/migrateSchema.ts",
+    "dedupe:items": "ts-node src/scripts/dedupePRFItems.ts"
   },
   "keywords": [
     "prf",

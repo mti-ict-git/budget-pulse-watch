@@ -33,3 +33,17 @@ COALESCE(
 - Updated Vite dev proxy to point to backend 3001 and disabled overlay
 - Ran dev servers: frontend on 8081, backend health OK on 3001
 - Investigated production 502 on /api/auth; proposed Nginx upstream fixes
+2026-02-11T13:42:14+08:00
+- Implemented PRF item dedup: in-memory Excel row dedup and DB upsert
+- Updated import pipeline to prevent duplicate items on reupload
+- Verified backend TypeScript typecheck and ESLint on importRoutes.ts
+2026-02-11T13:50:50+08:00
+- Added backend script to clean existing duplicate PRF items in DB
+- Script: backend/src/scripts/dedupePRFItems.ts with dry-run and --fix mode
+- Added npm script: npm --prefix backend run dedupe:items
+2026-02-11T13:58:40+08:00
+- Hardened dedupe to trim whitespace in natural key comparisons
+- Updated import upsert and production cleanup script normalization
+2026-02-11T13:32:17+08:00
+- Updated Nginx proxy to backend:3001 to fix Docker 502
+- Validated compose mapping 5004:3001; advised container reload and health checks

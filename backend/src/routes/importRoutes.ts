@@ -2,7 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import { ExcelParserService } from '../services/excelParser';
 import { PRFModel } from '../models/PRF';
-import { BulkPRFImportRequest, PRFImportResult, ExcelPRFData, User, ChartOfAccounts, PRF } from '../models/types';
+import { BulkPRFImportRequest, PRFImportResult, ExcelPRFData, User, ChartOfAccounts, PRF, PRFItem } from '../models/types';
 import { executeQuery } from '../config/database';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
 
@@ -42,7 +42,9 @@ router.post('/prf/validate', authenticateToken, requireContentManager, upload.si
     }
 
     // Parse Excel file
-    const { prfData, budgetData } = ExcelParserService.parseExcelFile(req.file.buffer);
+    const prfSheetNameInput = typeof req.body?.prfSheetName === 'string' ? req.body.prfSheetName : undefined;
+    const budgetSheetNameInput = typeof req.body?.budgetSheetName === 'string' ? req.body.budgetSheetName : undefined;
+    const { prfData, budgetData } = ExcelParserService.parseExcelFile(req.file.buffer, prfSheetNameInput, budgetSheetNameInput);
 
     // Validate PRF data
     const prfValidation = ExcelParserService.validatePRFData(prfData);
@@ -98,7 +100,9 @@ router.post('/prf/bulk', authenticateToken, requireContentManager, upload.single
     };
 
     // Parse Excel file
-    const { prfData, budgetData } = ExcelParserService.parseExcelFile(req.file.buffer);
+    const prfSheetNameInput = typeof req.body?.prfSheetName === 'string' ? req.body.prfSheetName : undefined;
+    const budgetSheetNameInput = typeof req.body?.budgetSheetName === 'string' ? req.body.budgetSheetName : undefined;
+    const { prfData, budgetData } = ExcelParserService.parseExcelFile(req.file.buffer, prfSheetNameInput, budgetSheetNameInput);
 
     // Validate data first
     const validation = ExcelParserService.validatePRFData(prfData);
@@ -368,10 +372,22 @@ async function importPRFData(
       }
       
       // Add all records as PRF items
+      const seenKeys = new Set<string>();
       let successfulItems = 0;
       for (let i = 0; i < records.length; i++) {
         const record = records[i];
         const rowNumber = rowNumbers.get(prfNo)![i];
+        const itemKey = buildItemKey(record);
+        if (seenKeys.has(itemKey)) {
+          warnings.push({
+            row: rowNumber,
+            message: 'Duplicate Excel row for PRF item detected - skipped',
+            data: { prfNo, itemKey }
+          });
+          skippedRecords++;
+          continue;
+        }
+        seenKeys.add(itemKey);
         
         try {
           await createPRFItem(prfId, record, rowNumber);
@@ -532,9 +548,14 @@ async function createNewPRF(
   }
 }
 
-/**
- * Create a PRF item from Excel record
- */
+function buildItemKey(record: ExcelPRFData): string {
+  const itemName = (record['Sum Description Requested'] || record['Description'] || '').toString().trim().toUpperCase();
+  const amount = Number(record['Amount'] || 0);
+  const budgetYear = Number(record['Budget'] || 0);
+  const costCode = (record['Purchase Cost Code'] || '').toString().trim().toUpperCase();
+  return `${itemName}|${amount}|${budgetYear}|${costCode}`;
+}
+
 async function createPRFItem(
   prfId: number, 
   record: ExcelPRFData, 
@@ -595,8 +616,8 @@ async function createPRFItem(
     
     const params = {
       PRFID: prfId,
-      ItemName: itemName.substring(0, 200), // Limit to field length
-      Description: description.substring(0, 1000), // Limit to field length
+      ItemName: itemName.substring(0, 200),
+      Description: description.substring(0, 1000),
       Quantity: 1,
       UnitPrice: amount,
       PurchaseCostCode: costCode || null,
@@ -608,9 +629,35 @@ async function createPRFItem(
         statusInPronto: record['Status in Pronto']
       })
     };
-    
-    await executeQuery(insertQuery, params);
-    console.log(`📦 Created PRF item for PRF ${prfId}, row ${rowNumber}, amount: ${amount}`);
+
+    const existingId = await findExistingPRFItem({
+      PRFID: prfId,
+      ItemName: params.ItemName,
+      Description: params.Description,
+      UnitPrice: params.UnitPrice,
+      BudgetYear: params.BudgetYear,
+      PurchaseCostCode: params.PurchaseCostCode
+    });
+
+    if (existingId) {
+      const updateQuery = `
+        UPDATE PRFItems SET
+          Description = @Description,
+          Quantity = @Quantity,
+          UnitPrice = @UnitPrice,
+          Specifications = @Specifications,
+          PurchaseCostCode = @PurchaseCostCode,
+          COAID = @COAID,
+          BudgetYear = @BudgetYear,
+          UpdatedAt = GETDATE()
+        WHERE PRFItemID = @PRFItemID
+      `;
+      await executeQuery(updateQuery, { ...params, PRFItemID: existingId });
+      console.log(`♻️ Updated existing PRF item ${existingId} for PRF ${prfId}, row ${rowNumber}`);
+    } else {
+      await executeQuery(insertQuery, params);
+      console.log(`📦 Created PRF item for PRF ${prfId}, row ${rowNumber}, amount: ${amount}`);
+    }
      
    } catch (error) {
      const errorMessage = error instanceof Error ? error.message : 'Unknown error creating PRF item';
@@ -648,4 +695,58 @@ async function updateExistingPRF(prfId: number, record: ExcelPRFData): Promise<v
   await executeQuery(updateQuery, params);
 }
 
+async function findExistingPRFItem(params: {
+  PRFID: number;
+  ItemName: string;
+  Description: string;
+  UnitPrice: number;
+  BudgetYear: number;
+  PurchaseCostCode: string | null;
+}): Promise<number | null> {
+  const query = `
+    SELECT TOP 1 PRFItemID FROM PRFItems
+    WHERE PRFID = @PRFID
+      AND UPPER(LTRIM(RTRIM(ItemName))) = UPPER(LTRIM(RTRIM(@ItemName)))
+      AND ISNULL(UPPER(LTRIM(RTRIM(Description))), '') = ISNULL(UPPER(LTRIM(RTRIM(@Description))), '')
+      AND ISNULL(UnitPrice, 0) = ISNULL(@UnitPrice, 0)
+      AND ISNULL(BudgetYear, 0) = ISNULL(@BudgetYear, 0)
+      AND ISNULL(UPPER(LTRIM(RTRIM(PurchaseCostCode))), '') = ISNULL(UPPER(LTRIM(RTRIM(@PurchaseCostCode))), '')
+  `;
+  const result = await executeQuery<{ PRFItemID: number }>(query, params);
+  if (result.recordset && result.recordset.length > 0) {
+    return result.recordset[0].PRFItemID;
+  }
+  return null;
+}
+
 export default router;
+
+/**
+ * POST /api/import/prf/sheets
+ * Return available sheet names from uploaded Excel file
+ */
+router.post('/prf/sheets', authenticateToken, requireContentManager, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    const sheets = ExcelParserService.listSheetNames(req.file.buffer);
+    return res.json({
+      success: true,
+      data: {
+        sheets
+      }
+    });
+  } catch (error) {
+    console.error('Sheet listing error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to read Excel sheets',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});

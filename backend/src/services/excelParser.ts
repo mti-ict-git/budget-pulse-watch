@@ -9,16 +9,12 @@ export class ExcelParserService {
   /**
    * Parse Excel file and extract PRF data
    */
-  static parseExcelFile(buffer: Buffer): { prfData: ExcelPRFData[], budgetData: ExcelBudgetData[] } {
+  static parseExcelFile(buffer: Buffer, prfSheetNameInput?: string | null, budgetSheetNameInput?: string | null): { prfData: ExcelPRFData[], budgetData: ExcelBudgetData[] } {
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetNames = workbook.SheetNames;
     console.log('📋 Excel workbook sheets:', sheetNames);
 
-    // Prefer PRF Detail sheet; fall back to first sheet if not found
-    const prfSheetName =
-      sheetNames.find(name => name.toLowerCase() === 'prf detail') ??
-      sheetNames.find(name => name.toLowerCase().includes('prf detail')) ??
-      sheetNames[0];
+    const prfSheetName = this.resolveSheetName(sheetNames, prfSheetNameInput, ['prf detail']);
 
     console.log('📄 Using PRF sheet:', prfSheetName);
     const prfWorksheet = workbook.Sheets[prfSheetName];
@@ -33,11 +29,8 @@ export class ExcelParserService {
       console.log('📄 First data row:', prfData[1]);
     }
 
-    // Extract Budget data from Budget Detail sheet (if exists)
     let budgetData: unknown[][] = [];
-    const budgetSheetName =
-      sheetNames.find(name => name.toLowerCase() === 'budget detail') ??
-      sheetNames.find(name => name.toLowerCase().includes('budget detail'));
+    const budgetSheetName = this.resolveSheetName(sheetNames, budgetSheetNameInput, ['budget detail']);
 
     if (budgetSheetName) {
       console.log('📄 Using Budget sheet:', budgetSheetName);
@@ -52,6 +45,26 @@ export class ExcelParserService {
       prfData: this.processPRFData(prfData),
       budgetData: this.processBudgetData(budgetData)
     };
+  }
+
+  static listSheetNames(buffer: Buffer): string[] {
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    return workbook.SheetNames;
+  }
+
+  private static resolveSheetName(sheetNames: string[], input?: string | null, hints?: string[]): string {
+    if (input) {
+      const target = input.toLowerCase();
+      const matched = sheetNames.find(n => n.toLowerCase() === target) ?? sheetNames.find(n => n.toLowerCase().includes(target));
+      if (matched) return matched;
+    }
+    if (hints && hints.length > 0) {
+      for (const hint of hints) {
+        const m = sheetNames.find(n => n.toLowerCase() === hint) ?? sheetNames.find(n => n.toLowerCase().includes(hint));
+        if (m) return m;
+      }
+    }
+    return sheetNames[0];
   }
 
   /**

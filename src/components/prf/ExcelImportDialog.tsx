@@ -18,6 +18,7 @@ import { Progress } from "@/components/ui/progress";
 import { Upload, FileSpreadsheet, CheckCircle, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { authService } from "../../services/authService";
 import { ImportResultModal } from "./ImportResultModal";
 
@@ -105,10 +106,39 @@ export function ExcelImportDialog() {
   const [showAllErrors, setShowAllErrors] = useState(false);
   const [selectedField, setSelectedField] = useState<string | null>(null);
   const [prfSearch, setPrfSearch] = useState("");
+  const [sheetNames, setSheetNames] = useState<string[]>([]);
+  const [selectedPrfSheet, setSelectedPrfSheet] = useState<string>("");
+  const [selectedBudgetSheet, setSelectedBudgetSheet] = useState<string>("");
   
   // Import options
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [updateExisting, setUpdateExisting] = useState(false);
+
+  const fetchSheetNames = useCallback(async (theFile: File): Promise<void> => {
+    const formData = new FormData();
+    formData.append('file', theFile);
+    const token = authService.getToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    try {
+      const response = await fetch('/api/import/prf/sheets', { method: 'POST', headers, body: formData });
+      const json = await response.json();
+      const sheetsResponse: unknown = json?.data?.sheets ?? json?.sheets ?? [];
+      const names: string[] = Array.isArray(sheetsResponse) ? sheetsResponse.filter((n): n is string => typeof n === 'string') : [];
+      const lower = names.map((n) => n.toLowerCase());
+      const prfIndex = lower.findIndex((n) => n.includes('prf'));
+      const budgetIndex = lower.findIndex((n) => n.includes('budget'));
+      setSheetNames(names);
+      setSelectedPrfSheet(prfIndex >= 0 ? names[prfIndex] : names[0] ?? "");
+      setSelectedBudgetSheet(budgetIndex >= 0 ? names[budgetIndex] : "");
+    } catch {
+      setSheetNames([]);
+      setSelectedPrfSheet("");
+      setSelectedBudgetSheet("");
+    }
+  }, []);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -117,6 +147,7 @@ export function ExcelImportDialog() {
       setValidationResult(null);
       setImportResult(null);
       setDropError(null);
+      void fetchSheetNames(selectedFile);
     }
   };
 
@@ -126,6 +157,7 @@ export function ExcelImportDialog() {
       setValidationResult(null);
       setImportResult(null);
       setDropError(null);
+      void fetchSheetNames(acceptedFiles[0]);
       return;
     }
     if (fileRejections && fileRejections.length > 0) {
@@ -157,6 +189,8 @@ export function ExcelImportDialog() {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      if (selectedPrfSheet) formData.append('prfSheetName', selectedPrfSheet);
+      if (selectedBudgetSheet) formData.append('budgetSheetName', selectedBudgetSheet);
 
       const token = authService.getToken();
       const headers: Record<string, string> = {};
@@ -194,6 +228,8 @@ export function ExcelImportDialog() {
       formData.append('file', file);
       formData.append('skipDuplicates', skipDuplicates.toString());
       formData.append('updateExisting', updateExisting.toString());
+      if (selectedPrfSheet) formData.append('prfSheetName', selectedPrfSheet);
+      if (selectedBudgetSheet) formData.append('budgetSheetName', selectedBudgetSheet);
 
       // Simulate progress for better UX
       const progressInterval = setInterval(() => {
@@ -261,6 +297,9 @@ export function ExcelImportDialog() {
     setShowResultModal(false);
     setSkipDuplicates(true);
     setUpdateExisting(false);
+    setSheetNames([]);
+    setSelectedPrfSheet("");
+    setSelectedBudgetSheet("");
   };
 
   const handleClose = () => {
@@ -343,6 +382,34 @@ export function ExcelImportDialog() {
             <div className="space-y-3">
               <Label>Import Options</Label>
               <div className="space-y-2">
+                <div className="grid grid-cols-12 gap-4">
+                  <div className="col-span-12 md:col-span-6 space-y-2">
+                    <Label htmlFor="prfSheet">PRF Data Sheet</Label>
+                    <Select value={selectedPrfSheet} onValueChange={setSelectedPrfSheet}>
+                      <SelectTrigger id="prfSheet">
+                        <SelectValue placeholder="Select PRF sheet" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sheetNames.map((sheet) => (
+                          <SelectItem key={`prf-${sheet}`} value={sheet}>{sheet}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-12 md:col-span-6 space-y-2">
+                    <Label htmlFor="budgetSheet">Budget Data Sheet (optional)</Label>
+                    <Select value={selectedBudgetSheet} onValueChange={setSelectedBudgetSheet}>
+                      <SelectTrigger id="budgetSheet">
+                        <SelectValue placeholder="Select Budget sheet" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sheetNames.map((sheet) => (
+                          <SelectItem key={`budget-${sheet}`} value={sheet}>{sheet}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="skipDuplicates"
