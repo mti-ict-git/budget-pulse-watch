@@ -27,3 +27,9 @@ COALESCE(
 27→- Updated Excel parsing to select PRF Detail and Budget Detail sheets
 28→- Mapped legacy "PR/PO No" header to required "PRF No" field
 29→- Verified PRF validation now recognizes 835 valid records from sample Excel
+
+2026-02-05 15:45:10
+- Hardened frontend authService to gracefully handle non-JSON error bodies
+- Updated Vite dev proxy to point to backend 3001 and disabled overlay
+- Ran dev servers: frontend on 8081, backend health OK on 3001
+- Investigated production 502 on /api/auth; proposed Nginx upstream fixes
