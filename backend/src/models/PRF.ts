@@ -613,26 +613,23 @@ export class PRFModel {
    * Map legacy PRF status values to valid PRFItems status values
    */
   private static mapPRFStatusToItemStatus(prfStatus: string): string {
-    // Map legacy PRF status values to valid PRFItems constraint values
-    const statusMapping: { [key: string]: string } = {
-      'Req. Approved': 'Approved',
-      'Req. Approved 2': 'Approved',
-      'Completed': 'Picked Up',
-      'In transit': 'Approved',
-      'On order': 'Approved',
-      'Rejected': 'Cancelled',
-      'Cancelled': 'Cancelled',
-      'On Hold': 'On Hold',
-      // Handle any "Updated:" prefixed statuses as Pending
+    const raw = prfStatus.trim();
+    const lower = raw.toLowerCase();
+    if (lower.startsWith('updated:')) return 'Pending';
+
+    const statusMapping: Record<string, 'Pending' | 'Approved' | 'Picked Up' | 'Cancelled' | 'On Hold'> = {
+      'req. approved': 'Approved',
+      'req. approved 2': 'Approved',
+      'request for approval': 'Pending',
+      'completed': 'Picked Up',
+      'in transit': 'Approved',
+      'on order': 'Approved',
+      'rejected': 'Cancelled',
+      'cancelled': 'Cancelled',
+      'on hold': 'On Hold',
     };
 
-    // Handle "Updated:" prefixed statuses
-    if (prfStatus.toLowerCase().startsWith('updated:')) {
-      return 'Pending';
-    }
-
-    // Return mapped status or default to 'Pending' if not found
-    return statusMapping[prfStatus] || 'Pending';
+    return statusMapping[lower] ?? 'Pending';
   }
 
   /**

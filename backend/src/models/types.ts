@@ -387,7 +387,7 @@ export interface PRF {
   ApprovedAmount?: number;
   ActualAmount?: number;
   Priority: 'Low' | 'Medium' | 'High' | 'Critical';
-  Status: 'Draft' | 'Submitted' | 'Under Review' | 'Approved' | 'Rejected' | 'Completed' | 'Cancelled';
+  Status: string;
   RequestDate: Date;
   RequiredDate?: Date;
   ApprovalDate?: Date;
@@ -441,7 +441,7 @@ export interface UpdatePRFRequest {
   COAID?: number;
   RequestedAmount?: number;
   Priority?: 'Low' | 'Medium' | 'High' | 'Critical';
-  Status?: 'Draft' | 'Submitted' | 'Under Review' | 'Approved' | 'Rejected' | 'Completed' | 'Cancelled';
+  Status?: string;
   RequiredDate?: Date;
   ApprovedAmount?: number;
   ActualAmount?: number;

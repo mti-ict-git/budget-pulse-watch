@@ -107,3 +107,6 @@ tmp/
 temp/
 
 backend/pronto
+
+# OneDrive / MSAL token cache
+backend/token_cache.json

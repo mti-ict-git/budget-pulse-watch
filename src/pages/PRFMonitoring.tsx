@@ -29,7 +29,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync, CloudUpload } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync, CloudDownload } from "lucide-react";
 import { PRFDetailDialog } from "@/components/prf/PRFDetailDialog";
 import { ExcelImportDialog } from "@/components/prf/ExcelImportDialog";
 import { PRFEditDialog } from "@/components/prf/PRFEditDialog";
@@ -194,6 +201,9 @@ export default function PRFMonitoring() {
   const [chartOfAccounts, setChartOfAccounts] = useState<ChartOfAccount[]>([]);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [isSelectedSyncing, setIsSelectedSyncing] = useState<boolean>(false);
+  const [isOneDriveTesting, setIsOneDriveTesting] = useState<boolean>(false);
+  const [isOneDriveDialogOpen, setIsOneDriveDialogOpen] = useState<boolean>(false);
+  const [oneDriveTestOutput, setOneDriveTestOutput] = useState<string>("");
 
   // Fetch PRF data from API
   const fetchPRFData = useCallback(async () => {
@@ -692,12 +702,13 @@ export default function PRFMonitoring() {
     setSyncingId(prfNo);
     try {
       const yearParam = yearFilter !== 'all' ? `&year=${encodeURIComponent(yearFilter)}` : '';
-      const response = await fetch(`/api/cloud-sync/prf/${encodeURIComponent(prfNo)}?mode=scan${yearParam}`, { method: 'POST', headers: authService.getAuthHeaders() });
+      const response = await fetch(`/api/cloud-sync/pull/prf/${encodeURIComponent(prfNo)}?mode=scan${yearParam}`, { method: 'POST', headers: authService.getAuthHeaders() });
       const result = await response.json();
       if (result.success) {
-        toast({ title: "Synced", description: result.message });
+        toast({ title: "Synced From Cloud", description: result.message });
+        fetchPRFData();
       } else {
-        throw new Error(result.message || 'Failed to sync');
+        throw new Error((result && (result.error || result.message)) || 'Failed to sync');
       }
     } catch (error) {
       toast({ title: "Sync Failed", description: error instanceof Error ? error.message : 'Error syncing PRF', variant: "destructive" });
@@ -724,7 +735,7 @@ export default function PRFMonitoring() {
     try {
       const yearParam = yearFilter !== 'all' ? `&year=${encodeURIComponent(yearFilter)}` : '';
       const promises = selectedPrfNos.map((prfNo) =>
-        fetch(`/api/cloud-sync/prf/${encodeURIComponent(prfNo)}?mode=scan${yearParam}`, { method: 'POST', headers: authService.getAuthHeaders() })
+        fetch(`/api/cloud-sync/pull/prf/${encodeURIComponent(prfNo)}?mode=scan${yearParam}`, { method: 'POST', headers: authService.getAuthHeaders() })
           .then(async (res) => ({ prfNo, res, body: await res.json() }))
       );
       const results = await Promise.allSettled(promises);
@@ -742,6 +753,7 @@ export default function PRFMonitoring() {
         }
       });
       toast({ title: "Sync Selected Completed", description: `Success: ${successCount}, Failed: ${failureCount}` });
+      fetchPRFData();
     } catch (error) {
       toast({ title: "Sync Selected Failed", description: error instanceof Error ? error.message : 'Error syncing selected PRFs', variant: "destructive" });
     } finally {
@@ -749,8 +761,51 @@ export default function PRFMonitoring() {
     }
   };
 
+  const handleTestOneDriveAccess = async () => {
+    if (!user) {
+      toast({ title: "Authentication Required", description: "Please log in to test OneDrive access", variant: "destructive" });
+      return;
+    }
+
+    setIsOneDriveTesting(true);
+    try {
+      const response = await fetch('/api/cloud-sync/test', {
+        method: 'GET',
+        headers: authService.getAuthHeaders(),
+      });
+
+      const body: unknown = await response.json();
+      const pretty = JSON.stringify(body, null, 2);
+      setOneDriveTestOutput(pretty);
+      setIsOneDriveDialogOpen(true);
+
+      if (response.ok) {
+        toast({ title: "OneDrive Test Completed", description: "Read-only access request finished" });
+      } else {
+        toast({ title: "OneDrive Test Failed", description: "Request returned an error", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "OneDrive Test Failed", description: error instanceof Error ? error.message : 'Error testing OneDrive access', variant: "destructive" });
+    } finally {
+      setIsOneDriveTesting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      <Dialog open={isOneDriveDialogOpen} onOpenChange={setIsOneDriveDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>OneDrive Access Test</DialogTitle>
+            <DialogDescription>
+              Read-only output from GET /api/cloud-sync/test
+            </DialogDescription>
+          </DialogHeader>
+          <pre className="max-h-[60vh] overflow-auto rounded-md bg-muted p-4 text-xs">
+            {oneDriveTestOutput}
+          </pre>
+        </DialogContent>
+      </Dialog>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">PRF Monitoring</h1>
@@ -758,7 +813,7 @@ export default function PRFMonitoring() {
             Track and manage Purchase Request Forms with enhanced Excel field support
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 justify-end">
           <Button
             variant="outline"
             onClick={handleBulkSync}
@@ -779,10 +834,24 @@ export default function PRFMonitoring() {
             {isSelectedSyncing ? (
               <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
             ) : (
-              <CloudUpload className="h-4 w-4 mr-2" />
+              <CloudDownload className="h-4 w-4 mr-2" />
             )}
             Sync Selected PRFs
           </Button>
+          {user?.role === 'admin' && (
+            <Button
+              variant="outline"
+              onClick={handleTestOneDriveAccess}
+              disabled={isOneDriveTesting}
+            >
+              {isOneDriveTesting ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4 mr-2" />
+              )}
+              Test OneDrive
+            </Button>
+          )}
           <ExcelImportDialog />
         </div>
       </div>
@@ -1032,12 +1101,12 @@ export default function PRFMonitoring() {
                                 className="h-7 px-2"
                                 onClick={(e) => { e.stopPropagation(); handleSyncPRF(prf.prfNo); }}
                                 disabled={syncingId === prf.prfNo}
-                                aria-label="Sync this PRF to Cloud"
+                                aria-label="Sync this PRF from Cloud"
                               >
                                 {syncingId === prf.prfNo ? (
                                   <RefreshCw className="h-4 w-4 animate-spin" />
                                 ) : (
-                                  <CloudUpload className="h-4 w-4" />
+                                  <CloudDownload className="h-4 w-4" />
                                 )}
                               </Button>
                               {prf.items && prf.items.length > 0 && (

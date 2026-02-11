@@ -71,8 +71,68 @@ COALESCE(
 - Added top-bar "Sync Selected PRFs" beside Bulk Sync Folders
 - Kept Actions column for detail/edit/delete without duplicate sync
 - Verified typecheck across project
+2026-02-11 17:22:50 +08:00
+- Added scan mode to OneDrive sync: searches all sheets with prefix
+- New env ONEDRIVE_WORKSHEET_PREFIX to define sheet name prefix
+- Backend route accepts mode=scan and optional year query params
+- Frontend passes mode=scan and selected year filter in sync requests
+- Verified backend build and project typecheck
+2026-02-11 19:53:38 +08:00
+- Added sharedWithMe fallback: locate file by name without share link
+- New env ONEDRIVE_SHARED_FILE_NAME for file discovery
+- Device code callback opens verification URL on Windows
+- Verified backend build and project typecheck
 Wednesday, February 11, 2026 4:02:33 PM
 - Enhanced Settings > General with PRF No and Budget Year filters for dedupe
 - Added preview step to show duplicate count and sample before deletion
 - Wired frontend to backend POST /api/settings/maintenance/dedupe-prf-items with filters
 - Ran ESLint and TypeScript no-emit checks successfully
+
+Wednesday, February 11, 2026 9:28:48 PM
+- Improved OneDrive workbook resolution for app-only auth via SharePoint site drive search
+- Extended OneDrive access test to read a worksheet header row (read-only verification)
+- Verified TypeScript no-emit typecheck (npx tsc --noEmit)
+
+Wednesday, February 11, 2026 9:39:47 PM
+- Added PRF Monitoring UI "Test OneDrive" button to call GET /api/cloud-sync/test
+- Updated OneDrive access test to fallback to delegated device-code when app-only gets 401/403
+- Verified TypeScript no-emit typecheck and ESLint
+
+Wednesday, February 11, 2026 9:44:53 PM
+- Improved device-code output formatting in backend logs (URL + CODE)
+
+Wednesday, February 11, 2026 9:49:31 PM
+- Reduced delegated OneDrive test permission to Files.Read (read-only) to avoid admin consent when possible
+
+Wednesday, February 11, 2026 10:31:21 PM
+- Improved OneDrive sync: detect header row and match column aliases (e.g. PR/PO No)
+- Improved sync error propagation to frontend toast for faster debugging
+
+Wednesday, February 11, 2026 10:35:12 PM
+- Fixed header row detection to recognize PR/PO No and other common header variants
+
+Wednesday, February 11, 2026 10:38:13 PM
+- Fixed TypeScript readonly tuple mismatch in PRF header alias mapping
+
+Wednesday, February 11, 2026 10:24:59 PM
+- Improved worksheet matching to use contains("PRF Detail") and detect the real header row before syncing
+- Hardened Excel range writing for non-A1 usedRange and columns beyond Z
+- Verified TypeScript no-emit typecheck and ESLint
+
+Wednesday, February 11, 2026 10:43:48 PM
+- Fixed OneDrive sync to fallback from app-only token to delegated Files.ReadWrite on 401/403
+
+Wednesday, February 11, 2026 11:04:44 PM
+- Fixed PRF Monitoring sync icons after renaming CloudUpload to CloudDownload
+
+Wednesday, February 11, 2026 11:18:05 PM
+- Fixed cloud pull-sync status handling to store raw Excel status text (e.g., "On Order")
+- Updated PRF item cascade mapping to be case-insensitive for legacy statuses
+- PRF Monitoring now refreshes list after successful pull sync
+
+Wednesday, February 11, 2026 11:26:15 PM
+- Restricted OneDrive access test endpoint to admin-only
+- Hid "Test OneDrive" button for non-admin users in PRF Monitoring
+
+Thursday, February 12, 2026 12:03:23 AM
+- Ignored backend/token_cache.json to prevent committing OneDrive/MSAL tokens
