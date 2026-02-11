@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 import { executeQuery } from '../config/database';
+import { authenticateToken, requireAdmin } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -370,6 +371,95 @@ router.post('/test-folder-path', async (req: Request, res: Response) => {
       success: false,
       error: 'Internal server error while testing folder path'
     });
+  }
+});
+
+// POST /api/settings/maintenance/dedupe-prf-items - Remove duplicate PRF items
+router.post('/maintenance/dedupe-prf-items', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { fix = false, prfNo, budgetYear } = req.body as { fix?: boolean; prfNo?: string; budgetYear?: number };
+
+    const params = {
+      PRFNo: prfNo && prfNo.trim().length > 0 ? prfNo.trim() : null,
+      BudgetYear: typeof budgetYear === 'number' ? budgetYear : null
+    };
+
+    if (!fix) {
+      const query = `
+        WITH ItemKey AS (
+          SELECT 
+            pi.PRFItemID, pi.PRFID,
+            UPPER(LTRIM(RTRIM(pi.ItemName))) AS ItemName,
+            UPPER(LTRIM(RTRIM(ISNULL(pi.Description,'')))) AS Description,
+            ISNULL(pi.UnitPrice,0) AS UnitPrice,
+            ISNULL(pi.BudgetYear,0) AS BudgetYear,
+            UPPER(LTRIM(RTRIM(ISNULL(pi.PurchaseCostCode,'')))) AS PurchaseCostCode,
+            ROW_NUMBER() OVER (
+              PARTITION BY pi.PRFID, UPPER(LTRIM(RTRIM(pi.ItemName))), UPPER(LTRIM(RTRIM(ISNULL(pi.Description,'')))), ISNULL(pi.UnitPrice,0), ISNULL(pi.BudgetYear,0), UPPER(LTRIM(RTRIM(ISNULL(pi.PurchaseCostCode,''))))
+              ORDER BY pi.PRFItemID
+            ) AS rn
+          FROM PRFItems pi
+          INNER JOIN PRF p ON p.PRFID = pi.PRFID
+          WHERE (@PRFNo IS NULL OR p.PRFNo = @PRFNo)
+            AND (@BudgetYear IS NULL OR ISNULL(pi.BudgetYear,0) = @BudgetYear)
+        )
+        SELECT TOP 10 * FROM ItemKey WHERE rn > 1
+      `;
+      const result = await executeQuery(query, params);
+      const sampleCount = result.recordset?.length || 0;
+      const countQuery = `
+        WITH ItemKey AS (
+          SELECT 
+            pi.PRFItemID, pi.PRFID,
+            UPPER(LTRIM(RTRIM(pi.ItemName))) AS ItemName,
+            UPPER(LTRIM(RTRIM(ISNULL(pi.Description,'')))) AS Description,
+            ISNULL(pi.UnitPrice,0) AS UnitPrice,
+            ISNULL(pi.BudgetYear,0) AS BudgetYear,
+            UPPER(LTRIM(RTRIM(ISNULL(pi.PurchaseCostCode,'')))) AS PurchaseCostCode,
+            ROW_NUMBER() OVER (
+              PARTITION BY pi.PRFID, UPPER(LTRIM(RTRIM(pi.ItemName))), UPPER(LTRIM(RTRIM(ISNULL(pi.Description,'')))), ISNULL(pi.UnitPrice,0), ISNULL(pi.BudgetYear,0), UPPER(LTRIM(RTRIM(ISNULL(pi.PurchaseCostCode,''))))
+              ORDER BY pi.PRFItemID
+            ) AS rn
+          FROM PRFItems pi
+          INNER JOIN PRF p ON p.PRFID = pi.PRFID
+          WHERE (@PRFNo IS NULL OR p.PRFNo = @PRFNo)
+            AND (@BudgetYear IS NULL OR ISNULL(pi.BudgetYear,0) = @BudgetYear)
+        )
+        SELECT COUNT(1) AS Total FROM ItemKey WHERE rn > 1
+      `;
+      const totalResult = await executeQuery<{ Total: number }>(countQuery, params);
+      const total = totalResult.recordset?.[0]?.Total || 0;
+      return res.json({ success: true, fix: false, totalDuplicates: total, sampleCount });
+    }
+
+    const deleteQuery = `
+      WITH ItemKey AS (
+        SELECT 
+          pi.PRFItemID, pi.PRFID,
+          UPPER(LTRIM(RTRIM(pi.ItemName))) AS ItemName,
+          UPPER(LTRIM(RTRIM(ISNULL(pi.Description,'')))) AS Description,
+          ISNULL(pi.UnitPrice,0) AS UnitPrice,
+          ISNULL(pi.BudgetYear,0) AS BudgetYear,
+          UPPER(LTRIM(RTRIM(ISNULL(pi.PurchaseCostCode,'')))) AS PurchaseCostCode,
+          ROW_NUMBER() OVER (
+            PARTITION BY pi.PRFID, UPPER(LTRIM(RTRIM(pi.ItemName))), UPPER(LTRIM(RTRIM(ISNULL(pi.Description,'')))), ISNULL(pi.UnitPrice,0), ISNULL(pi.BudgetYear,0), UPPER(LTRIM(RTRIM(ISNULL(pi.PurchaseCostCode,''))))
+            ORDER BY pi.PRFItemID
+          ) AS rn
+        FROM PRFItems pi
+        INNER JOIN PRF p ON p.PRFID = pi.PRFID
+        WHERE (@PRFNo IS NULL OR p.PRFNo = @PRFNo)
+          AND (@BudgetYear IS NULL OR ISNULL(pi.BudgetYear,0) = @BudgetYear)
+      )
+      DELETE FROM PRFItems WHERE PRFItemID IN (SELECT PRFItemID FROM ItemKey WHERE rn > 1)
+    `;
+
+    const deleteResult = await executeQuery(deleteQuery, params);
+    const affectedArray = deleteResult.rowsAffected as number[];
+    const deleted = affectedArray.length > 0 ? affectedArray[0] : 0;
+    return res.json({ success: true, fix: true, deleted });
+  } catch (error) {
+    console.error('Dedupe PRF items error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to dedupe PRF items' });
   }
 });
 

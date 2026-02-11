@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Eye, EyeOff, Save, TestTube, Users, Search, UserPlus, UserMinus, Shield } from 'lucide-react';
+import { Eye, EyeOff, Save, TestTube, Users, Search, UserPlus, UserMinus, Shield, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { authService } from '@/services/authService';
@@ -76,6 +76,7 @@ const Settings: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isTestingFolder, setIsTestingFolder] = useState(false);
+  const [isDeduping, setIsDeduping] = useState(false);
   
   // LDAP User Management State
   const [ldapUsers, setLdapUsers] = useState<LDAPUser[]>([]);
@@ -716,6 +717,46 @@ const Settings: React.FC = () => {
     }
   };
 
+  const removeDuplicatePRFItems = async (): Promise<void> => {
+    if (!confirm('This will permanently delete duplicate PRF items based on normalized matching (name, description, unit price, budget year, cost code). Proceed?')) {
+      return;
+    }
+    setIsDeduping(true);
+    try {
+      const response = await fetch('/api/settings/maintenance/dedupe-prf-items', {
+        method: 'POST',
+        headers: {
+          ...authService.getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ fix: true })
+      });
+      const data: { success: boolean; deleted?: number; message?: string } = await response.json();
+      if (response.ok && data.success) {
+        const count = typeof data.deleted === 'number' ? data.deleted : 0;
+        toast({
+          title: 'Duplicates Removed',
+          description: `${count} duplicate PRF items deleted.`,
+          variant: 'default'
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: data.message || 'Failed to remove duplicate PRF items.',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Network error while removing duplicates. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsDeduping(false);
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 max-w-4xl">
       <div className="mb-6">
@@ -990,6 +1031,25 @@ const Settings: React.FC = () => {
                   </AlertDescription>
                 </Alert>
               </div>
+
+              {user?.role === 'admin' && (
+                <div className="space-y-2">
+                  <Label>Data Maintenance</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Remove duplicate PRF items created by historical imports. This action is irreversible.
+                  </p>
+                  <div className="flex justify-start">
+                    <Button
+                      onClick={removeDuplicatePRFItems}
+                      disabled={isDeduping}
+                      variant="destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      {isDeduping ? 'Removing Duplicates...' : 'Remove Duplicate PRF Items'}
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-end space-x-2">
                 <Button onClick={saveGeneralSettings} disabled={isLoading}>

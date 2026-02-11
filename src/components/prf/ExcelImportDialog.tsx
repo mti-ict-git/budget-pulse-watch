@@ -164,7 +164,7 @@ export function ExcelImportDialog() {
       const reason = fileRejections[0].errors[0]?.message || "Unsupported file type or size";
       setDropError(reason);
     }
-  }, []);
+  }, [fetchSheetNames]);
 
   const dropzoneAccept: Record<string, string[]> = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],

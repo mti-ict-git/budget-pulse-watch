@@ -47,3 +47,7 @@ COALESCE(
 2026-02-11T13:32:17+08:00
 - Updated Nginx proxy to backend:3001 to fix Docker 502
 - Validated compose mapping 5004:3001; advised container reload and health checks
+2026-02-11T14:52:17.2028625+08:00
+- Added Settings > General button to remove duplicate PRF items
+- Implemented backend route POST /api/settings/maintenance/dedupe-prf-items (admin-only)
+- Integrated Excel sheet selection UI in import dialog and validated ESLint/typecheck
