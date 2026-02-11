@@ -25,6 +25,7 @@
   "author": "AI Coder",
   "license": "ISC",
   "dependencies": {
+    "@azure/msal-node": "^2.8.1",
     "@google/generative-ai": "^0.24.1",
     "@types/xlsx": "^0.0.35",
     "bcrypt": "^6.0.0",
@@ -43,6 +44,7 @@
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "uuid": "^9.0.1",
+    "vite_react_shadcn_ts": "file:..",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

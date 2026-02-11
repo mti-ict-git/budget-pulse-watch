@@ -1,0 +1,627 @@
+openapi: 3.0.3
+info:
+  title: Budget Pulse Watch API
+  version: 1.0.0
+  description: |
+    REST API for PRF Monitoring Dashboard. Includes authentication, PRF import, budgets, COA, and settings.
+    All protected endpoints require Bearer JWT in the Authorization header.
+servers:
+  - url: http://localhost:3001
+    description: Local development
+  - url: https://api.example.com
+    description: Production (replace with actual)
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          nullable: true
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        role:
+          type: string
+          enum: [admin, doccon, user]
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        department:
+          type: string
+        authType:
+          type: string
+          enum: [local, ldap]
+        createdAt:
+          type: string
+          format: date-time
+    AuthLoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          description: Username or email
+        password:
+          type: string
+          format: password
+        authType:
+          type: string
+          enum: [auto, local, ldap]
+          default: auto
+    AuthLoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+    ValidationError:
+      type: object
+      properties:
+        row:
+          type: integer
+        field:
+          type: string
+        message:
+          type: string
+        prfNo:
+          type: string
+          nullable: true
+    ImportWarning:
+      type: object
+      properties:
+        row:
+          type: integer
+        message:
+          type: string
+        prfNo:
+          type: string
+          nullable: true
+    PRFValidation:
+      type: object
+      properties:
+        success:
+          type: boolean
+        validRecords:
+          type: integer
+        invalidRecords:
+          type: integer
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportWarning'
+    ImportResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        totalRecords:
+          type: integer
+        importedRecords:
+          type: integer
+        skippedRecords:
+          type: integer
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportWarning'
+        totalPRFs:
+          type: integer
+          nullable: true
+        successfulPRFs:
+          type: integer
+          nullable: true
+        failedPRFs:
+          type: integer
+          nullable: true
+    OCRSettings:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        provider:
+          type: string
+          enum: [gemini, openai]
+        geminiApiKey:
+          type: string
+        openaiApiKey:
+          type: string
+        model:
+          type: string
+    FolderTestRequest:
+      type: object
+      properties:
+        path:
+          type: string
+    DedupeRequest:
+      type: object
+      properties:
+        fix:
+          type: boolean
+          default: false
+        prfNo:
+          type: string
+          nullable: true
+        budgetYear:
+          type: integer
+          nullable: true
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  message:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+  /api/auth/login:
+    post:
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthLoginRequest'
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthLoginResponse'
+        '400':
+          description: Missing parameters
+  /api/auth/verify:
+    get:
+      summary: Verify JWT token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Valid token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+  /api/auth/me:
+    get:
+      summary: Get current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+  /api/import/prf/sheets:
+    post:
+      summary: List sheet names in uploaded Excel
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Sheet names
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      sheets:
+                        type: array
+                        items:
+                          type: string
+        '400':
+          description: No file uploaded
+  /api/import/prf/validate:
+    post:
+      summary: Validate Excel file without importing
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                prfSheetName:
+                  type: string
+                budgetSheetName:
+                  type: string
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      filename:
+                        type: string
+                      fileSize:
+                        type: integer
+                      prfValidation:
+                        $ref: '#/components/schemas/PRFValidation'
+                      budgetValidation:
+                        $ref: '#/components/schemas/PRFValidation'
+                        nullable: true
+                      summary:
+                        type: object
+                        properties:
+                          totalPRFRecords:
+                            type: integer
+                          validPRFRecords:
+                            type: integer
+                          totalBudgetRecords:
+                            type: integer
+                          validBudgetRecords:
+                            type: integer
+                          totalErrors:
+                            type: integer
+                          totalWarnings:
+                            type: integer
+        '400':
+          description: No file uploaded
+  /api/import/prf/bulk:
+    post:
+      summary: Import PRF data from Excel
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                prfSheetName:
+                  type: string
+                budgetSheetName:
+                  type: string
+                skipDuplicates:
+                  type: string
+                  enum: ['true','false']
+                updateExisting:
+                  type: string
+                  enum: ['true','false']
+      responses:
+        '200':
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResult'
+        '400':
+          description: No file uploaded
+  /api/import/prf/template:
+    get:
+      summary: Get PRF import template information
+      responses:
+        '200':
+          description: Template
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      headers:
+                        type: array
+                        items:
+                          type: string
+                      sampleData:
+                        type: array
+                        items:
+                          type: object
+                          additionalProperties: true
+                      instructions:
+                        type: object
+                        additionalProperties:
+                          type: string
+  /api/import/prf/history:
+    get:
+      summary: Get import history
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Import history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      imports:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            AuditID:
+                              type: integer
+                            Action:
+                              type: string
+                            ChangedBy:
+                              type: integer
+                            ChangedAt:
+                              type: string
+                              format: date-time
+                            NewValues:
+                              type: string
+                            ChangedByName:
+                              type: string
+                      pagination:
+                        type: object
+                        properties:
+                          page:
+                            type: integer
+                          limit:
+                            type: integer
+                          total:
+                            type: integer
+                          totalPages:
+                            type: integer
+                          hasNext:
+                            type: boolean
+                          hasPrev:
+                            type: boolean
+  /api/settings/ocr:
+    get:
+      summary: Get OCR settings (keys masked)
+      responses:
+        '200':
+          description: OCR settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OCRSettings'
+    post:
+      summary: Save OCR settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OCRSettings'
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  sharedFolderPath:
+                    type: string
+  /api/settings/general:
+    get:
+      summary: Get general settings
+      responses:
+        '200':
+          description: General settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sharedFolderPath:
+                    type: string
+    post:
+      summary: Save general settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sharedFolderPath:
+                  type: string
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  sharedFolderPath:
+                    type: string
+  /api/settings/test-folder-path:
+    post:
+      summary: Test shared folder path accessibility
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FolderTestRequest'
+      responses:
+        '200':
+          description: Test result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  fileCount:
+                    type: integer
+                  error:
+                    type: string
+  /api/settings/maintenance/dedupe-prf-items:
+    post:
+      summary: Remove duplicate PRF items
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DedupeRequest'
+      responses:
+        '200':
+          description: Dedupe result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  fix:
+                    type: boolean
+                  totalDuplicates:
+                    type: integer
+                  sampleCount:
+                    type: integer
+                  deleted:
+                    type: integer
+  /api/cloud-sync/prf/{prfNo}:
+    post:
+      summary: Sync a PRF to the shared OneDrive Excel
+      description: Updates or appends a row in the configured workbook worksheet based on PRF No
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: prfNo
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sync completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      updated:
+                        type: boolean
+                      appended:
+                        type: boolean
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '404':
+          description: PRF not found
+        '500':
+          description: Internal error

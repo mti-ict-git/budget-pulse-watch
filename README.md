@@ -60,6 +60,39 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## API Documentation
+
+The backend exposes OpenAPI documentation served via Redoc.
+
+- View docs in browser: http://localhost:3001/api/docs
+- Raw OpenAPI spec (YAML): docs/openapi.yaml
+
+Protected endpoints require a Bearer JWT in the Authorization header.
+
+## Data Maintenance: Remove Duplicate PRF Items
+
+- UI: Settings > General > Data Maintenance provides filters and actions
+- Filters: Optional PRF No and Budget Year to target specific scope
+- Preview: Shows duplicate count and a sample before deletion
+- Action: Delete duplicates based on normalized key (name, description, unit price, budget year, cost code)
+- Backend endpoint: POST /api/settings/maintenance/dedupe-prf-items (admin only)
+- Request body: { fix: boolean, prfNo?: string, budgetYear?: number }
+- Response preview: { success, fix: false, totalDuplicates, sampleCount }
+- Response deletion: { success, fix: true, deleted }
+
+## Cloud Sync to OneDrive Excel
+
+- Adds a Sync to Cloud PRF button on the PRF Monitoring page to update the shared Excel.
+- Backend endpoint: POST /api/cloud-sync/prf/{prfNo}
+- Configure environment variables in backend/.env:
+  - AZURE_TENANT_ID
+  - AZURE_CLIENT_ID
+  - AZURE_CLIENT_SECRET
+  - ONEDRIVE_SHARED_EXCEL_LINK
+  - ONEDRIVE_WORKSHEET_NAME (default: "PRF Detail")
+
+This uses Microsoft Graph to update or append a row by matching PRF No.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/2161adca-98cc-4f2f-ac94-84a8dd852b12) and click on Share -> Publish.

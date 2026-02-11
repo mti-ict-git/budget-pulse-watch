@@ -51,3 +51,28 @@ COALESCE(
 - Added Settings > General button to remove duplicate PRF items
 - Implemented backend route POST /api/settings/maintenance/dedupe-prf-items (admin-only)
 - Integrated Excel sheet selection UI in import dialog and validated ESLint/typecheck
+2026-02-11T15:24:37+08:00
+- Created OpenAPI spec at docs/openapi.yaml covering core endpoints
+- Served API docs via Redoc at /api/docs and static YAML at /api/docs/openapi.yaml
+- Ran backend TypeScript no-emit typecheck successfully
+2026-02-11 15:45:13 +08:00
+- Added OneDrive Graph Excel sync service and backend route
+- New endpoint POST /api/cloud-sync/prf/{prfNo} with JWT protection
+- Wired Sync to Cloud PRF button in PRF Monitoring page
+- Updated OpenAPI spec to document cloud sync endpoint
+- Verified typecheck (npx tsc --noEmit) and ESLint
+2026-02-11 16:05:40 +08:00
+- Implemented MSAL device code fallback for OneDrive Graph auth
+- Added @azure/msal-node dependency and token cache support
+- Updated backend .env with tenant/client IDs and SharePoint link
+- Verified backend build and project typecheck
+2026-02-11 16:22:10 +08:00
+- Moved per-row Sync button next to PRF No for visibility
+- Added top-bar "Sync Selected PRFs" beside Bulk Sync Folders
+- Kept Actions column for detail/edit/delete without duplicate sync
+- Verified typecheck across project
+Wednesday, February 11, 2026 4:02:33 PM
+- Enhanced Settings > General with PRF No and Budget Year filters for dedupe
+- Added preview step to show duplicate count and sample before deletion
+- Wired frontend to backend POST /api/settings/maintenance/dedupe-prf-items with filters
+- Ran ESLint and TypeScript no-emit checks successfully

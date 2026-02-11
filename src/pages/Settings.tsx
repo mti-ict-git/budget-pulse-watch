@@ -77,6 +77,11 @@ const Settings: React.FC = () => {
   const [isTesting, setIsTesting] = useState(false);
   const [isTestingFolder, setIsTestingFolder] = useState(false);
   const [isDeduping, setIsDeduping] = useState(false);
+  const [dedupePRFNo, setDedupePRFNo] = useState('');
+  const [dedupeBudgetYear, setDedupeBudgetYear] = useState('');
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [previewTotal, setPreviewTotal] = useState<number | null>(null);
+  const [previewSampleCount, setPreviewSampleCount] = useState<number | null>(null);
   
   // LDAP User Management State
   const [ldapUsers, setLdapUsers] = useState<LDAPUser[]>([]);
@@ -729,7 +734,11 @@ const Settings: React.FC = () => {
           ...authService.getAuthHeaders(),
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ fix: true })
+        body: JSON.stringify({ 
+          fix: true,
+          prfNo: dedupePRFNo.trim().length > 0 ? dedupePRFNo.trim() : undefined,
+          budgetYear: (() => { const v = dedupeBudgetYear.trim(); if (v.length === 0) return undefined; const n = parseInt(v, 10); return Number.isNaN(n) ? undefined : n; })()
+        })
       });
       const data: { success: boolean; deleted?: number; message?: string } = await response.json();
       if (response.ok && data.success) {
@@ -754,6 +763,54 @@ const Settings: React.FC = () => {
       });
     } finally {
       setIsDeduping(false);
+    }
+  };
+
+  const previewDuplicatePRFItems = async (): Promise<void> => {
+    setIsPreviewing(true);
+    setPreviewTotal(null);
+    setPreviewSampleCount(null);
+    try {
+      const response = await fetch('/api/settings/maintenance/dedupe-prf-items', {
+        method: 'POST',
+        headers: {
+          ...authService.getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fix: false,
+          prfNo: dedupePRFNo.trim().length > 0 ? dedupePRFNo.trim() : undefined,
+          budgetYear: (() => { const v = dedupeBudgetYear.trim(); if (v.length === 0) return undefined; const n = parseInt(v, 10); return Number.isNaN(n) ? undefined : n; })()
+        })
+      });
+      const data: { success: boolean; totalDuplicates?: number; sampleCount?: number; message?: string } = await response.json();
+      if (response.ok && data.success) {
+        setPreviewTotal(typeof data.totalDuplicates === 'number' ? data.totalDuplicates : 0);
+        setPreviewSampleCount(typeof data.sampleCount === 'number' ? data.sampleCount : 0);
+        toast({
+          title: 'Preview Ready',
+          description: 'Duplicate summary loaded. Review before deletion.',
+          variant: 'default'
+        });
+      } else {
+        setPreviewTotal(null);
+        setPreviewSampleCount(null);
+        toast({
+          title: 'Error',
+          description: data.message || 'Failed to preview duplicate PRF items.',
+          variant: 'destructive'
+        });
+      }
+    } catch {
+      setPreviewTotal(null);
+      setPreviewSampleCount(null);
+      toast({
+        title: 'Error',
+        description: 'Network error while previewing duplicates. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsPreviewing(false);
     }
   };
 
@@ -1038,16 +1095,30 @@ const Settings: React.FC = () => {
                   <p className="text-sm text-muted-foreground">
                     Remove duplicate PRF items created by historical imports. This action is irreversible.
                   </p>
-                  <div className="flex justify-start">
-                    <Button
-                      onClick={removeDuplicatePRFItems}
-                      disabled={isDeduping}
-                      variant="destructive"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      {isDeduping ? 'Removing Duplicates...' : 'Remove Duplicate PRF Items'}
-                    </Button>
+                  <div className="grid grid-cols-12 gap-4">
+                    <div className="col-span-12 md:col-span-5">
+                      <Label htmlFor="dedupe-prfno">PRF No (optional)</Label>
+                      <Input id="dedupe-prfno" value={dedupePRFNo} onChange={(e) => setDedupePRFNo(e.target.value)} placeholder="e.g., PRF-2024-0005" />
+                    </div>
+                    <div className="col-span-12 md:col-span-3">
+                      <Label htmlFor="dedupe-year">Budget Year (optional)</Label>
+                      <Input id="dedupe-year" value={dedupeBudgetYear} onChange={(e) => setDedupeBudgetYear(e.target.value)} placeholder="e.g., 2024" />
+                    </div>
+                    <div className="col-span-12 md:col-span-4 flex items-end gap-2">
+                      <Button onClick={previewDuplicatePRFItems} disabled={isPreviewing} variant="outline">
+                        {isPreviewing ? 'Previewing...' : 'Preview Duplicates'}
+                      </Button>
+                      <Button onClick={removeDuplicatePRFItems} disabled={isDeduping} variant="destructive">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        {isDeduping ? 'Removing...' : 'Delete Duplicates'}
+                      </Button>
+                    </div>
                   </div>
+                  {previewTotal !== null && (
+                    <p className="text-sm text-muted-foreground">
+                      Found {previewTotal} duplicates{previewSampleCount !== null ? ` (showing sample ${previewSampleCount})` : ''}.
+                    </p>
+                  )}
                 </div>
               )}
 

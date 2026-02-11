@@ -29,7 +29,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync } from "lucide-react";
+import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync, CloudUpload } from "lucide-react";
 import { PRFDetailDialog } from "@/components/prf/PRFDetailDialog";
 import { ExcelImportDialog } from "@/components/prf/ExcelImportDialog";
 import { PRFEditDialog } from "@/components/prf/PRFEditDialog";
@@ -192,6 +192,8 @@ export default function PRFMonitoring() {
     totalPages: 0
   });
   const [chartOfAccounts, setChartOfAccounts] = useState<ChartOfAccount[]>([]);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [isSelectedSyncing, setIsSelectedSyncing] = useState<boolean>(false);
 
   // Fetch PRF data from API
   const fetchPRFData = useCallback(async () => {
@@ -682,8 +684,69 @@ export default function PRFMonitoring() {
     }
   };
 
+  const handleSyncPRF = async (prfNo: string) => {
+    if (!user) {
+      toast({ title: "Authentication Required", description: "Please log in to sync", variant: "destructive" });
+      return;
+    }
+    setSyncingId(prfNo);
+    try {
+      const yearParam = yearFilter !== 'all' ? `&year=${encodeURIComponent(yearFilter)}` : '';
+      const response = await fetch(`/api/cloud-sync/prf/${encodeURIComponent(prfNo)}?mode=scan${yearParam}`, { method: 'POST', headers: authService.getAuthHeaders() });
+      const result = await response.json();
+      if (result.success) {
+        toast({ title: "Synced", description: result.message });
+      } else {
+        throw new Error(result.message || 'Failed to sync');
+      }
+    } catch (error) {
+      toast({ title: "Sync Failed", description: error instanceof Error ? error.message : 'Error syncing PRF', variant: "destructive" });
+    } finally {
+      setSyncingId(null);
+    }
+  };
+
   const handlePageSizeChange = (newLimit: string) => {
     setPagination(prev => ({ ...prev, limit: parseInt(newLimit), page: 1 }));
+  };
+
+  const handleSyncSelected = async () => {
+    if (!user) {
+      toast({ title: "Authentication Required", description: "Please log in to sync", variant: "destructive" });
+      return;
+    }
+    const selectedPrfNos: string[] = prfData.filter((p) => selectedItems.has(p.id)).map((p) => p.prfNo);
+    if (selectedPrfNos.length === 0) {
+      toast({ title: "No Selection", description: "Select at least one PRF to sync" });
+      return;
+    }
+    setIsSelectedSyncing(true);
+    try {
+      const yearParam = yearFilter !== 'all' ? `&year=${encodeURIComponent(yearFilter)}` : '';
+      const promises = selectedPrfNos.map((prfNo) =>
+        fetch(`/api/cloud-sync/prf/${encodeURIComponent(prfNo)}?mode=scan${yearParam}`, { method: 'POST', headers: authService.getAuthHeaders() })
+          .then(async (res) => ({ prfNo, res, body: await res.json() }))
+      );
+      const results = await Promise.allSettled(promises);
+      let successCount = 0;
+      let failureCount = 0;
+      results.forEach((r) => {
+        if (r.status === 'fulfilled') {
+          if (r.value.res.ok && r.value.body && r.value.body.success) {
+            successCount += 1;
+          } else {
+            failureCount += 1;
+          }
+        } else {
+          failureCount += 1;
+        }
+      });
+      toast({ title: "Sync Selected Completed", description: `Success: ${successCount}, Failed: ${failureCount}` });
+    } catch (error) {
+      toast({ title: "Sync Selected Failed", description: error instanceof Error ? error.message : 'Error syncing selected PRFs', variant: "destructive" });
+    } finally {
+      setIsSelectedSyncing(false);
+    }
   };
 
   return (
@@ -707,6 +770,18 @@ export default function PRFMonitoring() {
               <FolderSync className="h-4 w-4 mr-2" />
             )}
             Bulk Sync Folders
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleSyncSelected}
+            disabled={isSelectedSyncing || selectedItems.size === 0}
+          >
+            {isSelectedSyncing ? (
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <CloudUpload className="h-4 w-4 mr-2" />
+            )}
+            Sync Selected PRFs
           </Button>
           <ExcelImportDialog />
         </div>
@@ -951,6 +1026,20 @@ export default function PRFMonitoring() {
                           <TableCell className="font-medium sticky left-20 bg-background z-10">
                             <div className="flex items-center gap-2">
                               <span className="whitespace-nowrap">{prf.prfNo}</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2"
+                                onClick={(e) => { e.stopPropagation(); handleSyncPRF(prf.prfNo); }}
+                                disabled={syncingId === prf.prfNo}
+                                aria-label="Sync this PRF to Cloud"
+                              >
+                                {syncingId === prf.prfNo ? (
+                                  <RefreshCw className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <CloudUpload className="h-4 w-4" />
+                                )}
+                              </Button>
                               {prf.items && prf.items.length > 0 && (
                                 <Badge variant="secondary" className="text-xs whitespace-nowrap">
                                   {prf.items.length} items
