@@ -11,7 +11,7 @@ services:
   backend:
     build: ./backend
     ports:
-      - "5004:3000"
+      - "5004:3001"
     env_file:
       - ./backend/.env.production
     volumes:
