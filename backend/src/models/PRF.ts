@@ -314,6 +314,36 @@ export class PRFModel {
     };
   }
 
+  static async searchSummaries(search: string, limit: number): Promise<PRFSummary[]> {
+    const trimmed = search.trim();
+    if (trimmed.length === 0) {
+      return [];
+    }
+
+    const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(100, Math.floor(limit))) : 20;
+    const params: { Limit: number; Search: string } = {
+      Limit: safeLimit,
+      Search: `%${trimmed}%`
+    };
+
+    const query = `
+      SELECT TOP (@Limit) *
+      FROM vw_PRFSummary
+      WHERE (
+        PRFNo LIKE @Search OR
+        Title LIKE @Search OR
+        Description LIKE @Search OR
+        SumDescriptionRequested LIKE @Search OR
+        SubmitBy LIKE @Search OR
+        RequiredFor LIKE @Search
+      )
+      ORDER BY RequestDate DESC
+    `;
+
+    const result = await executeQuery<PRFSummary>(query, params);
+    return result.recordset;
+  }
+
   /**
    * Find all PRFs with items (enhanced search includes PRF items)
    */

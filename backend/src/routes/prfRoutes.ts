@@ -90,6 +90,29 @@ router.get('/with-items', async (req: Request, res: Response) => {
 });
 
 /**
+ * @route GET /api/prfs/search
+ * @desc Search PRFs (lightweight endpoint for filter search box)
+ * @access Public (will be protected later)
+ */
+router.get('/search', async (req: Request, res: Response) => {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q : '';
+    const limitRaw = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : 20;
+    const limit = Number.isFinite(limitRaw) ? limitRaw : 20;
+
+    const data = await PRFModel.searchSummaries(q, limit);
+    return res.json({ success: true, data });
+  } catch (error) {
+    console.error('Error searching PRFs:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to search PRFs',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
  * @route DELETE /api/prfs/bulk
  * @desc Delete multiple PRFs
  * @access Content Manager (admin or doccon)
