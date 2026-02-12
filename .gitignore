@@ -110,3 +110,6 @@ backend/pronto
 
 # OneDrive / MSAL token cache
 backend/token_cache.json
+
+# Local mobile client (excluded from git)
+mobile/

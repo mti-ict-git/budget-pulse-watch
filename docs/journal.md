@@ -191,3 +191,6 @@ Thursday, February 12, 2026 12:20:33 PM
 
 Thursday, February 12, 2026 12:21:52 PM
 - Confirmed PO No derives from PRF No using the same base number with different suffix
+194→
+195→2026-02-12 20:43:14 +0800
+196→- Added mobile/ directory to .gitignore to keep local mobile client untracked
