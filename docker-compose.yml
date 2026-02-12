@@ -19,6 +19,7 @@ services:
       - ./backend/data:/app/data
       # Mount temp directory for uploads
       - ./backend/temp:/app/temp
+      - ./docs:/app/docs:ro
     # Run as root to allow CIFS mounting
     user: root
     # Add capabilities for mounting

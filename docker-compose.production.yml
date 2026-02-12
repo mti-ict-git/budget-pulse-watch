@@ -40,6 +40,7 @@ services:
       - apparmor:unconfined
     volumes:
       - backend-data:/app/data
+      - ./docs:/app/docs:ro
 
   frontend:
     build: .

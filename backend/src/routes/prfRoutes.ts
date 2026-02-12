@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { PRFModel } from '../models/PRF';
 import { CreatePRFRequest, UpdatePRFRequest, PRFQueryParams, CreatePRFItemRequest } from '../models/types';
+import { executeQuery } from '../config/database';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
 
 const router = Router();
@@ -520,6 +521,139 @@ router.get('/:id/items', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch PRF items',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+type PrfActivityEventType = 'prf' | 'document';
+
+type PrfActivityEvent = {
+  id: string;
+  type: PrfActivityEventType;
+  title: string;
+  detail: string | undefined;
+  occurredAt: string;
+  actor: string | undefined;
+};
+
+type AuditLogRow = {
+  AuditID: number;
+  Action: 'INSERT' | 'UPDATE' | 'DELETE';
+  ChangedAt: Date;
+  ChangedByName: string | null;
+  OldValues: string | null;
+  NewValues: string | null;
+};
+
+type PrfFileRow = {
+  FileID: number;
+  OriginalFileName: string;
+  UploadDate: Date;
+  UploadedByName: string | null;
+  Description: string | null;
+};
+
+const truncateText = (value: string, maxLength: number) => {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength).trimEnd()}…`;
+};
+router.get('/:id/activity', async (req: Request, res: Response) => {
+  try {
+    const prfId = parseInt(req.params.id);
+    if (isNaN(prfId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid PRF ID'
+      });
+    }
+
+    const limit = parseInt(String(req.query.limit ?? '25'));
+    const safeLimit = Number.isFinite(limit) && limit > 0 && limit <= 100 ? limit : 25;
+
+    const auditQuery = `
+      SELECT TOP (@Limit)
+        a.AuditID,
+        a.Action,
+        a.ChangedAt,
+        a.OldValues,
+        a.NewValues,
+        u.FirstName + ' ' + u.LastName as ChangedByName
+      FROM AuditLog a
+      LEFT JOIN Users u ON a.ChangedBy = u.UserID
+      WHERE a.TableName = 'PRF' AND a.RecordID = @PRFID
+      ORDER BY a.ChangedAt DESC
+    `;
+
+    const filesQuery = `
+      SELECT TOP (@Limit)
+        f.FileID,
+        f.OriginalFileName,
+        f.UploadDate,
+        f.Description,
+        u.FirstName + ' ' + u.LastName as UploadedByName
+      FROM PRFFiles f
+      LEFT JOIN Users u ON f.UploadedBy = u.UserID
+      WHERE f.PRFID = @PRFID
+      ORDER BY f.UploadDate DESC
+    `;
+
+    const params = { PRFID: prfId, Limit: safeLimit };
+
+    const [auditResult, filesResult] = await Promise.all([
+      executeQuery<AuditLogRow>(auditQuery, params),
+      executeQuery<PrfFileRow>(filesQuery, params)
+    ]);
+
+    const auditEvents: PrfActivityEvent[] = auditResult.recordset.map((row) => {
+      const title =
+        row.Action === 'INSERT'
+          ? 'PRF created'
+          : row.Action === 'DELETE'
+            ? 'PRF deleted'
+            : 'PRF updated';
+
+      const detailSource = row.Action === 'DELETE' ? row.OldValues : row.NewValues;
+      const detail = typeof detailSource === 'string' && detailSource.trim().length > 0 ? truncateText(detailSource, 220) : undefined;
+
+      return {
+        id: `audit-${row.AuditID}`,
+        type: 'prf',
+        title,
+        detail,
+        occurredAt: row.ChangedAt.toISOString(),
+        actor: row.ChangedByName ?? undefined
+      };
+    });
+
+    const fileEvents: PrfActivityEvent[] = filesResult.recordset.map((row) => {
+      const detail = typeof row.Description === 'string' && row.Description.trim().length > 0 ? truncateText(row.Description, 220) : undefined;
+      return {
+        id: `file-${row.FileID}`,
+        type: 'document',
+        title: `Document uploaded: ${row.OriginalFileName}`,
+        detail,
+        occurredAt: row.UploadDate.toISOString(),
+        actor: row.UploadedByName ?? undefined
+      };
+    });
+
+    const combined = [...auditEvents, ...fileEvents].sort((a, b) => {
+      const aTime = new Date(a.occurredAt).getTime();
+      const bTime = new Date(b.occurredAt).getTime();
+      return bTime - aTime;
+    });
+
+    return res.json({
+      success: true,
+      data: combined.slice(0, safeLimit)
+    });
+  } catch (error) {
+    console.error('Error fetching PRF activity:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch PRF activity',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }

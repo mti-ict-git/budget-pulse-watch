@@ -198,6 +198,11 @@ Thursday, February 12, 2026 12:21:52 PM
 Thu Feb 12 22:23:57 WITA 2026
 - Integrated mobile login with backend JWT auth (/api/auth/login)
 - Added session restore via /api/auth/me using stored token
+
+Thu Feb 12 23:27:20 WITA 2026
+- Mobile PRF list now loads from backend API with search and pagination
+- Mobile PRF details now fetches PRF by id when opened directly
+- Stabilized mobile context callbacks and fixed TypeScript Record access
 - Added VITE_API_BASE_URL support for mobile backend URL configuration
 - Expanded backend CORS allowlist for localhost:3000 and capacitor://localhost
 - Verified TypeScript no-emit checks for mobile and backend
@@ -210,6 +215,46 @@ Thu Feb 12 22:26:58 WITA 2026
 Thu Feb 12 22:38:24 WITA 2026
 - Expanded backend CORS allowlist to include pomon.merdekabattery.com:9007 and localhost dev
 - Verified backend TypeScript no-emit check
+
+Thu Feb 12 23:04:30 WITA 2026
+- Updated mobile Home dashboard to mirror web dashboard sections (metrics, budgets, recent PRFs, alerts)
+- Verified mobile TypeScript no-emit check
+
 Thu Feb 12 22:12:50 WITA 2026
 - Installed Capacitor in mobile/budget-pulse-watch with Android and iOS platforms
 - Generated capacitor.config.ts and synced web build (dist) to native projects
+
+Thu Feb 12 23:18:24 WITA 2026
+- Removed the fake iOS status bar row from the mobile Home screen
+- Fixed mobile PRF/Item types and restored updateItem in app context
+- Verified mobile TypeScript no-emit check
+
+Thu Feb 12 23:29:10 WITA 2026
+- Fixed mobile auth restore race so Dashboard isn't blocked during startup
+- Redirected /login to Dashboard when already authenticated
+- Verified mobile TypeScript no-emit check
+
+Thu Feb 12 23:40:48 WITA 2026
+- Made Home show Dashboard and moved PRF Monitoring to PRFs tab
+- Added /prf route for PRF Monitoring list and kept /prf/:id details
+- Hardened PRF Details Documents/Activity parsing and error messages
+- Fixed mobile TypeScript no-emit check
+
+Thu Feb 12 23:39:10 WITA 2026
+- Implemented mobile PRF Details tabs: Documents and Activity
+- Documents tab now loads PRF files from backend and provides View/Download links
+- Added backend endpoint GET /api/prfs/:id/activity (audit + document uploads timeline)
+- Ran npm run lint and npx tsc --noEmit
+
+Fri Feb 13 00:24:04 WITA 2026
+- Fixed Docker deployments missing Swagger OpenAPI spec by mounting /docs into backend container
+
+Fri Feb 13 00:08:56 WITA 2026
+- Fixed mobile PRF Details Documents tab stuck loading (effect cancellation loop)
+- Switched Documents/Activity data loads to AbortController-based requests
+- Ran npm run lint and npx tsc --noEmit
+
+Fri Feb 13 00:20:46 WITA 2026
+- Fixed mobile Documents tab filtering out valid PRF documents due to strict parsing
+- Made documents parsing tolerant to string/nullable fields from /api/prf-documents/documents/{prfId}
+- Ran npm run lint and npx tsc --noEmit

@@ -60,6 +60,12 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Mobile app
+
+- PRF Details now includes Items, Documents, and Activity tabs.
+- Documents loads backend PRF files and supports View/Download.
+- Activity shows a backend-driven PRF timeline.
+
 ## API Documentation
 
 The backend exposes OpenAPI documentation served via Swagger UI.
