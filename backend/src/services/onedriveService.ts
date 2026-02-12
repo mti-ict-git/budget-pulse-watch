@@ -226,14 +226,22 @@ function getTokenCachePath(): string {
 function loadTokenCache(cca: msal.PublicClientApplication): void {
   const cachePath = getTokenCachePath();
   if (fs.existsSync(cachePath)) {
-    const data = fs.readFileSync(cachePath, 'utf8');
-    cca.getTokenCache().deserialize(data);
+    try {
+      const data = fs.readFileSync(cachePath, 'utf8');
+      cca.getTokenCache().deserialize(data);
+    } catch {
+      console.warn('⚠️ [OneDrive] Failed to load token cache');
+    }
   }
 }
 
 function saveTokenCache(cca: msal.PublicClientApplication): void {
   const cachePath = getTokenCachePath();
   const data = cca.getTokenCache().serialize();
+  const dir = path.dirname(cachePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
   fs.writeFileSync(cachePath, data, 'utf8');
 }
 

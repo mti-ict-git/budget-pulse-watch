@@ -168,3 +168,10 @@ Thursday, February 12, 2026 10:39:31 AM
 
 2026-02-12 10:38:43 +08:00
 - Allowed PRF file upload routes to use SHARED_FOLDER_PATH from environment as fallback
+
+Thursday, February 12, 2026 10:51:42 AM
+- Expanded Swagger UI to auto-expand tag groups by default (docExpansion=list)
+
+Thursday, February 12, 2026 10:55:04 AM
+- Persisted MSAL token cache in Docker by storing it under /app/data and mounting a volume
+- Ensured token cache directory is created before writing (prevents write failures in new environments)

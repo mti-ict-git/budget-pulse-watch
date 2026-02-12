@@ -9,8 +9,11 @@ services:
       - "5003:3000"
     environment:
       - NODE_ENV=staging
+      - GRAPH_TOKEN_CACHE_PATH=/app/data/token_cache.json
     env_file:
       - ./backend/.env.staging
+    volumes:
+      - backend-data:/app/data
     networks:
       - app-network
     restart: unless-stopped
@@ -30,3 +33,7 @@ services:
 networks:
   app-network:
     driver: bridge
+
+volumes:
+  backend-data:
+    driver: local

@@ -73,7 +73,7 @@ app.use(
     customSiteTitle: 'Budget Pulse Watch API Docs',
     swaggerOptions: {
       url: '/api/docs/openapi.yaml',
-      docExpansion: 'none',
+      docExpansion: 'list',
       displayRequestDuration: true
     }
   })

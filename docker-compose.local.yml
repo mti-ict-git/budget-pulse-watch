@@ -16,6 +16,7 @@ services:
     environment:
       - SHARED_FOLDER_PATH=/app/shared-documents
       - NODE_ENV=production
+      - GRAPH_TOKEN_CACHE_PATH=/app/data/token_cache.json
       
     env_file:
       - ./backend/.env.production

@@ -9,6 +9,7 @@ services:
       - "5004:3000"
     environment:
       - NODE_ENV=production
+      - GRAPH_TOKEN_CACHE_PATH=/app/data/token_cache.json
       # Database Configuration
       - DB_TYPE=mssql
       - DB_HOST=10.60.10.47
@@ -37,6 +38,8 @@ services:
       - DAC_READ_SEARCH
     security_opt:
       - apparmor:unconfined
+    volumes:
+      - backend-data:/app/data
 
   frontend:
     build: .
@@ -63,3 +66,7 @@ services:
 networks:
   app-network:
     driver: bridge
+
+volumes:
+  backend-data:
+    driver: local
