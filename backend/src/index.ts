@@ -1,9 +1,11 @@
 import express, { Request, Response, NextFunction } from 'express';
+import fs from 'fs';
 import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import swaggerUi from 'swagger-ui-express';
 import { connectDatabase } from './config/database';
 import prfRoutes from './routes/prfRoutes';
 import budgetRoutes from './routes/budgetRoutes';
@@ -29,7 +31,11 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: false
+  })
+);
 app.use(cors({
   origin: process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:8080',
   credentials: process.env.CORS_CREDENTIALS === 'true' || true,
@@ -41,26 +47,37 @@ app.use(morgan('combined'));
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
-// API Docs (Redoc + static OpenAPI YAML)
-app.get('/api/docs', (req, res) => {
-  const html = `<!doctype html>
-  <html>
-    <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>Budget Pulse Watch API Docs</title>
-      <style>body{margin:0;padding:0} .container{height:100vh}</style>
-    </head>
-    <body>
-      <redoc class="container" spec-url="/api/docs/openapi.yaml"></redoc>
-      <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
-    </body>
-  </html>`;
-  res.setHeader('Content-Type', 'text/html');
-  res.send(html);
+const docsDirCandidates = [
+  path.resolve(__dirname, '../../docs'),
+  path.resolve(__dirname, '../../../docs')
+];
+const docsDir =
+  docsDirCandidates.find((dir) => fs.existsSync(path.join(dir, 'openapi.yaml'))) ??
+  docsDirCandidates.find((dir) => fs.existsSync(dir)) ??
+  docsDirCandidates[0];
+
+app.get('/api/docs/openapi.yaml', (req, res) => {
+  const openApiPath = path.join(docsDir, 'openapi.yaml');
+  if (!fs.existsSync(openApiPath)) {
+    return res.status(404).json({ success: false, message: 'OpenAPI spec not found' });
+  }
+
+  res.setHeader('Content-Type', 'text/yaml; charset=utf-8');
+  return res.sendFile(openApiPath);
 });
 
-app.use('/api/docs', express.static(path.resolve(__dirname, '../../docs')));
+app.use(
+  '/api/docs',
+  swaggerUi.serve,
+  swaggerUi.setup(undefined, {
+    customSiteTitle: 'Budget Pulse Watch API Docs',
+    swaggerOptions: {
+      url: '/api/docs/openapi.yaml',
+      docExpansion: 'none',
+      displayRequestDuration: true
+    }
+  })
+);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

@@ -1,25 +1,51 @@
 import express from 'express';
 import multer from 'multer';
 import { PRFFilesModel } from '../models/PRFFiles';
-import { getSharedStorageService, SharedStorageConfig } from '../services/sharedStorageService';
+import type { PRFFile } from '../models/PRFFiles';
+import { getSharedStorageService } from '../services/sharedStorageService';
+import type { FileStorageResult, SharedStorageConfig } from '../services/sharedStorageService';
 import { loadSettings } from './settingsRoutes';
 import path from 'path';
 import fs from 'fs/promises';
+import * as fsSync from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
 import { getPool } from '../config/database';
 
 const router = express.Router();
 
-// Configure multer for file uploads
-const storage = multer.memoryStorage();
-const upload = multer({ 
+type UploadMultipleResponseItem = {
+  file: PRFFile;
+  sharedStorage: FileStorageResult;
+  originalName: string;
+};
+
+type UploadMultipleErrorItem = {
+  fileName: string;
+  error: string;
+};
+
+const tempUploadsDir = path.join(process.cwd(), 'temp', 'prf-uploads');
+fsSync.mkdirSync(tempUploadsDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, tempUploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const prfId = typeof req.params.prfId === 'string' ? req.params.prfId : 'unknown';
+    const uploadId = uuidv4();
+    const fileExtension = path.extname(file.originalname);
+    cb(null, `${prfId}-${uploadId}${fileExtension}`);
+  }
+});
+
+const upload = multer({
   storage,
   limits: {
-    fileSize: 100 * 1024 * 1024 // 100MB limit
+    fileSize: 100 * 1024 * 1024
   },
-  fileFilter: (req, file, cb) => {
-    // Allow common document types
+  fileFilter: (_req, file, cb) => {
     const allowedTypes = /\.(pdf|doc|docx|xls|xlsx|jpg|jpeg|png|gif|txt)$/i;
     if (allowedTypes.test(file.originalname)) {
       cb(null, true);
@@ -66,7 +92,7 @@ router.get('/:prfId', async (req, res) => {
 router.post('/:prfId/upload-multiple', authenticateToken, requireContentManager, upload.array('files', 10), async (req, res) => {
   try {
     const prfId = parseInt(req.params.prfId);
-    const { description } = req.body;
+    const description = typeof req.body?.description === 'string' ? req.body.description : undefined;
     
     if (isNaN(prfId)) {
       return res.status(400).json({
@@ -82,15 +108,24 @@ router.post('/:prfId/upload-multiple', authenticateToken, requireContentManager,
       });
     }
     
-    const uploadResults = [];
-    const errors = [];
+    const uploadResults: UploadMultipleResponseItem[] = [];
+    const errors: UploadMultipleErrorItem[] = [];
     
-    // Load settings to configure shared storage
     const settings = await loadSettings();
+    const envSharedFolderPath = typeof process.env.SHARED_FOLDER_PATH === 'string' ? process.env.SHARED_FOLDER_PATH.trim() : '';
+    const settingsSharedFolderPath = settings.general?.sharedFolderPath?.trim() || '';
+    const basePath = envSharedFolderPath || settingsSharedFolderPath;
     const sharedStorageConfig: SharedStorageConfig = {
-      basePath: settings.general?.sharedFolderPath || '',
-      enabled: !!(settings.general?.sharedFolderPath?.trim())
+      basePath,
+      enabled: basePath.length > 0
     };
+
+    if (!sharedStorageConfig.enabled) {
+      return res.status(400).json({
+        success: false,
+        message: 'Shared folder path not configured. Please set it in Settings before uploading documents.'
+      });
+    }
     
     const sharedStorageService = getSharedStorageService(sharedStorageConfig);
     
@@ -108,19 +143,13 @@ router.post('/:prfId/upload-multiple', authenticateToken, requireContentManager,
     }
     
     const prfNo = prfResult.recordset[0].PRFNo;
-    
-    for (const file of req.files) {
+
+    const files = req.files as Express.Multer.File[];
+
+    for (const file of files) {
       try {
-        const { originalname, buffer, mimetype } = file;
-        const uploadId = uuidv4();
-        
-        // Save to temp directory first
-        const tempDir = path.join(process.cwd(), 'temp', 'prf-uploads');
-        await fs.mkdir(tempDir, { recursive: true });
-        
+        const { originalname, mimetype, path: tempFilePath, size } = file;
         const fileExtension = path.extname(originalname);
-        const tempFilePath = path.join(tempDir, `${prfId}-${uploadId}${fileExtension}`);
-        await fs.writeFile(tempFilePath, buffer);
         
         // Copy to shared storage
         const sharedStorageResult = await sharedStorageService.copyFileToSharedStorage(
@@ -131,13 +160,12 @@ router.post('/:prfId/upload-multiple', authenticateToken, requireContentManager,
         
         if (sharedStorageResult.success) {
           // Save file metadata to database
-          const fileStats = await fs.stat(tempFilePath);
           const fileRecord = await PRFFilesModel.create({
             PRFID: prfId,
             OriginalFileName: originalname,
-            FilePath: tempFilePath,
+            FilePath: sharedStorageResult.sharedPath || tempFilePath,
             SharedPath: sharedStorageResult.sharedPath,
-            FileSize: fileStats.size,
+            FileSize: size,
             FileType: fileExtension.toLowerCase().replace('.', ''),
             MimeType: mimetype || 'application/octet-stream',
             UploadedBy: 1, // TODO: Get from authenticated user
@@ -152,10 +180,16 @@ router.post('/:prfId/upload-multiple', authenticateToken, requireContentManager,
           });
           
           console.log(`📁 File uploaded and saved: ${originalname}`);
+
+          try {
+            await fs.unlink(tempFilePath);
+          } catch (cleanupError) {
+            console.error('Failed to clean up temp file:', cleanupError);
+          }
         } else {
           errors.push({
             fileName: originalname,
-            error: 'Failed to save to shared storage'
+            error: sharedStorageResult.error || 'Failed to save to shared storage'
           });
           
           // Clean up temp file
@@ -172,12 +206,25 @@ router.post('/:prfId/upload-multiple', authenticateToken, requireContentManager,
           fileName: file.originalname,
           error: errorMessage
         });
+
+        const tempFilePath = typeof file.path === 'string' ? file.path : '';
+        if (tempFilePath) {
+          try {
+            await fs.unlink(tempFilePath);
+          } catch {
+            // ignore cleanup errors
+          }
+        }
       }
     }
-    
-    return res.status(uploadResults.length > 0 ? 201 : 500).json({
+
+    const allFailed = uploadResults.length === 0 && errors.length === files.length;
+    const isStorageIssue = errors.some(e => /shared storage|network path|permission denied/i.test(e.error));
+    const statusCode = uploadResults.length > 0 ? 201 : (allFailed && isStorageIssue ? 503 : 500);
+
+    return res.status(statusCode).json({
       success: uploadResults.length > 0,
-      message: `Uploaded ${uploadResults.length} of ${req.files.length} files successfully`,
+      message: `Uploaded ${uploadResults.length} of ${files.length} files successfully`,
       data: {
         uploaded: uploadResults,
         errors: errors
@@ -199,7 +246,7 @@ router.post('/:prfId/upload-multiple', authenticateToken, requireContentManager,
 router.post('/:prfId/upload', authenticateToken, requireContentManager, upload.single('file'), async (req, res) => {
   try {
     const prfId = parseInt(req.params.prfId);
-    const { description } = req.body;
+    const description = typeof req.body?.description === 'string' ? req.body.description : undefined;
     
     if (isNaN(prfId)) {
       return res.status(400).json({
@@ -215,28 +262,29 @@ router.post('/:prfId/upload', authenticateToken, requireContentManager, upload.s
       });
     }
     
-    const { originalname, buffer, mimetype } = req.file;
-    const uploadId = uuidv4();
-    
-    // Save to temp directory first
-    const tempDir = path.join(process.cwd(), 'temp', 'prf-uploads');
-    await fs.mkdir(tempDir, { recursive: true });
-    
+    const { originalname, mimetype, path: tempFilePath, size } = req.file;
     const fileExtension = path.extname(originalname);
-    const tempFilePath = path.join(tempDir, `${prfId}-${uploadId}${fileExtension}`);
-    await fs.writeFile(tempFilePath, buffer);
     
     // Copy to shared storage
     let sharedStorageResult = null;
     let fileRecord = null;
     
     try {
-      // Load settings to configure shared storage
       const settings = await loadSettings();
+      const envSharedFolderPath = typeof process.env.SHARED_FOLDER_PATH === 'string' ? process.env.SHARED_FOLDER_PATH.trim() : '';
+      const settingsSharedFolderPath = settings.general?.sharedFolderPath?.trim() || '';
+      const basePath = envSharedFolderPath || settingsSharedFolderPath;
       const sharedStorageConfig: SharedStorageConfig = {
-        basePath: settings.general?.sharedFolderPath || '',
-        enabled: !!(settings.general?.sharedFolderPath?.trim())
+        basePath,
+        enabled: basePath.length > 0
       };
+
+      if (!sharedStorageConfig.enabled) {
+        return res.status(400).json({
+          success: false,
+          message: 'Shared folder path not configured. Please set it in Settings before uploading documents.'
+        });
+      }
       
       const sharedStorageService = getSharedStorageService(sharedStorageConfig);
       
@@ -247,7 +295,7 @@ router.post('/:prfId/upload', authenticateToken, requireContentManager, upload.s
         .query('SELECT PRFNo FROM PRF WHERE PRFID = @prfId');
       
       if (prfResult.recordset.length === 0) {
-        return res.status(500).json({
+        return res.status(404).json({
           success: false,
           message: 'PRF not found'
         });
@@ -263,13 +311,12 @@ router.post('/:prfId/upload', authenticateToken, requireContentManager, upload.s
       
       if (sharedStorageResult.success) {
         // Save file metadata to database
-        const fileStats = await fs.stat(tempFilePath);
         fileRecord = await PRFFilesModel.create({
           PRFID: prfId,
           OriginalFileName: originalname,
-          FilePath: tempFilePath,
+          FilePath: sharedStorageResult.sharedPath || tempFilePath,
           SharedPath: sharedStorageResult.sharedPath,
-          FileSize: fileStats.size,
+          FileSize: size,
           FileType: fileExtension.toLowerCase().replace('.', ''),
           MimeType: mimetype || 'application/octet-stream',
           UploadedBy: 1, // TODO: Get from authenticated user
@@ -278,6 +325,12 @@ router.post('/:prfId/upload', authenticateToken, requireContentManager, upload.s
         });
         
         console.log(`📁 File uploaded and saved: ${originalname}`);
+
+        try {
+          await fs.unlink(tempFilePath);
+        } catch (cleanupError) {
+          console.error('Failed to clean up temp file:', cleanupError);
+        }
       } else {
         // Clean up temp file if shared storage failed
         try {
@@ -288,7 +341,7 @@ router.post('/:prfId/upload', authenticateToken, requireContentManager, upload.s
         
         return res.status(500).json({
           success: false,
-          message: 'Failed to save file to shared storage'
+          message: sharedStorageResult.error || 'Failed to save file to shared storage'
         });
       }
     } catch (storageError) {

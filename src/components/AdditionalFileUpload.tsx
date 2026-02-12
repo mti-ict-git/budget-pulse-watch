@@ -62,6 +62,12 @@ interface UploadResponse {
   };
 }
 
+const getApiMessage = (value: unknown): string | null => {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  return typeof record.message === 'string' ? record.message : null;
+};
+
 const AdditionalFileUpload: React.FC<AdditionalFileUploadProps> = ({
   prfId,
   prfNo,
@@ -196,11 +202,18 @@ const AdditionalFileUpload: React.FC<AdditionalFileUploadProps> = ({
         }
       });
 
+      const parsed: unknown = await response.json().catch(() => null);
+
       if (!response.ok) {
-        throw new Error(`Upload failed: ${response.statusText}`);
+        const apiMessage = getApiMessage(parsed);
+        throw new Error(apiMessage || `Upload failed: ${response.status} ${response.statusText}`);
       }
 
-      const result: UploadResponse = await response.json();
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('Upload failed: Invalid server response');
+      }
+
+      const result: UploadResponse = parsed as UploadResponse;
       
       if (result.success) {
         // Update successful uploads

@@ -6,10 +6,25 @@ info:
     REST API for PRF Monitoring Dashboard. Includes authentication, PRF import, budgets, COA, and settings.
     All protected endpoints require Bearer JWT in the Authorization header.
 servers:
-  - url: http://localhost:3001
-    description: Local development
-  - url: https://api.example.com
-    description: Production (replace with actual)
+  - url: /
+    description: Same origin
+tags:
+  - name: Health
+  - name: Docs
+  - name: Auth
+  - name: Import
+  - name: Settings
+  - name: Upload
+  - name: OCR
+  - name: PRFs
+  - name: Budgets
+  - name: COA
+  - name: PRF Files
+  - name: PRF Documents
+  - name: Cloud Sync
+  - name: Users
+  - name: LDAP
+  - name: Reports
 components:
   securitySchemes:
     bearerAuth:
@@ -178,6 +193,7 @@ paths:
   /health:
     get:
       summary: Health check
+      tags: [Health]
       responses:
         '200':
           description: OK
@@ -196,6 +212,7 @@ paths:
   /api/auth/login:
     post:
       summary: Login
+      tags: [Auth]
       requestBody:
         required: true
         content:
@@ -214,6 +231,7 @@ paths:
   /api/auth/verify:
     get:
       summary: Verify JWT token
+      tags: [Auth]
       security:
         - bearerAuth: []
       responses:
@@ -233,6 +251,7 @@ paths:
   /api/auth/me:
     get:
       summary: Get current user
+      tags: [Auth]
       security:
         - bearerAuth: []
       responses:
@@ -252,6 +271,7 @@ paths:
   /api/import/prf/sheets:
     post:
       summary: List sheet names in uploaded Excel
+      tags: [Import]
       security:
         - bearerAuth: []
       requestBody:
@@ -286,6 +306,7 @@ paths:
   /api/import/prf/validate:
     post:
       summary: Validate Excel file without importing
+      tags: [Import]
       security:
         - bearerAuth: []
       requestBody:
@@ -346,6 +367,7 @@ paths:
   /api/import/prf/bulk:
     post:
       summary: Import PRF data from Excel
+      tags: [Import]
       security:
         - bearerAuth: []
       requestBody:
@@ -380,6 +402,7 @@ paths:
   /api/import/prf/template:
     get:
       summary: Get PRF import template information
+      tags: [Import]
       responses:
         '200':
           description: Template
@@ -411,6 +434,7 @@ paths:
   /api/import/prf/history:
     get:
       summary: Get import history
+      tags: [Import]
       parameters:
         - in: query
           name: page
@@ -469,6 +493,7 @@ paths:
   /api/settings/ocr:
     get:
       summary: Get OCR settings (keys masked)
+      tags: [Settings]
       responses:
         '200':
           description: OCR settings
@@ -478,6 +503,7 @@ paths:
                 $ref: '#/components/schemas/OCRSettings'
     post:
       summary: Save OCR settings
+      tags: [Settings]
       requestBody:
         required: true
         content:
@@ -499,6 +525,7 @@ paths:
   /api/settings/general:
     get:
       summary: Get general settings
+      tags: [Settings]
       responses:
         '200':
           description: General settings
@@ -511,6 +538,7 @@ paths:
                     type: string
     post:
       summary: Save general settings
+      tags: [Settings]
       requestBody:
         required: true
         content:
@@ -535,6 +563,7 @@ paths:
   /api/settings/test-folder-path:
     post:
       summary: Test shared folder path accessibility
+      tags: [Settings]
       requestBody:
         required: true
         content:
@@ -560,6 +589,7 @@ paths:
   /api/settings/maintenance/dedupe-prf-items:
     post:
       summary: Remove duplicate PRF items
+      tags: [Settings]
       security:
         - bearerAuth: []
       requestBody:
@@ -589,6 +619,7 @@ paths:
   /api/cloud-sync/prf/{prfNo}:
     post:
       summary: Sync a PRF to the shared OneDrive Excel
+      tags: [Cloud Sync]
       description: Updates or appends a row in the configured workbook worksheet based on PRF No
       security:
         - bearerAuth: []
@@ -598,6 +629,16 @@ paths:
           required: true
           schema:
             type: string
+        - in: query
+          name: mode
+          schema:
+            type: string
+            enum: [single, scan]
+            default: single
+        - in: query
+          name: year
+          schema:
+            type: integer
       responses:
         '200':
           description: Sync completed
@@ -625,3 +666,2354 @@ paths:
           description: PRF not found
         '500':
           description: Internal error
+
+  /api/docs/openapi.yaml:
+    get:
+      summary: Download OpenAPI specification
+      tags: [Docs]
+      responses:
+        '200':
+          description: OpenAPI YAML
+          content:
+            text/yaml:
+              schema:
+                type: string
+        '404':
+          description: OpenAPI spec not found
+
+  /api/auth/logout:
+    post:
+      summary: Logout
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          description: Unauthorized
+
+  /api/settings/ocr/test:
+    post:
+      summary: Test OCR provider configuration
+      tags: [Settings]
+      responses:
+        '200':
+          description: Test result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/settings/ocr/key:
+    get:
+      summary: Get OCR key status
+      tags: [Settings]
+      responses:
+        '200':
+          description: Key status
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/upload/prf-document:
+    post:
+      summary: Upload and OCR-process PRF document
+      tags: [Upload]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                document:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: OCR extraction result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: No file uploaded
+        '401':
+          description: Unauthorized
+        '503':
+          description: OCR not configured
+
+  /api/upload/ocr/test:
+    get:
+      summary: Test OCR service
+      tags: [Upload]
+      responses:
+        '200':
+          description: Test response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/upload/ocr/status:
+    get:
+      summary: Get OCR service status
+      tags: [Upload]
+      responses:
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/upload/cleanup/{uploadId}:
+    delete:
+      summary: Cleanup temporary upload files
+      tags: [Upload]
+      parameters:
+        - in: path
+          name: uploadId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cleanup result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/ocr-prf/create-from-document:
+    post:
+      summary: Create PRF from OCR document
+      tags: [OCR]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                document:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: PRF created from OCR
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: OCR output invalid
+        '401':
+          description: Unauthorized
+        '409':
+          description: PRF already exists
+        '503':
+          description: OCR not configured
+
+  /api/ocr-prf/preview-extraction:
+    post:
+      summary: Preview OCR extraction (no PRF created)
+      tags: [OCR]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                document:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: OCR extraction preview
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: No file uploaded
+        '401':
+          description: Unauthorized
+        '503':
+          description: OCR not configured
+
+  /api/prf-files/{prfId}:
+    get:
+      summary: List PRF files
+      tags: [PRF Files]
+      parameters:
+        - in: path
+          name: prfId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Files
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/prf-files/{prfId}/upload:
+    post:
+      summary: Upload a PRF file
+      tags: [PRF Files]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: prfId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Invalid input
+        '401':
+          description: Unauthorized
+
+  /api/prf-files/{prfId}/upload-multiple:
+    post:
+      summary: Upload multiple PRF files
+      tags: [PRF Files]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: prfId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Invalid input
+        '401':
+          description: Unauthorized
+
+  /api/prf-files/file/{fileId}:
+    get:
+      summary: Get PRF file details
+      tags: [PRF Files]
+      parameters:
+        - in: path
+          name: fileId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: File
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          description: Not found
+    delete:
+      summary: Delete PRF file
+      tags: [PRF Files]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: fileId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not found
+
+  /api/prf-files/stats:
+    get:
+      summary: PRF file statistics
+      tags: [PRF Files]
+      responses:
+        '200':
+          description: Stats
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/prf-files/original-documents:
+    get:
+      summary: List original OCR documents
+      tags: [PRF Files]
+      parameters:
+        - in: query
+          name: prfId
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Documents
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/prf-documents/scan-folder/{prfNo}:
+    get:
+      summary: Scan PRF shared folder
+      tags: [PRF Documents]
+      parameters:
+        - in: path
+          name: prfNo
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Scan result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Shared folder not configured
+
+  /api/prf-documents/sync-folder/{prfNo}:
+    post:
+      summary: Sync PRF folder contents into database
+      tags: [PRF Documents]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: prfNo
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: integer
+      responses:
+        '200':
+          description: Sync result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+        '404':
+          description: PRF not found
+
+  /api/prf-documents/documents/{prfId}:
+    get:
+      summary: List documents for PRF
+      tags: [PRF Documents]
+      parameters:
+        - in: path
+          name: prfId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Documents
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/prf-documents/download/{fileId}:
+    get:
+      summary: Download PRF document
+      tags: [PRF Documents]
+      parameters:
+        - in: path
+          name: fileId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Not found
+
+  /api/prf-documents/view/{fileId}:
+    get:
+      summary: View PRF document inline
+      tags: [PRF Documents]
+      parameters:
+        - in: path
+          name: fileId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Not found
+
+  /api/prf-documents/sync-all-folders:
+    post:
+      summary: Sync all PRF folders into database
+      tags: [PRF Documents]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: integer
+      responses:
+        '200':
+          description: Bulk sync result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+
+  /api/prf-documents/bulk-sync:
+    post:
+      summary: Bulk sync (frontend-compatible response)
+      tags: [PRF Documents]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: integer
+      responses:
+        '200':
+          description: Bulk sync result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+
+  /api/cloud-sync/pull/prf/{prfNo}:
+    post:
+      summary: Pull a PRF from the shared OneDrive Excel
+      tags: [Cloud Sync]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: prfNo
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: mode
+          schema:
+            type: string
+            enum: [single, scan]
+            default: single
+        - in: query
+          name: year
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Pull completed
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '404':
+          description: PRF not found
+
+  /api/cloud-sync/test:
+    get:
+      summary: Test OneDrive access
+      tags: [Cloud Sync]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Test result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+
+  /api/reports/dashboard:
+    get:
+      summary: Dashboard metrics
+      tags: [Reports]
+      responses:
+        '200':
+          description: Metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/reports/budget-summary:
+    get:
+      summary: Budget summary
+      tags: [Reports]
+      parameters:
+        - in: query
+          name: fiscalYear
+          schema:
+            type: integer
+        - in: query
+          name: department
+          schema:
+            type: string
+        - in: query
+          name: expenseType
+          schema:
+            type: string
+            enum: [CAPEX, OPEX]
+      responses:
+        '200':
+          description: Summary
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/reports/unallocated-budgets:
+    get:
+      summary: Unallocated budgets report
+      tags: [Reports]
+      parameters:
+        - in: query
+          name: fiscalYear
+          schema:
+            type: integer
+        - in: query
+          name: expenseType
+          schema:
+            type: string
+            enum: [CAPEX, OPEX]
+      responses:
+        '200':
+          description: Report
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/reports/prf-trend:
+    get:
+      summary: PRF trend report
+      tags: [Reports]
+      parameters:
+        - in: query
+          name: period
+          schema:
+            type: string
+            enum: [month, quarter, year]
+            default: month
+        - in: query
+          name: department
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trend
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/reports/utilization:
+    get:
+      summary: Department utilization report
+      tags: [Reports]
+      parameters:
+        - in: query
+          name: fiscalYear
+          schema:
+            type: integer
+        - in: query
+          name: expenseType
+          schema:
+            type: string
+            enum: [CAPEX, OPEX]
+      responses:
+        '200':
+          description: Utilization
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/reports/budget-utilization:
+    get:
+      summary: Budget utilization report
+      tags: [Reports]
+      parameters:
+        - in: query
+          name: fiscalYear
+          schema:
+            type: integer
+        - in: query
+          name: department
+          schema:
+            type: string
+        - in: query
+          name: expenseType
+          schema:
+            type: string
+            enum: [CAPEX, OPEX]
+      responses:
+        '200':
+          description: Utilization
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/reports/alerts:
+    get:
+      summary: System alerts
+      tags: [Reports]
+      parameters:
+        - in: query
+          name: threshold
+          schema:
+            type: integer
+            default: 90
+      responses:
+        '200':
+          description: Alerts
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/reports/export:
+    get:
+      summary: Export report data (CSV)
+      tags: [Reports]
+      parameters:
+        - in: query
+          name: type
+          required: true
+          schema:
+            type: string
+            enum: [budget-summary, unallocated-budgets, prf-trend, utilization, budget-utilization]
+        - in: query
+          name: fiscalYear
+          schema:
+            type: integer
+        - in: query
+          name: department
+          schema:
+            type: string
+        - in: query
+          name: expenseType
+          schema:
+            type: string
+            enum: [CAPEX, OPEX]
+        - in: query
+          name: period
+          schema:
+            type: string
+            enum: [month, quarter, year]
+      responses:
+        '200':
+          description: CSV data
+          content:
+            text/csv:
+              schema:
+                type: string
+        '400':
+          description: Invalid report type
+
+  /api/reports/custom:
+    post:
+      summary: Generate custom report (coming soon)
+      tags: [Reports]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Placeholder response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/prfs:
+    get:
+      summary: List PRFs
+      tags: [PRFs]
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: department
+          schema:
+            type: string
+        - in: query
+          name: priority
+          schema:
+            type: string
+        - in: query
+          name: requestorId
+          schema:
+            type: integer
+        - in: query
+          name: coaId
+          schema:
+            type: integer
+        - in: query
+          name: dateFrom
+          schema:
+            type: string
+        - in: query
+          name: dateTo
+          schema:
+            type: string
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        '200':
+          description: PRFs
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '500':
+          description: Internal error
+    post:
+      summary: Create PRF
+      tags: [PRFs]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: PRF created
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+
+  /api/prfs/with-items:
+    get:
+      summary: List PRFs with items
+      tags: [PRFs]
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: PRFs with items
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/prfs/bulk:
+    delete:
+      summary: Delete multiple PRFs
+      tags: [PRFs]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items:
+                    oneOf:
+                      - type: integer
+                      - type: string
+      responses:
+        '200':
+          description: Bulk delete result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Invalid input
+        '401':
+          description: Unauthorized
+
+  /api/prfs/{id}:
+    get:
+      summary: Get PRF by ID
+      tags: [PRFs]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: PRF
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Invalid ID
+        '404':
+          description: Not found
+    put:
+      summary: Update PRF
+      tags: [PRFs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    delete:
+      summary: Delete PRF
+      tags: [PRFs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+
+  /api/prfs/{id}/with-items:
+    get:
+      summary: Get PRF by ID with items
+      tags: [PRFs]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: PRF with items
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/prfs/prfno/{prfNo}:
+    get:
+      summary: Get PRF by PRF number
+      tags: [PRFs]
+      parameters:
+        - in: path
+          name: prfNo
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: PRF
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          description: Not found
+
+  /api/prfs/{id}/items:
+    post:
+      summary: Add PRF items
+      tags: [PRFs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+      responses:
+        '201':
+          description: Items added
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+    get:
+      summary: List PRF items
+      tags: [PRFs]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Items
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/prfs/items/{itemId}:
+    put:
+      summary: Update PRF item
+      tags: [PRFs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: itemId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+    delete:
+      summary: Delete PRF item
+      tags: [PRFs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: itemId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          description: Not found
+
+  /api/prfs/statistics:
+    get:
+      summary: PRF statistics
+      tags: [PRFs]
+      responses:
+        '200':
+          description: Statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/prfs/filters/status:
+    get:
+      summary: List unique PRF status values
+      tags: [PRFs]
+      responses:
+        '200':
+          description: Status values
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/budgets:
+    get:
+      summary: List budgets
+      tags: [Budgets]
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: fiscalYear
+          schema:
+            type: integer
+        - in: query
+          name: department
+          schema:
+            type: string
+        - in: query
+          name: budgetType
+          schema:
+            type: string
+        - in: query
+          name: expenseType
+          schema:
+            type: string
+            enum: [CAPEX, OPEX]
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: coaId
+          schema:
+            type: integer
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Budgets
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+    post:
+      summary: Create budget
+      tags: [Budgets]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: Budget created
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '409':
+          description: Budget already exists
+
+  /api/budgets/prf/{prfId}/cost-codes:
+    get:
+      summary: Get cost code budget data for a PRF
+      tags: [Budgets]
+      parameters:
+        - in: path
+          name: prfId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cost code budgets
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/budgets/cost-codes:
+    get:
+      summary: Get budget data grouped by cost codes
+      tags: [Budgets]
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: fiscalYear
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Cost code budget summary
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/budgets/{id}:
+    get:
+      summary: Get budget by ID
+      tags: [Budgets]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Budget
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Invalid ID
+        '404':
+          description: Not found
+    put:
+      summary: Update budget
+      tags: [Budgets]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    delete:
+      summary: Delete budget
+      tags: [Budgets]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+
+  /api/budgets/coa/{coaId}/year/{fiscalYear}:
+    get:
+      summary: Get budget by COA and fiscal year
+      tags: [Budgets]
+      parameters:
+        - in: path
+          name: coaId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: fiscalYear
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Budget
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          description: Not found
+
+  /api/budgets/{id}/utilization:
+    get:
+      summary: Get budget utilization by budget ID
+      tags: [Budgets]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Utilization
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/budgets/utilization/department/{department}:
+    get:
+      summary: Get budget utilization by department
+      tags: [Budgets]
+      parameters:
+        - in: path
+          name: department
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: fiscalYear
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Utilization
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/budgets/utilization/summary/{fiscalYear}:
+    get:
+      summary: Get budget utilization summary for fiscal year
+      tags: [Budgets]
+      parameters:
+        - in: path
+          name: fiscalYear
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Summary
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/budgets/{id}/update-utilization:
+    put:
+      summary: Recalculate budget utilization from PRF data
+      tags: [Budgets]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+
+  /api/budgets/alerts:
+    get:
+      summary: List budget alerts
+      tags: [Budgets]
+      parameters:
+        - in: query
+          name: threshold
+          schema:
+            type: integer
+            default: 90
+      responses:
+        '200':
+          description: Alerts
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/budgets/statistics:
+    get:
+      summary: Budget statistics
+      tags: [Budgets]
+      parameters:
+        - in: query
+          name: fiscalYear
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/coa/test:
+    get:
+      summary: COA test endpoint
+      tags: [COA]
+      responses:
+        '200':
+          description: Test response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/coa/test-put:
+    put:
+      summary: COA test PUT endpoint
+      tags: [COA]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Test response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/coa:
+    get:
+      summary: List chart of accounts
+      tags: [COA]
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: isActive
+          schema:
+            type: boolean
+        - in: query
+          name: parentCOAID
+          schema:
+            type: integer
+        - in: query
+          name: expenseType
+          schema:
+            type: string
+            enum: [CAPEX, OPEX]
+        - in: query
+          name: department
+          schema:
+            type: string
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Accounts
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+    post:
+      summary: Create chart of account
+      tags: [COA]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '409':
+          description: Account code already exists
+
+  /api/coa/bulk-update:
+    put:
+      summary: Bulk update chart of accounts
+      tags: [COA]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Invalid request
+
+  /api/coa/{id}:
+    get:
+      summary: Get chart of account by ID
+      tags: [COA]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Account
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          description: Not found
+    put:
+      summary: Update chart of account
+      tags: [COA]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    delete:
+      summary: Soft delete chart of account
+      tags: [COA]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+
+  /api/coa/{id}/hard:
+    delete:
+      summary: Hard delete chart of account
+      tags: [COA]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/coa/code/{coaCode}:
+    get:
+      summary: Get chart of account by code
+      tags: [COA]
+      parameters:
+        - in: path
+          name: coaCode
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Account
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          description: Not found
+
+  /api/coa/hierarchy:
+    get:
+      summary: Get chart of accounts hierarchy
+      tags: [COA]
+      responses:
+        '200':
+          description: Hierarchy
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/coa/{id}/children:
+    get:
+      summary: Get children accounts
+      tags: [COA]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Children
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/coa/roots:
+    get:
+      summary: Get root accounts
+      tags: [COA]
+      responses:
+        '200':
+          description: Roots
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/coa/category/{category}:
+    get:
+      summary: Get accounts by category
+      tags: [COA]
+      parameters:
+        - in: path
+          name: category
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Accounts
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/coa/{id}/usage:
+    get:
+      summary: Get account usage
+      tags: [COA]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Usage
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/coa/bulk-import:
+    post:
+      summary: Bulk import chart of accounts
+      tags: [COA]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                accounts:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+      responses:
+        '201':
+          description: Imported
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+
+  /api/coa/statistics:
+    get:
+      summary: Chart of accounts statistics
+      tags: [COA]
+      responses:
+        '200':
+          description: Statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/coa/bulk-delete:
+    delete:
+      summary: Bulk delete chart of accounts
+      tags: [COA]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                accountIds:
+                  type: array
+                  items:
+                    type: integer
+                hard:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/users:
+    get:
+      summary: List local users
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+    post:
+      summary: Create local user
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '409':
+          description: Conflict
+
+  /api/users/{id}:
+    get:
+      summary: Get local user by ID
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Invalid ID
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    put:
+      summary: Update local user
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    delete:
+      summary: Delete local user
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Cannot delete
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+
+  /api/users/{id}/toggle-status:
+    put:
+      summary: Toggle local user active status
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Toggled
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Cannot toggle
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+
+  /api/users/stats/overview:
+    get:
+      summary: Local user statistics
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/ldap-users:
+    get:
+      summary: List LDAP users with access
+      tags: [LDAP]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/ldap-users/grant-access:
+    post:
+      summary: Grant LDAP user access (explicit details)
+      tags: [LDAP]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: Granted
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '409':
+          description: Conflict
+
+  /api/ldap-users/grant:
+    post:
+      summary: Grant LDAP user access (fetch details from LDAP)
+      tags: [LDAP]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: Granted
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+        '409':
+          description: Conflict
+
+  /api/ldap-users/test-connection:
+    get:
+      summary: Test LDAP connection
+      tags: [LDAP]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Connected
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+    post:
+      summary: Test LDAP connection
+      tags: [LDAP]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Connected
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/ldap-users/search:
+    get:
+      summary: Search LDAP users
+      tags: [LDAP]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Results
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Query too short
+
+  /api/ldap-users/search-ad:
+    post:
+      summary: Search Active Directory users
+      tags: [LDAP]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                searchTerm:
+                  type: string
+      responses:
+        '200':
+          description: Results
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Validation error
+
+  /api/ldap-users/stats/overview:
+    get:
+      summary: LDAP access statistics
+      tags: [LDAP]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/ldap-users/{username}:
+    get:
+      summary: Get LDAP user access by username
+      tags: [LDAP]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: username
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          description: Not found
+    put:
+      summary: Update LDAP user access
+      tags: [LDAP]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: username
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          description: Not found
+    delete:
+      summary: Revoke LDAP user access
+      tags: [LDAP]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: username
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          description: Not found

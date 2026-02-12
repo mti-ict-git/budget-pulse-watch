@@ -62,10 +62,10 @@ This project is built with:
 
 ## API Documentation
 
-The backend exposes OpenAPI documentation served via Redoc.
+The backend exposes OpenAPI documentation served via Swagger UI.
 
 - View docs in browser: http://localhost:3001/api/docs
-- Raw OpenAPI spec (YAML): docs/openapi.yaml
+- Raw OpenAPI spec (YAML): http://localhost:3001/api/docs/openapi.yaml
 
 Protected endpoints require a Bearer JWT in the Authorization header.
 

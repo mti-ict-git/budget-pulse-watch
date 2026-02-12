@@ -136,3 +136,35 @@ Wednesday, February 11, 2026 11:26:15 PM
 
 Thursday, February 12, 2026 12:03:23 AM
 - Ignored backend/token_cache.json to prevent committing OneDrive/MSAL tokens
+
+2026-02-12 09:17:56 +08:00
+- Fixed /api/docs Redoc blocked by CSP by allowing cdn.redoc.ly
+- Made docs static directory resolution robust for openapi.yaml
+
+2026-02-12 09:28:23 +08:00
+- Switched API docs UI from Redoc to Swagger UI at /api/docs
+- Served spec at /api/docs/openapi.yaml and scoped CSP to allow Swagger inline script
+- Updated README API Documentation section
+
+2026-02-12 09:35:56 +08:00
+- Fixed Swagger UI "Failed to fetch" by removing CSP upgrade-insecure-requests on /api/docs
+
+2026-02-12 09:48:49 +08:00
+- Removed CSP from /api/docs entirely to avoid blocking Swagger UI fetch/connect
+- Changed OpenAPI servers to single same-origin base URL to prevent mixed-content/CORS issues
+
+Thursday, February 12, 2026 10:17:19 AM
+- Expanded OpenAPI spec coverage to include all mounted backend routes
+- Documented reports, PRF documents, PRF files, OCR upload, and sync endpoints
+
+Thursday, February 12, 2026 10:39:31 AM
+- Grouped Swagger UI operations using OpenAPI tags per API category
+- Verified /api/docs and /api/docs/openapi.yaml return HTTP 200
+
+2026-02-12 10:31:47 +08:00
+- Improved PRF additional document uploads to stream to disk instead of memory
+- Returned clearer API errors when shared folder path is missing or inaccessible
+- Updated frontend batch upload to display backend error message on non-2xx responses
+
+2026-02-12 10:38:43 +08:00
+- Allowed PRF file upload routes to use SHARED_FOLDER_PATH from environment as fallback
