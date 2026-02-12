@@ -193,4 +193,23 @@ Thursday, February 12, 2026 12:21:52 PM
 - Confirmed PO No derives from PRF No using the same base number with different suffix
 194→
 195→2026-02-12 20:43:14 +0800
-196→- Added mobile/ directory to .gitignore to keep local mobile client untracked
+196→196→- Added mobile/ directory to .gitignore to keep local mobile client untracked
+
+Thu Feb 12 22:23:57 WITA 2026
+- Integrated mobile login with backend JWT auth (/api/auth/login)
+- Added session restore via /api/auth/me using stored token
+- Added VITE_API_BASE_URL support for mobile backend URL configuration
+- Expanded backend CORS allowlist for localhost:3000 and capacitor://localhost
+- Verified TypeScript no-emit checks for mobile and backend
+
+Thu Feb 12 22:26:58 WITA 2026
+- Updated mobile API base URL to prefer pomonbackend.justanapi.my.id
+- Added runtime fallback to VITE_API_BASE_URL when primary returns 404/5xx
+- Persisted the successful base URL alongside token for session restore
+
+Thu Feb 12 22:38:24 WITA 2026
+- Expanded backend CORS allowlist to include pomon.merdekabattery.com:9007 and localhost dev
+- Verified backend TypeScript no-emit check
+Thu Feb 12 22:12:50 WITA 2026
+- Installed Capacitor in mobile/budget-pulse-watch with Android and iOS platforms
+- Generated capacitor.config.ts and synced web build (dist) to native projects
