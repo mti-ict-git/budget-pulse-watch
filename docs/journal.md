@@ -178,3 +178,16 @@ Thursday, February 12, 2026 10:55:04 AM
 
 Thursday, February 12, 2026 11:14:03 AM
 - Fixed Docker EACCES on /app/data/token_cache.json by chowning mounted /app/data before switching users
+
+Thursday, February 12, 2026 12:16:15 PM
+- Added lightweight PRF search endpoint GET /api/prfs/search
+- Documented /api/prfs/search in docs/openapi.yaml
+- Drafted mobile PRF monitoring spec for goods checking workflow
+
+Thursday, February 12, 2026 12:20:33 PM
+- Updated mobile PRF monitoring spec with confirmed scope (monitoring-first)
+- Captured decision to support PRF-level and item-level goods verification
+- Tracked PO linkage requirement as an open data-model question
+
+Thursday, February 12, 2026 12:21:52 PM
+- Confirmed PO No derives from PRF No using the same base number with different suffix
