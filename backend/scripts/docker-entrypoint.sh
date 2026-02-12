@@ -42,6 +42,14 @@ else
     echo "   Set CIFS_USERNAME and CIFS_PASSWORD to enable network share access"
 fi
 
+mkdir -p /app/data /app/temp
+
+if chown -R nodejs:nodejs /app/data /app/temp 2>/dev/null; then
+    echo "✅ Set write permissions for /app/data and /app/temp"
+else
+    echo "⚠️  Could not change ownership for /app/data and /app/temp"
+fi
+
 # Switch to nodejs user for running the application
 echo "👤 Switching to nodejs user..."
 exec su-exec nodejs "$@"

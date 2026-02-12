@@ -175,3 +175,6 @@ Thursday, February 12, 2026 10:51:42 AM
 Thursday, February 12, 2026 10:55:04 AM
 - Persisted MSAL token cache in Docker by storing it under /app/data and mounting a volume
 - Ensured token cache directory is created before writing (prevents write failures in new environments)
+
+Thursday, February 12, 2026 11:14:03 AM
+- Fixed Docker EACCES on /app/data/token_cache.json by chowning mounted /app/data before switching users
