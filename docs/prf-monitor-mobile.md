@@ -238,8 +238,9 @@ export async function searchPrfs(baseUrl: string, q: string, limit: number): Pro
 ## PO Number Rule
 
 - **PO Number is derived from PRF No**: it uses the same base number and differs only by suffix.
+- Example (current): `PRF41356` → `PO41356`
 - Display PO Number in PRF Details header and in the Goods Check screen.
 
 ## Open Questions
 
-- What is the exact suffix mapping format for PRF No → PO No (example: `...-PRF` → `...-PO`)?
+- Confirm the PO mapping rule for numeric-only PRF numbers (example: `41536` → `PO41536` or `41536-PO`).

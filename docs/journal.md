@@ -191,6 +191,13 @@ Thursday, February 12, 2026 12:20:33 PM
 
 Thursday, February 12, 2026 12:21:52 PM
 - Confirmed PO No derives from PRF No using the same base number with different suffix
+
+Thursday, February 19, 2026 11:33:09 AM
+- Fixed OCR PRF create-from-document to honor SHARED_FOLDER_PATH env fallback
+- Persisted OCR source document metadata in PRFFiles even when shared copy fails
+
+Thursday, February 19, 2026 11:57:43 AM
+- Clarified mobile spec PO derivation example (PRF41356 → PO41356)
 194→
 195→2026-02-12 20:43:14 +0800
 196→196→- Added mobile/ directory to .gitignore to keep local mobile client untracked

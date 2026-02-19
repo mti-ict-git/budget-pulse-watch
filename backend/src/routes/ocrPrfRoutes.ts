@@ -6,8 +6,10 @@ import { CreatePRFRequest, CreatePRFItemRequest } from '../models/types';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs/promises';
-import { getSharedStorageService, SharedStorageConfig } from '../services/sharedStorageService';
+import { getSharedStorageService } from '../services/sharedStorageService';
+import type { FileStorageResult, SharedStorageConfig } from '../services/sharedStorageService';
 import { PRFFilesModel } from '../models/PRFFiles';
+import type { PRFFile } from '../models/PRFFiles';
 import { loadSettings } from './settingsRoutes';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
 
@@ -164,14 +166,17 @@ router.post('/create-from-document', authenticateToken, requireContentManager, u
       await fs.writeFile(savedFilePath, buffer);
       
       // Copy file to shared storage and save metadata
-      let sharedStorageResult = null;
-      let fileRecord = null;
+      let sharedStorageResult: FileStorageResult | null = null;
+      let fileRecord: PRFFile | null = null;
       try {
-        // Load settings to configure shared storage
         const settings = await loadSettings();
+        const envSharedFolderPath = typeof process.env.SHARED_FOLDER_PATH === 'string' ? process.env.SHARED_FOLDER_PATH.trim() : '';
+        const settingsSharedFolderPath = settings.general?.sharedFolderPath?.trim() || '';
+        const basePath = envSharedFolderPath || settingsSharedFolderPath;
+
         const sharedStorageConfig: SharedStorageConfig = {
-          basePath: settings.general?.sharedFolderPath || '',
-          enabled: !!(settings.general?.sharedFolderPath?.trim())
+          basePath,
+          enabled: basePath.length > 0
         };
         
         const sharedStorageService = getSharedStorageService(sharedStorageConfig);
@@ -181,28 +186,29 @@ router.post('/create-from-document', authenticateToken, requireContentManager, u
           originalname
         );
         
-        if (sharedStorageResult.success) {
-          console.log(`📁 File copied to shared storage: ${sharedStorageResult.sharedPath}`);
-          
-          // Save file metadata to database
-          const fileStats = await fs.stat(savedFilePath);
-          fileRecord = await PRFFilesModel.create({
-            PRFID: createdPRF.PRFID,
-            OriginalFileName: originalname,
-            FilePath: savedFilePath,
-            SharedPath: sharedStorageResult.sharedPath,
-            FileSize: fileStats.size,
-            FileType: fileExtension.toLowerCase().replace('.', ''),
-            MimeType: mimetype || 'application/octet-stream',
-            UploadedBy: 1, // TODO: Get from authenticated user
-            IsOriginalDocument: true,
-            Description: 'OCR source document'
-          });
-          
-          console.log(`💾 File metadata saved to database with ID: ${fileRecord.FileID}`);
-        } else {
+        if (!sharedStorageResult.success) {
           console.warn(`⚠️ Shared storage copy failed: ${sharedStorageResult.error}`);
         }
+
+        if (sharedStorageResult.success) {
+          console.log(`📁 File copied to shared storage: ${sharedStorageResult.sharedPath}`);
+        }
+
+        const fileStats = await fs.stat(savedFilePath);
+        fileRecord = await PRFFilesModel.create({
+          PRFID: createdPRF.PRFID,
+          OriginalFileName: originalname,
+          FilePath: savedFilePath,
+          SharedPath: sharedStorageResult.success ? sharedStorageResult.sharedPath : undefined,
+          FileSize: fileStats.size,
+          FileType: fileExtension.toLowerCase().replace('.', ''),
+          MimeType: mimetype || 'application/octet-stream',
+          UploadedBy: req.user.UserID,
+          IsOriginalDocument: true,
+          Description: 'OCR source document'
+        });
+
+        console.log(`💾 File metadata saved to database with ID: ${fileRecord.FileID}`);
       } catch (sharedStorageError) {
         console.error('Shared storage operation failed:', sharedStorageError);
       }
