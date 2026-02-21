@@ -663,4 +663,11 @@ For requestFor: look for text starting with 'FOR' or 'For' in item descriptions 
   }
 }
 
-export const ocrService = new OCRService();
+let ocrServiceInstance: OCRService | null = null;
+
+export const getOCRService = (): OCRService => {
+  if (!ocrServiceInstance) {
+    ocrServiceInstance = new OCRService();
+  }
+  return ocrServiceInstance;
+};

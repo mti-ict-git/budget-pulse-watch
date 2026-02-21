@@ -123,4 +123,8 @@
   .metric-card {
     @apply dashboard-card p-6 hover:border-primary/20;
   }
+
+  .metronic-card {
+    @apply bg-card/95 text-card-foreground rounded-xl shadow-sm border border-border/60 transition-all duration-300 hover:shadow-md;
+  }
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -204,22 +204,29 @@ export default function PRFMonitoring() {
   const [isOneDriveTesting, setIsOneDriveTesting] = useState<boolean>(false);
   const [isOneDriveDialogOpen, setIsOneDriveDialogOpen] = useState<boolean>(false);
   const [oneDriveTestOutput, setOneDriveTestOutput] = useState<string>("");
+  const lastQueryRef = useRef<string>("");
+  const hasInitializedSearchRef = useRef(false);
+  const searchTermRef = useRef(searchTerm);
 
   // Fetch PRF data from API
-  const fetchPRFData = useCallback(async () => {
+  const fetchPRFData = useCallback(async (force = false) => {
+    const queryParams = new URLSearchParams({
+      page: pagination.page.toString(),
+      limit: pagination.limit.toString(),
+      ...(searchTerm && { search: searchTerm }),
+      ...(statusFilter !== 'all' && { status: statusFilter }),
+      ...(departmentFilter !== 'all' && { department: departmentFilter }),
+      ...(priorityFilter !== 'all' && { priority: priorityFilter }),
+      ...(yearFilter !== 'all' && { year: yearFilter })
+    });
+    const queryString = queryParams.toString();
+    if (!force && queryString === lastQueryRef.current) {
+      return;
+    }
+    lastQueryRef.current = queryString;
     try {
       setLoading(true);
       setError(null);
-      
-      const queryParams = new URLSearchParams({
-        page: pagination.page.toString(),
-        limit: pagination.limit.toString(),
-        ...(searchTerm && { search: searchTerm }),
-        ...(statusFilter !== 'all' && { status: statusFilter }),
-        ...(departmentFilter !== 'all' && { department: departmentFilter }),
-        ...(priorityFilter !== 'all' && { priority: priorityFilter }),
-        ...(yearFilter !== 'all' && { year: yearFilter })
-      });
 
       const response = await fetch(`/api/prfs/with-items?${queryParams}`);
       
@@ -504,6 +511,15 @@ export default function PRFMonitoring() {
 
   // Debounced search effect
   useEffect(() => {
+    if (!hasInitializedSearchRef.current) {
+      hasInitializedSearchRef.current = true;
+      searchTermRef.current = searchTerm;
+      return;
+    }
+    if (searchTermRef.current === searchTerm) {
+      return;
+    }
+    searchTermRef.current = searchTerm;
     const timeoutId = setTimeout(() => {
       if (pagination.page === 1) {
         fetchPRFData();
@@ -792,7 +808,7 @@ export default function PRFMonitoring() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-6">
       <Dialog open={isOneDriveDialogOpen} onOpenChange={setIsOneDriveDialogOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
@@ -806,10 +822,10 @@ export default function PRFMonitoring() {
           </pre>
         </DialogContent>
       </Dialog>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 rounded-xl border border-border/60 bg-card px-5 py-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">PRF Monitoring</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-tight">PRF Monitoring</h1>
+          <p className="text-sm text-muted-foreground">
             Track and manage Purchase Request Forms with enhanced Excel field support
           </p>
         </div>
@@ -818,6 +834,7 @@ export default function PRFMonitoring() {
             variant="outline"
             onClick={handleBulkSync}
             disabled={isBulkSyncing}
+            className="h-9 rounded-lg border-border/60 bg-white shadow-sm"
           >
             {isBulkSyncing ? (
               <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
@@ -830,6 +847,7 @@ export default function PRFMonitoring() {
             variant="outline"
             onClick={handleSyncSelected}
             disabled={isSelectedSyncing || selectedItems.size === 0}
+            className="h-9 rounded-lg border-border/60 bg-white shadow-sm"
           >
             {isSelectedSyncing ? (
               <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
@@ -843,6 +861,7 @@ export default function PRFMonitoring() {
               variant="outline"
               onClick={handleTestOneDriveAccess}
               disabled={isOneDriveTesting}
+              className="h-9 rounded-lg border-border/60 bg-white shadow-sm"
             >
               {isOneDriveTesting ? (
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
@@ -856,29 +875,29 @@ export default function PRFMonitoring() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+      <Card className="rounded-xl border border-border/60 shadow-sm">
+        <CardHeader className="border-b border-border/60 bg-muted/30">
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             <Filter className="h-5 w-5" />
             Filters
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-row gap-4">
+        <CardContent className="pt-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap gap-3">
               <div className="flex-1">
                 <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search by PRF No, description, submit by, or required for..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-8"
+                    className="h-9 rounded-lg border-border/60 bg-white pl-9 shadow-sm"
                   />
                 </div>
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="h-9 w-[180px] rounded-lg border-border/60 bg-white shadow-sm">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -891,7 +910,7 @@ export default function PRFMonitoring() {
                 </SelectContent>
               </Select>
               <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                <SelectTrigger className="w-[140px]">
+                <SelectTrigger className="h-9 w-[140px] rounded-lg border-border/60 bg-white shadow-sm">
                   <SelectValue placeholder="Priority" />
                 </SelectTrigger>
                 <SelectContent>
@@ -903,7 +922,7 @@ export default function PRFMonitoring() {
                 </SelectContent>
               </Select>
               <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                <SelectTrigger className="w-[140px]">
+                <SelectTrigger className="h-9 w-[140px] rounded-lg border-border/60 bg-white shadow-sm">
                   <SelectValue placeholder="Department" />
                 </SelectTrigger>
                 <SelectContent>
@@ -915,7 +934,7 @@ export default function PRFMonitoring() {
                 </SelectContent>
               </Select>
               <Select value={yearFilter} onValueChange={setYearFilter}>
-                <SelectTrigger className="w-[120px]">
+                <SelectTrigger className="h-9 w-[120px] rounded-lg border-border/60 bg-white shadow-sm">
                   <SelectValue placeholder="Year" />
                 </SelectTrigger>
                 <SelectContent>
@@ -929,10 +948,10 @@ export default function PRFMonitoring() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
+      <Card className="rounded-xl border border-border/60 shadow-sm">
+        <CardHeader className="border-b border-border/60 bg-muted/30">
           <div className="flex items-center justify-between">
-            <CardTitle>
+            <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               PRF List ({pagination.total} items)
               {loading && <span className="text-sm text-muted-foreground ml-2">Loading...</span>}
               {selectedItems.size > 0 && (
@@ -944,7 +963,7 @@ export default function PRFMonitoring() {
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Show:</span>
                 <Select value={pagination.limit.toString()} onValueChange={handlePageSizeChange}>
-                  <SelectTrigger className="w-20">
+                  <SelectTrigger className="h-9 w-20 rounded-lg border-border/60 bg-white shadow-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -958,20 +977,20 @@ export default function PRFMonitoring() {
               {/* Bulk Actions */}
               {selectedItems.size > 0 && (
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={handleBulkExport}>
+                  <Button variant="outline" size="sm" onClick={handleBulkExport} className="rounded-lg border-border/60 bg-white shadow-sm">
                     <Download className="h-4 w-4 mr-1" />
                     Export ({selectedItems.size})
                   </Button>
-                  <Button variant="outline" size="sm" onClick={handleBulkArchive}>
+                  <Button variant="outline" size="sm" onClick={handleBulkArchive} className="rounded-lg border-border/60 bg-white shadow-sm">
                     <Archive className="h-4 w-4 mr-1" />
                     Archive ({selectedItems.size})
                   </Button>
-                  <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+                  <Button variant="destructive" size="sm" onClick={handleBulkDelete} className="rounded-lg shadow-sm">
                     <Trash2 className="h-4 w-4 mr-1" />
                     Delete ({selectedItems.size})
                   </Button>
                   <Select onValueChange={handleBulkStatusUpdate}>
-                    <SelectTrigger className="w-32">
+                    <SelectTrigger className="h-9 w-32 rounded-lg border-border/60 bg-white shadow-sm">
                       <SelectValue placeholder="Update Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1005,6 +1024,7 @@ export default function PRFMonitoring() {
                     size="sm" 
                     onClick={expandAllRows}
                     disabled={loading || filteredData.filter(prf => prf.items && prf.items.length > 0).length === 0}
+                    className="rounded-lg border-border/60 bg-white shadow-sm"
                   >
                     <Expand className="h-4 w-4 mr-1" />
                     Expand All
@@ -1014,6 +1034,7 @@ export default function PRFMonitoring() {
                     size="sm" 
                     onClick={collapseAllRows}
                     disabled={loading || expandedRows.size === 0}
+                    className="rounded-lg border-border/60 bg-white shadow-sm"
                   >
                     <Minimize className="h-4 w-4 mr-1" />
                     Collapse All
@@ -1023,11 +1044,11 @@ export default function PRFMonitoring() {
                   {filteredData.filter(prf => prf.items && prf.items.length > 0).length} expandable rows
                 </div>
               </div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto rounded-xl border border-border/60">
                 <Table className="min-w-full">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12 sticky left-0 bg-background z-10">
+                  <TableHeader className="bg-muted/40">
+                    <TableRow className="bg-muted/40">
+                      <TableHead className="w-12 sticky left-0 bg-muted/40 z-10 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                         <input
                           type="checkbox"
                           checked={selectedItems.size === filteredData.length && filteredData.length > 0}
@@ -1035,19 +1056,19 @@ export default function PRFMonitoring() {
                           className="rounded border-gray-300"
                         />
                       </TableHead>
-                      <TableHead className="w-8 sticky left-12 bg-background z-10"></TableHead>
-                      <TableHead className="min-w-[120px] sticky left-20 bg-background z-10 font-medium">PRF No</TableHead>
-                      <TableHead className="min-w-[100px]">Date Submit</TableHead>
-                      <TableHead className="min-w-[120px]">Submit By</TableHead>
-                      <TableHead className="min-w-[200px]">Description</TableHead>
-                      <TableHead className="min-w-[140px]">Cost Code</TableHead>
-                      <TableHead className="min-w-[100px] text-right">Amount</TableHead>
-                      <TableHead className="min-w-[150px]">Required For</TableHead>
-                      <TableHead className="min-w-[100px]">Department</TableHead>
-                      <TableHead className="min-w-[80px]">Priority</TableHead>
-                      <TableHead className="min-w-[80px]">Budget Year</TableHead>
-                      <TableHead className="min-w-[100px]">Status</TableHead>
-                      <TableHead className="min-w-[120px] sticky right-0 bg-background z-10">Actions</TableHead>
+                      <TableHead className="w-8 sticky left-12 bg-muted/40 z-10 text-xs font-semibold uppercase tracking-wide text-muted-foreground"></TableHead>
+                      <TableHead className="min-w-[120px] sticky left-20 bg-muted/40 z-10 text-xs font-semibold uppercase tracking-wide text-muted-foreground">PRF No</TableHead>
+                      <TableHead className="min-w-[100px] text-xs font-semibold uppercase tracking-wide text-muted-foreground">Date Submit</TableHead>
+                      <TableHead className="min-w-[120px] text-xs font-semibold uppercase tracking-wide text-muted-foreground">Submit By</TableHead>
+                      <TableHead className="min-w-[200px] text-xs font-semibold uppercase tracking-wide text-muted-foreground">Description</TableHead>
+                      <TableHead className="min-w-[140px] text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cost Code</TableHead>
+                      <TableHead className="min-w-[100px] text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Amount</TableHead>
+                      <TableHead className="min-w-[150px] text-xs font-semibold uppercase tracking-wide text-muted-foreground">Required For</TableHead>
+                      <TableHead className="min-w-[100px] text-xs font-semibold uppercase tracking-wide text-muted-foreground">Department</TableHead>
+                      <TableHead className="min-w-[80px] text-xs font-semibold uppercase tracking-wide text-muted-foreground">Priority</TableHead>
+                      <TableHead className="min-w-[80px] text-xs font-semibold uppercase tracking-wide text-muted-foreground">Budget Year</TableHead>
+                      <TableHead className="min-w-[100px] text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</TableHead>
+                      <TableHead className="min-w-[120px] sticky right-0 bg-muted/40 z-10 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                 <TableBody>
@@ -1070,10 +1091,10 @@ export default function PRFMonitoring() {
                     filteredData.map((prf) => (
                       <React.Fragment key={prf.id}>
                         <TableRow 
-                          className={`${prf.items && prf.items.length > 0 ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                          className={`${prf.items && prf.items.length > 0 ? 'cursor-pointer hover:bg-muted/30' : ''}`}
                           onClick={() => prf.items && prf.items.length > 0 && toggleRowExpansion(prf.id)}
                         >
-                          <TableCell className="sticky left-0 bg-background z-10" onClick={(e) => e.stopPropagation()}>
+                          <TableCell className="sticky left-0 bg-card z-10" onClick={(e) => e.stopPropagation()}>
                             <input
                               type="checkbox"
                               checked={selectedItems.has(prf.id)}
@@ -1081,7 +1102,7 @@ export default function PRFMonitoring() {
                               className="rounded border-gray-300"
                             />
                           </TableCell>
-                          <TableCell className="sticky left-12 bg-background z-10">
+                          <TableCell className="sticky left-12 bg-card z-10">
                             {prf.items && prf.items.length > 0 && (
                               <div className="flex items-center justify-center">
                                 {expandedRows.has(prf.id) ? (
@@ -1092,13 +1113,13 @@ export default function PRFMonitoring() {
                               </div>
                             )}
                           </TableCell>
-                          <TableCell className="font-medium sticky left-20 bg-background z-10">
+                          <TableCell className="font-medium sticky left-20 bg-card z-10">
                             <div className="flex items-center gap-2">
                               <span className="whitespace-nowrap">{prf.prfNo}</span>
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 px-2"
+                                className="h-7 rounded-md px-2 hover:bg-muted/40"
                                 onClick={(e) => { e.stopPropagation(); handleSyncPRF(prf.prfNo); }}
                                 disabled={syncingId === prf.prfNo}
                                 aria-label="Sync this PRF from Cloud"
@@ -1126,7 +1147,7 @@ export default function PRFMonitoring() {
                           <TableCell>{getPriorityBadge(prf.priority)}</TableCell>
                           <TableCell className="whitespace-nowrap">{prf.budgetYear}</TableCell>
                           <TableCell>{getStatusBadge(prf.progress)}</TableCell>
-                          <TableCell className="sticky right-0 bg-background z-10" onClick={(e) => e.stopPropagation()}>
+                          <TableCell className="sticky right-0 bg-card z-10" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-1">
                               <PRFDetailDialog prf={prf} />
                               <PRFEditDialog prf={prf} onPRFUpdated={fetchPRFData} />
@@ -1136,12 +1157,12 @@ export default function PRFMonitoring() {
                         </TableRow>
                         {expandedRows.has(prf.id) && prf.items && prf.items.length > 0 && (
                           <TableRow>
-                            <TableCell colSpan={14} className="bg-gray-50 p-0">
+                            <TableCell colSpan={14} className="bg-muted/30 p-0">
                               <div className="p-4">
-                                <h4 className="font-medium mb-3 text-sm text-gray-700">PRF Items ({prf.items.length})</h4>
-                                <div className="space-y-2">
+                                <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">PRF Items ({prf.items.length})</h4>
+                                <div className="space-y-3">
                                   {prf.items.map((item, index) => (
-                                    <div key={item.PRFItemID || item.ItemID} className="flex items-center justify-between p-3 bg-white rounded border">
+                                    <div key={item.PRFItemID || item.ItemID} className="flex items-center justify-between rounded-lg border border-border/60 bg-card p-3 shadow-sm">
                                       <div className="flex-1">
                                         <div className="flex items-center gap-2 mb-1">
                                           <div className="font-medium text-sm">{item.ItemName}</div>
@@ -1171,7 +1192,7 @@ export default function PRFMonitoring() {
                                           )}
                                         </div>
                                         {item.Description && (
-                                          <div className="text-xs text-gray-600 mt-1">{item.Description}</div>
+                                          <div className="text-xs text-muted-foreground mt-1">{item.Description}</div>
                                         )}
                                         
                                         {/* Cost Code Information */}
@@ -1194,12 +1215,12 @@ export default function PRFMonitoring() {
                                         </div>
                                         
                                         {item.Specifications && (
-                                          <div className="text-xs text-gray-500 mt-1">
+                                          <div className="text-xs text-muted-foreground mt-1">
                                             <details className="cursor-pointer">
-                                              <summary className="hover:text-gray-700">
+                                              <summary className="hover:text-foreground">
                                                 Specifications {JSON.parse(item.Specifications).originalRow ? `(Row ${JSON.parse(item.Specifications).originalRow})` : ''}
                                               </summary>
-                                              <div className="mt-1 pl-2 border-l-2 border-gray-200">
+                                              <div className="mt-1 pl-2 border-l-2 border-border">
                                                 {(() => {
                                                   try {
                                                     const specs = JSON.parse(item.Specifications);
@@ -1239,7 +1260,7 @@ export default function PRFMonitoring() {
                                           </div>
                                         )}
                                         {item.Notes && (
-                                          <div className="text-xs text-gray-500 mt-1 italic">
+                                          <div className="text-xs text-muted-foreground mt-1 italic">
                                             Note: {item.Notes}
                                           </div>
                                         )}
@@ -1247,16 +1268,16 @@ export default function PRFMonitoring() {
                                       <div className="text-right flex items-center gap-2">
                                         <div>
                                           <div className="text-sm font-medium">{formatCurrency(item.UnitPrice)}</div>
-                                          <div className="text-xs text-gray-500">Qty: {item.Quantity}</div>
+                                          <div className="text-xs text-muted-foreground">Qty: {item.Quantity}</div>
                                           {item.TotalPrice && (
-                                            <div className="text-xs font-medium text-gray-700">Total: {formatCurrency(item.TotalPrice)}</div>
+                                            <div className="text-xs font-medium text-foreground/80">Total: {formatCurrency(item.TotalPrice)}</div>
                                           )}
                                         </div>
                                         <Button
                                           size="sm"
                                           variant="outline"
                                           onClick={() => handleItemModification(item)}
-                                          className="ml-2"
+                                          className="ml-2 rounded-md border-border/60 bg-white shadow-sm"
                                         >
                                           <Edit className="h-3 w-3" />
                                         </Button>

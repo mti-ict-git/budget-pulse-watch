@@ -60,6 +60,12 @@ const getProgressColor = (percent: number) => {
 };
 
 export default function BudgetOverview() {
+  const currentYear = new Date().getFullYear();
+  const earliestYear = 2021;
+  const yearOptions = Array.from(
+    { length: Math.max(currentYear - earliestYear + 1, 1) },
+    (_, index) => (currentYear - index).toString()
+  );
   const [budgetData, setBudgetData] = useState<CostCodeBudget[]>([]);
   const [budgetSummary, setBudgetSummary] = useState<BudgetSummary | null>(null);
   const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetrics | null>(null);
@@ -78,7 +84,7 @@ export default function BudgetOverview() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
-  const [selectedFiscalYear, setSelectedFiscalYear] = useState<string>(new Date().getFullYear().toString());
+  const [selectedFiscalYear, setSelectedFiscalYear] = useState<string>('all');
 
   const loadBudgetData = async (searchParams?: { search?: string; status?: string; fiscalYear?: number | string }) => {
     try {
@@ -256,26 +262,26 @@ export default function BudgetOverview() {
   // CAPEX and OPEX utilization data is now handled by the UtilizationChart component using utilizationData
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-muted/30">
       <div className="container mx-auto p-4 lg:p-6 space-y-6">
         {/* Page Header */}
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-4 border-b">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 p-4 lg:p-6 bg-card border border-border/60 rounded-xl shadow-sm">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Budget Overview</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight text-foreground">Budget Overview</h1>
+            <p className="text-sm text-muted-foreground mt-1">
               Monitor budget allocation and utilization across categories
             </p>
           </div>
-          <div className="flex gap-2 w-full lg:w-auto">
-            <Button variant="outline" onClick={() => loadBudgetData()} disabled={loading} className="flex-1 lg:flex-none">
+          <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+            <Button variant="outline" onClick={() => loadBudgetData()} disabled={loading} className="flex-1 lg:flex-none gap-2 shadow-sm">
               <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
               Refresh
             </Button>
-            <Button variant="outline" className="flex-1 lg:flex-none">
+            <Button variant="outline" className="flex-1 lg:flex-none gap-2 shadow-sm">
               <Download className="h-4 w-4" />
               Export Report
             </Button>
-            <Button onClick={() => setCreateDialogOpen(true)} className="flex-1 lg:flex-none">
+            <Button onClick={() => setCreateDialogOpen(true)} className="flex-1 lg:flex-none gap-2 shadow-sm">
               <Plus className="h-4 w-4" />
               Create Budget
             </Button>
@@ -283,7 +289,7 @@ export default function BudgetOverview() {
         </div>
 
         {/* Search and Filter Controls */}
-        <Card className="p-4">
+        <Card className="dashboard-card p-4 rounded-xl shadow-sm">
           <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
             <div className="flex flex-col sm:flex-row gap-3 flex-1 w-full lg:w-auto">
               <div className="relative flex-1 max-w-sm">
@@ -292,7 +298,7 @@ export default function BudgetOverview() {
                   placeholder="Search budgets by code, name, category, or department..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 bg-background"
                 />
               </div>
               <Select 
@@ -308,11 +314,9 @@ export default function BudgetOverview() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Years</SelectItem>
-                  <SelectItem value="2025">2025</SelectItem>
-                  <SelectItem value="2024">2024</SelectItem>
-                  <SelectItem value="2023">2023</SelectItem>
-                  <SelectItem value="2022">2022</SelectItem>
-                  <SelectItem value="2021">2021</SelectItem>
+                  {yearOptions.map((year) => (
+                    <SelectItem key={year} value={year}>{year}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -342,63 +346,65 @@ export default function BudgetOverview() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-        <Card className="metric-card min-h-[120px]">
-          <CardContent className="p-4 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-2">
+        <Card className="metric-card min-h-[120px] rounded-xl shadow-sm overflow-hidden">
+          <CardContent className="p-4 lg:p-6 h-full">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 h-full">
+              <div className="space-y-1 min-w-0">
                 <p className="text-sm font-medium text-muted-foreground">Total Budget</p>
-                <p className="text-xl lg:text-2xl font-bold break-words">{formatCurrency(totalInitialBudget)}</p>
+                <p className="text-xl lg:text-2xl font-semibold tracking-tight tabular-nums leading-tight break-words">{formatCurrency(totalInitialBudget)}</p>
+                <p className="text-xs text-muted-foreground">Budget allocated</p>
               </div>
-              <div className="h-10 w-10 lg:h-12 lg:w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <Wallet className="h-5 w-5 lg:h-6 lg:w-6 text-primary" />
+              <div className="h-10 w-10 lg:h-11 lg:w-11 rounded-full bg-primary/10 flex items-center justify-center shrink-0 self-start sm:self-center">
+                <Wallet className="h-5 w-5 text-primary" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="metric-card min-h-[120px]">
-          <CardContent className="p-4 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-2">
+        <Card className="metric-card min-h-[120px] rounded-xl shadow-sm overflow-hidden">
+          <CardContent className="p-4 lg:p-6 h-full">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 h-full">
+              <div className="space-y-1 min-w-0">
                 <p className="text-sm font-medium text-muted-foreground">Total Spent</p>
-                <p className="text-xl lg:text-2xl font-bold break-words">{formatCurrency(totalSpent)}</p>
+                <p className="text-xl lg:text-2xl font-semibold tracking-tight tabular-nums leading-tight break-words">{formatCurrency(totalSpent)}</p>
                 <p className="text-xs text-muted-foreground">
                   {overallUtilization.toFixed(1)}% utilized
                 </p>
               </div>
-              <div className="h-10 w-10 lg:h-12 lg:w-12 rounded-full bg-expense/10 flex items-center justify-center">
-                <TrendingDown className="h-5 w-5 lg:h-6 lg:w-6 text-expense" />
+              <div className="h-10 w-10 lg:h-11 lg:w-11 rounded-full bg-expense/10 flex items-center justify-center shrink-0 self-start sm:self-center">
+                <TrendingDown className="h-5 w-5 text-expense" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="metric-card min-h-[120px]">
-          <CardContent className="p-4 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-2">
+        <Card className="metric-card min-h-[120px] rounded-xl shadow-sm overflow-hidden">
+          <CardContent className="p-4 lg:p-6 h-full">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 h-full">
+              <div className="space-y-1 min-w-0">
                 <p className="text-sm font-medium text-muted-foreground">Remaining</p>
-                <p className={cn("text-xl lg:text-2xl font-bold break-words", totalRemaining < 0 ? "text-destructive" : "text-foreground")}>
+                <p className={cn("text-xl lg:text-2xl font-semibold tracking-tight tabular-nums leading-tight break-words", totalRemaining < 0 ? "text-destructive" : "text-foreground")}>
                   {formatCurrency(totalRemaining)}
                 </p>
+                <p className="text-xs text-muted-foreground">Budget balance</p>
               </div>
-              <div className="h-10 w-10 lg:h-12 lg:w-12 rounded-full bg-success/10 flex items-center justify-center">
-                <TrendingUp className="h-5 w-5 lg:h-6 lg:w-6 text-success" />
+              <div className="h-10 w-10 lg:h-11 lg:w-11 rounded-full bg-success/10 flex items-center justify-center shrink-0 self-start sm:self-center">
+                <TrendingUp className="h-5 w-5 text-success" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="metric-card min-h-[120px]">
-          <CardContent className="p-4 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-2">
+        <Card className="metric-card min-h-[120px] rounded-xl shadow-sm overflow-hidden">
+          <CardContent className="p-4 lg:p-6 h-full">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 h-full">
+              <div className="space-y-1 min-w-0">
                 <p className="text-sm font-medium text-muted-foreground">Alerts</p>
-                <p className="text-xl lg:text-2xl font-bold text-warning">{alertCount}</p>
+                <p className="text-xl lg:text-2xl font-semibold tracking-tight tabular-nums text-warning leading-tight">{alertCount}</p>
                 <p className="text-xs text-muted-foreground">Categories need attention</p>
               </div>
-              <div className="h-10 w-10 lg:h-12 lg:w-12 rounded-full bg-warning/10 flex items-center justify-center">
-                <AlertTriangle className="h-5 w-5 lg:h-6 lg:w-6 text-warning" />
+              <div className="h-10 w-10 lg:h-11 lg:w-11 rounded-full bg-warning/10 flex items-center justify-center shrink-0 self-start sm:self-center">
+                <AlertTriangle className="h-5 w-5 text-warning" />
               </div>
             </div>
           </CardContent>
@@ -411,14 +417,14 @@ export default function BudgetOverview() {
           title="CAPEX Utilization"
           data={utilizationData}
           expenseType="CAPEX"
-          className="min-h-[350px]"
+          className="min-h-[350px] dashboard-card rounded-xl shadow-sm"
         />
         
         <UtilizationChart
           title="OPEX Utilization"
           data={utilizationData}
           expenseType="OPEX"
-          className="min-h-[350px]"
+          className="min-h-[350px] dashboard-card rounded-xl shadow-sm"
         />
       </div>
 
@@ -433,8 +439,8 @@ export default function BudgetOverview() {
 
 
       {/* Budget Details Table */}
-      <Card className="mt-6">
-        <CardHeader className="pb-4">
+      <Card className="mt-6 dashboard-card rounded-xl shadow-sm">
+        <CardHeader className="pb-4 border-b border-border/50">
           <CardTitle className="text-lg">Budget Details by Category</CardTitle>
           <p className="text-sm text-muted-foreground">
             {budgetData.length} budget{budgetData.length !== 1 ? 's' : ''} found
@@ -454,7 +460,7 @@ export default function BudgetOverview() {
           ) : (
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
+                <TableHeader className="bg-muted/40">
                   <TableRow className="border-b">
                     <TableHead className="min-w-[120px]">COA</TableHead>
                     <TableHead className="min-w-[200px]">Category</TableHead>

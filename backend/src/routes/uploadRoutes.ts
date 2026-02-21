@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { ocrService } from '../services/ocrService';
+import { getOCRService } from '../services/ocrService';
 import path from 'path';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
@@ -38,6 +38,7 @@ const upload = multer({
 // Upload and process PRF document
 router.post('/prf-document', authenticateToken, requireContentManager, upload.single('document'), async (req, res) => {
   try {
+    const ocrService = getOCRService();
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -101,6 +102,7 @@ router.post('/prf-document', authenticateToken, requireContentManager, upload.si
 // Test OCR service endpoint
 router.get('/ocr/test', async (req, res) => {
   try {
+    const ocrService = getOCRService();
     const testResult = await ocrService.testConnection();
     res.json(testResult);
   } catch (error) {
@@ -114,6 +116,7 @@ router.get('/ocr/test', async (req, res) => {
 // Get OCR service status
 router.get('/ocr/status', async (req, res) => {
   try {
+    const ocrService = getOCRService();
     const isEnabled = await ocrService.isEnabled();
     res.json({
       enabled: isEnabled,

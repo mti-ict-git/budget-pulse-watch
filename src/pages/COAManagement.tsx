@@ -274,90 +274,128 @@ export default function COAManagement() {
   const departments = [...new Set(accounts.map(acc => acc.Department).filter(Boolean))];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Chart of Accounts</h1>
-          <p className="text-muted-foreground">
-            Manage your organization's chart of accounts
-          </p>
+    <div className="min-h-screen bg-muted/30 -m-6 p-4 lg:p-6 space-y-6">
+      <div className="metronic-card p-5 lg:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl lg:text-3xl font-semibold text-foreground">Chart of Accounts</h1>
+              <Badge variant="secondary" className="bg-muted text-muted-foreground">
+                COA Management
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage your organization's chart of accounts
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="border-primary/20 text-primary">
+              {showActiveOnly ? 'Active Only' : 'All Accounts'}
+            </Badge>
+            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+              <DialogTrigger asChild>
+                <Button className="shadow-sm">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Account
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Create New Account</DialogTitle>
+                  <DialogDescription>
+                    Add a new account to your chart of accounts.
+                  </DialogDescription>
+                </DialogHeader>
+                <COAForm onSuccess={handleAccountSuccess} />
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Account
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Create New Account</DialogTitle>
-              <DialogDescription>
-                Add a new account to your chart of accounts.
-              </DialogDescription>
-            </DialogHeader>
-            <COAForm onSuccess={handleAccountSuccess} />
-          </DialogContent>
-        </Dialog>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Accounts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalAccounts}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Accounts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {accounts.filter(acc => acc.IsActive).length}
+      <div className="grid gap-4 lg:gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <Card className="metric-card min-h-[120px] rounded-xl shadow-sm">
+          <CardContent className="p-4 lg:p-6 h-full">
+            <div className="flex items-start justify-between gap-4 h-full">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Total Accounts</p>
+                <p className="text-xl lg:text-2xl font-semibold tracking-tight tabular-nums">{totalAccounts}</p>
+                <p className="text-xs text-muted-foreground">All registered COA</p>
+              </div>
+              <div className="h-10 w-10 lg:h-11 lg:w-11 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <Users className="h-5 w-5 text-primary" />
+              </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Categories</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{categories.length}</div>
+        <Card className="metric-card min-h-[120px] rounded-xl shadow-sm">
+          <CardContent className="p-4 lg:p-6 h-full">
+            <div className="flex items-start justify-between gap-4 h-full">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Active Accounts</p>
+                <p className="text-xl lg:text-2xl font-semibold tracking-tight tabular-nums">
+                  {accounts.filter(acc => acc.IsActive).length}
+                </p>
+                <p className="text-xs text-muted-foreground">Currently active</p>
+              </div>
+              <div className="h-10 w-10 lg:h-11 lg:w-11 rounded-full bg-success/10 flex items-center justify-center shrink-0">
+                <Building className="h-5 w-5 text-success" />
+              </div>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Departments</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{departments.length}</div>
+        <Card className="metric-card min-h-[120px] rounded-xl shadow-sm">
+          <CardContent className="p-4 lg:p-6 h-full">
+            <div className="flex items-start justify-between gap-4 h-full">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Categories</p>
+                <p className="text-xl lg:text-2xl font-semibold tracking-tight tabular-nums">{categories.length}</p>
+                <p className="text-xs text-muted-foreground">Distinct categories</p>
+              </div>
+              <div className="h-10 w-10 lg:h-11 lg:w-11 rounded-full bg-warning/10 flex items-center justify-center shrink-0">
+                <Filter className="h-5 w-5 text-warning" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="metric-card min-h-[120px] rounded-xl shadow-sm">
+          <CardContent className="p-4 lg:p-6 h-full">
+            <div className="flex items-start justify-between gap-4 h-full">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Departments</p>
+                <p className="text-xl lg:text-2xl font-semibold tracking-tight tabular-nums">{departments.length}</p>
+                <p className="text-xs text-muted-foreground">Coverage across org</p>
+              </div>
+              <div className="h-10 w-10 lg:h-11 lg:w-11 rounded-full bg-muted flex items-center justify-center shrink-0">
+                <Download className="h-5 w-5 text-muted-foreground" />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
+      <Card className="metronic-card">
+        <CardHeader className="pb-3 border-b border-border/50">
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="text-base font-semibold">Filters</CardTitle>
+            <Badge variant="secondary" className="bg-muted text-muted-foreground">Refine results</Badge>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           <div className="grid gap-4 md:grid-cols-6">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <div className="relative md:col-span-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search accounts..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8"
+                className="pl-9"
               />
             </div>
             <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger>
+              <SelectTrigger className="bg-background">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
@@ -370,7 +408,7 @@ export default function COAManagement() {
               </SelectContent>
             </Select>
             <Select value={selectedExpenseType} onValueChange={setSelectedExpenseType}>
-              <SelectTrigger>
+              <SelectTrigger className="bg-background">
                 <SelectValue placeholder="Expense Type" />
               </SelectTrigger>
               <SelectContent>
@@ -380,7 +418,7 @@ export default function COAManagement() {
               </SelectContent>
             </Select>
             <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-              <SelectTrigger>
+              <SelectTrigger className="bg-background">
                 <SelectValue placeholder="Department" />
               </SelectTrigger>
               <SelectContent>
@@ -393,7 +431,7 @@ export default function COAManagement() {
               </SelectContent>
             </Select>
             <Select value={showActiveOnly ? 'active' : 'all'} onValueChange={(value) => setShowActiveOnly(value === 'active')}>
-              <SelectTrigger>
+              <SelectTrigger className="bg-background">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -403,6 +441,7 @@ export default function COAManagement() {
             </Select>
             <Button
               variant="outline"
+              className="border-border/60"
               onClick={() => {
                 setSearchTerm('');
                 setSelectedCategory('');
@@ -421,7 +460,7 @@ export default function COAManagement() {
 
       {/* Bulk Actions Toolbar */}
       {showBulkActions && (
-        <Card className="border-blue-200 bg-blue-50">
+        <Card className="metronic-card border-primary/20 bg-primary/5">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -430,7 +469,7 @@ export default function COAManagement() {
                 </span>
                 <div className="flex items-center gap-2">
                   <Select value={bulkDepartment} onValueChange={setBulkDepartment}>
-                    <SelectTrigger className="w-40">
+                    <SelectTrigger className="w-40 bg-background">
                       <SelectValue placeholder="Set Department" />
                     </SelectTrigger>
                     <SelectContent>
@@ -439,7 +478,7 @@ export default function COAManagement() {
                     </SelectContent>
                   </Select>
                   <Select value={bulkExpenseType} onValueChange={setBulkExpenseType}>
-                    <SelectTrigger className="w-32">
+                    <SelectTrigger className="w-32 bg-background">
                       <SelectValue placeholder="Set Type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -499,15 +538,20 @@ export default function COAManagement() {
       )}
 
       {/* Data Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Accounts</CardTitle>
-          <CardDescription>
-            {totalAccounts} total accounts found
-          </CardDescription>
+      <Card className="metronic-card">
+        <CardHeader className="pb-3 border-b border-border/50">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-base font-semibold">Accounts</CardTitle>
+              <CardDescription>
+                {totalAccounts} total accounts found
+              </CardDescription>
+            </div>
+            <Badge variant="outline" className="border-border/60 text-muted-foreground">Table View</Badge>
+          </div>
         </CardHeader>
-        <CardContent>
-          <div className="rounded-md border">
+        <CardContent className="pt-4">
+          <div className="rounded-lg border border-border/60 bg-background">
             <Table>
               <TableHeader>
                 <TableRow>

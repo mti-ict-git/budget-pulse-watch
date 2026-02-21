@@ -207,7 +207,6 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
     // Query that includes both cost code budgets and standalone budgets without cost codes
     const query = `
       WITH BudgetAllocations AS (
-        -- Get actual budget allocations by COA and fiscal year
         SELECT 
           b.COAID,
           b.FiscalYear,
@@ -223,7 +222,6 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
         GROUP BY b.COAID, b.FiscalYear, coa.COACode, coa.COAName, coa.Department, coa.ExpenseType
       ),
       CostCodeSpending AS (
-        -- Get spending data by cost codes
         SELECT 
           p.PurchaseCostCode,
           p.COAID,
@@ -240,53 +238,45 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
           ${fiscalYear ? `AND p.BudgetYear = ${fiscalYear}` : ''}
         GROUP BY p.PurchaseCostCode, p.COAID, p.BudgetYear
       ),
-      CostCodeBudgetSummary AS (
-        -- Join budget allocations with cost code spending
+      CostCodeKeys AS (
         SELECT 
-          cs.PurchaseCostCode,
-          cs.COAID,
-          COALESCE(ba.COACode, coa.COACode) as COACode,
-          COALESCE(ba.COAName, coa.COAName) as COAName,
-          COALESCE(ba.Department, coa.Department) as Department,
-          COALESCE(ba.ExpenseType, coa.ExpenseType) as ExpenseType,
-          COALESCE(SUM(ba.TotalAllocated), 0) as GrandTotalAllocated,
-          SUM(cs.TotalRequested) as GrandTotalRequested,
-          SUM(cs.TotalApproved) as GrandTotalApproved,
-          SUM(cs.TotalActual) as GrandTotalActual,
-          SUM(cs.RequestCount) as TotalRequests,
-          COUNT(DISTINCT cs.BudgetYear) as YearsActive,
-          MIN(cs.BudgetYear) as FirstYear,
-          MAX(cs.BudgetYear) as LastYear
-        FROM CostCodeSpending cs
-        LEFT JOIN BudgetAllocations ba ON cs.PurchaseCostCode = ba.COACode AND cs.BudgetYear = ba.FiscalYear
-        LEFT JOIN ChartOfAccounts coa ON cs.PurchaseCostCode = coa.COACode
-        GROUP BY cs.PurchaseCostCode, cs.COAID, COALESCE(ba.COACode, coa.COACode), COALESCE(ba.COAName, coa.COAName), COALESCE(ba.Department, coa.Department), COALESCE(ba.ExpenseType, coa.ExpenseType)
-        
-        UNION ALL
-        
-        -- Include budgets without cost code mappings
-        SELECT 
-          'NO_COST_CODE_' + ba.COACode as PurchaseCostCode,
           ba.COAID,
           ba.COACode,
           ba.COAName,
           ba.Department,
           ba.ExpenseType,
-          SUM(ba.TotalAllocated) as GrandTotalAllocated,
-          0 as GrandTotalRequested,
-          0 as GrandTotalApproved,
-          0 as GrandTotalActual,
-          0 as TotalRequests,
-          COUNT(DISTINCT ba.FiscalYear) as YearsActive,
-          MIN(ba.FiscalYear) as FirstYear,
-          MAX(ba.FiscalYear) as LastYear
+          ba.FiscalYear as BudgetYear
         FROM BudgetAllocations ba
-        WHERE ba.COACode NOT IN (
-          SELECT DISTINCT p.PurchaseCostCode 
-          FROM dbo.PRF p 
-          WHERE p.PurchaseCostCode IS NOT NULL AND p.PurchaseCostCode != ''
-        )
-        GROUP BY ba.COAID, ba.COACode, ba.COAName, ba.Department, ba.ExpenseType
+        UNION
+        SELECT 
+          coa.COAID,
+          COALESCE(coa.COACode, cs.PurchaseCostCode) as COACode,
+          coa.COAName,
+          coa.Department,
+          coa.ExpenseType,
+          cs.BudgetYear
+        FROM CostCodeSpending cs
+        LEFT JOIN ChartOfAccounts coa ON cs.PurchaseCostCode = coa.COACode
+      ),
+      CostCodeBudgetSummary AS (
+        SELECT 
+          cck.COACode as PurchaseCostCode,
+          cck.COACode as COACode,
+          cck.COAName,
+          cck.Department,
+          cck.ExpenseType,
+          COALESCE(SUM(ba.TotalAllocated), 0) as GrandTotalAllocated,
+          COALESCE(SUM(cs.TotalRequested), 0) as GrandTotalRequested,
+          COALESCE(SUM(cs.TotalApproved), 0) as GrandTotalApproved,
+          COALESCE(SUM(cs.TotalActual), 0) as GrandTotalActual,
+          COALESCE(SUM(cs.RequestCount), 0) as TotalRequests,
+          COUNT(DISTINCT cck.BudgetYear) as YearsActive,
+          MIN(cck.BudgetYear) as FirstYear,
+          MAX(cck.BudgetYear) as LastYear
+        FROM CostCodeKeys cck
+        LEFT JOIN BudgetAllocations ba ON ba.COACode = cck.COACode AND ba.FiscalYear = cck.BudgetYear
+        LEFT JOIN CostCodeSpending cs ON cs.PurchaseCostCode = cck.COACode AND cs.BudgetYear = cck.BudgetYear
+        GROUP BY cck.COACode, cck.COAName, cck.Department, cck.ExpenseType
       )
       SELECT 
         cbs.PurchaseCostCode,

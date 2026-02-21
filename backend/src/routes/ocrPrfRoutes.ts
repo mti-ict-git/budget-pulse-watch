@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { ocrService } from '../services/ocrService';
+import { getOCRService } from '../services/ocrService';
 import { PRFModel } from '../models/PRF';
 import { CreatePRFRequest, CreatePRFItemRequest } from '../models/types';
 import { v4 as uuidv4 } from 'uuid';
@@ -45,6 +45,7 @@ const upload = multer({
 // Create PRF from uploaded document using OCR
 router.post('/create-from-document', authenticateToken, requireContentManager, upload.single('document'), async (req, res) => {
   try {
+    const ocrService = getOCRService();
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -253,6 +254,7 @@ router.post('/create-from-document', authenticateToken, requireContentManager, u
 // Preview OCR extraction without creating PRF
 router.post('/preview-extraction', authenticateToken, requireContentManager, upload.single('document'), async (req, res) => {
   try {
+    const ocrService = getOCRService();
     if (!req.file) {
       return res.status(400).json({
         success: false,

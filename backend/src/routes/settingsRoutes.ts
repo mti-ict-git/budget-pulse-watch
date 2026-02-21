@@ -245,7 +245,8 @@ router.post('/ocr/test', async (req: Request, res: Response) => {
     }
 
     // Import OCR service for testing
-    const { ocrService } = await import('../services/ocrService');
+    const { getOCRService } = await import('../services/ocrService');
+    const ocrService = getOCRService();
     const testResult = await ocrService.testConnection(apiKey, provider || 'gemini');
     
     return res.json(testResult);
