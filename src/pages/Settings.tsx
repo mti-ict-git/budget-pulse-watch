@@ -1302,14 +1302,30 @@ const Settings: React.FC = () => {
                       <Label htmlFor="dedupe-year">Budget Year (optional)</Label>
                       <Input id="dedupe-year" value={dedupeBudgetYear} onChange={(e) => setDedupeBudgetYear(e.target.value)} placeholder="e.g., 2024" />
                     </div>
-                    <div className="col-span-12 md:col-span-4 flex items-end gap-2">
-                      <Button onClick={previewDuplicatePRFItems} disabled={isPreviewing} variant="outline">
-                        {isPreviewing ? 'Previewing...' : 'Preview Duplicates'}
-                      </Button>
-                      <Button onClick={removeDuplicatePRFItems} disabled={isDeduping} variant="destructive">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        {isDeduping ? 'Removing...' : 'Delete Duplicates'}
-                      </Button>
+                    <div className="col-span-12 md:col-span-4">
+                      <div className="grid grid-cols-12 gap-2 items-end">
+                        <div className="col-span-12 md:col-span-6">
+                          <Button
+                            onClick={previewDuplicatePRFItems}
+                            disabled={isPreviewing}
+                            variant="outline"
+                            className="w-full"
+                          >
+                            {isPreviewing ? 'Previewing...' : 'Preview Duplicates'}
+                          </Button>
+                        </div>
+                        <div className="col-span-12 md:col-span-6">
+                          <Button
+                            onClick={removeDuplicatePRFItems}
+                            disabled={isDeduping}
+                            variant="destructive"
+                            className="w-full"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            {isDeduping ? 'Removing...' : 'Delete Duplicates'}
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   {previewTotal !== null && (
