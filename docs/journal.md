@@ -213,6 +213,9 @@ Mon Mar  2 19:17:36 WIB 2026
 
 Mon Mar  2 19:20:01 WIB 2026
 - Fixed Vite dev proxy default to backend port 3000 for local login
+
+Mon Mar  2 20:43:42 WIB 2026
+- Added filesystem usage status (df-like) for /app/shared-documents and root in Settings > General
 194→
 195→2026-02-12 20:43:14 +0800
 196→196→- Added mobile/ directory to .gitignore to keep local mobile client untracked

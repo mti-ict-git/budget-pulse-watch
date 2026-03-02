@@ -11,6 +11,7 @@ import { Eye, EyeOff, Save, TestTube, Users, Search, UserPlus, UserMinus, Shield
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { authService } from '@/services/authService';
+import { formatBytes } from '@/lib/utils';
 
 interface OCRSettings {
   provider: 'gemini' | 'openai';
@@ -45,6 +46,26 @@ type GeneralSettingsResponse = {
   effectiveSharedFolderPath?: string;
   effectiveSharedFolderPathSource?: 'env' | 'settings';
   envSharedFolderPath?: string;
+  dockerShareMount?: FileSystemMountStatus;
+  rootFsMount?: FileSystemMountStatus;
+};
+
+type FileSystemUsage = {
+  sizeBytes: number;
+  usedBytes: number;
+  availBytes: number;
+  usePercent: number;
+};
+
+type FileSystemMountStatus = {
+  path: string;
+  inDocker: boolean;
+  mounted: boolean;
+  source: string | null;
+  mountPoint: string | null;
+  fsType: string | null;
+  isCifs: boolean;
+  usage: FileSystemUsage | null;
 };
 
 interface LDAPUser {
@@ -124,6 +145,8 @@ const Settings: React.FC = () => {
   const [effectiveSharedFolderPathSource, setEffectiveSharedFolderPathSource] = useState<
     'env' | 'settings' | ''
   >('');
+  const [dockerShareMount, setDockerShareMount] = useState<FileSystemMountStatus | null>(null);
+  const [rootFsMount, setRootFsMount] = useState<FileSystemMountStatus | null>(null);
   const [newUser, setNewUser] = useState({
     Username: '',
     Email: '',
@@ -196,6 +219,8 @@ const Settings: React.FC = () => {
         });
         setEffectiveSharedFolderPath(settings.effectiveSharedFolderPath || '');
         setEffectiveSharedFolderPathSource(settings.effectiveSharedFolderPathSource || '');
+        setDockerShareMount(settings.dockerShareMount || null);
+        setRootFsMount(settings.rootFsMount || null);
       }
     } catch (error) {
       console.error('Failed to load OCR settings:', error);
@@ -676,6 +701,42 @@ const Settings: React.FC = () => {
     setSharedFolderTestResult(null);
   };
 
+  const getMountBadgeVariant = (status: FileSystemMountStatus): 'success' | 'warning' | 'destructive' => {
+    if (!status.mounted) return 'destructive';
+    if (status.fsType === 'cifs') return 'success';
+    return 'warning';
+  };
+
+  const renderMountRow = (status: FileSystemMountStatus) => {
+    const usage = status.usage;
+    const usePercent = usage ? `${usage.usePercent}%` : '-';
+    const size = usage ? formatBytes(usage.sizeBytes, 1) : '-';
+    const used = usage ? formatBytes(usage.usedBytes, 1) : '-';
+    const avail = usage ? formatBytes(usage.availBytes, 1) : '-';
+
+    return (
+      <div className="grid grid-cols-12 gap-4 items-center text-sm">
+        <div className="col-span-12 md:col-span-3 break-all">
+          <div className="font-medium">{status.mountPoint ?? status.path}</div>
+          {status.fsType && <div className="text-xs text-muted-foreground">{status.fsType}</div>}
+        </div>
+        <div className="col-span-12 md:col-span-5 break-all">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={getMountBadgeVariant(status)}>
+              {status.mounted ? 'Mounted' : 'Not mounted'}
+            </Badge>
+            {status.fsType === 'cifs' && <Badge variant="success">CIFS</Badge>}
+          </div>
+          <div className="text-xs text-muted-foreground break-all">{status.source ?? '-'}</div>
+        </div>
+        <div className="col-span-6 md:col-span-1 text-right">{size}</div>
+        <div className="col-span-6 md:col-span-1 text-right">{used}</div>
+        <div className="col-span-6 md:col-span-1 text-right">{avail}</div>
+        <div className="col-span-6 md:col-span-1 text-right">{usePercent}</div>
+      </div>
+    );
+  };
+
   const testSharedFolderPath = async () => {
     const inputPath = generalSettings.sharedFolderPath.trim();
     const testPath = inputPath.length > 0 ? inputPath : effectiveSharedFolderPath.trim();
@@ -1138,6 +1199,35 @@ const Settings: React.FC = () => {
                           SHARED_FOLDER_PATH from environment overrides the saved setting.
                         </div>
                       )}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {(dockerShareMount || rootFsMount) && (
+                  <Alert>
+                    <AlertDescription>
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium">Filesystem status</span>
+                          {dockerShareMount && (
+                            <Badge variant={getMountBadgeVariant(dockerShareMount)}>
+                              /app/shared-documents
+                            </Badge>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-12 gap-4 text-xs text-muted-foreground">
+                          <div className="col-span-12 md:col-span-3">Mount</div>
+                          <div className="col-span-12 md:col-span-5">Filesystem</div>
+                          <div className="col-span-6 md:col-span-1 text-right">Size</div>
+                          <div className="col-span-6 md:col-span-1 text-right">Used</div>
+                          <div className="col-span-6 md:col-span-1 text-right">Avail</div>
+                          <div className="col-span-6 md:col-span-1 text-right">Use%</div>
+                        </div>
+
+                        {dockerShareMount && renderMountRow(dockerShareMount)}
+                        {rootFsMount && renderMountRow(rootFsMount)}
+                      </div>
                     </AlertDescription>
                   </Alert>
                 )}

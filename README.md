@@ -91,6 +91,7 @@ Protected endpoints require a Bearer JWT in the Authorization header.
 - UI: Settings > General > Shared Folder Path > Test
 - Effective shared folder path uses `SHARED_FOLDER_PATH` from environment when set (recommended for production); the saved GUI setting is a fallback
 - Test shows resolved path and, in Docker/Linux, whether `/app/shared-documents` is mounted as CIFS
+- General tab also shows df-like filesystem usage for `/app/shared-documents` (share) and `/` (root/overlay)
 
 ## Cloud Sync to OneDrive Excel
 

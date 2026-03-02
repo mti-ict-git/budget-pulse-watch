@@ -45,6 +45,24 @@ type FolderMountInfo = {
   isCifs: boolean;
 };
 
+type FileSystemUsage = {
+  sizeBytes: number;
+  usedBytes: number;
+  availBytes: number;
+  usePercent: number;
+};
+
+type FileSystemMountStatus = {
+  path: string;
+  inDocker: boolean;
+  mounted: boolean;
+  source: string | null;
+  mountPoint: string | null;
+  fsType: string | null;
+  isCifs: boolean;
+  usage: FileSystemUsage | null;
+};
+
 function convertWindowsNetworkPathToDockerPath(windowsPath: string): string {
   const dockerMountPath = '/app/shared-documents';
   let relativePath = windowsPath
@@ -61,10 +79,15 @@ function convertWindowsNetworkPathToDockerPath(windowsPath: string): string {
   return path.posix.join(dockerMountPath, relativePath);
 }
 
-async function getFolderMountInfo(resolvedPath: string): Promise<FolderMountInfo> {
-  const inDocker = isRunningInDocker();
-  if (!inDocker || process.platform !== 'linux') {
-    return { inDocker, mountPoint: null, fsType: null, isCifs: false };
+type ProcMountEntry = {
+  source: string;
+  mountPoint: string;
+  fsType: string;
+};
+
+async function getProcMountEntry(resolvedPath: string): Promise<ProcMountEntry | null> {
+  if (process.platform !== 'linux') {
+    return null;
   }
 
   try {
@@ -75,11 +98,73 @@ async function getFolderMountInfo(resolvedPath: string): Promise<FolderMountInfo
       .filter((line) => line.length > 0)
       .map((line) => line.split(/\s+/))
       .filter((parts) => parts.length >= 3)
-      .map((parts) => ({ mountPoint: parts[1], fsType: parts[2] }));
+      .map((parts) => ({ source: parts[0], mountPoint: parts[1], fsType: parts[2] }));
 
     const match = mounts
       .filter((entry) => resolvedPath === entry.mountPoint || resolvedPath.startsWith(`${entry.mountPoint}/`))
       .sort((a, b) => b.mountPoint.length - a.mountPoint.length)[0];
+
+    return match ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function getFileSystemUsage(targetPath: string): Promise<FileSystemUsage | null> {
+  try {
+    const stats = await fs.statfs(targetPath);
+    const sizeBytes = stats.bsize * stats.blocks;
+    const usedBytes = stats.bsize * (stats.blocks - stats.bfree);
+    const availBytes = stats.bsize * stats.bavail;
+    const denominator = usedBytes + availBytes;
+    const usePercent = denominator > 0 ? Math.round((usedBytes / denominator) * 1000) / 10 : 0;
+
+    return { sizeBytes, usedBytes, availBytes, usePercent };
+  } catch {
+    return null;
+  }
+}
+
+async function getFileSystemMountStatus(targetPath: string): Promise<FileSystemMountStatus> {
+  const inDocker = isRunningInDocker();
+  if (!inDocker || process.platform !== 'linux') {
+    return {
+      path: targetPath,
+      inDocker,
+      mounted: false,
+      source: null,
+      mountPoint: null,
+      fsType: null,
+      isCifs: false,
+      usage: null
+    };
+  }
+
+  const entry = await getProcMountEntry(targetPath);
+  const mounted = entry !== null;
+  const isCifs = entry?.fsType === 'cifs';
+  const usage = await getFileSystemUsage(targetPath);
+
+  return {
+    path: targetPath,
+    inDocker,
+    mounted,
+    source: entry?.source ?? null,
+    mountPoint: entry?.mountPoint ?? null,
+    fsType: entry?.fsType ?? null,
+    isCifs,
+    usage
+  };
+}
+
+async function getFolderMountInfo(resolvedPath: string): Promise<FolderMountInfo> {
+  const inDocker = isRunningInDocker();
+  if (!inDocker || process.platform !== 'linux') {
+    return { inDocker, mountPoint: null, fsType: null, isCifs: false };
+  }
+
+  try {
+    const match = await getProcMountEntry(resolvedPath);
 
     if (!match) {
       return { inDocker, mountPoint: null, fsType: null, isCifs: false };
@@ -344,12 +429,16 @@ router.get('/general', async (req: Request, res: Response) => {
     const settingsSharedFolderPath = settings.general?.sharedFolderPath || '';
     const effectiveSharedFolderPath = envSharedFolderPath || settingsSharedFolderPath;
     const effectiveSharedFolderPathSource = envSharedFolderPath.length > 0 ? 'env' : 'settings';
+    const dockerShareMount = await getFileSystemMountStatus('/app/shared-documents');
+    const rootFsMount = await getFileSystemMountStatus('/');
 
     res.json({
       sharedFolderPath: settingsSharedFolderPath,
       effectiveSharedFolderPath,
       effectiveSharedFolderPathSource,
-      envSharedFolderPath: envSharedFolderPath.length > 0 ? envSharedFolderPath : ''
+      envSharedFolderPath: envSharedFolderPath.length > 0 ? envSharedFolderPath : '',
+      dockerShareMount,
+      rootFsMount
     });
   } catch (error) {
     console.error('Failed to load general settings:', error);
