@@ -339,9 +339,17 @@ router.get('/ocr/key', async (req: Request, res: Response) => {
 router.get('/general', async (req: Request, res: Response) => {
   try {
     const settings = await loadSettings();
-    
+    const envSharedFolderPath =
+      typeof process.env.SHARED_FOLDER_PATH === 'string' ? process.env.SHARED_FOLDER_PATH.trim() : '';
+    const settingsSharedFolderPath = settings.general?.sharedFolderPath || '';
+    const effectiveSharedFolderPath = envSharedFolderPath || settingsSharedFolderPath;
+    const effectiveSharedFolderPathSource = envSharedFolderPath.length > 0 ? 'env' : 'settings';
+
     res.json({
-      sharedFolderPath: settings.general?.sharedFolderPath || ''
+      sharedFolderPath: settingsSharedFolderPath,
+      effectiveSharedFolderPath,
+      effectiveSharedFolderPathSource,
+      envSharedFolderPath: envSharedFolderPath.length > 0 ? envSharedFolderPath : ''
     });
   } catch (error) {
     console.error('Failed to load general settings:', error);

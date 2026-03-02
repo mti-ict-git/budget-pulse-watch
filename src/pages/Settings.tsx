@@ -40,6 +40,13 @@ type TestFolderPathResult = {
   mount?: FolderMountInfo;
 };
 
+type GeneralSettingsResponse = {
+  sharedFolderPath?: string;
+  effectiveSharedFolderPath?: string;
+  effectiveSharedFolderPathSource?: 'env' | 'settings';
+  envSharedFolderPath?: string;
+};
+
 interface LDAPUser {
   Username: string;
   FullName?: string;
@@ -113,6 +120,10 @@ const Settings: React.FC = () => {
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<EditableUser | null>(null);
   const [sharedFolderTestResult, setSharedFolderTestResult] = useState<TestFolderPathResult | null>(null);
+  const [effectiveSharedFolderPath, setEffectiveSharedFolderPath] = useState('');
+  const [effectiveSharedFolderPathSource, setEffectiveSharedFolderPathSource] = useState<
+    'env' | 'settings' | ''
+  >('');
   const [newUser, setNewUser] = useState({
     Username: '',
     Email: '',
@@ -179,10 +190,12 @@ const Settings: React.FC = () => {
         headers: authService.getAuthHeaders()
       });
       if (generalResponse.ok) {
-        const settings = await generalResponse.json();
+        const settings = (await generalResponse.json()) as GeneralSettingsResponse;
         setGeneralSettings({
           sharedFolderPath: settings.sharedFolderPath || ''
         });
+        setEffectiveSharedFolderPath(settings.effectiveSharedFolderPath || '');
+        setEffectiveSharedFolderPathSource(settings.effectiveSharedFolderPathSource || '');
       }
     } catch (error) {
       console.error('Failed to load OCR settings:', error);
@@ -664,7 +677,10 @@ const Settings: React.FC = () => {
   };
 
   const testSharedFolderPath = async () => {
-    if (!generalSettings.sharedFolderPath.trim()) {
+    const inputPath = generalSettings.sharedFolderPath.trim();
+    const testPath = inputPath.length > 0 ? inputPath : effectiveSharedFolderPath.trim();
+
+    if (!testPath) {
       toast({
         title: 'Error',
         description: 'Please enter a shared folder path first.',
@@ -678,7 +694,7 @@ const Settings: React.FC = () => {
       const response = await fetch('/api/settings/test-folder-path', {
         method: 'POST',
         headers: authService.getAuthHeaders(),
-        body: JSON.stringify({ path: generalSettings.sharedFolderPath })
+        body: JSON.stringify({ path: testPath })
       });
 
       const result = (await response.json()) as TestFolderPathResult;
@@ -1106,6 +1122,25 @@ const Settings: React.FC = () => {
                     Specify the network path where PRF documents are stored. This path will be monitored for new files.
                   </p>
                 </div>
+
+                {effectiveSharedFolderPath.trim().length > 0 && (
+                  <Alert>
+                    <AlertDescription>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm">Effective path:</span>
+                        <Badge variant={effectiveSharedFolderPathSource === 'env' ? 'warning' : 'secondary'}>
+                          {effectiveSharedFolderPathSource === 'env' ? 'env' : 'settings'}
+                        </Badge>
+                        <span className="text-sm break-all">{effectiveSharedFolderPath}</span>
+                      </div>
+                      {effectiveSharedFolderPathSource === 'env' && (
+                        <div className="mt-2 text-sm text-muted-foreground">
+                          SHARED_FOLDER_PATH from environment overrides the saved setting.
+                        </div>
+                      )}
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 {sharedFolderTestResult && (
                   <Alert variant={sharedFolderTestResult.success ? 'default' : 'destructive'}>

@@ -206,6 +206,13 @@ Mon Mar  2 16:59:00 WIB 2026
 Mon Mar  2 18:55:12 WIB 2026
 - Enhanced shared folder test to report CIFS mount status and resolved path
 - Updated Settings > General to display mount/access badges after testing
+
+Mon Mar  2 19:17:36 WIB 2026
+- Exposed env-based effective shared folder path in settings API and UI
+- Clarified README that SHARED_FOLDER_PATH env overrides GUI setting
+
+Mon Mar  2 19:20:01 WIB 2026
+- Fixed Vite dev proxy default to backend port 3000 for local login
 194→
 195→2026-02-12 20:43:14 +0800
 196→196→- Added mobile/ directory to .gitignore to keep local mobile client untracked
