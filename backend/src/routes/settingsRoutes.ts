@@ -5,6 +5,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { executeQuery } from '../config/database';
 import { authenticateToken, requireAdmin } from '../middleware/auth';
+import { isRunningInDocker } from '../utils/networkAuth';
 
 const router = express.Router();
 
@@ -35,6 +36,64 @@ interface DbAppSettingsRow {
   Enabled: number;
   Model: string | null;
   SharedFolderPath: string | null;
+}
+
+type FolderMountInfo = {
+  inDocker: boolean;
+  mountPoint: string | null;
+  fsType: string | null;
+  isCifs: boolean;
+};
+
+function convertWindowsNetworkPathToDockerPath(windowsPath: string): string {
+  const dockerMountPath = '/app/shared-documents';
+  let relativePath = windowsPath
+    .replace(/^\\\\[^\\]+\\shared\\PR_Document\\?/, '')
+    .replace(/^\\\\[^\\]+\\shared\\?/, '')
+    .replace(/\\/g, '/');
+
+  if (!relativePath.startsWith('PT Merdeka Tsingshan Indonesia')) {
+    if (relativePath && !relativePath.startsWith('/')) {
+      relativePath = `PT Merdeka Tsingshan Indonesia/${relativePath}`;
+    }
+  }
+
+  return path.posix.join(dockerMountPath, relativePath);
+}
+
+async function getFolderMountInfo(resolvedPath: string): Promise<FolderMountInfo> {
+  const inDocker = isRunningInDocker();
+  if (!inDocker || process.platform !== 'linux') {
+    return { inDocker, mountPoint: null, fsType: null, isCifs: false };
+  }
+
+  try {
+    const mountsText = await fs.readFile('/proc/mounts', 'utf-8');
+    const mounts = mountsText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((line) => line.split(/\s+/))
+      .filter((parts) => parts.length >= 3)
+      .map((parts) => ({ mountPoint: parts[1], fsType: parts[2] }));
+
+    const match = mounts
+      .filter((entry) => resolvedPath === entry.mountPoint || resolvedPath.startsWith(`${entry.mountPoint}/`))
+      .sort((a, b) => b.mountPoint.length - a.mountPoint.length)[0];
+
+    if (!match) {
+      return { inDocker, mountPoint: null, fsType: null, isCifs: false };
+    }
+
+    return {
+      inDocker,
+      mountPoint: match.mountPoint,
+      fsType: match.fsType,
+      isCifs: match.fsType === 'cifs'
+    };
+  } catch {
+    return { inDocker, mountPoint: null, fsType: null, isCifs: false };
+  }
 }
 
 // Encryption helpers
@@ -327,24 +386,48 @@ router.post('/test-folder-path', async (req: Request, res: Response) => {
       });
     }
 
+    const trimmedPath = folderPath.trim();
+    const resolvedPath =
+      isRunningInDocker() && trimmedPath.startsWith('\\\\')
+        ? convertWindowsNetworkPathToDockerPath(trimmedPath)
+        : trimmedPath;
+
+    const mount = await getFolderMountInfo(resolvedPath);
+    const isExpectedDockerShare =
+      mount.inDocker &&
+      (resolvedPath === '/app/shared-documents' || resolvedPath.startsWith('/app/shared-documents/'));
+
+    if (isExpectedDockerShare && !mount.isCifs) {
+      return res.json({
+        success: false,
+        error: 'Network share is not mounted at /app/shared-documents (CIFS mount missing)',
+        resolvedPath,
+        mount
+      });
+    }
+
     // Test folder accessibility
     try {
-      const stats = await fs.stat(folderPath);
+      const stats = await fs.stat(resolvedPath);
       
       if (!stats.isDirectory()) {
         return res.json({
           success: false,
-          error: 'Path exists but is not a directory'
+          error: 'Path exists but is not a directory',
+          resolvedPath,
+          mount
         });
       }
 
       // Try to read the directory to check permissions
-      const files = await fs.readdir(folderPath);
+      const files = await fs.readdir(resolvedPath);
       
       return res.json({
         success: true,
         message: 'Folder path is accessible',
-        fileCount: files.length
+        fileCount: files.length,
+        resolvedPath,
+        mount
       });
     } catch (fsError: unknown) {
       let errorMessage = 'Failed to access folder path';
@@ -362,7 +445,9 @@ router.post('/test-folder-path', async (req: Request, res: Response) => {
       
       return res.json({
         success: false,
-        error: errorMessage
+        error: errorMessage,
+        resolvedPath,
+        mount
       });
     }
   } catch (error) {

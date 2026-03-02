@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Eye, EyeOff, Save, TestTube, Users, Search, UserPlus, UserMinus, Shield, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -22,6 +23,22 @@ interface OCRSettings {
 interface GeneralSettings {
   sharedFolderPath: string;
 }
+
+type FolderMountInfo = {
+  inDocker: boolean;
+  mountPoint: string | null;
+  fsType: string | null;
+  isCifs: boolean;
+};
+
+type TestFolderPathResult = {
+  success: boolean;
+  message?: string;
+  error?: string;
+  fileCount?: number;
+  resolvedPath?: string;
+  mount?: FolderMountInfo;
+};
 
 interface LDAPUser {
   Username: string;
@@ -95,6 +112,7 @@ const Settings: React.FC = () => {
   const [isUpdatingRole, setIsUpdatingRole] = useState<Record<string, boolean>>({});
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<EditableUser | null>(null);
+  const [sharedFolderTestResult, setSharedFolderTestResult] = useState<TestFolderPathResult | null>(null);
   const [newUser, setNewUser] = useState({
     Username: '',
     Email: '',
@@ -642,6 +660,7 @@ const Settings: React.FC = () => {
 
   const handleSharedFolderPathChange = (value: string) => {
     setGeneralSettings(prev => ({ ...prev, sharedFolderPath: value }));
+    setSharedFolderTestResult(null);
   };
 
   const testSharedFolderPath = async () => {
@@ -662,12 +681,17 @@ const Settings: React.FC = () => {
         body: JSON.stringify({ path: generalSettings.sharedFolderPath })
       });
 
-      const result = await response.json();
+      const result = (await response.json()) as TestFolderPathResult;
+      setSharedFolderTestResult(result);
       
       if (response.ok && result.success) {
+        const mountMessage =
+          result.mount?.inDocker === true
+            ? (result.mount.isCifs ? 'CIFS mounted' : 'CIFS not mounted')
+            : 'mount status unavailable';
         toast({
           title: 'Success',
-          description: `Folder path is accessible. Found ${result.fileCount || 0} files.`,
+          description: `Folder path is accessible (${mountMessage}). Found ${result.fileCount || 0} files.`,
           variant: 'default'
         });
       } else {
@@ -678,6 +702,10 @@ const Settings: React.FC = () => {
         });
       }
     } catch (error) {
+      setSharedFolderTestResult({
+        success: false,
+        error: 'Network error while testing folder path. Please check your connection.'
+      });
       toast({
         title: 'Error',
         description: 'Network error while testing folder path. Please check your connection.',
@@ -1078,6 +1106,41 @@ const Settings: React.FC = () => {
                     Specify the network path where PRF documents are stored. This path will be monitored for new files.
                   </p>
                 </div>
+
+                {sharedFolderTestResult && (
+                  <Alert variant={sharedFolderTestResult.success ? 'default' : 'destructive'}>
+                    <AlertDescription>
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant={sharedFolderTestResult.success ? 'success' : 'destructive'}>
+                            {sharedFolderTestResult.success ? 'Accessible' : 'Not accessible'}
+                          </Badge>
+                          {sharedFolderTestResult.mount?.inDocker === true && (
+                            <Badge variant={sharedFolderTestResult.mount.isCifs ? 'success' : 'warning'}>
+                              {sharedFolderTestResult.mount.isCifs ? 'CIFS mounted' : 'CIFS not mounted'}
+                            </Badge>
+                          )}
+                          {typeof sharedFolderTestResult.fileCount === 'number' && (
+                            <span className="text-xs text-muted-foreground">Files: {sharedFolderTestResult.fileCount}</span>
+                          )}
+                        </div>
+                        {typeof sharedFolderTestResult.error === 'string' && sharedFolderTestResult.error.trim().length > 0 && (
+                          <div className="text-sm">{sharedFolderTestResult.error}</div>
+                        )}
+                        {sharedFolderTestResult.mount?.inDocker === true && (
+                          <div className="text-xs text-muted-foreground">
+                            Mount: {sharedFolderTestResult.mount.mountPoint ?? '-'} ({sharedFolderTestResult.mount.fsType ?? '-'})
+                          </div>
+                        )}
+                        {typeof sharedFolderTestResult.resolvedPath === 'string' && sharedFolderTestResult.resolvedPath.trim().length > 0 && (
+                          <div className="text-xs text-muted-foreground break-all">
+                            Resolved path: {sharedFolderTestResult.resolvedPath}
+                          </div>
+                        )}
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 <Alert>
                   <AlertDescription>

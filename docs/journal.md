@@ -202,6 +202,10 @@ Thursday, February 19, 2026 11:57:43 AM
 Mon Mar  2 16:59:00 WIB 2026
 - Prevented "phantom" shared storage writes when CIFS mount is missing
 - Improved Docker detection to avoid treating all Linux/prod as Docker
+
+Mon Mar  2 18:55:12 WIB 2026
+- Enhanced shared folder test to report CIFS mount status and resolved path
+- Updated Settings > General to display mount/access badges after testing
 194→
 195→2026-02-12 20:43:14 +0800
 196→196→- Added mobile/ directory to .gitignore to keep local mobile client untracked
