@@ -715,24 +715,36 @@ const Settings: React.FC = () => {
     const avail = usage ? formatBytes(usage.availBytes, 1) : '-';
 
     return (
-      <div className="grid grid-cols-12 gap-4 items-center text-sm">
-        <div className="col-span-12 md:col-span-3 break-all">
-          <div className="font-medium">{status.mountPoint ?? status.path}</div>
-          {status.fsType && <div className="text-xs text-muted-foreground">{status.fsType}</div>}
-        </div>
-        <div className="col-span-12 md:col-span-5 break-all">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={getMountBadgeVariant(status)}>
-              {status.mounted ? 'Mounted' : 'Not mounted'}
-            </Badge>
-            {status.fsType === 'cifs' && <Badge variant="success">CIFS</Badge>}
+      <div className="rounded-md border bg-background/50 p-3">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0">
+            <div className="font-medium break-all">{status.mountPoint ?? status.path}</div>
+            <div className="text-xs text-muted-foreground break-all">{status.source ?? '-'}</div>
           </div>
-          <div className="text-xs text-muted-foreground break-all">{status.source ?? '-'}</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={getMountBadgeVariant(status)}>{status.mounted ? 'Mounted' : 'Not mounted'}</Badge>
+            <Badge variant={status.fsType === 'cifs' ? 'success' : 'secondary'}>{status.fsType ?? '-'}</Badge>
+          </div>
         </div>
-        <div className="col-span-6 md:col-span-1 text-right">{size}</div>
-        <div className="col-span-6 md:col-span-1 text-right">{used}</div>
-        <div className="col-span-6 md:col-span-1 text-right">{avail}</div>
-        <div className="col-span-6 md:col-span-1 text-right">{usePercent}</div>
+
+        <div className="mt-3 grid grid-cols-12 gap-2 text-xs">
+          <div className="col-span-6 md:col-span-3">
+            <div className="text-muted-foreground">Size</div>
+            <div className="font-medium">{size}</div>
+          </div>
+          <div className="col-span-6 md:col-span-3">
+            <div className="text-muted-foreground">Used</div>
+            <div className="font-medium">{used}</div>
+          </div>
+          <div className="col-span-6 md:col-span-3">
+            <div className="text-muted-foreground">Available</div>
+            <div className="font-medium">{avail}</div>
+          </div>
+          <div className="col-span-6 md:col-span-3">
+            <div className="text-muted-foreground">Use%</div>
+            <div className="font-medium">{usePercent}</div>
+          </div>
+        </div>
       </div>
     );
   };
@@ -1161,23 +1173,31 @@ const Settings: React.FC = () => {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="shared-folder-path">Shared Folder Path</Label>
-                  <div className="flex space-x-2">
-                    <Input
-                      id="shared-folder-path"
-                      type="text"
-                      placeholder="Enter shared folder path (e.g., \\\\server\\shared\\documents)"
-                      value={generalSettings.sharedFolderPath}
-                      onChange={(e) => handleSharedFolderPathChange(e.target.value)}
-                      className="flex-1"
-                    />
-                    <Button
-                      onClick={testSharedFolderPath}
-                      disabled={isTestingFolder || !generalSettings.sharedFolderPath.trim()}
-                      variant="outline"
-                    >
-                      <TestTube className="h-4 w-4 mr-2" />
-                      {isTestingFolder ? 'Testing...' : 'Test'}
-                    </Button>
+                  <div className="grid grid-cols-12 gap-2">
+                    <div className="col-span-12 md:col-span-10">
+                      <Input
+                        id="shared-folder-path"
+                        type="text"
+                        placeholder="Enter shared folder path (e.g., \\\\server\\shared\\documents)"
+                        value={generalSettings.sharedFolderPath}
+                        onChange={(e) => handleSharedFolderPathChange(e.target.value)}
+                      />
+                    </div>
+                    <div className="col-span-12 md:col-span-2">
+                      <Button
+                        onClick={testSharedFolderPath}
+                        disabled={
+                          isTestingFolder ||
+                          (generalSettings.sharedFolderPath.trim().length === 0 &&
+                            effectiveSharedFolderPath.trim().length === 0)
+                        }
+                        variant="outline"
+                        className="w-full"
+                      >
+                        <TestTube className="h-4 w-4 mr-2" />
+                        {isTestingFolder ? 'Testing...' : 'Test'}
+                      </Button>
+                    </div>
                   </div>
                   <p className="text-sm text-muted-foreground">
                     Specify the network path where PRF documents are stored. This path will be monitored for new files.
@@ -1215,16 +1235,6 @@ const Settings: React.FC = () => {
                             </Badge>
                           )}
                         </div>
-
-                        <div className="grid grid-cols-12 gap-4 text-xs text-muted-foreground">
-                          <div className="col-span-12 md:col-span-3">Mount</div>
-                          <div className="col-span-12 md:col-span-5">Filesystem</div>
-                          <div className="col-span-6 md:col-span-1 text-right">Size</div>
-                          <div className="col-span-6 md:col-span-1 text-right">Used</div>
-                          <div className="col-span-6 md:col-span-1 text-right">Avail</div>
-                          <div className="col-span-6 md:col-span-1 text-right">Use%</div>
-                        </div>
-
                         {dockerShareMount && renderMountRow(dockerShareMount)}
                         {rootFsMount && renderMountRow(rootFsMount)}
                       </div>

@@ -216,6 +216,10 @@ Mon Mar  2 19:20:01 WIB 2026
 
 Mon Mar  2 20:43:42 WIB 2026
 - Added filesystem usage status (df-like) for /app/shared-documents and root in Settings > General
+
+Mon Mar  2 20:53:15 WIB 2026
+- Fixed Shared Folder Path Test button overlap with responsive layout
+- Improved filesystem status readability with card-style rows
 194→
 195→2026-02-12 20:43:14 +0800
 196→196→- Added mobile/ directory to .gitignore to keep local mobile client untracked
