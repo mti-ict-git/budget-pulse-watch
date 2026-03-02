@@ -1,6 +1,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 
 const execAsync = promisify(exec);
 
@@ -17,10 +18,20 @@ export interface NetworkAuthConfig {
  */
 export function isRunningInDocker(): boolean {
   try {
-    // Check for Docker-specific files/environment
-    return process.env.DOCKER_CONTAINER === 'true' || 
-           process.env.NODE_ENV === 'production' ||
-           process.platform === 'linux'; // Most Docker containers run Linux
+    if (process.env.DOCKER_CONTAINER === 'true') {
+      return true;
+    }
+
+    if (fsSync.existsSync('/.dockerenv')) {
+      return true;
+    }
+
+    try {
+      const cgroup = fsSync.readFileSync('/proc/1/cgroup', 'utf-8');
+      return cgroup.includes('docker') || cgroup.includes('containerd') || cgroup.includes('kubepods');
+    } catch {
+      return false;
+    }
   } catch {
     return false;
   }

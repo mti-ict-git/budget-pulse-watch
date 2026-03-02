@@ -20,6 +20,25 @@ export class SharedStorageService {
     this.config = config;
   }
 
+  private async isCifsMounted(mountPoint: string): Promise<boolean> {
+    try {
+      const mounts = await fs.readFile('/proc/mounts', 'utf-8');
+      return mounts
+        .split('\n')
+        .some((line) => {
+          const parts = line.trim().split(/\s+/);
+          if (parts.length < 3) {
+            return false;
+          }
+          const mountedAt = parts[1];
+          const fsType = parts[2];
+          return mountedAt === mountPoint && fsType === 'cifs';
+        });
+    } catch {
+      return false;
+    }
+  }
+
   /**
    * Convert Windows network path to Docker mount path
    * @param windowsPath - Windows UNC path
@@ -65,11 +84,16 @@ export class SharedStorageService {
     if (isRunningInDocker()) {
       const dockerMountPath = '/app/shared-documents';
       try {
-        await fs.access(dockerMountPath);
-        console.log('🐳 [SharedStorage] Using Docker mount point - authentication not required');
-        return;
+        const isMounted = await this.isCifsMounted(dockerMountPath);
+        if (isMounted) {
+          console.log('🐳 [SharedStorage] Using Docker CIFS mount point - authentication not required');
+          return;
+        }
+
+        throw new Error('Docker CIFS share is not mounted at /app/shared-documents');
       } catch (error) {
-        console.warn('⚠️ [SharedStorage] Docker mount point not accessible, attempting authentication');
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.warn(`⚠️ [SharedStorage] ${errorMessage}`);
       }
     }
 
