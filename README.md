@@ -86,6 +86,11 @@ Protected endpoints require a Bearer JWT in the Authorization header.
 - Response preview: { success, fix: false, totalDuplicates, sampleCount }
 - Response deletion: { success, fix: true, deleted }
 
+## Shared Folder Path: Mount Check
+
+- UI: Settings > General > Shared Folder Path > Test
+- Shows resolved path and, in Docker/Linux, whether `/app/shared-documents` is mounted as CIFS
+
 ## Cloud Sync to OneDrive Excel
 
 - Adds a Sync to Cloud PRF button on the PRF Monitoring page to update the shared Excel.
