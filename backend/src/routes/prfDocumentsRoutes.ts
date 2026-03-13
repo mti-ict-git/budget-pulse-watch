@@ -73,6 +73,10 @@ interface FolderScanResult {
   totalSize: number;
 }
 
+type DeleteDocumentResponse =
+  | { success: true; data: { fileId: number; deletedFromDisk: boolean } }
+  | { success: false; message: string; error?: string };
+
 // Get shared folder path from settings or environment with network authentication
 async function getSharedFolderPath(): Promise<string> {
   try {
@@ -497,6 +501,74 @@ router.get('/view/:fileId', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to serve file',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// API endpoint: Delete a specific synced document (non-original only)
+router.delete('/documents/:fileId', authenticateToken, requireContentManager, async (req: Request, res: Response<DeleteDocumentResponse>) => {
+  try {
+    const fileIdRaw = typeof req.params.fileId === 'string' ? req.params.fileId : '';
+    const fileId = parseInt(fileIdRaw, 10);
+
+    if (Number.isNaN(fileId)) {
+      return res.status(400).json({ success: false, message: 'Invalid file ID' });
+    }
+
+    const pool = getPool();
+    const result = await pool.request()
+      .input('fileId', fileId)
+      .query(`
+        SELECT 
+          FileID, FilePath, SharedPath, IsOriginalDocument
+        FROM PRFFiles 
+        WHERE FileID = @fileId
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ success: false, message: 'File not found' });
+    }
+
+    const file = result.recordset[0] as {
+      FileID: number;
+      FilePath: string;
+      SharedPath: string | null;
+      IsOriginalDocument: boolean;
+    };
+
+    if (file.IsOriginalDocument) {
+      return res.status(403).json({ success: false, message: 'Cannot delete OCR source/original documents' });
+    }
+
+    const candidatePath = file.SharedPath || file.FilePath;
+    const actualFilePath =
+      candidatePath && (candidatePath.startsWith('/app/') || candidatePath.startsWith('/mnt/'))
+        ? candidatePath
+        : candidatePath
+          ? convertToDockerPath(candidatePath)
+          : '';
+
+    let deletedFromDisk = false;
+    if (typeof actualFilePath === 'string' && actualFilePath.length > 0 && (actualFilePath.startsWith('/app/') || actualFilePath.startsWith('/mnt/'))) {
+      try {
+        await fs.unlink(actualFilePath);
+        deletedFromDisk = true;
+      } catch {
+        deletedFromDisk = false;
+      }
+    }
+
+    await pool.request()
+      .input('fileId', fileId)
+      .query('DELETE FROM PRFFiles WHERE FileID = @fileId');
+
+    return res.json({ success: true, data: { fileId, deletedFromDisk } });
+  } catch (error) {
+    console.error('Error deleting PRF document:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to delete document',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }

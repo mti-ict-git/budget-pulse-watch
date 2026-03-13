@@ -223,6 +223,9 @@ Mon Mar  2 20:53:15 WIB 2026
 
 Mon Mar  2 20:56:27 WIB 2026
 - Fixed Data Maintenance action buttons overlapping on smaller widths
+
+Fri Mar 13 23:59:11 WITA 2026
+- Added delete action for synced PRF documents (admin/doccon only)
 194→
 195→2026-02-12 20:43:14 +0800
 196→196→- Added mobile/ directory to .gitignore to keep local mobile client untracked

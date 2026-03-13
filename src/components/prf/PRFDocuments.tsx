@@ -5,6 +5,17 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { 
   RefreshCw, 
   FolderOpen, 
@@ -15,7 +26,8 @@ import {
   CheckCircle, 
   Folder,
   HardDrive,
-  Clock
+  Clock,
+  Trash2
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import FilePreviewModal from '@/components/FilePreviewModal';
@@ -65,6 +77,7 @@ const PRFDocuments: React.FC<PRFDocumentsProps> = ({ prfId, prfNo, onDocumentUpd
   const [isLoading, setIsLoading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [deletingFileId, setDeletingFileId] = useState<number | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<PRFDocument | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
@@ -213,6 +226,45 @@ const PRFDocuments: React.FC<PRFDocumentsProps> = ({ prfId, prfNo, onDocumentUpd
         description: `Failed to download ${doc.OriginalFileName}`,
         variant: "destructive",
       });
+    }
+  };
+
+  const canDeleteSyncedDocument = (doc: PRFDocument): boolean => {
+    if (!user) return false;
+    if (doc.IsOriginalDocument) return false;
+    return user.role === 'admin' || user.role === 'doccon';
+  };
+
+  const deleteDocument = async (doc: PRFDocument) => {
+    if (!canDeleteSyncedDocument(doc)) return;
+
+    setDeletingFileId(doc.FileID);
+    try {
+      const response = await fetch(`/api/prf-documents/documents/${doc.FileID}`, {
+        method: 'DELETE',
+        headers: authService.getAuthHeaders(),
+      });
+      const result: { success: boolean; message?: string } = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(typeof result.message === 'string' ? result.message : 'Failed to delete document');
+      }
+
+      toast({
+        title: 'Document deleted',
+        description: doc.OriginalFileName,
+      });
+
+      await loadDocuments();
+      onDocumentUpdate?.();
+    } catch (error) {
+      toast({
+        title: 'Delete failed',
+        description: error instanceof Error ? error.message : 'Failed to delete document',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingFileId(null);
     }
   };
 
@@ -387,6 +439,38 @@ const PRFDocuments: React.FC<PRFDocumentsProps> = ({ prfId, prfNo, onDocumentUpd
                     >
                       <Download className="h-4 w-4" />
                     </Button>
+                    {canDeleteSyncedDocument(doc) && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={deletingFileId === doc.FileID}
+                            aria-label={`Delete ${doc.OriginalFileName}`}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete document?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This removes the document from the PRF synced list. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <div className="text-sm font-medium break-all">{doc.OriginalFileName}</div>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              onClick={() => deleteDocument(doc)}
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
                   </div>
                 </div>
               ))}
