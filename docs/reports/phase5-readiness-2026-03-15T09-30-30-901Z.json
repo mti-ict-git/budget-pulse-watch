@@ -1,0 +1,65 @@
+{
+  "generatedAt": "2026-03-15T09:30:30.901Z",
+  "fiscalYear": 2026,
+  "status": "needs_action",
+  "sourceChecks": [
+    {
+      "name": "budget_cutoff_endpoints",
+      "passed": true,
+      "details": "Budget cutoff get/close/reopen endpoints"
+    },
+    {
+      "name": "budget_write_role_guard",
+      "passed": true,
+      "details": "Budget write endpoints guarded by content manager middleware"
+    },
+    {
+      "name": "pic_mandatory_logic",
+      "passed": true,
+      "details": "PRF item picked-up validation and role restriction rules"
+    }
+  ],
+  "dataChecks": [
+    {
+      "name": "budget_cutoff_table_exists",
+      "passed": true,
+      "value": 1,
+      "details": "BudgetCutoff table exists"
+    },
+    {
+      "name": "budget_cutoff_audit_table_exists",
+      "passed": true,
+      "value": 1,
+      "details": "BudgetCutoffAudit table exists"
+    },
+    {
+      "name": "picked_up_missing_pic_count",
+      "passed": false,
+      "value": 265,
+      "details": "Picked Up items without PIC should be zero"
+    },
+    {
+      "name": "picked_up_missing_date_count",
+      "passed": false,
+      "value": 265,
+      "details": "Picked Up items without PickedUpDate should be zero"
+    },
+    {
+      "name": "picked_up_invalid_pic_user_role_count",
+      "passed": true,
+      "value": 0,
+      "details": "PickedUpByUserID must reference active DocCon/Admin"
+    },
+    {
+      "name": "fiscal_year_cutoff_row_exists",
+      "passed": false,
+      "value": 0,
+      "details": "BudgetCutoff row exists for FY2026"
+    }
+  ],
+  "roleCounts": {
+    "admin": 2,
+    "doccon": 0,
+    "user": 0
+  }
+}

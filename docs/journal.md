@@ -293,3 +293,118 @@ Fri Feb 13 00:20:46 WITA 2026
 - Fixed mobile Documents tab filtering out valid PRF documents due to strict parsing
 - Made documents parsing tolerant to string/nullable fields from /api/prf-documents/documents/{prfId}
 - Ran npm run lint and npx tsc --noEmit
+
+Sun Mar 15 13:16:02 WITA 2026
+- Created docs/upgrade-feature.md with phased implementation plan for:
+  - FY2026 Budget Cut-Off and OPEX data workflow
+  - Picking Item PIC selection by DocCon
+- Documented scope, phase-by-phase tasks, API/schema/UI changes, risks, and acceptance criteria
+
+Sun Mar 15 13:38:24 WITA 2026
+- Started Phase 1 database foundation for FY2026 Budget Cut-Off and Picking PIC
+- Updated backend/database/schema.sql with BudgetCutoff, BudgetCutoffAudit, and PRFItems PickedUpByUserID support
+- Added migration scripts:
+  - backend/database/migrations/008_add_budget_cutoff_and_pickup_pic.sql
+  - backend/database/migrations/008_add_budget_cutoff_and_pickup_pic_rollback.sql
+- Ran npm run lint (warnings only) and npx tsc --noEmit (passed)
+
+Sun Mar 15 13:56:43 WITA 2026
+- Applied Phase 1 SQL migration to PRFMonitoringDB using backend/scripts/apply-phase1-migration.js
+- Verified database objects exist:
+  - BudgetCutoff table
+  - BudgetCutoffAudit table
+  - PRFItems.PickedUpByUserID column
+- Added backend/scripts/verify-phase1-migration.js for repeatable post-migration verification
+- Ran npm run lint (warnings only) and npx tsc --noEmit (passed)
+
+Sun Mar 15 14:22:59 WITA 2026
+- Added reusable migration runner backend/scripts/db-migrate.js with SchemaMigrations tracking
+- Added npm shortcut commands:
+  - root: npm run db:migrate
+  - backend: npm run db:migrate
+- Updated README with db migration usage (latest and all pending modes)
+- Removed temporary phase-specific migration helper scripts
+- Verified npm run db:migrate executes successfully and applied 008 migration into tracking table
+- Ran npm run lint (warnings only) and npx tsc --noEmit (passed)
+
+Sun Mar 15 14:55:32 WITA 2026
+- Implemented Phase 2 backend budget cutoff APIs:
+  - GET /api/budgets/cutoff/:fiscalYear
+  - POST /api/budgets/cutoff/:fiscalYear/close
+  - POST /api/budgets/cutoff/:fiscalYear/reopen (admin only)
+- Enforced fiscal-year write lock on budget create/update/delete when cutoff is closed
+- Added OPEX bulk ingestion endpoint POST /api/budgets/opex/import with fiscal year and COA validation
+- Enforced PRF Picking PIC rules on item update:
+  - Picked Up requires PIC and PickedUpDate
+  - PickedUpByUserID must be active DocCon/Admin
+- Extended backend PRF item types/model with PickedUpByUserID support
+- Updated docs/openapi.yaml and README.md for new Phase 2 APIs and rules
+- Ran npm run lint (warnings only) and npx tsc --noEmit (passed)
+
+Sun Mar 15 15:20:38 WITA 2026
+- Implemented Phase 3 web UI updates on Budget Overview:
+  - added fiscal year cut-off status card with close/reopen actions
+  - added OPEX FY import payload panel with import summary result
+  - disabled budget write actions in UI when selected fiscal year is closed
+- Added budget service client methods for cutoff APIs and OPEX import API
+- Added PRF picking PIC user source endpoint GET /api/prfs/picking-pic-users for controlled selector
+- Updated PRF item modification modal:
+  - replaced free-text PIC flow with controlled PIC selector
+  - enforced PIC selection UX for Picked Up status
+  - kept PIC fields read-only for non DocCon/Admin roles
+- Applied responsive grid pattern with grid-cols-12 on updated sections
+- Updated docs/openapi.yaml and README.md for new Phase 3 behavior
+- Ran npm run lint (warnings only) and npx tsc --noEmit (passed)
+
+Sun Mar 15 17:23:43 WITA 2026
+- Implemented Phase 4 data backfill and integrity scripts:
+  - backend/src/scripts/backfillPICCompleteness.ts
+  - backend/src/scripts/phase4OpexReconciliation.ts
+- Added backend npm commands:
+  - phase4:pic:dry
+  - phase4:pic:apply
+  - phase4:opex:reconcile
+- Generated Phase 4 report artifacts in docs/reports:
+  - phase4-pic-backfill-2026-03-15T09-13-42-836Z.json/csv
+  - phase4-opex-reconciliation-2026-03-15T09-13-51-607Z.json/csv
+- Added docs/phase4-runbook.md with execution order and fallback policy
+- Added docs/reports/phase4-data-quality-report-2026-03-15.md
+- Updated README.md with Phase 4 command and output references
+- Ran npm run lint (warnings only), npx tsc --noEmit (root passed), and npx tsc --noEmit (backend passed)
+
+Sun Mar 15 17:31:48 WITA 2026
+- Implemented Phase 5 readiness automation:
+  - backend/src/scripts/phase5ReadinessCheck.ts
+  - backend script command: phase5:readiness
+- Executed readiness check and generated:
+  - docs/reports/phase5-readiness-2026-03-15T09-30-30-901Z.json
+- Added Phase 5 UAT and release docs:
+  - docs/phase5-uat-checklist.md
+  - docs/phase5-deployment-rollback.md
+- Updated README.md with Phase 5 QA/hardening/release flow
+- Ran npm run lint (warnings only), npx tsc --noEmit (root passed), and npx tsc --noEmit (backend passed)
+
+Sun Mar 15 18:58:11 WITA 2026
+- Updated PRF item pickup UX in item modification modal:
+  - changed Picking PIC from searchable dropdown to free-text input
+  - changed quick action Mark as Picked Up to prompt picker name before status update
+- Updated README.md pickup section to reflect free-text and prompt behavior
+- Ran npm run lint (warnings only), npx tsc --noEmit (root passed), and npx tsc --noEmit (backend passed)
+
+Sun Mar 15 19:11:25 WITA 2026
+- Updated PRF Monitoring year filter behavior:
+  - default filter now uses current year dynamically
+  - year dropdown options are generated dynamically from data and always include current year
+- Updated README.md Phase 3 UI notes for adaptive year filter behavior
+- Ran npm run lint (warnings only), npx tsc --noEmit (root passed), and npx tsc --noEmit (backend passed)
+
+Sun Mar 15 19:40:31 WITA 2026
+- Updated PRF year filtering to use submit-date year from backend:
+  - added `year` query handling on `/api/prfs` and `/api/prfs/with-items`
+  - applied filter with `YEAR(COALESCE(DateSubmit, RequestDate))`
+- Added new filter metadata endpoint:
+  - `GET /api/prfs/filters/years` returns distinct submit-date years
+- Updated PRF Monitoring year dropdown to load years from `/api/prfs/filters/years`
+  and merge with current page submit-date years plus current year
+- Updated README.md to document submit-date year source and new endpoint
+- Ran npm run lint (warnings only), npx tsc --noEmit (root passed), and npx tsc --noEmit (backend passed)

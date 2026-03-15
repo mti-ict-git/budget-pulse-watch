@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { PRFModel } from '../models/PRF';
-import { CreatePRFRequest, UpdatePRFRequest, PRFQueryParams, CreatePRFItemRequest } from '../models/types';
+import { CreatePRFRequest, UpdatePRFRequest, PRFQueryParams, CreatePRFItemRequest, UpdatePRFItemParams } from '../models/types';
 import { executeQuery } from '../config/database';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
 
@@ -13,9 +13,12 @@ const router = Router();
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
+    const yearParam = req.query.year as string | undefined;
+    const parsedYear = yearParam && /^\d{4}$/.test(yearParam) ? parseInt(yearParam, 10) : undefined;
     const queryParams: PRFQueryParams = {
       page: parseInt(req.query.page as string) || 1,
       limit: parseInt(req.query.limit as string) || 10,
+      Year: parsedYear,
       Status: req.query.status as string,
       Department: req.query.department as string,
       Priority: req.query.priority as string,
@@ -55,9 +58,12 @@ router.get('/', async (req: Request, res: Response) => {
  */
 router.get('/with-items', async (req: Request, res: Response) => {
   try {
+    const yearParam = req.query.year as string | undefined;
+    const parsedYear = yearParam && /^\d{4}$/.test(yearParam) ? parseInt(yearParam, 10) : undefined;
     const queryParams: PRFQueryParams = {
       page: parseInt(req.query.page as string) || 1,
       limit: parseInt(req.query.limit as string) || 10,
+      Year: parsedYear,
       Status: req.query.status as string,
       Department: req.query.department as string,
       Priority: req.query.priority as string,
@@ -108,6 +114,43 @@ router.get('/search', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to search PRFs',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.get('/picking-pic-users', authenticateToken, requireContentManager, async (_req: Request, res: Response) => {
+  try {
+    const result = await executeQuery<{
+      UserID: number;
+      Username: string;
+      FirstName: string;
+      LastName: string;
+      Role: 'admin' | 'doccon' | 'user';
+    }>(
+      `
+      SELECT UserID, Username, FirstName, LastName, Role
+      FROM Users
+      WHERE IsActive = 1
+        AND Role IN ('admin', 'doccon')
+      ORDER BY Role DESC, FirstName ASC, LastName ASC
+      `
+    );
+
+    return res.json({
+      success: true,
+      data: result.recordset.map((user) => ({
+        userId: user.UserID,
+        username: user.Username,
+        displayName: `${user.FirstName} ${user.LastName}`.trim(),
+        role: user.Role
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching picking PIC users:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch picking PIC users',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
@@ -667,13 +710,63 @@ router.get('/:id/activity', async (req: Request, res: Response) => {
 router.put('/items/:itemId', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const itemId = parseInt(req.params.itemId);
-    const updateData: Partial<CreatePRFItemRequest> = req.body;
+    const updateData: Partial<UpdatePRFItemParams> = req.body;
     
     if (isNaN(itemId)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid item ID'
       });
+    }
+
+    if (updateData.Status === 'Picked Up') {
+      const pickedUpBy = typeof updateData.PickedUpBy === 'string' ? updateData.PickedUpBy.trim() : '';
+      const hasPickedUpName = pickedUpBy.length > 0;
+      const hasPickedUpUserId = typeof updateData.PickedUpByUserID === 'number' && Number.isInteger(updateData.PickedUpByUserID) && updateData.PickedUpByUserID > 0;
+      const hasPickedUpDate = updateData.PickedUpDate !== undefined && updateData.PickedUpDate !== null;
+
+      if (!hasPickedUpName && !hasPickedUpUserId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Picked Up status requires Picking PIC'
+        });
+      }
+
+      if (!hasPickedUpDate) {
+        return res.status(400).json({
+          success: false,
+          message: 'Picked Up status requires PickedUpDate'
+        });
+      }
+    }
+
+    if (updateData.PickedUpByUserID !== undefined) {
+      if (!Number.isInteger(updateData.PickedUpByUserID) || updateData.PickedUpByUserID <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'PickedUpByUserID must be a valid user ID'
+        });
+      }
+
+      const pickedUserResult = await executeQuery<{ UserID: number; Role: string }>(
+        'SELECT UserID, Role FROM Users WHERE UserID = @UserID AND IsActive = 1',
+        { UserID: updateData.PickedUpByUserID }
+      );
+      const pickedUser = pickedUserResult.recordset[0];
+
+      if (!pickedUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Selected Picking PIC user not found or inactive'
+        });
+      }
+
+      if (pickedUser.Role !== 'doccon' && pickedUser.Role !== 'admin') {
+        return res.status(400).json({
+          success: false,
+          message: 'Picking PIC must be a DocCon or Admin user'
+        });
+      }
     }
     
     const updatedItem = await PRFModel.updateItem(itemId, updateData);
@@ -773,6 +866,23 @@ router.get('/filters/status', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch status values',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.get('/filters/years', async (_req: Request, res: Response) => {
+  try {
+    const yearValues = await PRFModel.getUniqueSubmitYears();
+    return res.json({
+      success: true,
+      data: yearValues
+    });
+  } catch (error) {
+    console.error('Error fetching submit years:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch submit years',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }

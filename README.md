@@ -36,6 +36,13 @@ npm i
 npm run dev
 ```
 
+## Database migration
+
+- Run latest pending SQL migration:
+  - `npm run db:migrate`
+- Run all pending SQL migrations:
+  - `DB_MIGRATE_MODE=all npm run db:migrate`
+
 **Edit a file directly in GitHub**
 
 - Navigate to the desired file(s).
@@ -105,6 +112,76 @@ Protected endpoints require a Bearer JWT in the Authorization header.
   - ONEDRIVE_WORKSHEET_NAME (default: "PRF Detail")
 
 This uses Microsoft Graph to update or append a row by matching PRF No.
+
+## Budget Cut-Off and OPEX Import
+
+- New cutoff APIs:
+  - GET `/api/budgets/cutoff/{fiscalYear}`
+  - POST `/api/budgets/cutoff/{fiscalYear}/close`
+  - POST `/api/budgets/cutoff/{fiscalYear}/reopen` (admin only)
+- When fiscal year cutoff is closed, budget write operations are blocked for:
+  - POST `/api/budgets`
+  - PUT `/api/budgets/{id}`
+  - DELETE `/api/budgets/{id}`
+- New OPEX bulk ingestion API:
+  - POST `/api/budgets/opex/import`
+  - Validates fiscal year, COA mapping, and OPEX expense type.
+
+## Picking PIC Enforcement
+
+- PRF item updates enforce pickup rules:
+  - if item status is `Picked Up`, Picking PIC is required (`PickedUpBy` or `PickedUpByUserID`)
+  - `PickedUpDate` is required for `Picked Up`
+  - `PickedUpByUserID` must refer to an active DocCon or Admin user
+- PRF item modal uses free-text input for `Picking PIC`
+- Quick action `Mark as Picked Up` prompts for picker name before status update
+- Non-DocCon/Admin users see PIC fields as read-only in item modification modal
+
+## Phase 3 UI Notes
+
+- Budget Overview now includes:
+  - fiscal year cut-off status card and close/reopen actions
+  - OPEX FY import payload area and import summary panel
+  - locked-state behavior that disables budget write actions when FY is closed
+- PRF Monitoring year filter now auto-adapts:
+  - default selection uses current year
+  - year options are generated from available submit-date years and include current year
+  - new endpoint: `GET /api/prfs/filters/years`
+- Responsive layout uses `grid grid-cols-12 gap-4` with mobile-first col-span rules
+
+## Phase 4 Data Backfill and Integrity
+
+- Added backend scripts:
+  - `npm --prefix backend run phase4:pic:dry`
+  - `npm --prefix backend run phase4:pic:apply`
+  - `npm --prefix backend run phase4:opex:reconcile`
+- Added runbook:
+  - `docs/phase4-runbook.md`
+- Added report outputs:
+  - `docs/reports/phase4-pic-backfill-*.json|csv`
+  - `docs/reports/phase4-opex-reconciliation-*.json|csv`
+  - `docs/reports/phase4-data-quality-report-2026-03-15.md`
+- Backfill strategy resolves missing PIC using:
+  - `UpdatedBy` metadata when eligible
+  - Excel `PIC pickup` mapped to active DocCon/Admin user
+  - optional fallback unknown policy
+- OPEX reconciliation validates FY2026 Budget Detail rows against COA existence, active status, and OPEX expense type, then classifies row decision as inserted/updated/rejected.
+
+## Phase 5 QA, Hardening, and Release
+
+- Added readiness validation script:
+  - `npm --prefix backend run phase5:readiness`
+- Readiness report output:
+  - `docs/reports/phase5-readiness-*.json`
+- Added UAT checklist:
+  - `docs/phase5-uat-checklist.md`
+- Added deployment and rollback guide:
+  - `docs/phase5-deployment-rollback.md`
+- Admin release flow:
+  - run readiness report
+  - confirm UAT checklist completion
+  - execute deployment checklist
+  - use rollback plan if release trigger fails
 
 ## How can I deploy this project?
 

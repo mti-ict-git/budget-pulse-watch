@@ -62,6 +62,30 @@ CREATE TABLE Budget (
     UNIQUE (COAID, FiscalYear, Quarter, Month)
 );
 
+CREATE TABLE BudgetCutoff (
+    FiscalYear INT PRIMARY KEY,
+    IsClosed BIT NOT NULL DEFAULT 0,
+    ClosedAt DATETIME2 NULL,
+    ClosedBy INT NULL,
+    ReopenedAt DATETIME2 NULL,
+    ReopenedBy INT NULL,
+    Notes NVARCHAR(1000) NULL,
+    UpdatedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
+    FOREIGN KEY (ClosedBy) REFERENCES Users(UserID),
+    FOREIGN KEY (ReopenedBy) REFERENCES Users(UserID)
+);
+
+CREATE TABLE BudgetCutoffAudit (
+    CutoffAuditID INT IDENTITY(1,1) PRIMARY KEY,
+    FiscalYear INT NOT NULL,
+    Action NVARCHAR(20) NOT NULL CHECK (Action IN ('CLOSE', 'REOPEN')),
+    ActionBy INT NOT NULL,
+    ActionAt DATETIME2 NOT NULL DEFAULT GETDATE(),
+    Notes NVARCHAR(1000) NULL,
+    FOREIGN KEY (FiscalYear) REFERENCES BudgetCutoff(FiscalYear),
+    FOREIGN KEY (ActionBy) REFERENCES Users(UserID)
+);
+
 -- PRF (Purchase Request Form) table
 CREATE TABLE PRF (
     PRFID INT IDENTITY(1,1) PRIMARY KEY,
@@ -110,8 +134,22 @@ CREATE TABLE PRFItems (
     UnitPrice DECIMAL(15,2) NOT NULL,
     TotalPrice AS (Quantity * UnitPrice) PERSISTED,
     Specifications NVARCHAR(2000),
+    Status NVARCHAR(50) NOT NULL DEFAULT 'Pending' CHECK (Status IN ('Pending', 'Approved', 'Picked Up', 'Cancelled', 'On Hold')),
+    PickedUpBy NVARCHAR(200) NULL,
+    PickedUpByUserID INT NULL,
+    PickedUpDate DATETIME2 NULL,
+    Notes NVARCHAR(1000) NULL,
+    UpdatedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
+    UpdatedBy INT NULL,
+    StatusOverridden BIT NOT NULL DEFAULT 0,
+    PurchaseCostCode NVARCHAR(50) NULL,
+    COAID INT NULL,
+    BudgetYear INT NULL,
     CreatedAt DATETIME2 DEFAULT GETDATE(),
-    FOREIGN KEY (PRFID) REFERENCES PRF(PRFID) ON DELETE CASCADE
+    FOREIGN KEY (PRFID) REFERENCES PRF(PRFID) ON DELETE CASCADE,
+    FOREIGN KEY (UpdatedBy) REFERENCES Users(UserID),
+    FOREIGN KEY (PickedUpByUserID) REFERENCES Users(UserID),
+    FOREIGN KEY (COAID) REFERENCES ChartOfAccounts(COAID)
 );
 
 -- PRF Approval Workflow
@@ -166,8 +204,18 @@ CREATE INDEX IX_PRF_Department ON PRF(Department);
 CREATE INDEX IX_PRF_COAID ON PRF(COAID);
 CREATE INDEX IX_Budget_FiscalYear ON Budget(FiscalYear);
 CREATE INDEX IX_Budget_COAID ON Budget(COAID);
+CREATE INDEX IX_BudgetCutoff_IsClosed ON BudgetCutoff(IsClosed);
+CREATE INDEX IX_BudgetCutoffAudit_FiscalYear_ActionAt ON BudgetCutoffAudit(FiscalYear, ActionAt);
 CREATE INDEX IX_BudgetTransactions_Date ON BudgetTransactions(TransactionDate);
 CREATE INDEX IX_AuditLog_TableRecord ON AuditLog(TableName, RecordID);
+CREATE INDEX IX_PRFItems_Status ON PRFItems(Status);
+CREATE INDEX IX_PRFItems_PickedUpBy ON PRFItems(PickedUpBy);
+CREATE INDEX IX_PRFItems_PickedUpByUserID ON PRFItems(PickedUpByUserID);
+CREATE INDEX IX_PRFItems_UpdatedAt ON PRFItems(UpdatedAt);
+CREATE INDEX IX_PRFItems_StatusOverridden ON PRFItems(StatusOverridden);
+CREATE INDEX IX_PRFItems_PurchaseCostCode ON PRFItems(PurchaseCostCode);
+CREATE INDEX IX_PRFItems_COAID ON PRFItems(COAID);
+CREATE INDEX IX_PRFItems_BudgetYear ON PRFItems(BudgetYear);
 GO
 
 -- Create views for common queries

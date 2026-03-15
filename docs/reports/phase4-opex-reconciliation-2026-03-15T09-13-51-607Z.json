@@ -1,0 +1,133 @@
+{
+  "generatedAt": "2026-03-15T09:13:51.606Z",
+  "fiscalYear": 2026,
+  "excelPath": "/Users/widjis/Documents/Projects/budget-pulse-watch/PRF IT MONITORING - NEW UPDATED.xlsx",
+  "summary": {
+    "totalRows": 15,
+    "inserted": 8,
+    "updated": 1,
+    "rejected": 6
+  },
+  "rows": [
+    {
+      "coaCode": "MTIRMRAD496232",
+      "allocatedAmount": 670000000,
+      "decision": "update",
+      "reason": "Existing FY budget found for COA",
+      "coaId": 1,
+      "budgetId": 62
+    },
+    {
+      "coaCode": "MTIRMRAD496250",
+      "allocatedAmount": 4410099000,
+      "decision": "insert",
+      "reason": "No FY budget found for COA",
+      "coaId": 2,
+      "budgetId": null
+    },
+    {
+      "coaCode": "MTIRMRAD496309",
+      "allocatedAmount": 38800000,
+      "decision": "insert",
+      "reason": "No FY budget found for COA",
+      "coaId": 3,
+      "budgetId": null
+    },
+    {
+      "coaCode": "MTIRMRAD496313",
+      "allocatedAmount": 5052600000,
+      "decision": "insert",
+      "reason": "No FY budget found for COA",
+      "coaId": 4,
+      "budgetId": null
+    },
+    {
+      "coaCode": "MTIRMRAD496314",
+      "allocatedAmount": 1208000000,
+      "decision": "insert",
+      "reason": "No FY budget found for COA",
+      "coaId": 5,
+      "budgetId": null
+    },
+    {
+      "coaCode": "MTIRMRAD496326",
+      "allocatedAmount": 291240000,
+      "decision": "insert",
+      "reason": "No FY budget found for COA",
+      "coaId": 6,
+      "budgetId": null
+    },
+    {
+      "coaCode": "MTIRMRAD496328",
+      "allocatedAmount": 2603435000,
+      "decision": "insert",
+      "reason": "No FY budget found for COA",
+      "coaId": 7,
+      "budgetId": null
+    },
+    {
+      "coaCode": "MTIRMRAD496769",
+      "allocatedAmount": 240200000,
+      "decision": "insert",
+      "reason": "No FY budget found for COA",
+      "coaId": 8,
+      "budgetId": null
+    },
+    {
+      "coaCode": "MTIRMRAD496014",
+      "allocatedAmount": 108000000,
+      "decision": "insert",
+      "reason": "No FY budget found for COA",
+      "coaId": 9,
+      "budgetId": null
+    },
+    {
+      "coaCode": "AMITCM16.6250",
+      "allocatedAmount": 180300000,
+      "decision": "rejected",
+      "reason": "COA expense type is not OPEX",
+      "coaId": 13,
+      "budgetId": null
+    },
+    {
+      "coaCode": "AMITCM19.6250",
+      "allocatedAmount": 892602000,
+      "decision": "rejected",
+      "reason": "COA expense type is not OPEX",
+      "coaId": 15,
+      "budgetId": null
+    },
+    {
+      "coaCode": "AMITCM20.6250",
+      "allocatedAmount": 340048000,
+      "decision": "rejected",
+      "reason": "COA expense type is not OPEX",
+      "coaId": 16,
+      "budgetId": null
+    },
+    {
+      "coaCode": "AMITINO1.6250",
+      "allocatedAmount": 248614000,
+      "decision": "rejected",
+      "reason": "COA expense type is not OPEX",
+      "coaId": 21,
+      "budgetId": null
+    },
+    {
+      "coaCode": "AMPLCM01.6250",
+      "allocatedAmount": 1443606031,
+      "decision": "rejected",
+      "reason": "COA expense type is not OPEX",
+      "coaId": 22,
+      "budgetId": null
+    },
+    {
+      "coaCode": "AMPLME05.6250",
+      "allocatedAmount": 62100000,
+      "decision": "rejected",
+      "reason": "COA expense type is not OPEX",
+      "coaId": 23,
+      "budgetId": null
+    }
+  ]
+}

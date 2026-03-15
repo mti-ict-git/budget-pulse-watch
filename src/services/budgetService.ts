@@ -246,6 +246,51 @@ interface CostCodeBudgetResponse {
   error?: string;
 }
 
+interface BudgetCutoffState {
+  fiscalYear: number;
+  isClosed: boolean;
+  closedAt: string | null;
+  closedBy: number | null;
+  reopenedAt: string | null;
+  reopenedBy: number | null;
+  notes: string | null;
+  updatedAt: string;
+}
+
+interface BudgetCutoffResponse {
+  success: boolean;
+  data?: BudgetCutoffState;
+  message?: string;
+  error?: string;
+}
+
+interface OpexImportRow {
+  coaCode?: string;
+  coaId?: number;
+  allocatedAmount: number;
+  department: string;
+  budgetType?: string;
+  notes?: string;
+}
+
+interface OpexImportResult {
+  fiscalYear: number;
+  totalRows: number;
+  insertedCount: number;
+  updatedCount: number;
+  rejectedCount: number;
+  insertedBudgetIds: number[];
+  updatedBudgetIds: number[];
+  rejected: Array<{ index: number; reason: string }>;
+}
+
+interface OpexImportResponse {
+  success: boolean;
+  message?: string;
+  data?: OpexImportResult;
+  error?: string;
+}
+
 class BudgetService {
   private baseUrl = '/api/budgets';
 
@@ -651,6 +696,101 @@ class BudgetService {
       };
     }
   }
+
+  async getCutoffStatus(fiscalYear: number): Promise<BudgetCutoffResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/cutoff/${fiscalYear}`, {
+        method: 'GET',
+        headers: {
+          ...authService.getAuthHeaders(),
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch cutoff status');
+      }
+
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+
+  async closeCutoff(fiscalYear: number, notes?: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/cutoff/${fiscalYear}/close`, {
+        method: 'POST',
+        headers: {
+          ...authService.getAuthHeaders(),
+        },
+        body: JSON.stringify({ notes }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to close fiscal year cutoff');
+      }
+
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+
+  async reopenCutoff(fiscalYear: number, notes?: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/cutoff/${fiscalYear}/reopen`, {
+        method: 'POST',
+        headers: {
+          ...authService.getAuthHeaders(),
+        },
+        body: JSON.stringify({ notes }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to reopen fiscal year cutoff');
+      }
+
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+
+  async importOpexBudgets(fiscalYear: number, rows: OpexImportRow[]): Promise<OpexImportResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/opex/import`, {
+        method: 'POST',
+        headers: {
+          ...authService.getAuthHeaders(),
+        },
+        body: JSON.stringify({ fiscalYear, rows }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to import OPEX budgets');
+      }
+
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
 }
 
 export const getUtilizationData = async (fiscalYear?: number): Promise<UtilizationData[]> => {
@@ -725,5 +865,8 @@ export type {
   UtilizationData,
   UnallocatedBudgetData,
   UnallocatedBudget,
-  UnallocatedBudgetSummary
+  UnallocatedBudgetSummary,
+  BudgetCutoffState,
+  OpexImportRow,
+  OpexImportResult
 };

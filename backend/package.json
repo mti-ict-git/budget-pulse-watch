@@ -7,13 +7,18 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "nodemon --exec ts-node src/index.ts",
+    "db:migrate": "node scripts/db-migrate.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "clean": "rimraf dist",
     "import:historical": "ts-node src/scripts/importHistoricalData.ts",
     "migrate:usernames": "ts-node src/scripts/runUsernameMigration.ts",
     "migrate:usernames:live": "ts-node src/scripts/runUsernameMigration.ts --live",
     "dev:migrateschema": "ts-node src/scripts/migrateSchema.ts",
-    "dedupe:items": "ts-node src/scripts/dedupePRFItems.ts"
+    "dedupe:items": "ts-node src/scripts/dedupePRFItems.ts",
+    "phase4:pic:dry": "ts-node src/scripts/backfillPICCompleteness.ts",
+    "phase4:pic:apply": "ts-node src/scripts/backfillPICCompleteness.ts --apply",
+    "phase4:opex:reconcile": "ts-node src/scripts/phase4OpexReconciliation.ts --year=2026",
+    "phase5:readiness": "ts-node src/scripts/phase5ReadinessCheck.ts --year=2026"
   },
   "keywords": [
     "prf",

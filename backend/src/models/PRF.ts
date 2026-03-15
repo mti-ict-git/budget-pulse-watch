@@ -237,6 +237,7 @@ export class PRFModel {
     const {
       page = 1,
       limit = 10,
+      Year,
       Status,
       Department,
       Priority,
@@ -254,6 +255,10 @@ export class PRFModel {
     if (Status) {
       whereConditions.push('Status = @Status');
       params.Status = Status;
+    }
+    if (Year) {
+      whereConditions.push('YEAR(COALESCE(DateSubmit, RequestDate)) = @Year');
+      params.Year = Year;
     }
     if (Department) {
       whereConditions.push('Department = @Department');
@@ -351,6 +356,7 @@ export class PRFModel {
     const {
       page = 1,
       limit = 10,
+      Year,
       Status,
       Department,
       Priority,
@@ -368,6 +374,10 @@ export class PRFModel {
     if (Status) {
       whereConditions.push('p.Status = @Status');
       params.Status = Status;
+    }
+    if (Year) {
+      whereConditions.push('YEAR(COALESCE(p.DateSubmit, p.RequestDate)) = @Year');
+      params.Year = Year;
     }
     if (Department) {
       whereConditions.push('p.Department = @Department');
@@ -534,6 +544,10 @@ export class PRFModel {
       setClause.push('PickedUpBy = @PickedUpBy');
       params.PickedUpBy = updateData.PickedUpBy;
     }
+    if (updateData.PickedUpByUserID !== undefined) {
+      setClause.push('PickedUpByUserID = @PickedUpByUserID');
+      params.PickedUpByUserID = updateData.PickedUpByUserID;
+    }
     if (updateData.PickedUpDate !== undefined) {
       setClause.push('PickedUpDate = @PickedUpDate');
       params.PickedUpDate = updateData.PickedUpDate;
@@ -637,6 +651,19 @@ export class PRFModel {
 
     const result = await executeQuery<{ Status: string }>(query);
     return result.recordset.map(row => row.Status);
+  }
+
+  static async getUniqueSubmitYears(): Promise<number[]> {
+    const query = `
+      SELECT DISTINCT YEAR(COALESCE(DateSubmit, RequestDate)) AS SubmitYear
+      FROM PRF
+      WHERE COALESCE(DateSubmit, RequestDate) IS NOT NULL
+      ORDER BY SubmitYear DESC
+    `;
+    const result = await executeQuery<{ SubmitYear: number }>(query);
+    return result.recordset
+      .map((row) => row.SubmitYear)
+      .filter((value) => Number.isInteger(value));
   }
 
   /**

@@ -4,6 +4,8 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
@@ -19,14 +21,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Wallet, TrendingDown, TrendingUp, AlertTriangle, Download, RefreshCw, Plus, Search, MoreHorizontal, Edit, Trash2 } from "lucide-react";
+import { Wallet, TrendingDown, TrendingUp, AlertTriangle, Download, RefreshCw, Plus, Search, MoreHorizontal, Edit, Trash2, Lock, LockOpen, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { budgetService, getUtilizationData, getUnallocatedBudgets, type CostCodeBudget, type BudgetSummary, type Budget, type DashboardMetrics, type UtilizationData, type UnallocatedBudgetData } from '@/services/budgetService';
+import { budgetService, getUtilizationData, getUnallocatedBudgets, type CostCodeBudget, type BudgetSummary, type Budget, type DashboardMetrics, type UtilizationData, type UnallocatedBudgetData, type BudgetCutoffState, type OpexImportRow, type OpexImportResult } from '@/services/budgetService';
 import { UtilizationChart } from '@/components/budget/UtilizationChart';
 import UnallocatedBudgets from '@/components/budget/UnallocatedBudgets';
 import { BudgetCreateDialog } from '@/components/budget/BudgetCreateDialog';
 import { BudgetEditDialog } from '@/components/budget/BudgetEditDialog';
 import { toast } from "sonner";
+import { authService } from "@/services/authService";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('id-ID', {
@@ -79,6 +82,24 @@ export default function BudgetOverview() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
   const [selectedFiscalYear, setSelectedFiscalYear] = useState<string>(new Date().getFullYear().toString());
+  const [cutoffStatus, setCutoffStatus] = useState<BudgetCutoffState | null>(null);
+  const [cutoffActionLoading, setCutoffActionLoading] = useState(false);
+  const [opexImporting, setOpexImporting] = useState(false);
+  const [opexImportResult, setOpexImportResult] = useState<OpexImportResult | null>(null);
+  const [opexPayload, setOpexPayload] = useState(`[
+  {
+    "coaCode": "MTIRMRAD496232",
+    "allocatedAmount": 100000000,
+    "department": "IT",
+    "budgetType": "Annual",
+    "notes": "FY2026 OPEX import"
+  }
+]`);
+
+  const canManageBudgets = authService.canManageContent();
+  const canReopenCutoff = authService.isAdmin();
+  const activeFiscalYear = selectedFiscalYear !== 'all' ? parseInt(selectedFiscalYear, 10) : null;
+  const isFiscalClosed = cutoffStatus?.isClosed ?? false;
 
   const loadBudgetData = async (searchParams?: { search?: string; status?: string; fiscalYear?: number | string }) => {
     try {
@@ -135,7 +156,89 @@ export default function BudgetOverview() {
     }
   };
 
+  const loadCutoffStatus = async (fiscalYear: number | null) => {
+    if (!fiscalYear) {
+      setCutoffStatus(null);
+      return;
+    }
+
+    const response = await budgetService.getCutoffStatus(fiscalYear);
+    if (response.success && response.data) {
+      setCutoffStatus(response.data);
+    } else {
+      setCutoffStatus(null);
+      if (response.message) {
+        toast.error(response.message);
+      }
+    }
+  };
+
+  const handleCutoffAction = async (action: 'close' | 'reopen') => {
+    if (!activeFiscalYear) {
+      toast.error('Please select a specific fiscal year');
+      return;
+    }
+
+    setCutoffActionLoading(true);
+    try {
+      const notes = action === 'close' ? 'Closed from Budget Overview' : 'Reopened from Budget Overview';
+      const response = action === 'close'
+        ? await budgetService.closeCutoff(activeFiscalYear, notes)
+        : await budgetService.reopenCutoff(activeFiscalYear, notes);
+
+      if (!response.success) {
+        toast.error(response.message || 'Failed to update cutoff status');
+        return;
+      }
+
+      toast.success(response.message || `Fiscal year ${activeFiscalYear} updated`);
+      await loadCutoffStatus(activeFiscalYear);
+      await loadBudgetData({ fiscalYear: activeFiscalYear });
+    } finally {
+      setCutoffActionLoading(false);
+    }
+  };
+
+  const handleOpexImport = async () => {
+    if (!activeFiscalYear) {
+      toast.error('Please select a specific fiscal year');
+      return;
+    }
+
+    let rows: OpexImportRow[] = [];
+    try {
+      const parsed = JSON.parse(opexPayload) as unknown;
+      if (!Array.isArray(parsed)) {
+        toast.error('OPEX payload must be a JSON array');
+        return;
+      }
+      rows = parsed as OpexImportRow[];
+    } catch {
+      toast.error('Invalid JSON format for OPEX payload');
+      return;
+    }
+
+    setOpexImporting(true);
+    try {
+      const response = await budgetService.importOpexBudgets(activeFiscalYear, rows);
+      if (!response.success || !response.data) {
+        toast.error(response.message || 'Failed to import OPEX rows');
+        return;
+      }
+
+      setOpexImportResult(response.data);
+      toast.success(response.message || 'OPEX import completed');
+      await loadBudgetData({ fiscalYear: activeFiscalYear });
+    } finally {
+      setOpexImporting(false);
+    }
+  };
+
   const handleDeleteBudget = async (budgetId: number) => {
+    if (isFiscalClosed) {
+      toast.error(`Fiscal year ${activeFiscalYear} is closed`);
+      return;
+    }
     if (!confirm('Are you sure you want to delete this budget?')) {
       return;
     }
@@ -161,6 +264,10 @@ export default function BudgetOverview() {
   };
 
   const handleEditCostCodeBudget = async (costCodeBudget: CostCodeBudget) => {
+    if (isFiscalClosed) {
+      toast.error(`Fiscal year ${activeFiscalYear} is closed`);
+      return;
+    }
     try {
       setLoading(true);
       
@@ -194,7 +301,7 @@ export default function BudgetOverview() {
           COACode: coa.COACode,
           Department: coa.Department,
           ExpenseType: coa.ExpenseType,
-          FiscalYear: selectedFiscalYear,
+          FiscalYear: parseInt(selectedFiscalYear, 10),
           AllocatedAmount: 0,
           UtilizedAmount: costCodeBudget.GrandTotalActual || 0,
           RemainingAmount: 0,
@@ -246,6 +353,10 @@ export default function BudgetOverview() {
     return () => clearTimeout(timeoutId);
   }, [searchTerm, fiscalYearFilter, statusFilter, expenseTypeFilter]);
 
+  useEffect(() => {
+    loadCutoffStatus(activeFiscalYear);
+  }, [selectedFiscalYear]);
+
   // Use dashboard metrics if available, fallback to budget summary
   const totalInitialBudget = dashboardMetrics?.budget.totalBudget || budgetSummary?.totalBudgetAllocated || budgetSummary?.totalBudget || 0;
   const totalSpent = dashboardMetrics?.budget.totalSpent || budgetSummary?.totalBudgetApproved || budgetSummary?.totalSpent || 0;
@@ -275,7 +386,11 @@ export default function BudgetOverview() {
               <Download className="h-4 w-4" />
               Export Report
             </Button>
-            <Button onClick={() => setCreateDialogOpen(true)} className="flex-1 lg:flex-none">
+            <Button
+              onClick={() => setCreateDialogOpen(true)}
+              className="flex-1 lg:flex-none"
+              disabled={!canManageBudgets || isFiscalClosed || !activeFiscalYear}
+            >
               <Plus className="h-4 w-4" />
               Create Budget
             </Button>
@@ -308,6 +423,7 @@ export default function BudgetOverview() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Years</SelectItem>
+                  <SelectItem value="2026">2026</SelectItem>
                   <SelectItem value="2025">2025</SelectItem>
                   <SelectItem value="2024">2024</SelectItem>
                   <SelectItem value="2023">2023</SelectItem>
@@ -340,9 +456,99 @@ export default function BudgetOverview() {
           </div>
         </Card>
 
+        <div className="grid grid-cols-12 gap-4">
+          <Card className="col-span-12 md:col-span-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Fiscal Year Cut-Off</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Selected fiscal year
+                </div>
+                <Badge variant="outline">{activeFiscalYear ?? 'All Years'}</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">Status</div>
+                {isFiscalClosed ? (
+                  <Badge variant="destructive" className="flex items-center gap-1">
+                    <Lock className="h-3.5 w-3.5" />
+                    Closed
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="flex items-center gap-1">
+                    <LockOpen className="h-3.5 w-3.5" />
+                    Open
+                  </Badge>
+                )}
+              </div>
+              {isFiscalClosed && (
+                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  Budget write actions are locked for FY {activeFiscalYear}.
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => handleCutoffAction('close')}
+                  disabled={!canManageBudgets || cutoffActionLoading || !activeFiscalYear || isFiscalClosed}
+                >
+                  Close FY
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleCutoffAction('reopen')}
+                  disabled={!canReopenCutoff || cutoffActionLoading || !activeFiscalYear || !isFiscalClosed}
+                >
+                  Reopen FY
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="col-span-12 md:col-span-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">OPEX FY Import</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-sm text-muted-foreground">
+                Paste JSON array payload for OPEX rows.
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="opex-payload">Payload</Label>
+                <Textarea
+                  id="opex-payload"
+                  value={opexPayload}
+                  onChange={(event) => setOpexPayload(event.target.value)}
+                  rows={8}
+                  className="font-mono text-xs"
+                />
+              </div>
+              <Button
+                onClick={handleOpexImport}
+                disabled={!canManageBudgets || opexImporting || isFiscalClosed || !activeFiscalYear}
+                className="w-full"
+              >
+                <Upload className="h-4 w-4" />
+                Import OPEX Rows
+              </Button>
+              {opexImportResult && (
+                <div className="grid grid-cols-12 gap-2 rounded-md border p-3 text-sm">
+                  <div className="col-span-6">Inserted: {opexImportResult.insertedCount}</div>
+                  <div className="col-span-6">Updated: {opexImportResult.updatedCount}</div>
+                  <div className="col-span-6">Rejected: {opexImportResult.rejectedCount}</div>
+                  <div className="col-span-6">Total: {opexImportResult.totalRows}</div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-        <Card className="metric-card min-h-[120px]">
+      <div className="grid grid-cols-12 gap-4 lg:gap-6">
+        <Card className="metric-card min-h-[120px] col-span-12 md:col-span-6 xl:col-span-3">
           <CardContent className="p-4 lg:p-6">
             <div className="flex items-center justify-between">
               <div className="space-y-2">
@@ -356,7 +562,7 @@ export default function BudgetOverview() {
           </CardContent>
         </Card>
 
-        <Card className="metric-card min-h-[120px]">
+        <Card className="metric-card min-h-[120px] col-span-12 md:col-span-6 xl:col-span-3">
           <CardContent className="p-4 lg:p-6">
             <div className="flex items-center justify-between">
               <div className="space-y-2">
@@ -373,7 +579,7 @@ export default function BudgetOverview() {
           </CardContent>
         </Card>
 
-        <Card className="metric-card min-h-[120px]">
+        <Card className="metric-card min-h-[120px] col-span-12 md:col-span-6 xl:col-span-3">
           <CardContent className="p-4 lg:p-6">
             <div className="flex items-center justify-between">
               <div className="space-y-2">
@@ -389,7 +595,7 @@ export default function BudgetOverview() {
           </CardContent>
         </Card>
 
-        <Card className="metric-card min-h-[120px]">
+        <Card className="metric-card min-h-[120px] col-span-12 md:col-span-6 xl:col-span-3">
           <CardContent className="p-4 lg:p-6">
             <div className="flex items-center justify-between">
               <div className="space-y-2">
@@ -406,19 +612,19 @@ export default function BudgetOverview() {
       </div>
 
       {/* Utilization Charts */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 lg:gap-6 mb-6">
+      <div className="grid grid-cols-12 gap-4 lg:gap-6 mb-6">
         <UtilizationChart
           title="CAPEX Utilization"
           data={utilizationData}
           expenseType="CAPEX"
-          className="min-h-[350px]"
+          className="min-h-[350px] col-span-12 xl:col-span-6"
         />
         
         <UtilizationChart
           title="OPEX Utilization"
           data={utilizationData}
           expenseType="OPEX"
-          className="min-h-[350px]"
+          className="min-h-[350px] col-span-12 xl:col-span-6"
         />
       </div>
 
@@ -536,18 +742,26 @@ export default function BudgetOverview() {
                           <TableCell className="text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                <Button
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0"
+                                  disabled={!canManageBudgets || isFiscalClosed}
+                                >
                                   <span className="sr-only">Open menu</span>
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleEditCostCodeBudget(budget)}>
+                                <DropdownMenuItem
+                                  onClick={() => handleEditCostCodeBudget(budget)}
+                                  disabled={!canManageBudgets || isFiscalClosed}
+                                >
                                   <Edit className="mr-2 h-4 w-4" />
                                   Edit
                                 </DropdownMenuItem>
                                 <DropdownMenuItem 
                                   onClick={() => handleDeleteBudget(parseInt(budget.PurchaseCostCode) || 0)}
+                                  disabled={!canManageBudgets || isFiscalClosed}
                                   className="text-destructive"
                                 >
                                   <Trash2 className="mr-2 h-4 w-4" />

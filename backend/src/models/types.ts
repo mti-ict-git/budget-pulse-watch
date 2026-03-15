@@ -91,6 +91,7 @@ export interface PRFQueryParams {
   limit?: number;
   Offset?: number;
   Limit?: number;
+  Year?: number;
   Status?: string;
   Department?: string;
   Priority?: string;
@@ -116,6 +117,7 @@ export interface UpdatePRFItemParams {
   Specifications?: string;
   Status?: 'Pending' | 'Approved' | 'Picked Up' | 'Cancelled' | 'On Hold';
   PickedUpBy?: string;
+  PickedUpByUserID?: number;
   PickedUpDate?: Date;
   Notes?: string;
   UpdatedBy?: number;
@@ -473,6 +475,7 @@ export interface PRFItem {
   Specifications?: string;
   Status?: 'Pending' | 'Approved' | 'Picked Up' | 'Cancelled' | 'On Hold';
   PickedUpBy?: string;
+  PickedUpByUserID?: number;
   PickedUpDate?: Date;
   Notes?: string;
   UpdatedAt?: Date;

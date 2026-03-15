@@ -1599,6 +1599,23 @@ paths:
         '500':
           description: Internal error
 
+  /api/prfs/picking-pic-users:
+    get:
+      summary: List active DocCon and Admin users for Picking PIC selector
+      tags: [PRFs]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: PIC users
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+
   /api/prfs/bulk:
     delete:
       summary: Delete multiple PRFs
@@ -1814,6 +1831,19 @@ paths:
           application/json:
             schema:
               type: object
+              properties:
+                status:
+                  type: string
+                  enum: [Pending, Approved, Picked Up, Cancelled, On Hold]
+                pickedUpBy:
+                  type: string
+                pickedUpByUserID:
+                  type: integer
+                pickedUpDate:
+                  type: string
+                  format: date-time
+                notes:
+                  type: string
               additionalProperties: true
       responses:
         '200':
@@ -1823,6 +1853,8 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
+        '400':
+          description: Validation error
     delete:
       summary: Delete PRF item
       tags: [PRFs]
@@ -1945,7 +1977,7 @@ paths:
         '401':
           description: Unauthorized
         '409':
-          description: Budget already exists
+          description: Budget already exists or fiscal year closed
 
   /api/budgets/prf/{prfId}/cost-codes:
     get:
@@ -1991,6 +2023,150 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
+
+  /api/budgets/cutoff/{fiscalYear}:
+    get:
+      summary: Get fiscal year budget cutoff state
+      tags: [Budgets]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: fiscalYear
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Cutoff status
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+        '400':
+          description: Invalid fiscal year
+
+  /api/budgets/cutoff/{fiscalYear}/close:
+    post:
+      summary: Close budget write for a fiscal year
+      tags: [Budgets]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: fiscalYear
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Closed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+        '400':
+          description: Invalid fiscal year
+
+  /api/budgets/cutoff/{fiscalYear}/reopen:
+    post:
+      summary: Reopen budget write for a fiscal year
+      tags: [Budgets]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: fiscalYear
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Reopened successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+        '403':
+          description: Admin only
+        '400':
+          description: Invalid fiscal year
+
+  /api/budgets/opex/import:
+    post:
+      summary: Import OPEX budget rows for fiscal year
+      tags: [Budgets]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fiscalYear, rows]
+              properties:
+                fiscalYear:
+                  type: integer
+                rows:
+                  type: array
+                  items:
+                    type: object
+                    required: [allocatedAmount, department]
+                    properties:
+                      coaCode:
+                        type: string
+                      coaId:
+                        type: integer
+                      allocatedAmount:
+                        type: number
+                      department:
+                        type: string
+                      budgetType:
+                        type: string
+                      notes:
+                        type: string
+      responses:
+        '200':
+          description: Import processed
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '409':
+          description: Fiscal year closed
 
   /api/budgets/{id}:
     get:
@@ -2044,6 +2220,8 @@ paths:
           description: Unauthorized
         '404':
           description: Not found
+        '409':
+          description: Fiscal year closed
     delete:
       summary: Delete budget
       tags: [Budgets]
@@ -2066,6 +2244,8 @@ paths:
           description: Unauthorized
         '404':
           description: Not found
+        '409':
+          description: Fiscal year closed
 
   /api/budgets/coa/{coaId}/year/{fiscalYear}:
     get:

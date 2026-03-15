@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -60,6 +60,7 @@ interface PRFItem {
   Specifications?: string;
   Status?: 'Pending' | 'Approved' | 'Picked Up' | 'Cancelled' | 'On Hold';
   PickedUpBy?: string;
+  PickedUpByUserID?: number;
   PickedUpDate?: Date;
   Notes?: string;
   UpdatedAt?: Date;
@@ -178,9 +179,10 @@ const formatCurrency = (amount: number) => {
 
 export default function PRFMonitoring() {
   const { user } = useAuth();
+  const currentYear = new Date().getFullYear();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = useState(currentYear.toString());
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [prfData, setPrfData] = useState<PRFData[]>([]);
@@ -204,6 +206,17 @@ export default function PRFMonitoring() {
   const [isOneDriveTesting, setIsOneDriveTesting] = useState<boolean>(false);
   const [isOneDriveDialogOpen, setIsOneDriveDialogOpen] = useState<boolean>(false);
   const [oneDriveTestOutput, setOneDriveTestOutput] = useState<string>("");
+  const [availableSubmitYears, setAvailableSubmitYears] = useState<number[]>([]);
+  const availableYearValues = useMemo(() => {
+    const years = new Set<number>([currentYear, ...availableSubmitYears]);
+    prfData.forEach((prf) => {
+      const submitDate = new Date(prf.dateSubmit);
+      if (!Number.isNaN(submitDate.getTime())) {
+        years.add(submitDate.getFullYear());
+      }
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [availableSubmitYears, currentYear, prfData]);
 
   // Fetch PRF data from API
   const fetchPRFData = useCallback(async () => {
@@ -279,6 +292,26 @@ export default function PRFMonitoring() {
       console.error('Error fetching status values:', error);
       // Fallback to empty array if fetch fails
       setAvailableStatusValues([]);
+    }
+  };
+
+  const fetchSubmitYears = async () => {
+    try {
+      const response = await fetch('/api/prfs/filters/years', {
+        headers: authService.getAuthHeaders()
+      });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && Array.isArray(result.data)) {
+          const years = result.data
+            .map((value: unknown) => Number(value))
+            .filter((value: number) => Number.isInteger(value) && value > 0);
+          setAvailableSubmitYears(years);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching submit years:', error);
+      setAvailableSubmitYears([]);
     }
   };
 
@@ -493,6 +526,7 @@ export default function PRFMonitoring() {
   // Fetch status values and Chart of Accounts on component mount
   useEffect(() => {
     fetchStatusValues();
+    fetchSubmitYears();
     fetchChartOfAccounts();
   }, []);
 
@@ -920,8 +954,11 @@ export default function PRFMonitoring() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Years</SelectItem>
-                  <SelectItem value="2024">2024</SelectItem>
-                  <SelectItem value="2025">2025</SelectItem>
+                  {availableYearValues.map((year) => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

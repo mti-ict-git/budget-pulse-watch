@@ -3,8 +3,57 @@ import { BudgetModel } from '../models/Budget';
 import { CreateBudgetRequest, UpdateBudgetRequest, BudgetQueryParams } from '../models/types';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
 import { executeQuery } from '../config/database';
+import { isAdmin } from '../utils/rolePermissions';
 
 const router = Router();
+
+type BudgetCutoffRow = {
+  FiscalYear: number;
+  IsClosed: boolean | number;
+  ClosedAt: Date | null;
+  ClosedBy: number | null;
+  ReopenedAt: Date | null;
+  ReopenedBy: number | null;
+  Notes: string | null;
+  UpdatedAt: Date;
+};
+
+type OpexImportItem = {
+  coaCode?: string;
+  coaId?: number;
+  allocatedAmount: number;
+  department: string;
+  budgetType?: string;
+  notes?: string;
+};
+
+const parseFiscalYearParam = (raw: string): number | null => {
+  const fiscalYear = parseInt(raw, 10);
+  if (!Number.isInteger(fiscalYear)) {
+    return null;
+  }
+  return fiscalYear;
+};
+
+const getBudgetCutoff = async (fiscalYear: number): Promise<BudgetCutoffRow | null> => {
+  const result = await executeQuery<BudgetCutoffRow>(
+    'SELECT FiscalYear, IsClosed, ClosedAt, ClosedBy, ReopenedAt, ReopenedBy, Notes, UpdatedAt FROM BudgetCutoff WHERE FiscalYear = @FiscalYear',
+    { FiscalYear: fiscalYear }
+  );
+  return result.recordset[0] || null;
+};
+
+const ensureFiscalYearWritable = async (fiscalYear: number): Promise<{ blocked: boolean; message?: string }> => {
+  const cutoff = await getBudgetCutoff(fiscalYear);
+  const isClosed = cutoff ? Boolean(cutoff.IsClosed) : false;
+  if (isClosed) {
+    return {
+      blocked: true,
+      message: `Budget write is blocked. Fiscal year ${fiscalYear} is closed`
+    };
+  }
+  return { blocked: false };
+};
 
 /**
  * @route GET /api/budgets
@@ -385,6 +434,326 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/cutoff/:fiscalYear', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
+  try {
+    const fiscalYear = parseFiscalYearParam(req.params.fiscalYear);
+    if (fiscalYear === null) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid fiscal year'
+      });
+    }
+
+    const cutoff = await getBudgetCutoff(fiscalYear);
+    const normalized = cutoff || {
+      FiscalYear: fiscalYear,
+      IsClosed: false,
+      ClosedAt: null,
+      ClosedBy: null,
+      ReopenedAt: null,
+      ReopenedBy: null,
+      Notes: null,
+      UpdatedAt: new Date()
+    };
+
+    return res.json({
+      success: true,
+      data: {
+        fiscalYear: normalized.FiscalYear,
+        isClosed: Boolean(normalized.IsClosed),
+        closedAt: normalized.ClosedAt,
+        closedBy: normalized.ClosedBy,
+        reopenedAt: normalized.ReopenedAt,
+        reopenedBy: normalized.ReopenedBy,
+        notes: normalized.Notes,
+        updatedAt: normalized.UpdatedAt
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching budget cutoff:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch budget cutoff',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.post('/cutoff/:fiscalYear/close', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
+  try {
+    const fiscalYear = parseFiscalYearParam(req.params.fiscalYear);
+    if (fiscalYear === null) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid fiscal year'
+      });
+    }
+    if (!req.user?.UserID) {
+      return res.status(401).json({
+        success: false,
+        message: 'User authentication required'
+      });
+    }
+
+    const notes = typeof req.body?.notes === 'string' ? req.body.notes.trim() : null;
+
+    await executeQuery(
+      `
+      MERGE BudgetCutoff AS target
+      USING (SELECT @FiscalYear AS FiscalYear) AS source
+      ON target.FiscalYear = source.FiscalYear
+      WHEN MATCHED THEN
+        UPDATE SET
+          IsClosed = 1,
+          ClosedAt = GETDATE(),
+          ClosedBy = @UserID,
+          ReopenedAt = NULL,
+          ReopenedBy = NULL,
+          Notes = @Notes,
+          UpdatedAt = GETDATE()
+      WHEN NOT MATCHED THEN
+        INSERT (FiscalYear, IsClosed, ClosedAt, ClosedBy, ReopenedAt, ReopenedBy, Notes, UpdatedAt)
+        VALUES (@FiscalYear, 1, GETDATE(), @UserID, NULL, NULL, @Notes, GETDATE());
+      `,
+      { FiscalYear: fiscalYear, UserID: req.user.UserID, Notes: notes }
+    );
+
+    await executeQuery(
+      `
+      INSERT INTO BudgetCutoffAudit (FiscalYear, Action, ActionBy, Notes)
+      VALUES (@FiscalYear, 'CLOSE', @ActionBy, @Notes)
+      `,
+      { FiscalYear: fiscalYear, ActionBy: req.user.UserID, Notes: notes }
+    );
+
+    return res.json({
+      success: true,
+      message: `Fiscal year ${fiscalYear} budget closed successfully`
+    });
+  } catch (error) {
+    console.error('Error closing budget cutoff:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to close budget cutoff',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.post('/cutoff/:fiscalYear/reopen', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
+  try {
+    const fiscalYear = parseFiscalYearParam(req.params.fiscalYear);
+    if (fiscalYear === null) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid fiscal year'
+      });
+    }
+    if (!req.user?.UserID || !req.user?.Role) {
+      return res.status(401).json({
+        success: false,
+        message: 'User authentication required'
+      });
+    }
+    if (!isAdmin(req.user.Role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required to reopen fiscal year cutoff'
+      });
+    }
+
+    const notes = typeof req.body?.notes === 'string' ? req.body.notes.trim() : null;
+
+    await executeQuery(
+      `
+      MERGE BudgetCutoff AS target
+      USING (SELECT @FiscalYear AS FiscalYear) AS source
+      ON target.FiscalYear = source.FiscalYear
+      WHEN MATCHED THEN
+        UPDATE SET
+          IsClosed = 0,
+          ReopenedAt = GETDATE(),
+          ReopenedBy = @UserID,
+          Notes = @Notes,
+          UpdatedAt = GETDATE()
+      WHEN NOT MATCHED THEN
+        INSERT (FiscalYear, IsClosed, ClosedAt, ClosedBy, ReopenedAt, ReopenedBy, Notes, UpdatedAt)
+        VALUES (@FiscalYear, 0, NULL, NULL, GETDATE(), @UserID, @Notes, GETDATE());
+      `,
+      { FiscalYear: fiscalYear, UserID: req.user.UserID, Notes: notes }
+    );
+
+    await executeQuery(
+      `
+      INSERT INTO BudgetCutoffAudit (FiscalYear, Action, ActionBy, Notes)
+      VALUES (@FiscalYear, 'REOPEN', @ActionBy, @Notes)
+      `,
+      { FiscalYear: fiscalYear, ActionBy: req.user.UserID, Notes: notes }
+    );
+
+    return res.json({
+      success: true,
+      message: `Fiscal year ${fiscalYear} budget reopened successfully`
+    });
+  } catch (error) {
+    console.error('Error reopening budget cutoff:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to reopen budget cutoff',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.post('/opex/import', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.UserID) {
+      return res.status(401).json({
+        success: false,
+        message: 'User authentication required'
+      });
+    }
+
+    const fiscalYear = typeof req.body?.fiscalYear === 'number' ? req.body.fiscalYear : parseInt(String(req.body?.fiscalYear), 10);
+    if (!Number.isInteger(fiscalYear)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid fiscalYear'
+      });
+    }
+
+    const writeState = await ensureFiscalYearWritable(fiscalYear);
+    if (writeState.blocked) {
+      return res.status(409).json({
+        success: false,
+        message: writeState.message
+      });
+    }
+
+    const rows: unknown[] = Array.isArray(req.body?.rows) ? req.body.rows : [];
+    if (rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'rows is required and must contain at least one item'
+      });
+    }
+
+    const parsedItems: OpexImportItem[] = rows.map((entry) => ({
+      coaCode: typeof (entry as OpexImportItem).coaCode === 'string' ? (entry as OpexImportItem).coaCode : undefined,
+      coaId: typeof (entry as OpexImportItem).coaId === 'number' ? (entry as OpexImportItem).coaId : undefined,
+      allocatedAmount: Number((entry as OpexImportItem).allocatedAmount),
+      department: String((entry as OpexImportItem).department || ''),
+      budgetType: typeof (entry as OpexImportItem).budgetType === 'string' ? (entry as OpexImportItem).budgetType : undefined,
+      notes: typeof (entry as OpexImportItem).notes === 'string' ? (entry as OpexImportItem).notes : undefined
+    }));
+
+    const inserted: number[] = [];
+    const updated: number[] = [];
+    const rejected: { index: number; reason: string }[] = [];
+
+    for (let index = 0; index < parsedItems.length; index += 1) {
+      const item = parsedItems[index];
+      if (!Number.isFinite(item.allocatedAmount) || item.allocatedAmount < 0) {
+        rejected.push({ index, reason: 'allocatedAmount must be a non-negative number' });
+        continue;
+      }
+      if (!item.department.trim()) {
+        rejected.push({ index, reason: 'department is required' });
+        continue;
+      }
+      if (!item.coaId && !item.coaCode) {
+        rejected.push({ index, reason: 'coaId or coaCode is required' });
+        continue;
+      }
+
+      let coaId = item.coaId ?? null;
+      if (!coaId && item.coaCode) {
+        const coaResult = await executeQuery<{ COAID: number; ExpenseType: string; Department: string }>(
+          'SELECT COAID, ExpenseType, Department FROM ChartOfAccounts WHERE COACode = @COACode',
+          { COACode: item.coaCode.trim() }
+        );
+        const coa = coaResult.recordset[0];
+        if (!coa) {
+          rejected.push({ index, reason: `COA code not found: ${item.coaCode}` });
+          continue;
+        }
+        if (coa.ExpenseType !== 'OPEX') {
+          rejected.push({ index, reason: `COA code is not OPEX: ${item.coaCode}` });
+          continue;
+        }
+        coaId = coa.COAID;
+      } else if (coaId) {
+        const coaResult = await executeQuery<{ COAID: number; ExpenseType: string; Department: string }>(
+          'SELECT COAID, ExpenseType, Department FROM ChartOfAccounts WHERE COAID = @COAID',
+          { COAID: coaId }
+        );
+        const coa = coaResult.recordset[0];
+        if (!coa) {
+          rejected.push({ index, reason: `COA ID not found: ${coaId}` });
+          continue;
+        }
+        if (coa.ExpenseType !== 'OPEX') {
+          rejected.push({ index, reason: `COA ID is not OPEX: ${coaId}` });
+          continue;
+        }
+      }
+
+      if (!coaId) {
+        rejected.push({ index, reason: 'Unable to resolve COAID' });
+        continue;
+      }
+
+      const existingBudget = await BudgetModel.findByCOAAndYear(coaId, fiscalYear);
+      if (existingBudget) {
+        await BudgetModel.update(existingBudget.BudgetID, {
+          AllocatedAmount: item.allocatedAmount,
+          Department: item.department.trim(),
+          ExpenseType: 'OPEX',
+          BudgetType: item.budgetType || 'Annual',
+          Notes: item.notes
+        });
+        updated.push(existingBudget.BudgetID);
+      } else {
+        const created = await BudgetModel.create(
+          {
+            COAID: coaId,
+            FiscalYear: fiscalYear,
+            AllocatedAmount: item.allocatedAmount,
+            Department: item.department.trim(),
+            ExpenseType: 'OPEX',
+            BudgetType: item.budgetType || 'Annual',
+            Notes: item.notes
+          },
+          req.user.UserID
+        );
+        inserted.push(created.BudgetID);
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: 'OPEX import processed',
+      data: {
+        fiscalYear,
+        totalRows: parsedItems.length,
+        insertedCount: inserted.length,
+        updatedCount: updated.length,
+        rejectedCount: rejected.length,
+        insertedBudgetIds: inserted,
+        updatedBudgetIds: updated,
+        rejected
+      }
+    });
+  } catch (error) {
+    console.error('Error importing OPEX budgets:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to import OPEX budgets',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 /**
  * @route GET /api/budgets/:id
  * @desc Get budget by ID
@@ -497,6 +866,14 @@ router.post('/', authenticateToken, requireContentManager, async (req: Request, 
         message: 'Budget already exists for this COA and fiscal year'
       });
     }
+
+    const writeState = await ensureFiscalYearWritable(budgetData.FiscalYear);
+    if (writeState.blocked) {
+      return res.status(409).json({
+        success: false,
+        message: writeState.message
+      });
+    }
     
     const budget = await BudgetModel.create(budgetData, req.user.UserID);
     
@@ -540,6 +917,14 @@ router.put('/:id', authenticateToken, requireContentManager, async (req: Request
         message: 'Budget not found'
       });
     }
+
+    const writeState = await ensureFiscalYearWritable(existingBudget.FiscalYear);
+    if (writeState.blocked) {
+      return res.status(409).json({
+        success: false,
+        message: writeState.message
+      });
+    }
     
     const updatedBudget = await BudgetModel.update(budgetId, updateData);
     
@@ -580,6 +965,14 @@ router.delete('/:id', authenticateToken, requireContentManager, async (req: Requ
       return res.status(404).json({
         success: false,
         message: 'Budget not found'
+      });
+    }
+
+    const writeState = await ensureFiscalYearWritable(existingBudget.FiscalYear);
+    if (writeState.blocked) {
+      return res.status(409).json({
+        success: false,
+        message: writeState.message
       });
     }
     

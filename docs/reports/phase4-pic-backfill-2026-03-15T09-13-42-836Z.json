@@ -1,0 +1,126 @@
+{
+  "generatedAt": "2026-03-15T09:13:42.835Z",
+  "mode": "dry-run",
+  "budgetYear": 2026,
+  "excelPath": "/Users/widjis/Documents/Projects/budget-pulse-watch/PRF IT MONITORING - NEW UPDATED.xlsx",
+  "totals": {
+    "candidates": 12,
+    "resolvedUpdatedBy": 0,
+    "resolvedExcelMappedUser": 0,
+    "resolvedExcelText": 0,
+    "resolvedFallbackUnknown": 0,
+    "unresolved": 12,
+    "updatesPlanned": 0,
+    "updatesApplied": 0
+  },
+  "rows": [
+    {
+      "prfItemId": 10208,
+      "prfNo": "39301",
+      "strategy": "unresolved",
+      "pickedUpBy": null,
+      "pickedUpByUserId": null,
+      "confidence": "none",
+      "reason": "No reliable source found"
+    },
+    {
+      "prfItemId": 10561,
+      "prfNo": "39031",
+      "strategy": "unresolved",
+      "pickedUpBy": null,
+      "pickedUpByUserId": null,
+      "confidence": "none",
+      "reason": "No reliable source found"
+    },
+    {
+      "prfItemId": 10585,
+      "prfNo": "40286",
+      "strategy": "unresolved",
+      "pickedUpBy": null,
+      "pickedUpByUserId": null,
+      "confidence": "none",
+      "reason": "No reliable source found"
+    },
+    {
+      "prfItemId": 10586,
+      "prfNo": "40286",
+      "strategy": "unresolved",
+      "pickedUpBy": null,
+      "pickedUpByUserId": null,
+      "confidence": "none",
+      "reason": "No reliable source found"
+    },
+    {
+      "prfItemId": 10587,
+      "prfNo": "40286",
+      "strategy": "unresolved",
+      "pickedUpBy": null,
+      "pickedUpByUserId": null,
+      "confidence": "none",
+      "reason": "No reliable source found"
+    },
+    {
+      "prfItemId": 10588,
+      "prfNo": "40286",
+      "strategy": "unresolved",
+      "pickedUpBy": null,
+      "pickedUpByUserId": null,
+      "confidence": "none",
+      "reason": "No reliable source found"
+    },
+    {
+      "prfItemId": 10589,
+      "prfNo": "40286",
+      "strategy": "unresolved",
+      "pickedUpBy": null,
+      "pickedUpByUserId": null,
+      "confidence": "none",
+      "reason": "No reliable source found"
+    },
+    {
+      "prfItemId": 10590,
+      "prfNo": "40286",
+      "strategy": "unresolved",
+      "pickedUpBy": null,
+      "pickedUpByUserId": null,
+      "confidence": "none",
+      "reason": "No reliable source found"
+    },
+    {
+      "prfItemId": 10591,
+      "prfNo": "40286",
+      "strategy": "unresolved",
+      "pickedUpBy": null,
+      "pickedUpByUserId": null,
+      "confidence": "none",
+      "reason": "No reliable source found"
+    },
+    {
+      "prfItemId": 10592,
+      "prfNo": "40286",
+      "strategy": "unresolved",
+      "pickedUpBy": null,
+      "pickedUpByUserId": null,
+      "confidence": "none",
+      "reason": "No reliable source found"
+    },
+    {
+      "prfItemId": 11429,
+      "prfNo": "40631",
+      "strategy": "unresolved",
+      "pickedUpBy": null,
+      "pickedUpByUserId": null,
+      "confidence": "none",
+      "reason": "No reliable source found"
+    },
+    {
+      "prfItemId": 11430,
+      "prfNo": "40631",
+      "strategy": "unresolved",
+      "pickedUpBy": null,
+      "pickedUpByUserId": null,
+      "confidence": "none",
+      "reason": "No reliable source found"
+    }
+  ]
+}
