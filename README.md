@@ -161,6 +161,11 @@ This uses Microsoft Graph to update or append a row by matching PRF No.
   - default selection uses current year
   - year options are generated from available submit-date years and include current year
   - new endpoint: `GET /api/prfs/filters/years`
+- Dashboard cards now use live backend data:
+  - metric cards use `GET /api/reports/dashboard`
+  - budget utilization card uses `GET /api/reports/budget-summary` (category breakdown), with `expenseBreakdown` fallback
+  - recent PRFs card uses `GET /api/prfs?page=1&limit=5`
+  - budget alerts card uses `GET /api/reports/alerts` (high utilization, over-budget PRFs, pending approvals)
 - Responsive layout uses `grid grid-cols-12 gap-4` with mobile-first col-span rules
 
 ## Phase 4 Data Backfill and Integrity

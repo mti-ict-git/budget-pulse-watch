@@ -261,6 +261,20 @@ Tue Mar 17 03:41:48 WITA 2026
 - Added loading/error/empty states for Recent PRFs card
 - Hardened dashboard status badge mapping for real backend status values
 
+Tue Mar 17 03:59:41 WITA 2026
+- Replaced all Dashboard card data sources with live APIs (metrics, utilization, recent PRFs, alerts)
+- Wired metric cards to /api/reports/dashboard and alert cards to /api/reports/alerts
+- Removed remaining mock utilization/alert values and added runtime loading/error/empty states
+
+Tue Mar 17 04:07:05 WITA 2026
+- Fixed dashboard PRF metric aggregation to normalize status labels (approved/pending/rejected variants)
+- Updated fiscal-year filter in PRF metrics to use `COALESCE(BudgetYear, YEAR(RequestDate))` for consistency
+
+Tue Mar 17 04:12:20 WITA 2026
+- Reworked Dashboard budget utilization card to use `GET /api/reports/budget-summary` category breakdown
+- Added pending approvals into Dashboard alert cards (from `GET /api/reports/alerts`)
+- Added fallback rendering path to dashboard expense breakdown when summary data is empty
+
 Tue Mar 17 03:42:34 WITA 2026
 - Fixed remaining Budget Overview chart/table mismatch by removing PRF-spend double counting in report aggregation queries
 - Refactored `/api/reports/dashboard` and `/api/reports/utilization` to aggregate budget per COA first, then join PRF spend per COA

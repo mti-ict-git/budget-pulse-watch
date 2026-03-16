@@ -76,13 +76,18 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
     
     // Get PRF metrics
     const prfQuery = `
+      WITH PRFMetrics AS (
+        SELECT
+          LOWER(LTRIM(RTRIM(COALESCE(p.Status, '')))) AS NormalizedStatus
+        FROM PRF p
+        WHERE ${prfFiscalYearExpr} = @FiscalYear
+      )
       SELECT 
         COUNT(*) as TotalPRFs,
-        COUNT(CASE WHEN Status = 'Approved' THEN 1 END) as ApprovedPRFs,
-        COUNT(CASE WHEN Status = 'Pending' THEN 1 END) as PendingPRFs,
-        COUNT(CASE WHEN Status = 'Rejected' THEN 1 END) as RejectedPRFs
-      FROM PRF
-      WHERE YEAR(RequestDate) = @FiscalYear
+        COUNT(CASE WHEN NormalizedStatus LIKE '%approved%' OR NormalizedStatus LIKE '%complete%' THEN 1 END) as ApprovedPRFs,
+        COUNT(CASE WHEN NormalizedStatus LIKE '%pending%' OR NormalizedStatus LIKE '%review%' OR NormalizedStatus LIKE '%process%' THEN 1 END) as PendingPRFs,
+        COUNT(CASE WHEN NormalizedStatus LIKE '%reject%' OR NormalizedStatus LIKE '%denied%' OR NormalizedStatus LIKE '%cancel%' THEN 1 END) as RejectedPRFs
+      FROM PRFMetrics
     `;
     
     // Get CAPEX/OPEX breakdown
