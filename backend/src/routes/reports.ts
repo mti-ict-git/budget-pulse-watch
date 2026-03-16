@@ -13,6 +13,11 @@ const allocatedAmountToIdrExpr = `
   )
 `;
 const prfFiscalYearExpr = `COALESCE(p.BudgetYear, YEAR(p.RequestDate))`;
+const prfResolvedCoaExpr = `COALESCE(coa_map.COAID, p.COAID)`;
+const prfToCoaJoinExpr = `
+  NULLIF(LTRIM(RTRIM(p.PurchaseCostCode)), '') IS NOT NULL
+  AND UPPER(LTRIM(RTRIM(p.PurchaseCostCode))) = UPPER(LTRIM(RTRIM(coa_map.COACode)))
+`;
 
 /**
  * @route   GET /api/reports/dashboard
@@ -46,12 +51,13 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
       ),
       PRFByCoa AS (
         SELECT
-          p.COAID,
+          ${prfResolvedCoaExpr} as COAID,
           SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) as TotalSpent
         FROM PRF p
+        LEFT JOIN ChartOfAccounts coa_map ON ${prfToCoaJoinExpr}
         WHERE p.Status IN ('Approved', 'Completed')
           AND ${prfFiscalYearExpr} = @FiscalYear
-        GROUP BY p.COAID
+        GROUP BY ${prfResolvedCoaExpr}
       )
       SELECT
         SUM(bb.TotalAllocated) as TotalBudget,
@@ -93,12 +99,13 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
       ),
       PRFByCoa AS (
         SELECT
-          p.COAID,
+          ${prfResolvedCoaExpr} as COAID,
           SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) as TotalSpent
         FROM PRF p
+        LEFT JOIN ChartOfAccounts coa_map ON ${prfToCoaJoinExpr}
         WHERE p.Status IN ('Approved', 'Completed')
           AND ${prfFiscalYearExpr} = @FiscalYear
-        GROUP BY p.COAID
+        GROUP BY ${prfResolvedCoaExpr}
       )
       SELECT
         bb.ExpenseType,
@@ -187,10 +194,11 @@ router.get('/budget-summary', asyncHandler(async (req, res) => {
         ${whereClause}
         GROUP BY b.COAID
       ), PRFTotals AS (
-        SELECT p.COAID, SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) AS TotalSpent
+        SELECT ${prfResolvedCoaExpr} AS COAID, SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) AS TotalSpent
         FROM PRF p
+        LEFT JOIN ChartOfAccounts coa_map ON ${prfToCoaJoinExpr}
         WHERE p.Status IN ('Approved', 'Completed') AND ${prfFiscalYearExpr} = @FiscalYear
-        GROUP BY p.COAID
+        GROUP BY ${prfResolvedCoaExpr}
       )
       SELECT coa.Category, coa.ExpenseType, COUNT(DISTINCT bt.COAID) AS BudgetCount,
              SUM(bt.TotalAllocated) AS TotalAllocated,
@@ -258,12 +266,13 @@ router.get('/unallocated-budgets', asyncHandler(async (req, res) => {
       INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
       LEFT JOIN (
         SELECT 
-          p.COAID,
+          ${prfResolvedCoaExpr} as COAID,
           SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) as TotalSpent
         FROM PRF p
+        LEFT JOIN ChartOfAccounts coa_map ON ${prfToCoaJoinExpr}
         WHERE p.Status IN ('Approved', 'Completed')
           AND ${prfFiscalYearExpr} = @FiscalYear
-        GROUP BY p.COAID
+        GROUP BY ${prfResolvedCoaExpr}
       ) prf_spent ON b.COAID = prf_spent.COAID
       WHERE b.FiscalYear = @FiscalYear
         AND (
@@ -291,12 +300,13 @@ router.get('/unallocated-budgets', asyncHandler(async (req, res) => {
       INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
       LEFT JOIN (
         SELECT 
-          p.COAID,
+          ${prfResolvedCoaExpr} as COAID,
           SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) as TotalSpent
         FROM PRF p
+        LEFT JOIN ChartOfAccounts coa_map ON ${prfToCoaJoinExpr}
         WHERE p.Status IN ('Approved', 'Completed')
-          AND YEAR(p.RequestDate) = @FiscalYear
-        GROUP BY p.COAID
+          AND ${prfFiscalYearExpr} = @FiscalYear
+        GROUP BY ${prfResolvedCoaExpr}
       ) prf_spent ON b.COAID = prf_spent.COAID
       WHERE b.FiscalYear = @FiscalYear
         AND (
@@ -432,12 +442,13 @@ router.get('/utilization', asyncHandler(async (req, res) => {
       ),
       PRFByCoa AS (
         SELECT
-          p.COAID,
+          ${prfResolvedCoaExpr} as COAID,
           SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) as TotalSpent
         FROM PRF p
+        LEFT JOIN ChartOfAccounts coa_map ON ${prfToCoaJoinExpr}
         WHERE p.Status IN ('Approved', 'Completed')
           AND ${prfFiscalYearExpr} = @FiscalYear
-        GROUP BY p.COAID
+        GROUP BY ${prfResolvedCoaExpr}
       )
       SELECT
         bb.Category as category,
@@ -519,12 +530,13 @@ router.get('/budget-utilization', asyncHandler(async (req, res) => {
       INNER JOIN ChartOfAccounts coa ON bs.COAID = coa.COAID
       LEFT JOIN (
         SELECT 
-          p.COAID,
+          ${prfResolvedCoaExpr} as COAID,
           SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) as TotalSpent
         FROM PRF p
+        LEFT JOIN ChartOfAccounts coa_map ON ${prfToCoaJoinExpr}
         WHERE p.Status IN ('Approved', 'Completed')
           AND ${prfFiscalYearExpr} = @FiscalYear
-        GROUP BY p.COAID
+        GROUP BY ${prfResolvedCoaExpr}
       ) prf_spent ON bs.COAID = prf_spent.COAID
       GROUP BY coa.Category, coa.ExpenseType, coa.Department
       ORDER BY coa.ExpenseType, coa.Category
@@ -685,10 +697,11 @@ router.get('/export', asyncHandler(async (req, res) => {
         ${whereClause}
         GROUP BY b.COAID
       ), PRFTotals AS (
-        SELECT p.COAID, SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) AS TotalSpent
+        SELECT ${prfResolvedCoaExpr} AS COAID, SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) AS TotalSpent
         FROM PRF p
+        LEFT JOIN ChartOfAccounts coa_map ON ${prfToCoaJoinExpr}
         WHERE p.Status IN ('Approved', 'Completed') AND ${prfFiscalYearExpr} = @FiscalYear
-        GROUP BY p.COAID
+        GROUP BY ${prfResolvedCoaExpr}
       )
       SELECT coa.Category AS Category, coa.ExpenseType AS ExpenseType,
              COUNT(DISTINCT bt.COAID) AS BudgetCount,

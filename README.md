@@ -154,6 +154,8 @@ This uses Microsoft Graph to update or append a row by matching PRF No.
   - synchronized fiscal-year source for table, summary cards, and utilization chart to avoid cross-year mismatch
   - aligned "Spent" semantics between OPEX utilization chart and budget details table to use approved/completed PRF spending
   - de-duplicated report spend aggregation to avoid multiplying PRF spent when multiple budget rows exist for one COA
+  - report spend now resolves PRFs missing `COAID` via `PurchaseCostCode` mapping to COA
+  - report spend mapping now prioritizes normalized `PurchaseCostCode -> COACode` match before PRF `COAID` to avoid stale COA links
   - improved edit budget defaults to preserve currency and active/inactive status from latest COA-year budget row
 - PRF Monitoring year filter now auto-adapts:
   - default selection uses current year

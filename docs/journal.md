@@ -271,3 +271,15 @@ Tue Mar 17 03:42:50 WITA 2026
 - Made Dashboard Budget Alerts items clickable (navigate to /budget)
 - Added keyboard focus styles for accessibility
 - Ran npm run lint and npx tsc --noEmit
+
+Tue Mar 17 03:48:12 WITA 2026
+- Fixed Budget Overview utilization spend mapping for PRFs without COAID by resolving COA via `PurchaseCostCode`
+- Updated report aggregations to group PRF spend by `COALESCE(p.COAID, coa_map.COAID)` before joining to budget
+- Applied the fallback mapping to dashboard, utilization, budget summary, budget utilization, unallocated summary, and export report paths
+- Ran npm run lint (warnings only), npx tsc --noEmit (root passed), and npx tsc --noEmit (backend passed)
+
+Tue Mar 17 03:53:44 WITA 2026
+- Fixed remaining 0%-usage gap by prioritizing COA resolution from `PurchaseCostCode` over PRF `COAID` in report aggregations
+- Normalized code matching with `LTRIM/RTRIM/UPPER` to handle spacing/case mismatches between PRF cost codes and COA codes
+- Applied `prfToCoaJoinExpr` mapping across all report spend aggregations (dashboard/utilization/summary/unallocated/export)
+- Ran npm run lint (warnings only), npx tsc --noEmit (root passed), and npx tsc --noEmit (backend passed)
