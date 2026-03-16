@@ -191,41 +191,6 @@ Thursday, February 12, 2026 12:20:33 PM
 
 Thursday, February 12, 2026 12:21:52 PM
 - Confirmed PO No derives from PRF No using the same base number with different suffix
-
-Thursday, February 19, 2026 11:33:09 AM
-- Fixed OCR PRF create-from-document to honor SHARED_FOLDER_PATH env fallback
-- Persisted OCR source document metadata in PRFFiles even when shared copy fails
-
-Thursday, February 19, 2026 11:57:43 AM
-- Clarified mobile spec PO derivation example (PRF41356 → PO41356)
-
-Mon Mar  2 16:59:00 WIB 2026
-- Prevented "phantom" shared storage writes when CIFS mount is missing
-- Improved Docker detection to avoid treating all Linux/prod as Docker
-
-Mon Mar  2 18:55:12 WIB 2026
-- Enhanced shared folder test to report CIFS mount status and resolved path
-- Updated Settings > General to display mount/access badges after testing
-
-Mon Mar  2 19:17:36 WIB 2026
-- Exposed env-based effective shared folder path in settings API and UI
-- Clarified README that SHARED_FOLDER_PATH env overrides GUI setting
-
-Mon Mar  2 19:20:01 WIB 2026
-- Fixed Vite dev proxy default to backend port 3000 for local login
-
-Mon Mar  2 20:43:42 WIB 2026
-- Added filesystem usage status (df-like) for /app/shared-documents and root in Settings > General
-
-Mon Mar  2 20:53:15 WIB 2026
-- Fixed Shared Folder Path Test button overlap with responsive layout
-- Improved filesystem status readability with card-style rows
-
-Mon Mar  2 20:56:27 WIB 2026
-- Fixed Data Maintenance action buttons overlapping on smaller widths
-
-Fri Mar 13 23:59:11 WITA 2026
-- Added delete action for synced PRF documents (admin/doccon only)
 194→
 195→2026-02-12 20:43:14 +0800
 196→196→- Added mobile/ directory to .gitignore to keep local mobile client untracked
@@ -281,9 +246,6 @@ Thu Feb 12 23:39:10 WITA 2026
 - Added backend endpoint GET /api/prfs/:id/activity (audit + document uploads timeline)
 - Ran npm run lint and npx tsc --noEmit
 
-Fri Feb 13 00:24:04 WITA 2026
-- Fixed Docker deployments missing Swagger OpenAPI spec by mounting /docs into backend container
-
 Fri Feb 13 00:08:56 WITA 2026
 - Fixed mobile PRF Details Documents tab stuck loading (effect cancellation loop)
 - Switched Documents/Activity data loads to AbortController-based requests
@@ -294,141 +256,18 @@ Fri Feb 13 00:20:46 WITA 2026
 - Made documents parsing tolerant to string/nullable fields from /api/prf-documents/documents/{prfId}
 - Ran npm run lint and npx tsc --noEmit
 
-Sun Mar 15 13:16:02 WITA 2026
-- Created docs/upgrade-feature.md with phased implementation plan for:
-  - FY2026 Budget Cut-Off and OPEX data workflow
-  - Picking Item PIC selection by DocCon
-- Documented scope, phase-by-phase tasks, API/schema/UI changes, risks, and acceptance criteria
+Tue Mar 17 03:41:48 WITA 2026
+- Replaced Dashboard Recent PRFs mock list with live API data from GET /api/prfs?page=1&limit=5
+- Added loading/error/empty states for Recent PRFs card
+- Hardened dashboard status badge mapping for real backend status values
 
-Sun Mar 15 13:38:24 WITA 2026
-- Started Phase 1 database foundation for FY2026 Budget Cut-Off and Picking PIC
-- Updated backend/database/schema.sql with BudgetCutoff, BudgetCutoffAudit, and PRFItems PickedUpByUserID support
-- Added migration scripts:
-  - backend/database/migrations/008_add_budget_cutoff_and_pickup_pic.sql
-  - backend/database/migrations/008_add_budget_cutoff_and_pickup_pic_rollback.sql
-- Ran npm run lint (warnings only) and npx tsc --noEmit (passed)
-
-Sun Mar 15 13:56:43 WITA 2026
-- Applied Phase 1 SQL migration to PRFMonitoringDB using backend/scripts/apply-phase1-migration.js
-- Verified database objects exist:
-  - BudgetCutoff table
-  - BudgetCutoffAudit table
-  - PRFItems.PickedUpByUserID column
-- Added backend/scripts/verify-phase1-migration.js for repeatable post-migration verification
-- Ran npm run lint (warnings only) and npx tsc --noEmit (passed)
-
-Sun Mar 15 14:22:59 WITA 2026
-- Added reusable migration runner backend/scripts/db-migrate.js with SchemaMigrations tracking
-- Added npm shortcut commands:
-  - root: npm run db:migrate
-  - backend: npm run db:migrate
-- Updated README with db migration usage (latest and all pending modes)
-- Removed temporary phase-specific migration helper scripts
-- Verified npm run db:migrate executes successfully and applied 008 migration into tracking table
-- Ran npm run lint (warnings only) and npx tsc --noEmit (passed)
-
-Sun Mar 15 14:55:32 WITA 2026
-- Implemented Phase 2 backend budget cutoff APIs:
-  - GET /api/budgets/cutoff/:fiscalYear
-  - POST /api/budgets/cutoff/:fiscalYear/close
-  - POST /api/budgets/cutoff/:fiscalYear/reopen (admin only)
-- Enforced fiscal-year write lock on budget create/update/delete when cutoff is closed
-- Added OPEX bulk ingestion endpoint POST /api/budgets/opex/import with fiscal year and COA validation
-- Enforced PRF Picking PIC rules on item update:
-  - Picked Up requires PIC and PickedUpDate
-  - PickedUpByUserID must be active DocCon/Admin
-- Extended backend PRF item types/model with PickedUpByUserID support
-- Updated docs/openapi.yaml and README.md for new Phase 2 APIs and rules
-- Ran npm run lint (warnings only) and npx tsc --noEmit (passed)
-
-Sun Mar 15 15:20:38 WITA 2026
-- Implemented Phase 3 web UI updates on Budget Overview:
-  - added fiscal year cut-off status card with close/reopen actions
-  - added OPEX FY import payload panel with import summary result
-  - disabled budget write actions in UI when selected fiscal year is closed
-- Added budget service client methods for cutoff APIs and OPEX import API
-- Added PRF picking PIC user source endpoint GET /api/prfs/picking-pic-users for controlled selector
-- Updated PRF item modification modal:
-  - replaced free-text PIC flow with controlled PIC selector
-  - enforced PIC selection UX for Picked Up status
-  - kept PIC fields read-only for non DocCon/Admin roles
-- Applied responsive grid pattern with grid-cols-12 on updated sections
-- Updated docs/openapi.yaml and README.md for new Phase 3 behavior
-- Ran npm run lint (warnings only) and npx tsc --noEmit (passed)
-
-Sun Mar 15 17:23:43 WITA 2026
-- Implemented Phase 4 data backfill and integrity scripts:
-  - backend/src/scripts/backfillPICCompleteness.ts
-  - backend/src/scripts/phase4OpexReconciliation.ts
-- Added backend npm commands:
-  - phase4:pic:dry
-  - phase4:pic:apply
-  - phase4:opex:reconcile
-- Generated Phase 4 report artifacts in docs/reports:
-  - phase4-pic-backfill-2026-03-15T09-13-42-836Z.json/csv
-  - phase4-opex-reconciliation-2026-03-15T09-13-51-607Z.json/csv
-- Added docs/phase4-runbook.md with execution order and fallback policy
-- Added docs/reports/phase4-data-quality-report-2026-03-15.md
-- Updated README.md with Phase 4 command and output references
+Tue Mar 17 03:42:34 WITA 2026
+- Fixed remaining Budget Overview chart/table mismatch by removing PRF-spend double counting in report aggregation queries
+- Refactored `/api/reports/dashboard` and `/api/reports/utilization` to aggregate budget per COA first, then join PRF spend per COA
+- Aligned utilization fiscal-year spend filter to `COALESCE(BudgetYear, YEAR(RequestDate))` for consistency
 - Ran npm run lint (warnings only), npx tsc --noEmit (root passed), and npx tsc --noEmit (backend passed)
 
-Sun Mar 15 17:31:48 WITA 2026
-- Implemented Phase 5 readiness automation:
-  - backend/src/scripts/phase5ReadinessCheck.ts
-  - backend script command: phase5:readiness
-- Executed readiness check and generated:
-  - docs/reports/phase5-readiness-2026-03-15T09-30-30-901Z.json
-- Added Phase 5 UAT and release docs:
-  - docs/phase5-uat-checklist.md
-  - docs/phase5-deployment-rollback.md
-- Updated README.md with Phase 5 QA/hardening/release flow
-- Ran npm run lint (warnings only), npx tsc --noEmit (root passed), and npx tsc --noEmit (backend passed)
-
-Sun Mar 15 18:58:11 WITA 2026
-- Updated PRF item pickup UX in item modification modal:
-  - changed Picking PIC from searchable dropdown to free-text input
-  - changed quick action Mark as Picked Up to prompt picker name before status update
-- Updated README.md pickup section to reflect free-text and prompt behavior
-- Ran npm run lint (warnings only), npx tsc --noEmit (root passed), and npx tsc --noEmit (backend passed)
-
-Sun Mar 15 19:11:25 WITA 2026
-- Updated PRF Monitoring year filter behavior:
-  - default filter now uses current year dynamically
-  - year dropdown options are generated dynamically from data and always include current year
-- Updated README.md Phase 3 UI notes for adaptive year filter behavior
-- Ran npm run lint (warnings only), npx tsc --noEmit (root passed), and npx tsc --noEmit (backend passed)
-
-Sun Mar 15 19:40:31 WITA 2026
-- Updated PRF year filtering to use submit-date year from backend:
-  - added `year` query handling on `/api/prfs` and `/api/prfs/with-items`
-  - applied filter with `YEAR(COALESCE(DateSubmit, RequestDate))`
-- Added new filter metadata endpoint:
-  - `GET /api/prfs/filters/years` returns distinct submit-date years
-- Updated PRF Monitoring year dropdown to load years from `/api/prfs/filters/years`
-  and merge with current page submit-date years plus current year
-- Updated README.md to document submit-date year source and new endpoint
-- Ran npm run lint (warnings only), npx tsc --noEmit (root passed), and npx tsc --noEmit (backend passed)
-
-Monday, March 16, 2026 3:07:50 PM
-- Added currency support for Budget and PRF with IDR/USD and exchange rate columns
-- Added SQL migration `009_add_currency_support.sql` and updated schema.sql for reproducibility
-- Updated budget OPEX import and cost-code aggregations to normalize amounts into IDR
-- Added currency and exchange-rate inputs in Budget create/edit dialogs
-- Updated README currency notes under Budget Cut-Off and OPEX Import
-- Ran npm run lint (warnings only), npx tsc --noEmit (root passed), and npx tsc --noEmit -p backend/tsconfig.json (passed)
-
-Monday, March 16, 2026 3:47:56 PM
-- Added API endpoint `GET /api/budgets/exchange-rate/usd-idr/today` to resolve today's USD→IDR
-- Added backend auto-fill of exchange rate for USD budget create/update/opex import when missing
-- Added "Use Today's Rate" actions in Budget create/edit dialogs
-- Added `FX_USD_TO_IDR` environment override support for fixed-rate environments
-- Ran npm run lint (warnings only), npx tsc --noEmit (root passed), and npx tsc --noEmit -p backend/tsconfig.json (passed)
-
-Monday, March 16, 2026 4:07:09 PM
-- Prevented OCR service from initializing AI settings before DB connection on module import
-- Removed startup-time "Database not connected. Call connectDatabase() first." noise from OCR service bootstrap
-- Verified backend typecheck with npx tsc --noEmit -p backend/tsconfig.json
-
-Monday, March 16, 2026 4:39:03 PM
-- Fixed Vite API proxy default target to backend port 3001 in vite.config.ts
-- Verified login API through backend (3001) and frontend proxy (8080) responds correctly
+Tue Mar 17 03:42:50 WITA 2026
+- Made Dashboard Budget Alerts items clickable (navigate to /budget)
+- Added keyboard focus styles for accessibility
+- Ran npm run lint and npx tsc --noEmit

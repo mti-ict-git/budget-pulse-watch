@@ -129,6 +129,7 @@ This uses Microsoft Graph to update or append a row by matching PRF No.
 - Currency support:
   - Budget and PRF now support `IDR` and `USD` with `ExchangeRateToIDR`.
   - Budget calculations in cost-code views normalize to IDR automatically.
+  - Budget report aggregations (`/api/reports/dashboard`, `/api/reports/utilization`, `/api/reports/budget-summary`, `/api/reports/budget-utilization`, export) normalize allocated budget to IDR before utilization math.
   - OPEX import accepts optional `currencyCode` and `exchangeRateToIDR` per row.
   - Added endpoint `GET /api/budgets/exchange-rate/usd-idr/today` for today's USD→IDR rate.
   - For USD budget create/update/import, backend auto-fills today's rate when rate is missing.
@@ -150,6 +151,10 @@ This uses Microsoft Graph to update or append a row by matching PRF No.
   - fiscal year cut-off status card and close/reopen actions
   - OPEX FY import payload area and import summary panel
   - locked-state behavior that disables budget write actions when FY is closed
+  - synchronized fiscal-year source for table, summary cards, and utilization chart to avoid cross-year mismatch
+  - aligned "Spent" semantics between OPEX utilization chart and budget details table to use approved/completed PRF spending
+  - de-duplicated report spend aggregation to avoid multiplying PRF spent when multiple budget rows exist for one COA
+  - improved edit budget defaults to preserve currency and active/inactive status from latest COA-year budget row
 - PRF Monitoring year filter now auto-adapts:
   - default selection uses current year
   - year options are generated from available submit-date years and include current year

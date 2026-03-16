@@ -401,7 +401,10 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
           ) as TotalRequested,
           SUM(
             CAST(
-              COALESCE(COALESCE(p.ApprovedAmount, p.RequestedAmount), 0) *
+              CASE
+                WHEN p.Status IN ('Approved', 'Completed') THEN COALESCE(COALESCE(p.ApprovedAmount, p.RequestedAmount), 0)
+                ELSE 0
+              END *
               CASE
                 WHEN COALESCE(p.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(p.ExchangeRateToIDR, 0), 1)
                 ELSE 1

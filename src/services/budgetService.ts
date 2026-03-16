@@ -38,6 +38,7 @@ interface Budget {
   UpdatedAt: Date;
   Description?: string;
   IsActive?: boolean;
+  Status?: string;
   ExpenseType?: 'CAPEX' | 'OPEX';
   CurrencyCode?: 'IDR' | 'USD';
   ExchangeRateToIDR?: number;

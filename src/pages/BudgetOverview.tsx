@@ -73,7 +73,6 @@ export default function BudgetOverview() {
   
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState('');
-  const [fiscalYearFilter, setFiscalYearFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [expenseTypeFilter, setExpenseTypeFilter] = useState<string>('all');
   
@@ -308,6 +307,10 @@ export default function BudgetOverview() {
           UtilizedAmount: costCodeBudget.GrandTotalActual || 0,
           RemainingAmount: 0,
           UtilizationPercentage: 0,
+          CurrencyCode: 'IDR',
+          ExchangeRateToIDR: 1,
+          IsActive: true,
+          Status: 'Active',
           CreatedBy: 1, // Should be replaced with actual user ID from auth context
           CreatedAt: new Date(),
           UpdatedAt: new Date()
@@ -345,7 +348,7 @@ export default function BudgetOverview() {
     const timeoutId = setTimeout(() => {
       const searchParams = {
         search: searchTerm || undefined,
-        fiscalYear: fiscalYearFilter !== 'all' ? fiscalYearFilter : 'all',
+        fiscalYear: selectedFiscalYear !== 'all' ? selectedFiscalYear : 'all',
         status: statusFilter !== 'all' ? statusFilter : undefined,
         expenseType: expenseTypeFilter !== 'all' ? expenseTypeFilter as 'CAPEX' | 'OPEX' : undefined,
       };
@@ -353,7 +356,7 @@ export default function BudgetOverview() {
     }, 300); // 300ms delay
 
     return () => clearTimeout(timeoutId);
-  }, [searchTerm, fiscalYearFilter, statusFilter, expenseTypeFilter]);
+  }, [searchTerm, selectedFiscalYear, statusFilter, expenseTypeFilter]);
 
   useEffect(() => {
     loadCutoffStatus(activeFiscalYear);
@@ -416,7 +419,6 @@ export default function BudgetOverview() {
                 value={selectedFiscalYear} 
                 onValueChange={(value) => {
                   setSelectedFiscalYear(value);
-                  setFiscalYearFilter(value);
                   loadBudgetData({ fiscalYear: value });
                 }}
               >

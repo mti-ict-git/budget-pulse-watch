@@ -72,8 +72,9 @@ export class BudgetModel {
    */
   static async findByCOAAndYear(coaId: number, fiscalYear: number): Promise<Budget | null> {
     const query = `
-      SELECT * FROM Budget 
+      SELECT TOP 1 * FROM Budget 
       WHERE COAID = @COAID AND FiscalYear = @FiscalYear
+      ORDER BY UpdatedAt DESC, BudgetID DESC
     `;
     
     const result = await executeQuery<Budget>(query, { COAID: coaId, FiscalYear: fiscalYear });

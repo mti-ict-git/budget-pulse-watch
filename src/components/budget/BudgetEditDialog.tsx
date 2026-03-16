@@ -58,6 +58,7 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
   const [isLoadingCOA, setIsLoadingCOA] = useState(false);
   const [coaOpen, setCoaOpen] = useState(false);
   const { toast } = useToast();
+  const initialIsActive = budget.IsActive ?? (typeof budget.Status === 'string' ? budget.Status.toLowerCase() === 'active' : true);
   
   const [formData, setFormData] = useState<UpdateBudgetRequest>({
     COAID: budget.COAID,
@@ -66,7 +67,9 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
     Description: budget.Description || "",
     Department: budget.Department || "",
     CurrencyCode: budget.CurrencyCode || 'IDR',
-    ExchangeRateToIDR: budget.ExchangeRateToIDR || 1
+    ExchangeRateToIDR: budget.ExchangeRateToIDR || 1,
+    IsActive: initialIsActive,
+    Status: initialIsActive ? 'Active' : 'Inactive'
   });
 
   const loadChartOfAccounts = useCallback(async () => {
@@ -102,10 +105,12 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
         Description: budget.Description || "",
         Department: budget.Department || "",
         CurrencyCode: budget.CurrencyCode || 'IDR',
-        ExchangeRateToIDR: budget.ExchangeRateToIDR || 1
+        ExchangeRateToIDR: budget.ExchangeRateToIDR || 1,
+        IsActive: initialIsActive,
+        Status: initialIsActive ? 'Active' : 'Inactive'
       });
     }
-  }, [open, budget, loadChartOfAccounts]);
+  }, [initialIsActive, open, budget, loadChartOfAccounts]);
 
   const handleInputChange = (field: keyof UpdateBudgetRequest, value: string | number | boolean) => {
     setFormData(prev => ({
@@ -177,12 +182,19 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
           FiscalYear: formData.FiscalYear!,
           AllocatedAmount: formData.AllocatedAmount!,
           Description: formData.Description,
-          Department: formData.Department!
+          Department: formData.Department!,
+          CurrencyCode: formData.CurrencyCode,
+          ExchangeRateToIDR: formData.ExchangeRateToIDR
         };
         result = await budgetService.createBudget(createData);
       } else {
         // Update existing budget
-        result = await budgetService.updateBudget(budget.BudgetID, formData);
+        const normalizedIsActive = formData.IsActive ?? (typeof formData.Status === 'string' ? formData.Status.toLowerCase() === 'active' : true);
+        result = await budgetService.updateBudget(budget.BudgetID, {
+          ...formData,
+          IsActive: normalizedIsActive,
+          Status: normalizedIsActive ? 'Active' : 'Inactive'
+        });
       }
       
       if (result.success) {
@@ -222,7 +234,8 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
       Department: budget.Department || "",
       CurrencyCode: budget.CurrencyCode || 'IDR',
       ExchangeRateToIDR: budget.ExchangeRateToIDR || 1,
-      IsActive: budget.IsActive
+      IsActive: initialIsActive,
+      Status: initialIsActive ? 'Active' : 'Inactive'
     });
   };
 
@@ -433,8 +446,12 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
                   Status
                 </Label>
                 <Select
-                  value={formData.IsActive ? "true" : "false"}
-                  onValueChange={(value) => handleInputChange('IsActive', value === "true")}
+                  value={(formData.IsActive ?? true) ? "true" : "false"}
+                  onValueChange={(value) => {
+                    const isActiveValue = value === "true";
+                    handleInputChange('IsActive', isActiveValue);
+                    handleInputChange('Status', isActiveValue ? 'Active' : 'Inactive');
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />

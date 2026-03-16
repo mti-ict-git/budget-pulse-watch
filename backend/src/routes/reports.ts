@@ -2,6 +2,17 @@ import express from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 
 const router = express.Router();
+const allocatedAmountToIdrExpr = `
+  CAST(
+    b.AllocatedAmount *
+    CASE
+      WHEN COALESCE(b.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(b.ExchangeRateToIDR, 0), 1)
+      ELSE 1
+    END
+    AS DECIMAL(18,2)
+  )
+`;
+const prfFiscalYearExpr = `COALESCE(p.BudgetYear, YEAR(p.RequestDate))`;
 
 /**
  * @route   GET /api/reports/dashboard
@@ -24,29 +35,37 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
     
     // Get budget metrics (excluding zero allocations)
     const budgetQuery = `
-      SELECT 
-        SUM(b.AllocatedAmount) as TotalBudget,
-        SUM(COALESCE(prf_spent.TotalSpent, 0)) as TotalSpent,
-        SUM(b.AllocatedAmount) - SUM(COALESCE(prf_spent.TotalSpent, 0)) as TotalRemaining,
-        COUNT(b.BudgetID) as TotalBudgetItems,
-        COUNT(CASE WHEN COALESCE(prf_spent.TotalSpent, 0) > b.AllocatedAmount THEN 1 END) as OverBudgetCount,
-        CASE 
-          WHEN SUM(b.AllocatedAmount) > 0 
-          THEN ROUND((SUM(COALESCE(prf_spent.TotalSpent, 0)) * 100.0 / SUM(b.AllocatedAmount)), 2)
-          ELSE 0 
-        END as OverallUtilization
-      FROM Budget b
-      INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
-      LEFT JOIN (
-        SELECT 
+      WITH BudgetByCoa AS (
+        SELECT
+          b.COAID,
+          SUM(${allocatedAmountToIdrExpr}) as TotalAllocated
+        FROM Budget b
+        INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
+        ${whereClause}
+        GROUP BY b.COAID
+      ),
+      PRFByCoa AS (
+        SELECT
           p.COAID,
           SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) as TotalSpent
         FROM PRF p
         WHERE p.Status IN ('Approved', 'Completed')
-          AND YEAR(p.RequestDate) = @FiscalYear
+          AND ${prfFiscalYearExpr} = @FiscalYear
         GROUP BY p.COAID
-      ) prf_spent ON b.COAID = prf_spent.COAID
-      ${whereClause}
+      )
+      SELECT
+        SUM(bb.TotalAllocated) as TotalBudget,
+        SUM(COALESCE(pb.TotalSpent, 0)) as TotalSpent,
+        SUM(bb.TotalAllocated) - SUM(COALESCE(pb.TotalSpent, 0)) as TotalRemaining,
+        COUNT(bb.COAID) as TotalBudgetItems,
+        COUNT(CASE WHEN COALESCE(pb.TotalSpent, 0) > bb.TotalAllocated THEN 1 END) as OverBudgetCount,
+        CASE
+          WHEN SUM(bb.TotalAllocated) > 0
+          THEN ROUND((SUM(COALESCE(pb.TotalSpent, 0)) * 100.0 / SUM(bb.TotalAllocated)), 2)
+          ELSE 0
+        END as OverallUtilization
+      FROM BudgetByCoa bb
+      LEFT JOIN PRFByCoa pb ON bb.COAID = pb.COAID
     `;
     
     // Get PRF metrics
@@ -62,24 +81,33 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
     
     // Get CAPEX/OPEX breakdown
     const expenseTypeQuery = `
-      SELECT 
-        coa.ExpenseType,
-        SUM(b.AllocatedAmount) as TotalAllocated,
-        SUM(COALESCE(prf_spent.TotalSpent, 0)) as TotalSpent,
-        COUNT(b.BudgetID) as BudgetCount
-      FROM Budget b
-      INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
-      LEFT JOIN (
-        SELECT 
+      WITH BudgetByCoa AS (
+        SELECT
+          b.COAID,
+          coa.ExpenseType,
+          SUM(${allocatedAmountToIdrExpr}) as TotalAllocated
+        FROM Budget b
+        INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
+        ${whereClause}
+        GROUP BY b.COAID, coa.ExpenseType
+      ),
+      PRFByCoa AS (
+        SELECT
           p.COAID,
           SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) as TotalSpent
         FROM PRF p
         WHERE p.Status IN ('Approved', 'Completed')
-          AND YEAR(p.RequestDate) = @FiscalYear
+          AND ${prfFiscalYearExpr} = @FiscalYear
         GROUP BY p.COAID
-      ) prf_spent ON b.COAID = prf_spent.COAID
-      ${whereClause}
-      GROUP BY coa.ExpenseType
+      )
+      SELECT
+        bb.ExpenseType,
+        SUM(bb.TotalAllocated) as TotalAllocated,
+        SUM(COALESCE(pb.TotalSpent, 0)) as TotalSpent,
+        COUNT(bb.COAID) as BudgetCount
+      FROM BudgetByCoa bb
+      LEFT JOIN PRFByCoa pb ON bb.COAID = pb.COAID
+      GROUP BY bb.ExpenseType
     `;
     
     const [budgetResult, prfResult, expenseTypeResult] = await Promise.all([
@@ -153,7 +181,7 @@ router.get('/budget-summary', asyncHandler(async (req, res) => {
     }
     const query = `
       WITH BudgetTotals AS (
-        SELECT b.COAID, SUM(b.AllocatedAmount) AS TotalAllocated
+        SELECT b.COAID, SUM(${allocatedAmountToIdrExpr}) AS TotalAllocated
         FROM Budget b
         INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
         ${whereClause}
@@ -161,7 +189,7 @@ router.get('/budget-summary', asyncHandler(async (req, res) => {
       ), PRFTotals AS (
         SELECT p.COAID, SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) AS TotalSpent
         FROM PRF p
-        WHERE p.Status IN ('Approved', 'Completed') AND YEAR(p.RequestDate) = @FiscalYear
+        WHERE p.Status IN ('Approved', 'Completed') AND ${prfFiscalYearExpr} = @FiscalYear
         GROUP BY p.COAID
       )
       SELECT coa.Category, coa.ExpenseType, COUNT(DISTINCT bt.COAID) AS BudgetCount,
@@ -218,7 +246,7 @@ router.get('/unallocated-budgets', asyncHandler(async (req, res) => {
         coa.COAName,
         coa.Category,
         coa.Department,
-        b.AllocatedAmount,
+        ${allocatedAmountToIdrExpr} as AllocatedAmount,
         b.FiscalYear,
         COALESCE(prf_spent.TotalSpent, 0) as TotalSpent,
         CASE 
@@ -234,7 +262,7 @@ router.get('/unallocated-budgets', asyncHandler(async (req, res) => {
           SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) as TotalSpent
         FROM PRF p
         WHERE p.Status IN ('Approved', 'Completed')
-          AND YEAR(p.RequestDate) = @FiscalYear
+          AND ${prfFiscalYearExpr} = @FiscalYear
         GROUP BY p.COAID
       ) prf_spent ON b.COAID = prf_spent.COAID
       WHERE b.FiscalYear = @FiscalYear
@@ -257,7 +285,7 @@ router.get('/unallocated-budgets', asyncHandler(async (req, res) => {
         COUNT(CASE WHEN b.AllocatedAmount = 0 THEN 1 END) as ZeroAllocationCount,
         COUNT(CASE WHEN coa.Department NOT LIKE '%IT%' AND coa.Department NOT LIKE '%Information Technology%' AND b.AllocatedAmount > 0 THEN 1 END) as NonITCount,
         SUM(CASE WHEN b.AllocatedAmount = 0 THEN COALESCE(prf_spent.TotalSpent, 0) ELSE 0 END) as ZeroAllocationSpent,
-        SUM(CASE WHEN coa.Department NOT LIKE '%IT%' AND coa.Department NOT LIKE '%Information Technology%' THEN b.AllocatedAmount ELSE 0 END) as NonITBudget,
+        SUM(CASE WHEN coa.Department NOT LIKE '%IT%' AND coa.Department NOT LIKE '%Information Technology%' THEN ${allocatedAmountToIdrExpr} ELSE 0 END) as NonITBudget,
         SUM(CASE WHEN coa.Department NOT LIKE '%IT%' AND coa.Department NOT LIKE '%Information Technology%' THEN COALESCE(prf_spent.TotalSpent, 0) ELSE 0 END) as NonITSpent
       FROM Budget b
       INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
@@ -390,32 +418,42 @@ router.get('/utilization', asyncHandler(async (req, res) => {
     const { executeQuery } = await import('../config/database');
     
     const query = `
-      SELECT 
-        coa.Category as category,
-        coa.ExpenseType as expenseType,
-        SUM(b.AllocatedAmount) as totalAllocated,
-        SUM(COALESCE(prf_spent.TotalSpent, 0)) as totalSpent,
-        COUNT(b.BudgetID) as budgetCount,
-        CASE 
-          WHEN SUM(b.AllocatedAmount) > 0 
-          THEN ROUND((SUM(COALESCE(prf_spent.TotalSpent, 0)) * 100.0 / SUM(b.AllocatedAmount)), 2)
-          ELSE 0 
-        END as utilizationPercentage
-      FROM Budget b
-      INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
-      LEFT JOIN (
-        SELECT 
+      WITH BudgetByCoa AS (
+        SELECT
+          b.COAID,
+          coa.Category,
+          coa.ExpenseType,
+          SUM(${allocatedAmountToIdrExpr}) as TotalAllocated
+        FROM Budget b
+        INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
+        WHERE b.FiscalYear = @FiscalYear
+          AND b.AllocatedAmount > 0
+        GROUP BY b.COAID, coa.Category, coa.ExpenseType
+      ),
+      PRFByCoa AS (
+        SELECT
           p.COAID,
           SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) as TotalSpent
         FROM PRF p
         WHERE p.Status IN ('Approved', 'Completed')
-          AND YEAR(p.RequestDate) = @FiscalYear
+          AND ${prfFiscalYearExpr} = @FiscalYear
         GROUP BY p.COAID
-      ) prf_spent ON b.COAID = prf_spent.COAID
-      WHERE b.FiscalYear = @FiscalYear
-        AND b.AllocatedAmount > 0
-      GROUP BY coa.Category, coa.ExpenseType
-      ORDER BY coa.ExpenseType, coa.Category
+      )
+      SELECT
+        bb.Category as category,
+        bb.ExpenseType as expenseType,
+        SUM(bb.TotalAllocated) as totalAllocated,
+        SUM(COALESCE(pb.TotalSpent, 0)) as totalSpent,
+        COUNT(bb.COAID) as budgetCount,
+        CASE
+          WHEN SUM(bb.TotalAllocated) > 0
+          THEN ROUND((SUM(COALESCE(pb.TotalSpent, 0)) * 100.0 / SUM(bb.TotalAllocated)), 2)
+          ELSE 0
+        END as utilizationPercentage
+      FROM BudgetByCoa bb
+      LEFT JOIN PRFByCoa pb ON bb.COAID = pb.COAID
+      GROUP BY bb.Category, bb.ExpenseType
+      ORDER BY bb.ExpenseType, bb.Category
     `;
     
     const result = await executeQuery(query, { FiscalYear: fiscalYear });
@@ -458,7 +496,7 @@ router.get('/budget-utilization', asyncHandler(async (req, res) => {
       WITH BudgetSummary AS (
         SELECT 
           b.COAID,
-          SUM(b.AllocatedAmount) as TotalAllocated
+          SUM(${allocatedAmountToIdrExpr}) as TotalAllocated
         FROM Budget b
         ${whereClause}
           AND b.AllocatedAmount > 0
@@ -485,7 +523,7 @@ router.get('/budget-utilization', asyncHandler(async (req, res) => {
           SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) as TotalSpent
         FROM PRF p
         WHERE p.Status IN ('Approved', 'Completed')
-          AND YEAR(p.RequestDate) = @FiscalYear
+          AND ${prfFiscalYearExpr} = @FiscalYear
         GROUP BY p.COAID
       ) prf_spent ON bs.COAID = prf_spent.COAID
       GROUP BY coa.Category, coa.ExpenseType, coa.Department
@@ -560,15 +598,18 @@ router.get('/alerts', asyncHandler(async (req, res) => {
     `;
     const overPrfQuery = `
       WITH BudgetAlloc AS (
-        SELECT COAID, FiscalYear, SUM(AllocatedAmount) AS Alloc
-        FROM Budget
+        SELECT
+          b.COAID,
+          b.FiscalYear,
+          SUM(${allocatedAmountToIdrExpr}) AS Alloc
+        FROM Budget b
         WHERE FiscalYear = @FiscalYear
-        GROUP BY COAID, FiscalYear
+        GROUP BY b.COAID, b.FiscalYear
       ), PRFSpend AS (
-        SELECT PRFID, PRFNo, Department, COAID, YEAR(RequestDate) AS FiscalYear,
+        SELECT PRFID, PRFNo, Department, COAID, COALESCE(BudgetYear, YEAR(RequestDate)) AS FiscalYear,
                COALESCE(ApprovedAmount, RequestedAmount, 0) AS Amount
         FROM PRF
-        WHERE YEAR(RequestDate) = @FiscalYear
+        WHERE COALESCE(BudgetYear, YEAR(RequestDate)) = @FiscalYear
       )
       SELECT s.PRFID, s.PRFNo, s.Department, s.Amount, a.Alloc AS BudgetAllocated, coa.COACode, coa.COAName
       FROM PRFSpend s
@@ -638,7 +679,7 @@ router.get('/export', asyncHandler(async (req, res) => {
     }
     const query = `
       WITH BudgetTotals AS (
-        SELECT b.COAID, SUM(b.AllocatedAmount) AS TotalAllocated
+        SELECT b.COAID, SUM(${allocatedAmountToIdrExpr}) AS TotalAllocated
         FROM Budget b
         INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
         ${whereClause}
@@ -646,7 +687,7 @@ router.get('/export', asyncHandler(async (req, res) => {
       ), PRFTotals AS (
         SELECT p.COAID, SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount, 0)) AS TotalSpent
         FROM PRF p
-        WHERE p.Status IN ('Approved', 'Completed') AND YEAR(p.RequestDate) = @FiscalYear
+        WHERE p.Status IN ('Approved', 'Completed') AND ${prfFiscalYearExpr} = @FiscalYear
         GROUP BY p.COAID
       )
       SELECT coa.Category AS Category, coa.ExpenseType AS ExpenseType,

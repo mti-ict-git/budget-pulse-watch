@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from "react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +11,9 @@ import {
   AlertTriangle,
   DollarSign
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { authService } from "@/services/authService";
 
 // Mock data
 const metrics = [
@@ -51,22 +54,42 @@ const budgetCategories = [
   { name: "Hardware", utilized: 34, remaining: 13200000, total: 20000000 },
 ];
 
-const recentPRFs = [
-  { id: "PRF-2024-248", submitter: "John Doe", amount: 2500000, status: "pending", category: "IT Consumables" },
-  { id: "PRF-2024-247", submitter: "Jane Smith", amount: 750000, status: "approved", category: "Software Licenses" },
-  { id: "PRF-2024-246", submitter: "Bob Wilson", amount: 1200000, status: "over_budget", category: "Internet Services" },
-  { id: "PRF-2024-245", submitter: "Alice Johnson", amount: 3200000, status: "approved", category: "Hardware" },
-];
+interface RecentPRFItem {
+  id: string;
+  submitter: string;
+  amount: number;
+  status: string;
+  category: string;
+}
+
+interface RecentPRFApiRow {
+  PRFID?: number;
+  PRFNo?: string;
+  SubmitBy?: string;
+  RequestorName?: string;
+  RequestedAmount?: number;
+  Amount?: number;
+  Status?: string;
+  PurchaseCostCode?: string;
+}
+
+interface RecentPRFApiResponse {
+  success: boolean;
+  data: RecentPRFApiRow[];
+}
 
 const getStatusBadge = (status: string) => {
-  const statusConfig = {
-    pending: { label: "Pending", variant: "secondary" as const },
-    approved: { label: "Approved", variant: "default" as const },
-    over_budget: { label: "Over Budget", variant: "destructive" as const }
-  };
-  
-  const config = statusConfig[status as keyof typeof statusConfig];
-  return <Badge variant={config.variant}>{config.label}</Badge>;
+  const normalizedStatus = status.trim().toLowerCase();
+  if (normalizedStatus.includes("approved") || normalizedStatus.includes("complete")) {
+    return <Badge variant="default">Approved</Badge>;
+  }
+  if (normalizedStatus.includes("over") && normalizedStatus.includes("budget")) {
+    return <Badge variant="destructive">Over Budget</Badge>;
+  }
+  if (normalizedStatus.includes("reject") || normalizedStatus.includes("cancel") || normalizedStatus.includes("denied")) {
+    return <Badge variant="destructive">Rejected</Badge>;
+  }
+  return <Badge variant="secondary">Pending</Badge>;
 };
 
 const formatCurrency = (amount: number) => {
@@ -78,6 +101,46 @@ const formatCurrency = (amount: number) => {
 };
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+  const [recentPRFs, setRecentPRFs] = useState<RecentPRFItem[]>([]);
+  const [recentPRFsLoading, setRecentPRFsLoading] = useState<boolean>(false);
+  const [recentPRFsError, setRecentPRFsError] = useState<string | null>(null);
+
+  const fetchRecentPRFs = useCallback(async () => {
+    setRecentPRFsLoading(true);
+    setRecentPRFsError(null);
+    try {
+      const response = await fetch("/api/prfs?page=1&limit=5", {
+        headers: authService.getAuthHeaders(),
+      });
+
+      const result: RecentPRFApiResponse = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error("Failed to fetch recent PRFs");
+      }
+
+      const transformed = result.data.map((prf) => ({
+        id: prf.PRFNo ?? (typeof prf.PRFID === "number" ? `PRF-${prf.PRFID}` : "-"),
+        submitter: prf.SubmitBy ?? prf.RequestorName ?? "-",
+        amount: prf.RequestedAmount ?? prf.Amount ?? 0,
+        status: prf.Status ?? "pending",
+        category: prf.PurchaseCostCode ?? "-",
+      }));
+
+      setRecentPRFs(transformed);
+    } catch (error) {
+      setRecentPRFs([]);
+      setRecentPRFsError(error instanceof Error ? error.message : "Failed to fetch recent PRFs");
+    } finally {
+      setRecentPRFsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRecentPRFs();
+  }, [fetchRecentPRFs]);
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -135,20 +198,28 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentPRFs.map((prf) => (
-                <div key={prf.id} className="flex items-center justify-between p-3 border border-border rounded-lg">
-                  <div className="space-y-1">
-                    <p className="font-medium text-sm">{prf.id}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {prf.submitter} • {prf.category}
-                    </p>
+              {recentPRFsLoading ? (
+                <p className="text-sm text-muted-foreground">Loading recent PRFs...</p>
+              ) : recentPRFsError ? (
+                <p className="text-sm text-destructive">{recentPRFsError}</p>
+              ) : recentPRFs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No recent PRFs available.</p>
+              ) : (
+                recentPRFs.map((prf) => (
+                  <div key={prf.id} className="flex items-center justify-between p-3 border border-border rounded-lg">
+                    <div className="space-y-1">
+                      <p className="font-medium text-sm">{prf.id}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {prf.submitter} • {prf.category}
+                      </p>
+                    </div>
+                    <div className="text-right space-y-1">
+                      <p className="font-medium text-sm">{formatCurrency(prf.amount)}</p>
+                      {getStatusBadge(prf.status)}
+                    </div>
                   </div>
-                  <div className="text-right space-y-1">
-                    <p className="font-medium text-sm">{formatCurrency(prf.amount)}</p>
-                    {getStatusBadge(prf.status)}
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
@@ -164,7 +235,15 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            <div className="flex items-center gap-3 p-3 bg-warning/10 border border-warning/20 rounded-lg">
+            <button
+              type="button"
+              onClick={() => navigate("/budget")}
+              className={cn(
+                "w-full text-left flex items-center gap-3 p-3 bg-warning/10 border border-warning/20 rounded-lg",
+                "hover:bg-warning/15 transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              )}
+            >
               <AlertTriangle className="h-4 w-4 text-warning flex-shrink-0" />
               <div>
                 <p className="font-medium text-sm">Software Licenses near limit</p>
@@ -172,8 +251,16 @@ export default function Dashboard() {
                   89% utilized - Only {formatCurrency(1100000)} remaining
                 </p>
               </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/budget")}
+              className={cn(
+                "w-full text-left flex items-center gap-3 p-3 bg-destructive/10 border border-destructive/20 rounded-lg",
+                "hover:bg-destructive/15 transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              )}
+            >
               <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />
               <div>
                 <p className="font-medium text-sm">3 PRFs exceed available budget</p>
@@ -181,7 +268,7 @@ export default function Dashboard() {
                   Requires manager approval or budget reallocation
                 </p>
               </div>
-            </div>
+            </button>
           </div>
         </CardContent>
       </Card>
