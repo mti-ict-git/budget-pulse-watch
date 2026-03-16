@@ -126,6 +126,13 @@ This uses Microsoft Graph to update or append a row by matching PRF No.
 - New OPEX bulk ingestion API:
   - POST `/api/budgets/opex/import`
   - Validates fiscal year, COA mapping, and OPEX expense type.
+- Currency support:
+  - Budget and PRF now support `IDR` and `USD` with `ExchangeRateToIDR`.
+  - Budget calculations in cost-code views normalize to IDR automatically.
+  - OPEX import accepts optional `currencyCode` and `exchangeRateToIDR` per row.
+  - Added endpoint `GET /api/budgets/exchange-rate/usd-idr/today` for today's USD→IDR rate.
+  - For USD budget create/update/import, backend auto-fills today's rate when rate is missing.
+  - Environment override: set `FX_USD_TO_IDR` to force a fixed rate.
 
 ## Picking PIC Enforcement
 

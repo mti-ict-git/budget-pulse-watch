@@ -39,6 +39,8 @@ interface Budget {
   Description?: string;
   IsActive?: boolean;
   ExpenseType?: 'CAPEX' | 'OPEX';
+  CurrencyCode?: 'IDR' | 'USD';
+  ExchangeRateToIDR?: number;
   // Additional fields from joins
   COACode?: string;
   COAName?: string;
@@ -56,6 +58,8 @@ interface CreateBudgetRequest {
   Department: string;
   BudgetType?: string;
   ExpenseType?: 'CAPEX' | 'OPEX';
+  CurrencyCode?: 'IDR' | 'USD';
+  ExchangeRateToIDR?: number;
   StartDate?: Date;
   EndDate?: Date;
   Notes?: string;
@@ -70,6 +74,8 @@ interface UpdateBudgetRequest {
   Department?: string;
   BudgetType?: string;
   ExpenseType?: 'CAPEX' | 'OPEX';
+  CurrencyCode?: 'IDR' | 'USD';
+  ExchangeRateToIDR?: number;
   StartDate?: Date;
   EndDate?: Date;
   Status?: string;
@@ -264,6 +270,18 @@ interface BudgetCutoffResponse {
   error?: string;
 }
 
+interface ExchangeRateResponse {
+  success: boolean;
+  data?: {
+    baseCurrency: 'USD';
+    targetCurrency: 'IDR';
+    exchangeRateToIDR: number;
+    effectiveDate: string;
+  };
+  message?: string;
+  error?: string;
+}
+
 interface OpexImportRow {
   coaCode?: string;
   coaId?: number;
@@ -271,6 +289,8 @@ interface OpexImportRow {
   department: string;
   budgetType?: string;
   notes?: string;
+  currencyCode?: 'IDR' | 'USD';
+  exchangeRateToIDR?: number;
 }
 
 interface OpexImportResult {
@@ -764,6 +784,29 @@ class BudgetService {
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+
+  async getTodayUsdToIdrRate(): Promise<ExchangeRateResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/exchange-rate/usd-idr/today`, {
+        method: 'GET',
+        headers: {
+          ...authService.getAuthHeaders(),
+        }
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch today exchange rate');
+      }
+
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred'
       };
     }
   }

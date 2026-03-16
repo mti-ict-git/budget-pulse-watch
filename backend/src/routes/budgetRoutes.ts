@@ -4,6 +4,7 @@ import { CreateBudgetRequest, UpdateBudgetRequest, BudgetQueryParams } from '../
 import { authenticateToken, requireContentManager } from '../middleware/auth';
 import { executeQuery } from '../config/database';
 import { isAdmin } from '../utils/rolePermissions';
+import https from 'https';
 
 const router = Router();
 
@@ -25,6 +26,15 @@ type OpexImportItem = {
   department: string;
   budgetType?: string;
   notes?: string;
+  currencyCode?: 'IDR' | 'USD';
+  exchangeRateToIDR?: number;
+};
+
+type ExchangeRateApiResponse = {
+  result?: string;
+  base_code?: string;
+  time_last_update_utc?: string;
+  rates?: Record<string, number>;
 };
 
 const parseFiscalYearParam = (raw: string): number | null => {
@@ -53,6 +63,56 @@ const ensureFiscalYearWritable = async (fiscalYear: number): Promise<{ blocked: 
     };
   }
   return { blocked: false };
+};
+
+const fetchJson = async (url: string): Promise<unknown> => {
+  return new Promise<unknown>((resolve, reject) => {
+    const request = https.get(url, { timeout: 7000 }, (response) => {
+      if (!response.statusCode || response.statusCode < 200 || response.statusCode >= 300) {
+        reject(new Error(`HTTP status ${response.statusCode ?? 'unknown'}`));
+        response.resume();
+        return;
+      }
+
+      let body = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk: string) => {
+        body += chunk;
+      });
+      response.on('end', () => {
+        try {
+          resolve(JSON.parse(body) as unknown);
+        } catch {
+          reject(new Error('Failed to parse exchange-rate response'));
+        }
+      });
+    });
+
+    request.on('timeout', () => {
+      request.destroy(new Error('Exchange-rate request timed out'));
+    });
+    request.on('error', (error) => reject(error));
+  });
+};
+
+const resolveTodayUsdToIdrRate = async (): Promise<number> => {
+  const envRateRaw = typeof process.env.FX_USD_TO_IDR === 'string' ? process.env.FX_USD_TO_IDR.trim() : '';
+  const envRate = Number(envRateRaw);
+  if (Number.isFinite(envRate) && envRate > 0) {
+    return envRate;
+  }
+
+  const responseRaw = await fetchJson('https://open.er-api.com/v6/latest/USD');
+  if (typeof responseRaw !== 'object' || responseRaw === null) {
+    throw new Error('Invalid exchange-rate response');
+  }
+
+  const response = responseRaw as ExchangeRateApiResponse;
+  const idrRate = response.rates?.IDR;
+  if (typeof idrRate !== 'number' || !Number.isFinite(idrRate) || idrRate <= 0) {
+    throw new Error('USD to IDR rate unavailable');
+  }
+  return idrRate;
 };
 
 /**
@@ -127,7 +187,14 @@ router.get('/prf/:prfId/cost-codes', async (req: Request, res: Response) => {
             pi.PurchaseCostCode, 
             p.PurchaseCostCode
           ) as CostCode,
-          pi.TotalPrice as ItemAmount,
+          CAST(
+            COALESCE(pi.TotalPrice, p.RequestedAmount, 0) * 
+            CASE
+              WHEN COALESCE(p.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(p.ExchangeRateToIDR, 0), 1)
+              ELSE 1
+            END
+            AS DECIMAL(18,2)
+          ) as ItemAmountIDR,
           pi.ItemName,
           pi.PRFItemID
         FROM PRF p
@@ -145,8 +212,26 @@ router.get('/prf/:prfId/cost-codes', async (req: Request, res: Response) => {
         SELECT 
           coa.COACode as CostCode,
           coa.COAName,
-          SUM(b.AllocatedAmount) as TotalAllocated,
-          SUM(b.UtilizedAmount) as TotalUtilized
+          SUM(
+            CAST(
+              b.AllocatedAmount *
+              CASE
+                WHEN COALESCE(b.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(b.ExchangeRateToIDR, 0), 1)
+                ELSE 1
+              END
+              AS DECIMAL(18,2)
+            )
+          ) as TotalAllocated,
+          SUM(
+            CAST(
+              b.UtilizedAmount *
+              CASE
+                WHEN COALESCE(b.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(b.ExchangeRateToIDR, 0), 1)
+                ELSE 1
+              END
+              AS DECIMAL(18,2)
+            )
+          ) as TotalUtilized
         FROM ChartOfAccounts coa
         LEFT JOIN Budget b ON coa.COAID = b.COAID AND b.FiscalYear = YEAR(GETDATE())
         WHERE coa.COACode IN (SELECT DISTINCT CostCode FROM PRFCostCodes WHERE CostCode IS NOT NULL)
@@ -161,7 +246,16 @@ router.get('/prf/:prfId/cost-codes', async (req: Request, res: Response) => {
             pi.PurchaseCostCode, 
             p.PurchaseCostCode
           ) as CostCode,
-          SUM(COALESCE(pi.TotalPrice, p.RequestedAmount)) as TotalSpent
+          SUM(
+            CAST(
+              COALESCE(pi.TotalPrice, p.RequestedAmount, 0) *
+              CASE
+                WHEN COALESCE(p.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(p.ExchangeRateToIDR, 0), 1)
+                ELSE 1
+              END
+              AS DECIMAL(18,2)
+            )
+          ) as TotalSpent
         FROM PRF p
         LEFT JOIN PRFItems pi ON p.PRFID = pi.PRFID
         WHERE (
@@ -182,7 +276,7 @@ router.get('/prf/:prfId/cost-codes', async (req: Request, res: Response) => {
         -- Get spending for this specific PRF by cost code
         SELECT 
           CostCode,
-          SUM(ItemAmount) as PRFSpent,
+          SUM(ItemAmountIDR) as PRFSpent,
           COUNT(*) as ItemCount,
           STRING_AGG(ItemName, ', ') as ItemNames
         FROM PRFCostCodes
@@ -264,8 +358,26 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
           coa.COAName,
           coa.Department,
           coa.ExpenseType,
-          SUM(b.AllocatedAmount) as TotalAllocated,
-          SUM(b.UtilizedAmount) as TotalUtilized
+          SUM(
+            CAST(
+              b.AllocatedAmount *
+              CASE
+                WHEN COALESCE(b.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(b.ExchangeRateToIDR, 0), 1)
+                ELSE 1
+              END
+              AS DECIMAL(18,2)
+            )
+          ) as TotalAllocated,
+          SUM(
+            CAST(
+              b.UtilizedAmount *
+              CASE
+                WHEN COALESCE(b.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(b.ExchangeRateToIDR, 0), 1)
+                ELSE 1
+              END
+              AS DECIMAL(18,2)
+            )
+          ) as TotalUtilized
         FROM Budget b
         INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
         ${fiscalYear ? `WHERE b.FiscalYear = ${fiscalYear}` : ''}
@@ -277,9 +389,36 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
           p.PurchaseCostCode,
           p.COAID,
           p.BudgetYear,
-          SUM(CAST(p.RequestedAmount AS DECIMAL(18,2))) as TotalRequested,
-          SUM(CAST(COALESCE(p.ApprovedAmount, p.RequestedAmount) AS DECIMAL(18,2))) as TotalApproved,
-          SUM(CAST(p.ActualAmount AS DECIMAL(18,2))) as TotalActual,
+          SUM(
+            CAST(
+              COALESCE(p.RequestedAmount, 0) *
+              CASE
+                WHEN COALESCE(p.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(p.ExchangeRateToIDR, 0), 1)
+                ELSE 1
+              END
+              AS DECIMAL(18,2)
+            )
+          ) as TotalRequested,
+          SUM(
+            CAST(
+              COALESCE(COALESCE(p.ApprovedAmount, p.RequestedAmount), 0) *
+              CASE
+                WHEN COALESCE(p.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(p.ExchangeRateToIDR, 0), 1)
+                ELSE 1
+              END
+              AS DECIMAL(18,2)
+            )
+          ) as TotalApproved,
+          SUM(
+            CAST(
+              COALESCE(p.ActualAmount, 0) *
+              CASE
+                WHEN COALESCE(p.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(p.ExchangeRateToIDR, 0), 1)
+                ELSE 1
+              END
+              AS DECIMAL(18,2)
+            )
+          ) as TotalActual,
           COUNT(*) as RequestCount
         FROM dbo.PRF p
         WHERE p.PurchaseCostCode IS NOT NULL 
@@ -479,6 +618,27 @@ router.get('/cutoff/:fiscalYear', authenticateToken, requireContentManager, asyn
   }
 });
 
+router.get('/exchange-rate/usd-idr/today', authenticateToken, requireContentManager, async (_req: Request, res: Response) => {
+  try {
+    const rate = await resolveTodayUsdToIdrRate();
+    return res.json({
+      success: true,
+      data: {
+        baseCurrency: 'USD',
+        targetCurrency: 'IDR',
+        exchangeRateToIDR: rate,
+        effectiveDate: new Date().toISOString().slice(0, 10)
+      }
+    });
+  } catch (error) {
+    return res.status(503).json({
+      success: false,
+      message: 'Failed to resolve today exchange rate',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 router.post('/cutoff/:fiscalYear/close', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const fiscalYear = parseFiscalYearParam(req.params.fiscalYear);
@@ -644,7 +804,9 @@ router.post('/opex/import', authenticateToken, requireContentManager, async (req
       allocatedAmount: Number((entry as OpexImportItem).allocatedAmount),
       department: String((entry as OpexImportItem).department || ''),
       budgetType: typeof (entry as OpexImportItem).budgetType === 'string' ? (entry as OpexImportItem).budgetType : undefined,
-      notes: typeof (entry as OpexImportItem).notes === 'string' ? (entry as OpexImportItem).notes : undefined
+      notes: typeof (entry as OpexImportItem).notes === 'string' ? (entry as OpexImportItem).notes : undefined,
+      currencyCode: (entry as OpexImportItem).currencyCode === 'USD' ? 'USD' : 'IDR',
+      exchangeRateToIDR: Number((entry as OpexImportItem).exchangeRateToIDR || 1)
     }));
 
     const inserted: number[] = [];
@@ -653,6 +815,7 @@ router.post('/opex/import', authenticateToken, requireContentManager, async (req
 
     for (let index = 0; index < parsedItems.length; index += 1) {
       const item = parsedItems[index];
+      let exchangeRateToIDR = item.exchangeRateToIDR ?? 1;
       if (!Number.isFinite(item.allocatedAmount) || item.allocatedAmount < 0) {
         rejected.push({ index, reason: 'allocatedAmount must be a non-negative number' });
         continue;
@@ -660,6 +823,14 @@ router.post('/opex/import', authenticateToken, requireContentManager, async (req
       if (!item.department.trim()) {
         rejected.push({ index, reason: 'department is required' });
         continue;
+      }
+      if (item.currencyCode === 'USD' && (!Number.isFinite(exchangeRateToIDR) || exchangeRateToIDR <= 0)) {
+        try {
+          exchangeRateToIDR = await resolveTodayUsdToIdrRate();
+        } catch {
+          rejected.push({ index, reason: 'Unable to resolve today USD to IDR exchange rate' });
+          continue;
+        }
       }
       if (!item.coaId && !item.coaCode) {
         rejected.push({ index, reason: 'coaId or coaCode is required' });
@@ -709,6 +880,8 @@ router.post('/opex/import', authenticateToken, requireContentManager, async (req
           AllocatedAmount: item.allocatedAmount,
           Department: item.department.trim(),
           ExpenseType: 'OPEX',
+          CurrencyCode: item.currencyCode || 'IDR',
+          ExchangeRateToIDR: item.currencyCode === 'USD' ? exchangeRateToIDR : 1,
           BudgetType: item.budgetType || 'Annual',
           Notes: item.notes
         });
@@ -721,6 +894,8 @@ router.post('/opex/import', authenticateToken, requireContentManager, async (req
             AllocatedAmount: item.allocatedAmount,
             Department: item.department.trim(),
             ExpenseType: 'OPEX',
+            CurrencyCode: item.currencyCode || 'IDR',
+            ExchangeRateToIDR: item.currencyCode === 'USD' ? exchangeRateToIDR : 1,
             BudgetType: item.budgetType || 'Annual',
             Notes: item.notes
           },
@@ -849,6 +1024,27 @@ router.post('/', authenticateToken, requireContentManager, async (req: Request, 
         message: 'Missing required fields: COAID, FiscalYear, AllocatedAmount, Department'
       });
     }
+    if (budgetData.CurrencyCode && !['IDR', 'USD'].includes(budgetData.CurrencyCode)) {
+      return res.status(400).json({
+        success: false,
+        message: 'CurrencyCode must be IDR or USD'
+      });
+    }
+    if (budgetData.CurrencyCode === 'USD' && (budgetData.ExchangeRateToIDR === undefined || budgetData.ExchangeRateToIDR <= 0)) {
+      try {
+        budgetData.ExchangeRateToIDR = await resolveTodayUsdToIdrRate();
+      } catch {
+        return res.status(503).json({
+          success: false,
+          message: 'Unable to resolve today USD to IDR exchange rate. Please provide ExchangeRateToIDR'
+        });
+      }
+    } else if (budgetData.ExchangeRateToIDR !== undefined && budgetData.ExchangeRateToIDR <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'ExchangeRateToIDR must be greater than 0'
+      });
+    }
 
     // Ensure user is authenticated
     if (!req.user?.UserID) {
@@ -915,6 +1111,28 @@ router.put('/:id', authenticateToken, requireContentManager, async (req: Request
       return res.status(404).json({
         success: false,
         message: 'Budget not found'
+      });
+    }
+    if (updateData.CurrencyCode && !['IDR', 'USD'].includes(updateData.CurrencyCode)) {
+      return res.status(400).json({
+        success: false,
+        message: 'CurrencyCode must be IDR or USD'
+      });
+    }
+    const effectiveCurrency = updateData.CurrencyCode || existingBudget.CurrencyCode;
+    if (effectiveCurrency === 'USD' && (updateData.ExchangeRateToIDR === undefined || updateData.ExchangeRateToIDR <= 0)) {
+      try {
+        updateData.ExchangeRateToIDR = await resolveTodayUsdToIdrRate();
+      } catch {
+        return res.status(503).json({
+          success: false,
+          message: 'Unable to resolve today USD to IDR exchange rate. Please provide ExchangeRateToIDR'
+        });
+      }
+    } else if (updateData.ExchangeRateToIDR !== undefined && updateData.ExchangeRateToIDR <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'ExchangeRateToIDR must be greater than 0'
       });
     }
 

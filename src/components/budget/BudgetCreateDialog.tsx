@@ -32,7 +32,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Save, X, Check, ChevronsUpDown } from "lucide-react";
+import { Plus, Save, X, Check, ChevronsUpDown, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { budgetService, CreateBudgetRequest, ChartOfAccount } from "@/services/budgetService";
@@ -67,7 +67,9 @@ export function BudgetCreateDialog({
     AllocatedAmount: 0,
     FiscalYear: new Date().getFullYear(),
     Description: "",
-    Department: ""
+    Department: "",
+    CurrencyCode: 'IDR',
+    ExchangeRateToIDR: 1
   });
 
   const loadChartOfAccounts = useCallback(async () => {
@@ -105,6 +107,27 @@ export function BudgetCreateDialog({
     }));
   };
 
+  const handleUseTodayRate = async () => {
+    const response = await budgetService.getTodayUsdToIdrRate();
+    if (!response.success || !response.data) {
+      toast({
+        title: "Error",
+        description: response.message || "Failed to fetch today's exchange rate",
+        variant: "destructive"
+      });
+      return;
+    }
+    setFormData(prev => ({
+      ...prev,
+      CurrencyCode: 'USD',
+      ExchangeRateToIDR: response.data?.exchangeRateToIDR || 1
+    }));
+    toast({
+      title: "Rate Updated",
+      description: `Using today's USD to IDR rate: ${response.data.exchangeRateToIDR}`
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -122,6 +145,14 @@ export function BudgetCreateDialog({
       toast({
         title: "Validation Error",
         description: "Allocated Amount must be greater than 0.",
+        variant: "destructive"
+      });
+      return;
+    }
+    if (formData.CurrencyCode === 'USD' && (!formData.ExchangeRateToIDR || formData.ExchangeRateToIDR <= 0)) {
+      toast({
+        title: "Validation Error",
+        description: "Exchange Rate to IDR must be greater than 0 for USD.",
         variant: "destructive"
       });
       return;
@@ -144,7 +175,9 @@ export function BudgetCreateDialog({
           AllocatedAmount: 0,
           FiscalYear: new Date().getFullYear(),
           Description: "",
-          Department: ""
+          Department: "",
+          CurrencyCode: 'IDR',
+          ExchangeRateToIDR: 1
         });
         
         setOpen(false);
@@ -175,7 +208,9 @@ export function BudgetCreateDialog({
       AllocatedAmount: 0,
       FiscalYear: new Date().getFullYear(),
       Description: "",
-      Department: ""
+      Department: "",
+      CurrencyCode: 'IDR',
+      ExchangeRateToIDR: 1
     });
   };
 
@@ -279,6 +314,50 @@ export function BudgetCreateDialog({
                   onChange={(e) => handleInputChange('AllocatedAmount', parseFloat(e.target.value) || 0)}
                   className="w-full"
                 />
+              </div>
+
+              <div className="grid grid-cols-12 gap-4">
+                <div className="col-span-12 md:col-span-6 space-y-2">
+                  <Label className="text-sm font-medium">Currency</Label>
+                  <Select
+                    value={formData.CurrencyCode || 'IDR'}
+                    onValueChange={(value: 'IDR' | 'USD') => {
+                      handleInputChange('CurrencyCode', value);
+                      if (value === 'IDR') {
+                        handleInputChange('ExchangeRateToIDR', 1);
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select currency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="IDR">IDR (Rupiah)</SelectItem>
+                      <SelectItem value="USD">USD (Dollar)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-12 md:col-span-6 space-y-2">
+                  <Label htmlFor="exchangeRateToIDR" className="text-sm font-medium">Exchange Rate to IDR</Label>
+                  <Input
+                    id="exchangeRateToIDR"
+                    type="number"
+                    step="0.000001"
+                    min="0"
+                    value={formData.ExchangeRateToIDR || 1}
+                    onChange={(e) => handleInputChange('ExchangeRateToIDR', parseFloat(e.target.value) || 1)}
+                    disabled={(formData.CurrencyCode || 'IDR') === 'IDR'}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={handleUseTodayRate}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Use Today's Rate
+                  </Button>
+                </div>
               </div>
 
               {/* Fiscal Year */}

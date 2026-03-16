@@ -22,14 +22,14 @@ export class PRFModel {
         PRFNo, Title, Description, RequestorID, Department, COAID, 
         RequestedAmount, Priority, RequiredDate, Justification, 
         VendorName, VendorContact, Notes, DateSubmit, SubmitBy, 
-        SumDescriptionRequested, PurchaseCostCode, RequiredFor, BudgetYear
+        SumDescriptionRequested, PurchaseCostCode, RequiredFor, BudgetYear, CurrencyCode, ExchangeRateToIDR
       )
       OUTPUT INSERTED.*
       VALUES (
         @PRFNo, @Title, @Description, @RequestorID, @Department, @COAID,
         @RequestedAmount, @Priority, @RequiredDate, @Justification,
         @VendorName, @VendorContact, @Notes, @DateSubmit, @SubmitBy,
-        @SumDescriptionRequested, @PurchaseCostCode, @RequiredFor, @BudgetYear
+        @SumDescriptionRequested, @PurchaseCostCode, @RequiredFor, @BudgetYear, @CurrencyCode, @ExchangeRateToIDR
       )
     `;
     
@@ -52,7 +52,9 @@ export class PRFModel {
       SumDescriptionRequested: prfData.SumDescriptionRequested || null,
       PurchaseCostCode: prfData.PurchaseCostCode || null,
       RequiredFor: prfData.RequiredFor || null,
-      BudgetYear: prfData.BudgetYear || null
+      BudgetYear: prfData.BudgetYear || null,
+      CurrencyCode: prfData.CurrencyCode || 'IDR',
+      ExchangeRateToIDR: prfData.ExchangeRateToIDR && prfData.ExchangeRateToIDR > 0 ? prfData.ExchangeRateToIDR : 1
     };
     
     const result = await executeQuery<PRF>(query, params);
@@ -127,6 +129,14 @@ export class PRFModel {
     if (updateData.RequestedAmount) {
       setClause.push('RequestedAmount = @RequestedAmount');
       params.RequestedAmount = updateData.RequestedAmount;
+    }
+    if (updateData.CurrencyCode) {
+      setClause.push('CurrencyCode = @CurrencyCode');
+      params.CurrencyCode = updateData.CurrencyCode;
+    }
+    if (updateData.ExchangeRateToIDR !== undefined) {
+      setClause.push('ExchangeRateToIDR = @ExchangeRateToIDR');
+      params.ExchangeRateToIDR = updateData.ExchangeRateToIDR;
     }
     if (updateData.Priority) {
       setClause.push('Priority = @Priority');

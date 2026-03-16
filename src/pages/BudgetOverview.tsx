@@ -91,6 +91,8 @@ export default function BudgetOverview() {
     "coaCode": "MTIRMRAD496232",
     "allocatedAmount": 100000000,
     "department": "IT",
+    "currencyCode": "IDR",
+    "exchangeRateToIDR": 1,
     "budgetType": "Annual",
     "notes": "FY2026 OPEX import"
   }

@@ -51,6 +51,8 @@ CREATE TABLE Budget (
     Month INT CHECK (Month BETWEEN 1 AND 12),
     AllocatedAmount DECIMAL(15,2) NOT NULL DEFAULT 0,
     UtilizedAmount DECIMAL(15,2) NOT NULL DEFAULT 0,
+    CurrencyCode NVARCHAR(3) NOT NULL DEFAULT 'IDR' CHECK (CurrencyCode IN ('IDR', 'USD')),
+    ExchangeRateToIDR DECIMAL(18,6) NOT NULL DEFAULT 1 CHECK (ExchangeRateToIDR > 0),
     RemainingAmount AS (AllocatedAmount - UtilizedAmount) PERSISTED,
     UtilizationPercentage AS (CASE WHEN AllocatedAmount > 0 THEN (UtilizedAmount / AllocatedAmount) * 100 ELSE 0 END) PERSISTED,
     Notes NVARCHAR(1000),
@@ -98,6 +100,8 @@ CREATE TABLE PRF (
     RequestedAmount DECIMAL(15,2) NOT NULL,
     ApprovedAmount DECIMAL(15,2) NULL,
     ActualAmount DECIMAL(15,2) NULL,
+    CurrencyCode NVARCHAR(3) NOT NULL DEFAULT 'IDR' CHECK (CurrencyCode IN ('IDR', 'USD')),
+    ExchangeRateToIDR DECIMAL(18,6) NOT NULL DEFAULT 1 CHECK (ExchangeRateToIDR > 0),
     Priority NVARCHAR(20) DEFAULT 'Medium' CHECK (Priority IN ('Low', 'Medium', 'High', 'Critical')),
     Status NVARCHAR(100) DEFAULT 'Draft', -- No CHECK constraint - accepts any Excel 'Status in Pronto' values
     RequestDate DATETIME2 NOT NULL DEFAULT GETDATE(),

@@ -37,10 +37,6 @@ export class OCRService {
   private genAI: GoogleGenerativeAI | null = null;
   private openAI: OpenAI | null = null;
 
-  constructor() {
-    this.initializeAI();
-  }
-
   private async initializeAI() {
     try {
       const settings = await loadSettings();

@@ -75,6 +75,8 @@ export interface UpdatePRFParams {
   VendorName?: string;
   VendorContact?: string;
   Notes?: string;
+  CurrencyCode?: 'IDR' | 'USD';
+  ExchangeRateToIDR?: number;
   [key: string]: unknown;
   
   // New fields from Excel analysis
@@ -265,6 +267,9 @@ export interface BudgetUpdateParams {
   Description?: string;
   Department?: string;
   BudgetType?: string;
+  ExpenseType?: 'CAPEX' | 'OPEX';
+  CurrencyCode?: 'IDR' | 'USD';
+  ExchangeRateToIDR?: number;
   StartDate?: Date;
   EndDate?: Date;
   Status?: string;
@@ -342,6 +347,8 @@ export interface Budget {
   RemainingAmount: number;
   UtilizationPercentage: number;
   ExpenseType: 'CAPEX' | 'OPEX';
+  CurrencyCode: 'IDR' | 'USD';
+  ExchangeRateToIDR: number;
   Department: string;
   Notes?: string;
   CreatedBy: number;
@@ -356,6 +363,8 @@ export interface CreateBudgetRequest {
   Month?: number;
   AllocatedAmount: number;
   ExpenseType?: 'CAPEX' | 'OPEX';
+  CurrencyCode?: 'IDR' | 'USD';
+  ExchangeRateToIDR?: number;
   Description?: string;
   Department: string;
   BudgetType?: string;
@@ -371,6 +380,8 @@ export interface UpdateBudgetRequest {
   Department?: string;
   BudgetType?: string;
   ExpenseType?: 'CAPEX' | 'OPEX';
+  CurrencyCode?: 'IDR' | 'USD';
+  ExchangeRateToIDR?: number;
   StartDate?: Date;
   EndDate?: Date;
   Status?: string;
@@ -388,6 +399,8 @@ export interface PRF {
   RequestedAmount: number;
   ApprovedAmount?: number;
   ActualAmount?: number;
+  CurrencyCode: 'IDR' | 'USD';
+  ExchangeRateToIDR: number;
   Priority: 'Low' | 'Medium' | 'High' | 'Critical';
   Status: string;
   RequestDate: Date;
@@ -419,6 +432,8 @@ export interface CreatePRFRequest {
   Department: string;
   COAID: number;
   RequestedAmount: number;
+  CurrencyCode?: 'IDR' | 'USD';
+  ExchangeRateToIDR?: number;
   Priority?: 'Low' | 'Medium' | 'High' | 'Critical';
   RequiredDate?: Date;
   Justification?: string;
@@ -442,6 +457,8 @@ export interface UpdatePRFRequest {
   Department?: string;
   COAID?: number;
   RequestedAmount?: number;
+  CurrencyCode?: 'IDR' | 'USD';
+  ExchangeRateToIDR?: number;
   Priority?: 'Low' | 'Medium' | 'High' | 'Critical';
   Status?: string;
   RequiredDate?: Date;
@@ -550,6 +567,8 @@ export interface PRFSummary {
   Title: string;
   Department: string;
   RequestedAmount: number;
+  CurrencyCode?: 'IDR' | 'USD';
+  ExchangeRateToIDR?: number;
   ApprovedAmount?: number;
   Status: string;
   Priority: string;

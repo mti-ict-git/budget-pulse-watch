@@ -343,6 +343,18 @@ router.post('/', authenticateToken, requireContentManager, async (req: Request, 
         message: 'Missing required fields: Title, Department, COAID, RequestedAmount'
       });
     }
+    if (prfData.CurrencyCode && !['IDR', 'USD'].includes(prfData.CurrencyCode)) {
+      return res.status(400).json({
+        success: false,
+        message: 'CurrencyCode must be IDR or USD'
+      });
+    }
+    if (prfData.ExchangeRateToIDR !== undefined && prfData.ExchangeRateToIDR <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'ExchangeRateToIDR must be greater than 0'
+      });
+    }
 
     // Use authenticated user as requestor
     if (!req.user) {
@@ -402,6 +414,18 @@ router.put('/:id', authenticateToken, requireContentManager, async (req: Request
       return res.status(404).json({
         success: false,
         message: 'PRF not found'
+      });
+    }
+    if (updateData.CurrencyCode && !['IDR', 'USD'].includes(updateData.CurrencyCode)) {
+      return res.status(400).json({
+        success: false,
+        message: 'CurrencyCode must be IDR or USD'
+      });
+    }
+    if (updateData.ExchangeRateToIDR !== undefined && updateData.ExchangeRateToIDR <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'ExchangeRateToIDR must be greater than 0'
       });
     }
     

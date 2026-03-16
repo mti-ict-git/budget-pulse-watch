@@ -27,12 +27,12 @@ export class BudgetModel {
     const query = `
       INSERT INTO Budget (
         COAID, FiscalYear, AllocatedAmount, Description, 
-        Department, BudgetType, ExpenseType, StartDate, EndDate, CreatedBy
+        Department, BudgetType, ExpenseType, CurrencyCode, ExchangeRateToIDR, StartDate, EndDate, CreatedBy
       )
       OUTPUT INSERTED.*
       VALUES (
         @COAID, @FiscalYear, @AllocatedAmount, @Description,
-        @Department, @BudgetType, @ExpenseType, @StartDate, @EndDate, @CreatedBy
+        @Department, @BudgetType, @ExpenseType, @CurrencyCode, @ExchangeRateToIDR, @StartDate, @EndDate, @CreatedBy
       )
     `;
     
@@ -44,6 +44,8 @@ export class BudgetModel {
       Department: budgetData.Department,
       BudgetType: budgetData.BudgetType || 'Annual',
       ExpenseType: budgetData.ExpenseType || 'OPEX',
+      CurrencyCode: budgetData.CurrencyCode || 'IDR',
+      ExchangeRateToIDR: budgetData.ExchangeRateToIDR && budgetData.ExchangeRateToIDR > 0 ? budgetData.ExchangeRateToIDR : 1,
       StartDate: budgetData.StartDate,
       EndDate: budgetData.EndDate,
       CreatedBy: createdBy
@@ -108,6 +110,14 @@ export class BudgetModel {
     if (updateData.ExpenseType) {
       setClause.push('ExpenseType = @ExpenseType');
       params.ExpenseType = updateData.ExpenseType;
+    }
+    if (updateData.CurrencyCode) {
+      setClause.push('CurrencyCode = @CurrencyCode');
+      params.CurrencyCode = updateData.CurrencyCode;
+    }
+    if (updateData.ExchangeRateToIDR !== undefined) {
+      setClause.push('ExchangeRateToIDR = @ExchangeRateToIDR');
+      params.ExchangeRateToIDR = updateData.ExchangeRateToIDR;
     }
     if (updateData.StartDate) {
       setClause.push('StartDate = @StartDate');

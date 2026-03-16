@@ -408,3 +408,27 @@ Sun Mar 15 19:40:31 WITA 2026
   and merge with current page submit-date years plus current year
 - Updated README.md to document submit-date year source and new endpoint
 - Ran npm run lint (warnings only), npx tsc --noEmit (root passed), and npx tsc --noEmit (backend passed)
+
+Monday, March 16, 2026 3:07:50 PM
+- Added currency support for Budget and PRF with IDR/USD and exchange rate columns
+- Added SQL migration `009_add_currency_support.sql` and updated schema.sql for reproducibility
+- Updated budget OPEX import and cost-code aggregations to normalize amounts into IDR
+- Added currency and exchange-rate inputs in Budget create/edit dialogs
+- Updated README currency notes under Budget Cut-Off and OPEX Import
+- Ran npm run lint (warnings only), npx tsc --noEmit (root passed), and npx tsc --noEmit -p backend/tsconfig.json (passed)
+
+Monday, March 16, 2026 3:47:56 PM
+- Added API endpoint `GET /api/budgets/exchange-rate/usd-idr/today` to resolve today's USD→IDR
+- Added backend auto-fill of exchange rate for USD budget create/update/opex import when missing
+- Added "Use Today's Rate" actions in Budget create/edit dialogs
+- Added `FX_USD_TO_IDR` environment override support for fixed-rate environments
+- Ran npm run lint (warnings only), npx tsc --noEmit (root passed), and npx tsc --noEmit -p backend/tsconfig.json (passed)
+
+Monday, March 16, 2026 4:07:09 PM
+- Prevented OCR service from initializing AI settings before DB connection on module import
+- Removed startup-time "Database not connected. Call connectDatabase() first." noise from OCR service bootstrap
+- Verified backend typecheck with npx tsc --noEmit -p backend/tsconfig.json
+
+Monday, March 16, 2026 4:39:03 PM
+- Fixed Vite API proxy default target to backend port 3001 in vite.config.ts
+- Verified login API through backend (3001) and frontend proxy (8080) responds correctly
