@@ -7,6 +7,9 @@ import { authenticateToken } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { LDAPService } from '../services/ldapService';
 import { LDAPUserAccessModel } from '../models/LDAPUserAccess';
+import crypto from 'crypto';
+import { ApiKeyModel, ApiKeyRole } from '../models/ApiKey';
+import { requireAdmin } from '../middleware/auth';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -250,6 +253,44 @@ router.post('/logout', authenticateToken, asyncHandler(async (req, res) => {
     success: true,
     message: 'Logged out successfully'
   });
+}));
+
+router.post('/api-keys', authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+  const { name, role, expiresAt } = req.body as { name: string; role: ApiKeyRole; expiresAt?: string };
+  if (!name || !role) {
+    res.status(400).json({ success: false, message: 'name and role are required' });
+    return;
+  }
+  const raw = crypto.randomBytes(32).toString('base64url');
+  const token = `bpw_${raw}`;
+  const hash = crypto.createHash('sha256').update(token, 'utf8').digest('hex');
+  const createdBy = req.user?.UserID ?? null;
+  const expires = expiresAt ? new Date(expiresAt) : null;
+  const id = await ApiKeyModel.insertKey(name, hash, role, createdBy, expires, null);
+  res.json({
+    success: true,
+    data: {
+      id,
+      name,
+      role,
+      token
+    }
+  });
+}));
+
+router.get('/api-keys', authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+  const rows = await ApiKeyModel.list();
+  res.json({ success: true, data: rows });
+}));
+
+router.delete('/api-keys/:id', authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ success: false, message: 'invalid id' });
+    return;
+    }
+  await ApiKeyModel.deactivate(id);
+  res.json({ success: true });
 }));
 
 export default router;

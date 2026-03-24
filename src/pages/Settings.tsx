@@ -12,6 +12,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { authService } from '@/services/authService';
 import { formatBytes } from '@/lib/utils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 
 interface OCRSettings {
   provider: 'gemini' | 'openai';
@@ -156,6 +158,10 @@ const Settings: React.FC = () => {
     Role: 'user' as 'admin' | 'doccon' | 'user',
     Department: ''
   });
+  const [isGeneratingKey, setIsGeneratingKey] = useState<Record<number, boolean>>({});
+  const [showTokenModal, setShowTokenModal] = useState(false);
+  const [generatedToken, setGeneratedToken] = useState('');
+  const [generatedTokenFor, setGeneratedTokenFor] = useState<string>('');
   
   const { toast } = useToast();
 
@@ -224,6 +230,43 @@ const Settings: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to load OCR settings:', error);
+    }
+  };
+
+  const generateApiKeyForUser = async (localUser: LocalUser) => {
+    setIsGeneratingKey(prev => ({ ...prev, [localUser.UserID]: true }));
+    try {
+      const response = await fetch('/api/auth/api-keys', {
+        method: 'POST',
+        headers: authService.getAuthHeaders(),
+        body: JSON.stringify({
+          name: `user:${localUser.Username}`,
+          role: localUser.Role
+        })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Failed to generate API token');
+      }
+      const token: string = result.data?.token ?? '';
+      if (!token) {
+        throw new Error('Token not returned by server');
+      }
+      setGeneratedToken(token);
+      setGeneratedTokenFor(`${localUser.Username} (${localUser.Role})`);
+      setShowTokenModal(true);
+      toast({
+        title: 'API Token Created',
+        description: 'Copy and store this token securely. It will be shown only once.'
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to generate API token',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsGeneratingKey(prev => ({ ...prev, [localUser.UserID]: false }));
     }
   };
 
@@ -1428,6 +1471,13 @@ const Settings: React.FC = () => {
                                     {localUser.IsActive ? 'Deactivate' : 'Activate'}
                                   </Button>
                                   <Button
+                                    onClick={() => generateApiKeyForUser(localUser)}
+                                    size="sm"
+                                    disabled={isGeneratingKey[localUser.UserID] === true}
+                                  >
+                                    {isGeneratingKey[localUser.UserID] ? 'Generating...' : 'Generate API Token'}
+                                  </Button>
+                                  <Button
                                     onClick={() => deleteLocalUser(localUser.UserID)}
                                     variant="destructive"
                                     size="sm"
@@ -1826,6 +1876,40 @@ const Settings: React.FC = () => {
           </div>
         )}
       </Tabs>
+
+      <Dialog open={showTokenModal} onOpenChange={setShowTokenModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New API Token</DialogTitle>
+            <DialogDescription>
+              Token for {generatedTokenFor}. Copy and store it securely. You will not be able to see it again.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Token</Label>
+            <Textarea readOnly value={generatedToken} className="font-mono text-xs" />
+            <div className="text-xs text-muted-foreground">
+              Use this token in requests as either header <span className="font-mono">x-api-key</span> or <span className="font-mono">Authorization: ApiKey &lt;token&gt;</span>.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(generatedToken);
+                  toast({ title: 'Copied', description: 'Token copied to clipboard' });
+                } catch {
+                  /* noop */
+                }
+              }}
+              variant="outline"
+            >
+              Copy
+            </Button>
+            <Button onClick={() => setShowTokenModal(false)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

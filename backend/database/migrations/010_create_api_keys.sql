@@ -1,0 +1,17 @@
+CREATE TABLE ApiKeys (
+  ApiKeyID INT IDENTITY(1,1) PRIMARY KEY,
+  Name NVARCHAR(100) NOT NULL,
+  KeyHash NVARCHAR(64) NOT NULL UNIQUE,
+  Role NVARCHAR(20) NOT NULL CHECK (Role IN ('admin', 'doccon', 'user')),
+  IsActive BIT NOT NULL DEFAULT 1,
+  CreatedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
+  ExpiresAt DATETIME2 NULL,
+  CreatedBy INT NULL,
+  LastUsedAt DATETIME2 NULL,
+  AllowedIPs NVARCHAR(500) NULL,
+  FOREIGN KEY (CreatedBy) REFERENCES Users(UserID)
+);
+
+CREATE INDEX IX_ApiKeys_IsActive ON ApiKeys(IsActive);
+CREATE INDEX IX_ApiKeys_ExpiresAt ON ApiKeys(ExpiresAt);
+

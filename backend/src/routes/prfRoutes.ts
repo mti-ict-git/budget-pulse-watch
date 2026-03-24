@@ -447,6 +447,60 @@ router.put('/:id', authenticateToken, requireContentManager, async (req: Request
 });
 
 /**
+ * @route PUT /api/prfs/prfno/:prfNo
+ * @desc Update PRF by business number (PRFNo)
+ * @access Content Manager (admin or doccon)
+ */
+router.put('/prfno/:prfNo', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
+  try {
+    const prfNo = req.params.prfNo;
+    const updateData: UpdatePRFRequest = req.body;
+
+    if (!prfNo || prfNo.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid PRF number'
+      });
+    }
+
+    const existingPRF = await PRFModel.findByPRFNo(prfNo);
+    if (!existingPRF) {
+      return res.status(404).json({
+        success: false,
+        message: 'PRF not found'
+      });
+    }
+
+    if (updateData.CurrencyCode && !['IDR', 'USD'].includes(updateData.CurrencyCode)) {
+      return res.status(400).json({
+        success: false,
+        message: 'CurrencyCode must be IDR or USD'
+      });
+    }
+    if (updateData.ExchangeRateToIDR !== undefined && updateData.ExchangeRateToIDR <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'ExchangeRateToIDR must be greater than 0'
+      });
+    }
+
+    const updatedPRF = await PRFModel.update(existingPRF.PRFID, updateData);
+    return res.json({
+      success: true,
+      message: 'PRF updated successfully',
+      data: updatedPRF
+    });
+  } catch (error) {
+    console.error('Error updating PRF by number:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update PRF',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
  * @route DELETE /api/prfs/:id
  * @desc Delete PRF
  * @access Content Manager (admin or doccon)

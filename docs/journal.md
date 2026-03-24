@@ -297,3 +297,27 @@ Tue Mar 17 03:53:44 WITA 2026
 - Normalized code matching with `LTRIM/RTRIM/UPPER` to handle spacing/case mismatches between PRF cost codes and COA codes
 - Applied `prfToCoaJoinExpr` mapping across all report spend aggregations (dashboard/utilization/summary/unallocated/export)
 - Ran npm run lint (warnings only), npx tsc --noEmit (root passed), and npx tsc --noEmit (backend passed)
+Tue Mar 24 2026
+- Added API key support for machine-to-machine access
+- Created DB migration 010_create_api_keys.sql for ApiKeys table
+- Implemented API key auth fallback in middleware to accept x-api-key or Authorization: ApiKey
+- Added admin endpoints to create/list/deactivate API keys under /api/auth/api-keys
+- Ensured keys are hashed (SHA256) and only plaintext is returned once on creation
+Tue Mar 24 2026
+- Added frontend UI to generate API tokens per local user
+- Location: Settings > User Management > Local Users
+- Each user row now includes "Generate API Token" button
+- One-time token display dialog added with copy-to-clipboard
+Tue Mar 24 2026
+- Updated OpenAPI docs to include API Key auth support
+- Added ApiKeyHeader and ApiKeyAuthorization security schemes
+- Documented /api/auth/api-keys (POST/GET) and /api/auth/api-keys/{id} (DELETE)
+- Marked key endpoints as accepting Bearer or API Key for convenience
+Tue Mar 24 2026
+- Added endpoint PUT /api/prfs/prfno/{prfNo} to update PRF by business number
+- Documented GET/PUT /api/prfs/prfno/{prfNo} in OpenAPI
+- Verified endpoint with API key token and updated a safe Notes field
+Tue Mar 24 2026
+- Added UpdatePRFRequest schema to OpenAPI
+- Updated PUT /api/prfs/{id} and /api/prfs/prfno/{prfNo} to reference UpdatePRFRequest
+- Marked both endpoints as accepting API Key security along with Bearer

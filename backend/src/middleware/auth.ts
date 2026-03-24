@@ -4,6 +4,8 @@ import { UserModel } from '../models/User';
 import { User } from '../models/types';
 import { LDAPUserAccessModel, LDAPUserAccess } from '../models/LDAPUserAccess';
 import { UserRole, Permission, hasPermission, isAdmin, canManageContent } from '../utils/rolePermissions';
+import crypto from 'crypto';
+import { ApiKeyModel } from '../models/ApiKey';
 
 // Extend Express Request interface to include user
 declare module 'express-serve-static-core' {
@@ -25,8 +27,38 @@ export const authenticateToken = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+    const apiKeyHeader = (req.headers['x-api-key'] as string | undefined) || undefined;
+    const authHeaderRaw = req.headers.authorization || '';
+    const authHeaderAny = authHeaderRaw.trim();
+    if (apiKeyHeader || authHeaderAny.toLowerCase().startsWith('apikey ')) {
+      const token = apiKeyHeader ? apiKeyHeader : authHeaderAny.slice(7).trim();
+      if (!token) {
+        res.status(401).json({ success: false, message: 'API key required' });
+        return;
+      }
+      const hash = crypto.createHash('sha256').update(token, 'utf8').digest('hex');
+      const key = await ApiKeyModel.findActiveByHash(hash);
+      if (!key) {
+        res.status(401).json({ success: false, message: 'Invalid API key' });
+        return;
+      }
+      req.user = {
+        UserID: 0,
+        Username: `api-key:${key.Name}`,
+        Email: 'api-key@local',
+        FirstName: 'API',
+        LastName: 'Key',
+        Role: key.Role,
+        Department: '',
+        IsActive: true,
+        CreatedAt: new Date(),
+        UpdatedAt: new Date()
+      } as User;
+      next();
+      return;
+    }
+    const authHeaderJwt = req.headers.authorization;
+    const token = authHeaderJwt && authHeaderJwt.split(' ')[1];
 
     if (!token) {
       res.status(401).json({ 

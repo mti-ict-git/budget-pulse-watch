@@ -4,7 +4,10 @@ info:
   version: 1.0.0
   description: |
     REST API for PRF Monitoring Dashboard. Includes authentication, PRF import, budgets, COA, and settings.
-    All protected endpoints require Bearer JWT in the Authorization header.
+    Protected endpoints accept either:
+      - Bearer JWT in the Authorization header, or
+      - API Key via header `x-api-key: <token>`, or
+      - API Key via header `Authorization: ApiKey <token>`
 servers:
   - url: /
     description: Same origin
@@ -25,12 +28,25 @@ tags:
   - name: Users
   - name: LDAP
   - name: Reports
+  - name: API Keys
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    ApiKeyHeader:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: |
+        Provide API key directly in header: `x-api-key: <token>`
+    ApiKeyAuthorization:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        Provide API key using custom Authorization scheme: `Authorization: ApiKey <token>`
   schemas:
     ApiResponse:
       type: object
@@ -172,6 +188,35 @@ components:
           type: string
         model:
           type: string
+    UpdatePRFRequest:
+      type: object
+      description: Fields that can be updated on a PRF
+      properties:
+        Title: { type: string }
+        Description: { type: string }
+        Department: { type: string }
+        COAID: { type: integer }
+        RequestedAmount: { type: number, format: double }
+        CurrencyCode: { type: string, enum: [IDR, USD] }
+        ExchangeRateToIDR: { type: number, format: double }
+        Priority: { type: string, enum: [Low, Medium, High, Critical] }
+        Status: { type: string, description: Free-form status aligned with Pronto }
+        RequiredDate: { type: string, format: date-time }
+        ApprovedAmount: { type: number, format: double }
+        ActualAmount: { type: number, format: double }
+        ApprovalDate: { type: string, format: date-time }
+        CompletionDate: { type: string, format: date-time }
+        ApprovedBy: { type: integer }
+        Justification: { type: string }
+        VendorName: { type: string }
+        VendorContact: { type: string }
+        Notes: { type: string }
+        DateSubmit: { type: string, format: date-time }
+        SubmitBy: { type: string }
+        SumDescriptionRequested: { type: string }
+        PurchaseCostCode: { type: string }
+        RequiredFor: { type: string }
+        BudgetYear: { type: integer }
     FolderTestRequest:
       type: object
       properties:
@@ -228,12 +273,87 @@ paths:
                 $ref: '#/components/schemas/AuthLoginResponse'
         '400':
           description: Missing parameters
+  /api/auth/api-keys:
+    post:
+      summary: Create API key
+      description: Create a new API key. Returns the plaintext token once.
+      tags: [API Keys]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, role]
+              properties:
+                name:
+                  type: string
+                role:
+                  type: string
+                  enum: [admin, doccon, user]
+                expiresAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+    get:
+      summary: List API keys
+      tags: [API Keys]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Keys
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+  /api/auth/api-keys/{id}:
+    delete:
+      summary: Deactivate API key
+      tags: [API Keys]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deactivated
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+        '400':
+          description: Invalid id
   /api/auth/verify:
     get:
       summary: Verify JWT token
       tags: [Auth]
       security:
         - bearerAuth: []
+        - ApiKeyHeader: []
+        - ApiKeyAuthorization: []
       responses:
         '200':
           description: Valid token
@@ -254,6 +374,8 @@ paths:
       tags: [Auth]
       security:
         - bearerAuth: []
+        - ApiKeyHeader: []
+        - ApiKeyAuthorization: []
       responses:
         '200':
           description: Current user
@@ -1675,6 +1797,8 @@ paths:
       tags: [PRFs]
       security:
         - bearerAuth: []
+        - ApiKeyHeader: []
+        - ApiKeyAuthorization: []
       parameters:
         - in: path
           name: id
@@ -1686,8 +1810,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: true
+              $ref: '#/components/schemas/UpdatePRFRequest'
       responses:
         '200':
           description: Updated
@@ -1744,7 +1867,7 @@ paths:
 
   /api/prfs/prfno/{prfNo}:
     get:
-      summary: Get PRF by PRF number
+      summary: Get PRF by PRFNo
       tags: [PRFs]
       parameters:
         - in: path
@@ -1754,7 +1877,7 @@ paths:
             type: string
       responses:
         '200':
-          description: PRF
+          description: PRF by number
           content:
             application/json:
               schema:
@@ -1762,6 +1885,41 @@ paths:
                 additionalProperties: true
         '404':
           description: Not found
+    put:
+      summary: Update PRF by PRFNo
+      tags: [PRFs]
+      security:
+        - bearerAuth: []
+        - ApiKeyHeader: []
+        - ApiKeyAuthorization: []
+      parameters:
+        - in: path
+          name: prfNo
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Invalid input
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    
 
   /api/prfs/{id}/items:
     post:
@@ -2800,6 +2958,8 @@ paths:
       tags: [Users]
       security:
         - bearerAuth: []
+        - ApiKeyHeader: []
+        - ApiKeyAuthorization: []
       parameters:
         - in: query
           name: page
@@ -2828,6 +2988,8 @@ paths:
       tags: [Users]
       security:
         - bearerAuth: []
+        - ApiKeyHeader: []
+        - ApiKeyAuthorization: []
       requestBody:
         required: true
         content:
@@ -2856,6 +3018,8 @@ paths:
       tags: [Users]
       security:
         - bearerAuth: []
+        - ApiKeyHeader: []
+        - ApiKeyAuthorization: []
       parameters:
         - in: path
           name: id
@@ -2881,6 +3045,8 @@ paths:
       tags: [Users]
       security:
         - bearerAuth: []
+        - ApiKeyHeader: []
+        - ApiKeyAuthorization: []
       parameters:
         - in: path
           name: id
@@ -2911,6 +3077,8 @@ paths:
       tags: [Users]
       security:
         - bearerAuth: []
+        - ApiKeyHeader: []
+        - ApiKeyAuthorization: []
       parameters:
         - in: path
           name: id
@@ -2938,6 +3106,8 @@ paths:
       tags: [Users]
       security:
         - bearerAuth: []
+        - ApiKeyHeader: []
+        - ApiKeyAuthorization: []
       parameters:
         - in: path
           name: id
@@ -2965,6 +3135,8 @@ paths:
       tags: [Users]
       security:
         - bearerAuth: []
+        - ApiKeyHeader: []
+        - ApiKeyAuthorization: []
       responses:
         '200':
           description: Statistics
@@ -2980,6 +3152,8 @@ paths:
       tags: [LDAP]
       security:
         - bearerAuth: []
+        - ApiKeyHeader: []
+        - ApiKeyAuthorization: []
       parameters:
         - in: query
           name: page
