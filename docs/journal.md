@@ -179,6 +179,9 @@ Thursday, February 12, 2026 10:55:04 AM
 Thursday, February 12, 2026 11:14:03 AM
 - Fixed Docker EACCES on /app/data/token_cache.json by chowning mounted /app/data before switching users
 
+Wednesday, March 25, 2026 7:58:50 AM
+- Fixed delegated OneDrive auth to fallback from revoked/expired cached grants to device-code flow
+
 Thursday, February 12, 2026 12:16:15 PM
 - Added lightweight PRF search endpoint GET /api/prfs/search
 - Documented /api/prfs/search in docs/openapi.yaml

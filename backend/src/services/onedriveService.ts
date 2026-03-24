@@ -254,9 +254,14 @@ async function getDelegatedAccessToken(scopes: string[]): Promise<string> {
   loadTokenCache(cca);
   const accounts = await cca.getTokenCache().getAllAccounts();
   if (accounts.length > 0) {
-    const silent = await cca.acquireTokenSilent({ account: accounts[0], scopes });
-    saveTokenCache(cca);
-    return silent.accessToken;
+    try {
+      const silent = await cca.acquireTokenSilent({ account: accounts[0], scopes });
+      saveTokenCache(cca);
+      return silent.accessToken;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      console.warn(`⚠️ [OneDrive] Silent token acquisition failed, falling back to device code: ${msg}`);
+    }
   }
 
   const byDeviceCode = await cca.acquireTokenByDeviceCode({
