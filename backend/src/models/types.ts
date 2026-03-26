@@ -629,6 +629,26 @@ export interface BudgetUtilization {
   UtilizationLevel: 'Low' | 'Medium' | 'High' | 'Critical';
 }
 
+// Notification types
+export interface Notification {
+  NotificationID: number;
+  UserID: number;
+  Title: string;
+  Message: string;
+  ReferenceType: string;
+  ReferenceID?: number;
+  IsRead: boolean;
+  CreatedAt: Date;
+}
+
+export interface CreateNotificationRequest {
+  UserID: number;
+  Title: string;
+  Message: string;
+  ReferenceType: string;
+  ReferenceID?: number;
+}
+
 // API Response types
 export interface ApiResponse<T = unknown> {
   success: boolean;

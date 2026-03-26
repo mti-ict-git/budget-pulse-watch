@@ -88,6 +88,19 @@ CREATE TABLE BudgetCutoffAudit (
     FOREIGN KEY (ActionBy) REFERENCES Users(UserID)
 );
 
+-- Notifications table
+CREATE TABLE Notifications (
+    NotificationID INT IDENTITY(1,1) PRIMARY KEY,
+    UserID INT NOT NULL,
+    Title NVARCHAR(200) NOT NULL,
+    Message NVARCHAR(1000) NOT NULL,
+    ReferenceType NVARCHAR(50) NOT NULL, -- e.g., 'PRF'
+    ReferenceID INT NULL,                -- e.g., PRFID
+    IsRead BIT NOT NULL DEFAULT 0,
+    CreatedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
+    FOREIGN KEY (UserID) REFERENCES Users(UserID) ON DELETE CASCADE
+);
+
 -- PRF (Purchase Request Form) table
 CREATE TABLE PRF (
     PRFID INT IDENTITY(1,1) PRIMARY KEY,

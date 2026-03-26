@@ -1,5 +1,6 @@
 import { PRF } from '../models/types';
 import { executeQuery } from '../config/database';
+import { NotificationModel } from '../models/Notification';
 import * as msal from '@azure/msal-node';
 import path from 'path';
 import fs from 'fs';
@@ -820,6 +821,18 @@ export async function pullPRFFromExcel(
         RequestedAmount: excelAmount,
         Status: excelStatus,
       });
+
+      // Create notification if status changed
+      if (changes.length > 0) {
+        const changedFields = changes.map(c => c.field).join(', ');
+        await NotificationModel.create({
+          UserID: prf.RequestorID,
+          Title: `PRF Updated from Pronto`,
+          Message: `PRF ${prf.PRFNo} has been updated in Pronto. Changes: ${changedFields}.`,
+          ReferenceType: 'PRF',
+          ReferenceID: prf.PRFID
+        }).catch(err => console.error(`Failed to create notification for PRF ${prf.PRFNo}:`, err));
+      }
 
       return { updated: true, sheetName, rowNumber: startRow + rowIndex, changes };
     }

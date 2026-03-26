@@ -21,6 +21,7 @@ import authRoutes from './routes/auth';
 import ldapUsersRoutes from './routes/ldapUsers';
 import usersRoutes from './routes/users';
 import reportsRoutes from './routes/reports';
+import notificationRoutes from './routes/notificationRoutes';
 import { initializeDatabase, ensureTablesExist } from './config/initializeDatabase';
 // TODO: Add error handling middleware later
 
@@ -133,6 +134,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/ldap-users', ldapUsersRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Basic error handling
 app.use((req, res) => {
