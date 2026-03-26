@@ -92,6 +92,20 @@ interface PRFData {
   approvedByName?: string;
   lastUpdate: string;
   items?: PRFItem[];
+
+  // Additional Fields
+  title?: string;
+  approvedAmount?: number | null;
+  actualAmount?: number | null;
+  currencyCode?: string;
+  exchangeRateToIDR?: number;
+  requiredDate?: string | null;
+  approvalDate?: string | null;
+  completionDate?: string | null;
+  justification?: string | null;
+  vendorName?: string | null;
+  vendorContact?: string | null;
+  notes?: string | null;
 }
 
 // Raw API data interface (from backend)
@@ -107,6 +121,10 @@ interface PRFRawData {
   SumDescriptionRequested?: string;
   PurchaseCostCode?: string;
   RequestedAmount?: number;
+  ApprovedAmount?: number;
+  ActualAmount?: number;
+  CurrencyCode?: string;
+  ExchangeRateToIDR?: number;
   Amount?: number;
   RequiredFor?: string;
   BudgetYear?: number;
@@ -114,6 +132,13 @@ interface PRFRawData {
   Priority?: string;
   Status?: string;
   ApprovedByName?: string;
+  RequiredDate?: string;
+  ApprovalDate?: string;
+  CompletionDate?: string;
+  Justification?: string;
+  VendorName?: string;
+  VendorContact?: string;
+  Notes?: string;
   UpdatedAt?: string;
   LastUpdate?: string;
   Items?: PRFItem[];
@@ -262,7 +287,20 @@ export default function PRFMonitoring() {
           progress: prf.Status || 'pending',
           approvedByName: prf.ApprovedByName,
           lastUpdate: prf.UpdatedAt || prf.LastUpdate || prf.RequestDate || '',
-          items: prf.Items || []
+          items: prf.Items || [],
+          
+          title: prf.Title,
+          approvedAmount: prf.ApprovedAmount,
+          actualAmount: prf.ActualAmount,
+          currencyCode: prf.CurrencyCode,
+          exchangeRateToIDR: prf.ExchangeRateToIDR,
+          requiredDate: prf.RequiredDate,
+          approvalDate: prf.ApprovalDate,
+          completionDate: prf.CompletionDate,
+          justification: prf.Justification,
+          vendorName: prf.VendorName,
+          vendorContact: prf.VendorContact,
+          notes: prf.Notes
         }));
         
         setPrfData(transformedData);

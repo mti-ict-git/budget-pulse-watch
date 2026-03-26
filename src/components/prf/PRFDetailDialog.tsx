@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Eye, Calendar, User, Building, DollarSign, Target, Code, Clock } from "lucide-react";
+import { Eye, Calendar, User, Building, DollarSign, Target, Code, Clock, CheckCircle2, MessageSquare, Briefcase } from "lucide-react";
 import PRFDocuments from "./PRFDocuments";
 
 interface PRFData {
@@ -30,6 +30,20 @@ interface PRFData {
   progress: string;
   approvedByName?: string;
   lastUpdate: string;
+  
+  // Additional Fields
+  title?: string;
+  approvedAmount?: number | null;
+  actualAmount?: number | null;
+  currencyCode?: string;
+  exchangeRateToIDR?: number;
+  requiredDate?: string | null;
+  approvalDate?: string | null;
+  completionDate?: string | null;
+  justification?: string | null;
+  vendorName?: string | null;
+  vendorContact?: string | null;
+  notes?: string | null;
 }
 
 interface PRFDetailDialogProps {
@@ -65,7 +79,25 @@ const getPriorityBadge = (priority: string) => {
   return <Badge variant={config.variant}>{config.label}</Badge>;
 };
 
-const formatCurrency = (amount: number) => {
+const formatCurrency = (amount: number, currencyCode: string = 'IDR', exchangeRate: number = 1) => {
+  // If USD and exchange rate exists, show USD amount with IDR equivalent
+  if (currencyCode === 'USD') {
+    const usdFormat = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2
+    }).format(amount);
+    
+    const idrFormat = new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0
+    }).format(amount * exchangeRate);
+    
+    return `${usdFormat} (${idrFormat})`;
+  }
+
+  // Default IDR formatting
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
     currency: 'IDR',
@@ -153,10 +185,27 @@ export function PRFDetailDialog({ prf }: PRFDetailDialogProps) {
             <CardContent className="space-y-4">
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Requested Amount</label>
-                <p className="text-2xl font-bold text-primary">{formatCurrency(prf.amount)}</p>
+                <p className="text-2xl font-bold text-primary">{formatCurrency(prf.amount, prf.currencyCode, prf.exchangeRateToIDR)}</p>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              {(prf.approvedAmount != null || prf.actualAmount != null) && (
+                <div className="grid grid-cols-2 gap-4 pt-2 border-t">
+                  {prf.approvedAmount != null && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Approved Amount</label>
+                      <p className="font-medium text-green-700">{formatCurrency(prf.approvedAmount, prf.currencyCode, prf.exchangeRateToIDR)}</p>
+                    </div>
+                  )}
+                  {prf.actualAmount != null && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Actual/Spent Amount</label>
+                      <p className="font-medium text-blue-700">{formatCurrency(prf.actualAmount, prf.currencyCode, prf.exchangeRateToIDR)}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              <div className="grid grid-cols-2 gap-4 pt-2 border-t">
                 <div>
                   <label className="text-sm font-medium text-muted-foreground flex items-center gap-1">
                     <Code className="h-4 w-4" />
@@ -172,6 +221,32 @@ export function PRFDetailDialog({ prf }: PRFDetailDialogProps) {
             </CardContent>
           </Card>
 
+          {/* Vendor Information */}
+          {(prf.vendorName || prf.vendorContact) && (
+            <Card className="md:col-span-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Building className="h-5 w-5" />
+                  Vendor Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {prf.vendorName && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Vendor Name</label>
+                    <p className="font-medium">{prf.vendorName}</p>
+                  </div>
+                )}
+                {prf.vendorContact && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Vendor Contact Details</label>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{prf.vendorContact}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Description & Purpose */}
           <Card className="md:col-span-2">
             <CardHeader>
@@ -182,25 +257,60 @@ export function PRFDetailDialog({ prf }: PRFDetailDialogProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Short Description</label>
-                <p className="font-medium">{prf.description}</p>
+                <label className="text-sm font-medium text-muted-foreground">Title / Short Description</label>
+                <p className="font-medium">{prf.title || prf.description}</p>
               </div>
+              
+              {(prf.title && prf.description && prf.title !== prf.description) && (
+                <>
+                  <Separator />
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Additional Description</label>
+                    <p className="text-sm leading-relaxed">{prf.description}</p>
+                  </div>
+                </>
+              )}
               
               <Separator />
               
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Detailed Description</label>
-                <p className="text-sm leading-relaxed bg-muted/50 p-3 rounded-md">
-                  {prf.sumDescriptionRequested}
+                <label className="text-sm font-medium text-muted-foreground">Detailed Summary (From Request)</label>
+                <p className="text-sm leading-relaxed bg-muted/50 p-3 rounded-md whitespace-pre-wrap">
+                  {prf.sumDescriptionRequested || 'No detailed summary provided.'}
                 </p>
               </div>
+              
+              {prf.justification && (
+                <>
+                  <Separator />
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Justification</label>
+                    <p className="text-sm leading-relaxed bg-blue-50/50 p-3 rounded-md whitespace-pre-wrap border border-blue-100">
+                      {prf.justification}
+                    </p>
+                  </div>
+                </>
+              )}
               
               <Separator />
               
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Required For</label>
-                <p className="font-medium">{prf.requiredFor}</p>
+                <p className="font-medium">{prf.requiredFor || 'Not specified'}</p>
               </div>
+
+              {prf.notes && (
+                <>
+                  <Separator />
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                      <MessageSquare className="h-4 w-4" />
+                      Notes
+                    </label>
+                    <p className="text-sm leading-relaxed italic mt-1">{prf.notes}</p>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -235,6 +345,42 @@ export function PRFDetailDialog({ prf }: PRFDetailDialogProps) {
                   </p>
                 </div>
 
+                {prf.requiredDate && (
+                  <div className="text-center">
+                    <label className="text-sm font-medium text-muted-foreground flex items-center justify-center gap-1">
+                      <Calendar className="h-4 w-4" />
+                      Required By
+                    </label>
+                    <p className="font-medium mt-2">
+                      {new Date(prf.requiredDate).toLocaleDateString('id-ID')}
+                    </p>
+                  </div>
+                )}
+                
+                {prf.approvalDate && (
+                  <div className="text-center">
+                    <label className="text-sm font-medium text-muted-foreground flex items-center justify-center gap-1">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      Approval Date
+                    </label>
+                    <p className="font-medium mt-2">
+                      {new Date(prf.approvalDate).toLocaleDateString('id-ID')}
+                    </p>
+                  </div>
+                )}
+                
+                {prf.completionDate && (
+                  <div className="text-center">
+                    <label className="text-sm font-medium text-muted-foreground flex items-center justify-center gap-1">
+                      <Briefcase className="h-4 w-4 text-blue-600" />
+                      Completion Date
+                    </label>
+                    <p className="font-medium mt-2">
+                      {new Date(prf.completionDate).toLocaleDateString('id-ID')}
+                    </p>
+                  </div>
+                )}
+                
                 {prf.approvedByName && (
                   <div className="text-center md:col-span-3 mt-2 pt-4 border-t">
                     <label className="text-sm font-medium text-muted-foreground flex items-center justify-center gap-1">
