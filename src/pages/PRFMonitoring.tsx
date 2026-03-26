@@ -89,6 +89,7 @@ interface PRFData {
   department: string;
   priority: string;
   progress: string;
+  approvedByName?: string;
   lastUpdate: string;
   items?: PRFItem[];
 }
@@ -112,6 +113,7 @@ interface PRFRawData {
   Department?: string;
   Priority?: string;
   Status?: string;
+  ApprovedByName?: string;
   UpdatedAt?: string;
   LastUpdate?: string;
   Items?: PRFItem[];
@@ -258,6 +260,7 @@ export default function PRFMonitoring() {
           department: prf.Department || '',
           priority: prf.Priority || 'Medium',
           progress: prf.Status || 'pending',
+          approvedByName: prf.ApprovedByName,
           lastUpdate: prf.UpdatedAt || prf.LastUpdate || prf.RequestDate || '',
           items: prf.Items || []
         }));
@@ -1084,13 +1087,14 @@ export default function PRFMonitoring() {
                       <TableHead className="min-w-[80px]">Priority</TableHead>
                       <TableHead className="min-w-[80px]">Budget Year</TableHead>
                       <TableHead className="min-w-[100px]">Status</TableHead>
+                      <TableHead className="min-w-[150px]">Approved By</TableHead>
                       <TableHead className="min-w-[120px] sticky right-0 bg-background z-10">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={14} className="text-center py-8">
+                      <TableCell colSpan={15} className="text-center py-8">
                         <div className="flex items-center justify-center">
                           <RefreshCw className="h-4 w-4 animate-spin mr-2" />
                           Loading PRF data...
@@ -1099,7 +1103,7 @@ export default function PRFMonitoring() {
                     </TableRow>
                   ) : filteredData.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={14} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={15} className="text-center py-8 text-muted-foreground">
                         No PRF data found
                       </TableCell>
                     </TableRow>
@@ -1163,6 +1167,7 @@ export default function PRFMonitoring() {
                           <TableCell>{getPriorityBadge(prf.priority)}</TableCell>
                           <TableCell className="whitespace-nowrap">{prf.budgetYear}</TableCell>
                           <TableCell>{getStatusBadge(prf.progress)}</TableCell>
+                          <TableCell className="truncate max-w-[150px]" title={prf.approvedByName || ''}>{prf.approvedByName || '-'}</TableCell>
                           <TableCell className="sticky right-0 bg-background z-10" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-1">
                               <PRFDetailDialog prf={prf} />
@@ -1173,7 +1178,7 @@ export default function PRFMonitoring() {
                         </TableRow>
                         {expandedRows.has(prf.id) && prf.items && prf.items.length > 0 && (
                           <TableRow>
-                            <TableCell colSpan={14} className="bg-gray-50 p-0">
+                            <TableCell colSpan={15} className="bg-gray-50 p-0">
                               <div className="p-4">
                                 <h4 className="font-medium mb-3 text-sm text-gray-700">PRF Items ({prf.items.length})</h4>
                                 <div className="space-y-2">

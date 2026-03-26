@@ -29,6 +29,7 @@ interface PRFData {
   department: string;
   priority: string;
   progress: string;
+  approvedByName?: string;
   lastUpdate: string;
 }
 

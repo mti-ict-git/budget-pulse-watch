@@ -28,6 +28,7 @@ interface PRFData {
   department: string;
   priority: string;
   progress: string;
+  approvedByName?: string;
   lastUpdate: string;
 }
 
@@ -233,6 +234,16 @@ export function PRFDetailDialog({ prf }: PRFDetailDialogProps) {
                     {new Date(prf.lastUpdate).toLocaleDateString('id-ID')}
                   </p>
                 </div>
+
+                {prf.approvedByName && (
+                  <div className="text-center md:col-span-3 mt-2 pt-4 border-t">
+                    <label className="text-sm font-medium text-muted-foreground flex items-center justify-center gap-1">
+                      <User className="h-4 w-4 text-green-600" />
+                      Approved By
+                    </label>
+                    <p className="font-medium text-green-600 mt-2">{prf.approvedByName}</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

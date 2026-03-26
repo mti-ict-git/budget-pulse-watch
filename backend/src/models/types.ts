@@ -70,7 +70,8 @@ export interface UpdatePRFParams {
   ActualAmount?: number;
   ApprovalDate?: Date;
   CompletionDate?: Date;
-  ApprovedBy?: number;
+  ApprovedBy?: number | null;
+  ApprovedByName?: string | null;
   Justification?: string;
   VendorName?: string;
   VendorContact?: string;
@@ -407,7 +408,8 @@ export interface PRF {
   RequiredDate?: Date;
   ApprovalDate?: Date;
   CompletionDate?: Date;
-  ApprovedBy?: number;
+  ApprovedBy?: number | null;
+  ApprovedByName?: string | null;
   Justification?: string;
   VendorName?: string;
   VendorContact?: string;
@@ -466,7 +468,8 @@ export interface UpdatePRFRequest {
   ActualAmount?: number;
   ApprovalDate?: Date;
   CompletionDate?: Date;
-  ApprovedBy?: number;
+  ApprovedBy?: number | null;
+  ApprovedByName?: string | null;
   Justification?: string;
   VendorName?: string;
   VendorContact?: string;
@@ -587,6 +590,7 @@ export interface PRFSummary {
   BudgetYear?: number;
   Description?: string;
   UpdatedAt?: Date;
+  ApprovedByName?: string;
 }
 
 export interface BudgetSummary {

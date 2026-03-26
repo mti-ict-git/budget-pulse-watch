@@ -109,6 +109,7 @@ CREATE TABLE PRF (
     ApprovalDate DATETIME2 NULL,
     CompletionDate DATETIME2 NULL,
     ApprovedBy INT NULL,
+    ApprovedByName NVARCHAR(200) NULL,
     Justification NVARCHAR(2000),
     VendorName NVARCHAR(200),
     VendorContact NVARCHAR(500),

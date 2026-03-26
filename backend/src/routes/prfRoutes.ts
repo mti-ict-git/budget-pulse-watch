@@ -6,6 +6,35 @@ import { authenticateToken, requireContentManager } from '../middleware/auth';
 
 const router = Router();
 
+type ParseNullableIntResult = { ok: true; value: number | null } | { ok: false };
+
+const parseNullableInt = (value: unknown): ParseNullableIntResult => {
+  if (value === null) return { ok: true, value: null };
+  if (typeof value === 'number') {
+    if (!Number.isInteger(value)) return { ok: false };
+    return { ok: true, value };
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return { ok: true, value: null };
+    if (!/^-?\d+$/.test(trimmed)) return { ok: false };
+    const parsed = Number.parseInt(trimmed, 10);
+    return Number.isNaN(parsed) ? { ok: false } : { ok: true, value: parsed };
+  }
+  return { ok: false };
+};
+
+type ParseNullableStringResult = { ok: true; value: string | null } | { ok: false };
+
+const parseNullableString = (value: unknown): ParseNullableStringResult => {
+  if (value === null) return { ok: true, value: null };
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length === 0 ? { ok: true, value: null } : { ok: true, value: trimmed };
+  }
+  return { ok: false };
+};
+
 /**
  * @route GET /api/prfs
  * @desc Get all PRFs with filtering and pagination
@@ -416,6 +445,26 @@ router.put('/:id', authenticateToken, requireContentManager, async (req: Request
         message: 'PRF not found'
       });
     }
+    if (updateData.ApprovedBy !== undefined) {
+      const parsedApprovedBy = parseNullableInt(updateData.ApprovedBy);
+      if (!parsedApprovedBy.ok) {
+        return res.status(400).json({
+          success: false,
+          message: 'ApprovedBy must be an integer or null'
+        });
+      }
+      updateData.ApprovedBy = parsedApprovedBy.value;
+    }
+    if (updateData.ApprovedByName !== undefined) {
+      const parsedApprovedByName = parseNullableString(updateData.ApprovedByName);
+      if (!parsedApprovedByName.ok) {
+        return res.status(400).json({
+          success: false,
+          message: 'ApprovedByName must be a string or null'
+        });
+      }
+      updateData.ApprovedByName = parsedApprovedByName.value;
+    }
     if (updateData.CurrencyCode && !['IDR', 'USD'].includes(updateData.CurrencyCode)) {
       return res.status(400).json({
         success: false,
@@ -471,6 +520,26 @@ router.put('/prfno/:prfNo', authenticateToken, requireContentManager, async (req
       });
     }
 
+    if (updateData.ApprovedBy !== undefined) {
+      const parsedApprovedBy = parseNullableInt(updateData.ApprovedBy);
+      if (!parsedApprovedBy.ok) {
+        return res.status(400).json({
+          success: false,
+          message: 'ApprovedBy must be an integer or null'
+        });
+      }
+      updateData.ApprovedBy = parsedApprovedBy.value;
+    }
+    if (updateData.ApprovedByName !== undefined) {
+      const parsedApprovedByName = parseNullableString(updateData.ApprovedByName);
+      if (!parsedApprovedByName.ok) {
+        return res.status(400).json({
+          success: false,
+          message: 'ApprovedByName must be a string or null'
+        });
+      }
+      updateData.ApprovedByName = parsedApprovedByName.value;
+    }
     if (updateData.CurrencyCode && !['IDR', 'USD'].includes(updateData.CurrencyCode)) {
       return res.status(400).json({
         success: false,

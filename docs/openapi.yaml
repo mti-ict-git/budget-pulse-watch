@@ -206,7 +206,8 @@ components:
         ActualAmount: { type: number, format: double }
         ApprovalDate: { type: string, format: date-time }
         CompletionDate: { type: string, format: date-time }
-        ApprovedBy: { type: integer }
+        ApprovedBy: { type: integer, nullable: true }
+        ApprovedByName: { type: string, nullable: true }
         Justification: { type: string }
         VendorName: { type: string }
         VendorContact: { type: string }

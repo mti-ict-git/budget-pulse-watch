@@ -170,6 +170,10 @@ export class PRFModel {
       setClause.push('ApprovedBy = @ApprovedBy');
       params.ApprovedBy = updateData.ApprovedBy;
     }
+    if (updateData.ApprovedByName !== undefined) {
+      setClause.push('ApprovedByName = @ApprovedByName');
+      params.ApprovedByName = updateData.ApprovedByName;
+    }
     if (updateData.Justification !== undefined) {
       setClause.push('Justification = @Justification');
       params.Justification = updateData.Justification;
