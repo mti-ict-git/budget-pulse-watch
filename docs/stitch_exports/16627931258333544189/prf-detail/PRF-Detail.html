@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "error-container": "#ffdad6",
+              "outline": "#737686",
+              "inverse-primary": "#b4c5ff",
+              "surface-variant": "#e1e2ed",
+              "surface-container": "#ededf9",
+              "on-tertiary-fixed-variant": "#7d2d00",
+              "surface-bright": "#faf8ff",
+              "surface-container-highest": "#e1e2ed",
+              "tertiary-fixed-dim": "#ffb596",
+              "on-background": "#191b23",
+              "primary-fixed": "#dbe1ff",
+              "tertiary-fixed": "#ffdbcd",
+              "on-secondary-fixed": "#00174b",
+              "secondary-fixed": "#dbe1ff",
+              "on-tertiary": "#ffffff",
+              "outline-variant": "#c3c6d7",
+              "surface-container-high": "#e7e7f3",
+              "tertiary-container": "#bc4800",
+              "surface": "#faf8ff",
+              "on-secondary-container": "#394c84",
+              "on-error-container": "#93000a",
+              "on-secondary": "#ffffff",
+              "secondary-fixed-dim": "#b4c5ff",
+              "on-primary-container": "#eeefff",
+              "primary-container": "#2563eb",
+              "surface-dim": "#d9d9e5",
+              "on-secondary-fixed-variant": "#31447b",
+              "surface-container-low": "#f3f3fe",
+              "inverse-on-surface": "#f0f0fb",
+              "on-primary-fixed": "#00174b",
+              "surface-container-lowest": "#ffffff",
+              "inverse-surface": "#2e3039",
+              "secondary": "#495c95",
+              "surface-tint": "#0053db",
+              "on-tertiary-fixed": "#360f00",
+              "secondary-container": "#acbfff",
+              "on-surface": "#191b23",
+              "primary-fixed-dim": "#b4c5ff",
+              "on-primary-fixed-variant": "#003ea8",
+              "on-surface-variant": "#434655",
+              "error": "#ba1a1a",
+              "on-primary": "#ffffff",
+              "primary": "#004ac6",
+              "on-tertiary-container": "#ffede6",
+              "background": "#faf8ff",
+              "tertiary": "#943700",
+              "on-error": "#ffffff"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3 { font-family: 'Manrope', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="bg-white/80 dark:bg-[#191b23]/80 backdrop-blur-md shadow-sm shadow-blue-900/5 docked full-width top-0 z-50 sticky">
+<div class="flex justify-between items-center w-full px-6 py-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-blue-600 dark:text-blue-400" data-icon="analytics">analytics</span>
+<h1 class="font-manrope font-extrabold text-blue-600 dark:text-blue-400 text-xl tracking-[0.05rem]">PRF Monitoring</h1>
+</div>
+<div class="flex items-center gap-4">
+<button class="hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors p-2 rounded-full active:scale-95 duration-200">
+<span class="material-symbols-outlined text-slate-500 dark:text-slate-400" data-icon="search">search</span>
+</button>
+</div>
+</div>
+</header>
+<main class="max-w-5xl mx-auto px-4 py-8 space-y-6">
+<!-- Header Info & Asymmetric Summary Bento Grid -->
+<div class="flex flex-col md:flex-row gap-6">
+<!-- Summary Primary Card -->
+<div class="flex-1 bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-outline-variant/15">
+<div class="flex justify-between items-start mb-6">
+<div>
+<span class="text-label font-bold uppercase tracking-wider text-secondary text-[10px]">Purchase Requisition</span>
+<h2 class="text-2xl font-extrabold text-on-surface tracking-tight mt-1">PRF-2024-0892</h2>
+</div>
+<span class="px-3 py-1 rounded-full bg-primary-fixed text-on-primary-fixed text-[11px] font-bold uppercase tracking-widest">In Progress</span>
+</div>
+<div class="grid grid-cols-2 gap-y-6 gap-x-4">
+<div>
+<p class="text-[11px] font-bold uppercase text-outline tracking-wider mb-1">Priority</p>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-error"></span>
+<span class="text-sm font-semibold text-on-surface">Critical</span>
+</div>
+</div>
+<div>
+<p class="text-[11px] font-bold uppercase text-outline tracking-wider mb-1">Department</p>
+<p class="text-sm font-semibold text-on-surface">Infrastructure &amp; Ops</p>
+</div>
+<div>
+<p class="text-[11px] font-bold uppercase text-outline tracking-wider mb-1">Submitted By</p>
+<p class="text-sm font-semibold text-on-surface">Sarah Jenkins</p>
+</div>
+<div>
+<p class="text-[11px] font-bold uppercase text-outline tracking-wider mb-1">Approved By</p>
+<p class="text-sm font-semibold text-on-surface">Marcus Thorne</p>
+</div>
+</div>
+</div>
+<!-- Amount Focus Card -->
+<div class="w-full md:w-80 bg-primary-container text-on-primary-container rounded-xl p-6 flex flex-col justify-between overflow-hidden relative">
+<div class="relative z-10">
+<p class="text-[11px] font-bold uppercase opacity-80 tracking-widest mb-1">Requested Amount</p>
+<h3 class="font-headline text-4xl font-bold tracking-tighter mb-4">$142,500.00</h3>
+<div class="space-y-3 pt-4 border-t border-white/10">
+<div class="flex justify-between items-center">
+<span class="text-xs opacity-70">Approved</span>
+<span class="text-sm font-bold">$140,000.00</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-xs opacity-70">Actual</span>
+<span class="text-sm font-bold">$138,420.15</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-xs opacity-70">Currency</span>
+<span class="text-sm font-bold">USD (United States Dollar)</span>
+</div>
+</div>
+</div>
+<!-- Abstract background texture -->
+<div class="absolute -bottom-8 -right-8 w-32 h-32 bg-white/5 rounded-full blur-3xl"></div>
+</div>
+</div>
+<!-- Details Sections: Purpose & Vendor -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<!-- Purpose & Description (Wide) -->
+<div class="lg:col-span-2 bg-surface-container-low rounded-xl p-8 space-y-6">
+<div>
+<h3 class="text-lg font-bold text-on-surface mb-2">Technical Core Upgrade</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed">
+                        Phase 2 implementation of the edge computing infrastructure. This requisition covers the procurement of localized server modules and high-bandwidth interconnect cables required for the northeast data center expansion.
+                    </p>
+</div>
+<div class="pt-6 border-t border-outline-variant/15">
+<p class="text-[11px] font-bold uppercase text-outline tracking-wider mb-2">Justification</p>
+<p class="text-on-surface-variant text-sm leading-relaxed italic">
+                        "Current latency benchmarks in the NE region have exceeded acceptable thresholds for Tier-1 clients. This hardware upgrade is essential to maintain SLA compliance and prevent churn."
+                    </p>
+</div>
+<div class="bg-surface-container-high rounded-lg p-4">
+<div class="flex gap-3">
+<span class="material-symbols-outlined text-outline" data-icon="notes">notes</span>
+<div>
+<p class="text-[11px] font-bold uppercase text-outline tracking-wider mb-1">Internal Notes</p>
+<p class="text-xs text-on-surface-variant">Vendor requested a 15-day delivery window instead of the standard 30. Expedited shipping costs are included in the approved amount.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Vendor & Dates (Stack) -->
+<div class="space-y-6">
+<!-- Vendor Card -->
+<div class="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-outline-variant/15">
+<div class="flex items-center gap-3 mb-4">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-primary" data-icon="store">store</span>
+</div>
+<div>
+<p class="text-[11px] font-bold uppercase text-outline tracking-wider">Vendor</p>
+<h4 class="font-bold text-on-surface">Nexus Systems Inc.</h4>
+</div>
+</div>
+<div class="space-y-3">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-outline text-lg" data-icon="person">person</span>
+<span class="text-sm text-on-surface-variant">Elena Rodriguez</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-outline text-lg" data-icon="mail">mail</span>
+<span class="text-sm text-on-surface-variant underline decoration-outline-variant/30">e.rodriguez@nexus-sys.com</span>
+</div>
+</div>
+</div>
+<!-- Timeline/Dates Card -->
+<div class="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-outline-variant/15">
+<h4 class="text-[11px] font-bold uppercase text-outline tracking-wider mb-4">Lifecycle Timeline</h4>
+<div class="space-y-4 relative">
+<!-- Vertical line -->
+<div class="absolute left-[7px] top-2 bottom-2 w-[1px] bg-outline-variant/30"></div>
+<div class="flex items-start gap-4 relative">
+<div class="w-3.5 h-3.5 rounded-full bg-primary mt-1 border-4 border-surface-container-lowest z-10"></div>
+<div>
+<p class="text-xs font-bold text-on-surface">Requested</p>
+<p class="text-[10px] text-outline">Oct 12, 2024 • 09:15 AM</p>
+</div>
+</div>
+<div class="flex items-start gap-4 relative">
+<div class="w-3.5 h-3.5 rounded-full bg-primary mt-1 border-4 border-surface-container-lowest z-10"></div>
+<div>
+<p class="text-xs font-bold text-on-surface">Submitted</p>
+<p class="text-[10px] text-outline">Oct 12, 2024 • 04:30 PM</p>
+</div>
+</div>
+<div class="flex items-start gap-4 relative">
+<div class="w-3.5 h-3.5 rounded-full bg-primary mt-1 border-4 border-surface-container-lowest z-10"></div>
+<div>
+<p class="text-xs font-bold text-on-surface">Approved</p>
+<p class="text-[10px] text-outline">Oct 14, 2024 • 11:20 AM</p>
+</div>
+</div>
+<div class="flex items-start gap-4 relative">
+<div class="w-3.5 h-3.5 rounded-full bg-outline-variant mt-1 border-4 border-surface-container-lowest z-10"></div>
+<div>
+<p class="text-xs font-bold text-outline">Required By</p>
+<p class="text-[10px] text-outline">Oct 30, 2024</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Tabs / Items Section -->
+<div class="mt-8">
+<div class="flex p-1 bg-surface-container-high rounded-full w-fit mb-6">
+<button class="px-8 py-2 bg-white rounded-full text-sm font-bold text-primary shadow-sm transition-all">Items</button>
+<button class="px-8 py-2 text-sm font-semibold text-outline hover:text-on-surface transition-all">Documents</button>
+</div>
+<!-- Items Table-like Card -->
+<div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm border border-outline-variant/15">
+<div class="p-6 border-b border-outline-variant/15 flex justify-between items-center">
+<h3 class="font-bold text-on-surface">Line Items (4)</h3>
+<button class="text-xs font-bold text-primary flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="filter_list">filter_list</span>
+                        Sort by Price
+                    </button>
+</div>
+<div class="divide-y divide-outline-variant/10">
+<!-- Item Row -->
+<div class="p-6 flex items-center gap-4 hover:bg-surface-container-low transition-colors">
+<div class="w-12 h-12 rounded bg-slate-50 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-outline" data-icon="memory">memory</span>
+</div>
+<div class="flex-1">
+<h4 class="text-sm font-bold text-on-surface">Compute Node Module v4</h4>
+<p class="text-xs text-outline">SKU: NEX-CM4-001</p>
+</div>
+<div class="text-right">
+<p class="text-sm font-bold text-on-surface">12 Units</p>
+<p class="text-xs text-outline">$8,500.00 /ea</p>
+</div>
+</div>
+<!-- Item Row -->
+<div class="p-6 flex items-center gap-4 hover:bg-surface-container-low transition-colors">
+<div class="w-12 h-12 rounded bg-slate-50 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-outline" data-icon="settings_input_component">settings_input_component</span>
+</div>
+<div class="flex-1">
+<h4 class="text-sm font-bold text-on-surface">Optic Transceiver 100G</h4>
+<p class="text-xs text-outline">SKU: NEX-OPT-100</p>
+</div>
+<div class="text-right">
+<p class="text-sm font-bold text-on-surface">48 Units</p>
+<p class="text-xs text-outline">$425.00 /ea</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Action Bar -->
+<div class="fixed bottom-0 left-0 w-full p-4 bg-white/80 dark:bg-[#191b23]/80 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 flex justify-center z-40">
+<button class="w-full max-w-lg py-4 bg-primary text-on-primary rounded-xl font-headline font-bold text-base shadow-lg shadow-primary/20 flex items-center justify-center gap-3 active:scale-[0.98] transition-all">
+            Go to Items Details
+            <span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+<!-- Bottom Navigation Shell -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-4 pt-2 bg-white/80 dark:bg-[#191b23]/80 backdrop-blur-md z-50 pointer-events-none opacity-0">
+<!-- Hidden by default as this is a focused detail screen according to the "Shell Visibility & Relevance" rule -->
+</nav>
+<!-- Mobile Navigation (Example of suppressed shell implementation) -->
+<div class="fixed bottom-0 left-0 w-full h-1 bg-surface z-50"></div>
+</body></html>

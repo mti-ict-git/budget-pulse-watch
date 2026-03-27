@@ -37,6 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync, CloudDownload } from "lucide-react";
+import * as XLSX from "xlsx";
 import { PRFDetailDialog } from "@/components/prf/PRFDetailDialog";
 import { ExcelImportDialog } from "@/components/prf/ExcelImportDialog";
 import { PRFEditDialog } from "@/components/prf/PRFEditDialog";
@@ -154,6 +155,90 @@ interface PRFApiResponse {
     total: number;
     totalPages: number;
   };
+}
+
+interface PRFDetailRawData {
+  PRFID?: number;
+  PRFNo?: string;
+  Title?: string;
+  Description?: string;
+  Department?: string;
+  PurchaseCostCode?: string;
+  RequiredFor?: string;
+  BudgetYear?: number;
+  RequestedAmount?: number;
+  ApprovedAmount?: number | null;
+  ActualAmount?: number | null;
+  CurrencyCode?: string;
+  ExchangeRateToIDR?: number;
+  Priority?: string;
+  Status?: string;
+  DateSubmit?: string;
+  SubmitBy?: string;
+  RequiredDate?: string | null;
+  ApprovalDate?: string | null;
+  CompletionDate?: string | null;
+  ApprovedByName?: string | null;
+  VendorName?: string | null;
+  VendorContact?: string | null;
+  Justification?: string | null;
+  Notes?: string | null;
+  UpdatedAt?: string;
+}
+
+interface PRFDetailApiResponse {
+  success: boolean;
+  data?: PRFDetailRawData;
+  message?: string;
+}
+
+interface ExportPRFRow {
+  PRFID: number;
+  PRFNo: string;
+  Title: string;
+  Description: string;
+  Department: string;
+  PurchaseCostCode: string;
+  RequiredFor: string;
+  BudgetYear: number;
+  RequestedAmount: number;
+  ApprovedAmount: number | null;
+  ActualAmount: number | null;
+  CurrencyCode: string;
+  ExchangeRateToIDR: number;
+  Priority: string;
+  Status: string;
+  DateSubmit: string;
+  SubmitBy: string;
+  RequiredDate: string | null;
+  ApprovalDate: string | null;
+  CompletionDate: string | null;
+  ApprovedByName: string | null;
+  VendorName: string | null;
+  VendorContact: string | null;
+  Justification: string | null;
+  Notes: string | null;
+  UpdatedAt: string;
+}
+
+interface ExportPRFItemRow {
+  PRFID: number;
+  PRFNo: string;
+  PRFItemID: number;
+  ItemName: string;
+  Description: string;
+  Quantity: number;
+  UnitPrice: number;
+  TotalPrice: number;
+  Status: string;
+  StatusOverridden: boolean;
+  PickedUpBy: string | null;
+  PickedUpByUserID: number | null;
+  PickedUpDate: string | null;
+  Notes: string | null;
+  PurchaseCostCode: string | null;
+  COAID: number | null;
+  BudgetYear: number | null;
 }
 
 const getStatusBadge = (status: string) => {
@@ -638,8 +723,112 @@ export default function PRFMonitoring() {
     setSelectedItems(newSelected);
   };
 
-  const handleBulkExport = () => {
-    // TODO: Implement bulk export functionality
+  const formatExportDate = (value: unknown): string | null => {
+    if (value instanceof Date) return value.toISOString();
+    if (typeof value === 'string') return value;
+    return null;
+  };
+
+  const fetchPRFDetailForExport = async (prfId: string): Promise<PRFDetailRawData | null> => {
+    const response = await fetch(`/api/prfs/${encodeURIComponent(prfId)}`);
+    if (!response.ok) return null;
+    const result = (await response.json()) as PRFDetailApiResponse;
+    if (!result.success || !result.data) return null;
+    return result.data;
+  };
+
+  const handleBulkExport = async () => {
+    const selectedPRFs = filteredData.filter((prf) => selectedItems.has(prf.id));
+    if (selectedPRFs.length === 0) {
+      toast({
+        title: "No Selection",
+        description: "Please select at least one PRF to export.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const detailById = new Map<string, PRFDetailRawData>();
+    const chunkSize = 10;
+    for (let i = 0; i < selectedPRFs.length; i += chunkSize) {
+      const chunk = selectedPRFs.slice(i, i + chunkSize);
+      const details = await Promise.all(chunk.map((prf) => fetchPRFDetailForExport(prf.id)));
+      details.forEach((detail, idx) => {
+        const prfId = chunk[idx]?.id;
+        if (prfId && detail) detailById.set(prfId, detail);
+      });
+    }
+
+    const prfRows: ExportPRFRow[] = selectedPRFs.map((prf) => {
+      const detail = detailById.get(prf.id);
+      return {
+        PRFID: Number.parseInt(prf.id, 10),
+        PRFNo: detail?.PRFNo || prf.prfNo,
+        Title: detail?.Title || prf.title || prf.description,
+        Description: detail?.Description || prf.description,
+        Department: detail?.Department || prf.department,
+        PurchaseCostCode: detail?.PurchaseCostCode || prf.purchaseCostCode,
+        RequiredFor: detail?.RequiredFor || prf.requiredFor,
+        BudgetYear: detail?.BudgetYear || prf.budgetYear,
+        RequestedAmount: detail?.RequestedAmount ?? prf.amount,
+        ApprovedAmount: detail?.ApprovedAmount ?? prf.approvedAmount ?? null,
+        ActualAmount: detail?.ActualAmount ?? prf.actualAmount ?? null,
+        CurrencyCode: detail?.CurrencyCode || prf.currencyCode || 'IDR',
+        ExchangeRateToIDR: detail?.ExchangeRateToIDR ?? prf.exchangeRateToIDR ?? 1,
+        Priority: detail?.Priority || prf.priority,
+        Status: detail?.Status || prf.progress,
+        DateSubmit: detail?.DateSubmit || prf.dateSubmit,
+        SubmitBy: detail?.SubmitBy || prf.submitBy,
+        RequiredDate: detail?.RequiredDate ?? prf.requiredDate ?? null,
+        ApprovalDate: detail?.ApprovalDate ?? prf.approvalDate ?? null,
+        CompletionDate: detail?.CompletionDate ?? prf.completionDate ?? null,
+        ApprovedByName: detail?.ApprovedByName ?? prf.approvedByName ?? null,
+        VendorName: detail?.VendorName ?? prf.vendorName ?? null,
+        VendorContact: detail?.VendorContact ?? prf.vendorContact ?? null,
+        Justification: detail?.Justification ?? prf.justification ?? null,
+        Notes: detail?.Notes ?? prf.notes ?? null,
+        UpdatedAt: detail?.UpdatedAt || prf.lastUpdate,
+      };
+    });
+
+    const itemRows: ExportPRFItemRow[] = selectedPRFs.flatMap((prf) =>
+      (prf.items || []).map((item) => ({
+        PRFID: Number.parseInt(prf.id, 10),
+        PRFNo: prf.prfNo,
+        PRFItemID: item.PRFItemID ?? item.ItemID ?? 0,
+        ItemName: item.ItemName,
+        Description: item.Description,
+        Quantity: item.Quantity,
+        UnitPrice: item.UnitPrice,
+        TotalPrice: item.TotalPrice,
+        Status: item.Status || '',
+        StatusOverridden: Boolean(item.StatusOverridden),
+        PickedUpBy: item.PickedUpBy ?? null,
+        PickedUpByUserID: item.PickedUpByUserID ?? null,
+        PickedUpDate: formatExportDate(item.PickedUpDate),
+        Notes: item.Notes ?? null,
+        PurchaseCostCode: item.PurchaseCostCode ?? null,
+        COAID: item.COAID ?? null,
+        BudgetYear: item.BudgetYear ?? null,
+      }))
+    );
+
+    const workbook = XLSX.utils.book_new();
+    const prfSheet = XLSX.utils.json_to_sheet(prfRows);
+    XLSX.utils.book_append_sheet(workbook, prfSheet, "PRFs");
+
+    const itemSheet = XLSX.utils.json_to_sheet(itemRows);
+    XLSX.utils.book_append_sheet(workbook, itemSheet, "PRF Items");
+
+    const now = new Date();
+    const pad = (n: number): string => n.toString().padStart(2, '0');
+    const filename = `PRF_Export_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+
+    toast({
+      title: "Export Complete",
+      description: `${selectedPRFs.length} PRF exported to Excel.`,
+    });
   };
 
   const handleBulkArchive = () => {

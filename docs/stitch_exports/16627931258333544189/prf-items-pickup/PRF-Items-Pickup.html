@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PRF 43030 - Pickup Workflow</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "error-container": "#ffdad6",
+              "outline": "#737686",
+              "inverse-primary": "#b4c5ff",
+              "surface-variant": "#e1e2ed",
+              "surface-container": "#ededf9",
+              "on-tertiary-fixed-variant": "#7d2d00",
+              "surface-bright": "#faf8ff",
+              "surface-container-highest": "#e1e2ed",
+              "tertiary-fixed-dim": "#ffb596",
+              "on-background": "#191b23",
+              "primary-fixed": "#dbe1ff",
+              "tertiary-fixed": "#ffdbcd",
+              "on-secondary-fixed": "#00174b",
+              "secondary-fixed": "#dbe1ff",
+              "on-tertiary": "#ffffff",
+              "outline-variant": "#c3c6d7",
+              "surface-container-high": "#e7e7f3",
+              "tertiary-container": "#bc4800",
+              "surface": "#faf8ff",
+              "on-secondary-container": "#394c84",
+              "on-error-container": "#93000a",
+              "on-secondary": "#ffffff",
+              "secondary-fixed-dim": "#b4c5ff",
+              "on-primary-container": "#eeefff",
+              "primary-container": "#2563eb",
+              "surface-dim": "#d9d9e5",
+              "on-secondary-fixed-variant": "#31447b",
+              "surface-container-low": "#f3f3fe",
+              "inverse-on-surface": "#f0f0fb",
+              "on-primary-fixed": "#00174b",
+              "surface-container-lowest": "#ffffff",
+              "inverse-surface": "#2e3039",
+              "secondary": "#495c95",
+              "surface-tint": "#0053db",
+              "on-tertiary-fixed": "#360f00",
+              "secondary-container": "#acbfff",
+              "on-surface": "#191b23",
+              "primary-fixed-dim": "#b4c5ff",
+              "on-primary-fixed-variant": "#003ea8",
+              "on-surface-variant": "#434655",
+              "error": "#ba1a1a",
+              "on-primary": "#ffffff",
+              "primary": "#004ac6",
+              "on-tertiary-container": "#ffede6",
+              "background": "#faf8ff",
+              "tertiary": "#943700",
+              "on-error": "#ffffff"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 4px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #e1e2ed;
+        border-radius: 10px;
+      }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body text-on-surface antialiased pb-24">
+<!-- Top Navigation Shell -->
+<header class="bg-white/80 dark:bg-[#191b23]/80 backdrop-blur-md shadow-sm shadow-blue-900/5 docked full-width top-0 z-50 sticky">
+<div class="flex justify-between items-center w-full px-6 py-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-blue-600 dark:text-blue-400">analytics</span>
+<span class="font-manrope font-extrabold text-blue-600 dark:text-blue-400 text-xl tracking-[0.05rem]">PRF Monitoring</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors active:scale-95 duration-200 text-slate-500">
+<span class="material-symbols-outlined">search</span>
+</button>
+</div>
+</div>
+</header>
+<main class="max-w-5xl mx-auto px-6 pt-8">
+<!-- Breadcrumb & Header -->
+<div class="mb-8">
+<div class="flex items-center gap-2 text-on-surface-variant text-sm mb-2">
+<span class="font-medium">Dashboard</span>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+<span class="font-medium">Active PRFs</span>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+<span class="text-primary font-bold">#43030</span>
+</div>
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div>
+<h1 class="font-headline text-3xl font-bold tracking-tight text-on-surface">PRF 43030: Logistics &amp; Supply</h1>
+<p class="text-on-surface-variant mt-1">Operational Pickup Workflow for Site Alpha-9</p>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 px-5 py-2.5 bg-surface-container-high text-on-surface font-semibold rounded-xl hover:bg-surface-variant transition-all active:scale-95">
+<span class="material-symbols-outlined text-[20px]">print</span>
+                        Print Manifest
+                    </button>
+<button class="flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary font-semibold rounded-xl shadow-lg shadow-primary/20 hover:opacity-90 transition-all active:scale-95">
+<span class="material-symbols-outlined text-[20px]">done_all</span>
+                        Bulk Pickup
+                    </button>
+</div>
+</div>
+</div>
+<!-- Dashboard Summary Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10">
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-1">Status Overview</p>
+<div class="flex items-center justify-between">
+<span class="text-3xl font-headline font-bold text-primary">7/12</span>
+<span class="px-2.5 py-0.5 bg-error-container text-on-error-container rounded-full text-[10px] font-bold">5 PENDING</span>
+</div>
+<div class="w-full bg-surface-container-high h-1.5 rounded-full mt-4">
+<div class="bg-primary h-1.5 rounded-full w-[58%]"></div>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10">
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-1">Total Valuation</p>
+<div class="flex items-center justify-between">
+<span class="text-3xl font-headline font-bold text-on-surface">$14,240.50</span>
+<span class="material-symbols-outlined text-tertiary">payments</span>
+</div>
+<p class="text-on-surface-variant text-xs mt-4">Calculated from 12 line items</p>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10">
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-1">Destination Site</p>
+<div class="flex items-center justify-between">
+<span class="text-xl font-headline font-bold text-on-surface">Alpha-9 Warehouse</span>
+<span class="material-symbols-outlined text-primary">location_on</span>
+</div>
+<p class="text-on-surface-variant text-xs mt-4">ETA: Nov 24, 2023</p>
+</div>
+</div>
+<!-- Items Table Container -->
+<div class="bg-surface-container-lowest rounded-2xl shadow-sm overflow-hidden mb-12">
+<div class="px-6 py-4 border-b border-surface-container-high bg-surface-container-low/50 flex items-center justify-between">
+<h2 class="font-headline font-bold text-lg">Manifest Line Items</h2>
+<div class="flex gap-2">
+<span class="px-3 py-1 bg-surface-container-highest rounded-lg text-xs font-semibold text-on-surface-variant cursor-pointer">All</span>
+<span class="px-3 py-1 hover:bg-surface-container-highest rounded-lg text-xs font-semibold text-on-surface-variant cursor-pointer">Pending</span>
+<span class="px-3 py-1 hover:bg-surface-container-highest rounded-lg text-xs font-semibold text-on-surface-variant cursor-pointer">Picked Up</span>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full border-collapse">
+<thead>
+<tr class="text-left bg-surface-container-low/30">
+<th class="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider">Item Details</th>
+<th class="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider">Qty / Price</th>
+<th class="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider">Total</th>
+<th class="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider">Status</th>
+<th class="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider">Cost Code</th>
+<th class="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container-high">
+<!-- Item 1 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-5">
+<p class="font-bold text-on-surface">Industrial Conveyor Belt B-22</p>
+<p class="text-xs text-on-surface-variant mt-0.5">SN: CNV-992-X</p>
+</td>
+<td class="px-6 py-5">
+<div class="flex flex-col">
+<span class="text-on-surface font-semibold">2 Units</span>
+<span class="text-xs text-on-surface-variant">$2,450.00 / ea</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="font-bold text-on-surface">$4,900.00</span>
+</td>
+<td class="px-6 py-5">
+<span class="px-3 py-1 bg-error-container text-on-error-container rounded-full text-[11px] font-bold uppercase">Pending</span>
+</td>
+<td class="px-6 py-5">
+<code class="bg-surface-container-high px-2 py-0.5 rounded text-xs font-mono text-on-surface-variant">LOG-90-A</code>
+</td>
+<td class="px-6 py-5 text-right">
+<div class="flex justify-end gap-2">
+<button class="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Mark Picked Up">
+<span class="material-symbols-outlined">check_circle</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-colors" title="Change Status">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Item 2 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-5">
+<p class="font-bold text-on-surface">Hydraulic Fluid (Premium)</p>
+<p class="text-xs text-on-surface-variant mt-0.5">Ref: HYD-001-L</p>
+</td>
+<td class="px-6 py-5">
+<div class="flex flex-col">
+<span class="text-on-surface font-semibold">15 Drums</span>
+<span class="text-xs text-on-surface-variant">$120.00 / drum</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="font-bold text-on-surface">$1,800.00</span>
+</td>
+<td class="px-6 py-5">
+<span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-[11px] font-bold uppercase">Picked Up</span>
+</td>
+<td class="px-6 py-5">
+<code class="bg-surface-container-high px-2 py-0.5 rounded text-xs font-mono text-on-surface-variant">MNT-12-B</code>
+</td>
+<td class="px-6 py-5 text-right">
+<div class="flex justify-end gap-2">
+<button class="p-2 text-on-surface-variant/30 cursor-not-allowed" disabled="">
+<span class="material-symbols-outlined">check_circle</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Item 3 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-5">
+<p class="font-bold text-on-surface">Safety Helmets w/ Comms</p>
+<p class="text-xs text-on-surface-variant mt-0.5">SN: PPE-VAR-22</p>
+</td>
+<td class="px-6 py-5">
+<div class="flex flex-col">
+<span class="text-on-surface font-semibold">20 Sets</span>
+<span class="text-xs text-on-surface-variant">$85.00 / ea</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="font-bold text-on-surface">$1,700.00</span>
+</td>
+<td class="px-6 py-5">
+<span class="px-3 py-1 bg-error-container text-on-error-container rounded-full text-[11px] font-bold uppercase">Pending</span>
+</td>
+<td class="px-6 py-5">
+<code class="bg-surface-container-high px-2 py-0.5 rounded text-xs font-mono text-on-surface-variant">SAF-22-C</code>
+</td>
+<td class="px-6 py-5 text-right">
+<div class="flex justify-end gap-2">
+<button class="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors">
+<span class="material-symbols-outlined">check_circle</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</main>
+<!-- Modal Overlay (Simulated Active State) -->
+<div class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+<!-- Backdrop -->
+<div class="absolute inset-0 bg-on-background/40 backdrop-blur-sm"></div>
+<!-- Modal Content -->
+<div class="relative w-full max-w-lg bg-surface-container-lowest rounded-3xl shadow-2xl overflow-hidden border border-outline-variant/10">
+<div class="px-8 pt-8 pb-4">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-headline text-2xl font-bold">Mark Picked Up</h3>
+<button class="p-2 hover:bg-surface-container-high rounded-full transition-colors">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<p class="text-on-surface-variant text-sm mb-8">Confirming pickup for <span class="font-bold text-on-surface">Industrial Conveyor Belt B-22</span> and 2 other pending items.</p>
+<form class="space-y-6">
+<div>
+<label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Picked Up By (PIC) <span class="text-error">*</span></label>
+<div class="relative">
+<select class="w-full bg-surface-container-high border-none rounded-xl py-3.5 pl-11 pr-4 text-on-surface focus:ring-2 focus:ring-primary appearance-none font-medium">
+<option value="">Select Personnel</option>
+<option value="1">Robert Harrison (Fleet Ops)</option>
+<option value="2">Sarah Chen (Inventory Lead)</option>
+<option value="3">Marcus Vane (Field Tech)</option>
+<option value="other">Other...</option>
+</select>
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-primary">person</span>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">expand_more</span>
+</div>
+</div>
+<!-- Conditional Other Input (Visual Placeholder) -->
+<div class="hidden">
+<label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Specify Other PIC</label>
+<input class="w-full bg-surface-container-high border-none rounded-xl py-3.5 px-4 text-on-surface focus:ring-2 focus:ring-primary font-medium" placeholder="Enter full name" type="text"/>
+</div>
+<div>
+<label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Picked Up Date <span class="text-error">*</span></label>
+<div class="relative">
+<input class="w-full bg-surface-container-high border-none rounded-xl py-3.5 pl-11 pr-4 text-on-surface focus:ring-2 focus:ring-primary font-medium" type="date" value="2023-11-20"/>
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-primary">calendar_today</span>
+</div>
+</div>
+<div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl flex gap-3 items-start border border-blue-100 dark:border-blue-800">
+<span class="material-symbols-outlined text-blue-600 dark:text-blue-400">info</span>
+<p class="text-xs text-blue-800 dark:text-blue-200 leading-relaxed">
+                            Marking these items as picked up will automatically update the inventory status and trigger a notification to the Site Manager.
+                        </p>
+</div>
+</form>
+</div>
+<div class="px-8 py-6 bg-surface-container-low flex items-center justify-end gap-3 mt-4">
+<button class="px-6 py-2.5 font-bold text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-colors">Cancel</button>
+<button class="px-8 py-2.5 bg-primary text-on-primary font-bold rounded-xl shadow-lg shadow-primary/20 hover:opacity-90 transition-all active:scale-95">Confirm Pickup</button>
+</div>
+</div>
+</div>
+<!-- Bottom Navigation Shell -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-4 pt-2 bg-white/80 dark:bg-[#191b23]/80 backdrop-blur-md z-50 shadow-[0_-4px_24px_rgba(25,27,35,0.04)] border-t border-slate-100 dark:border-slate-800">
+<a class="flex flex-col items-center justify-center bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-100 rounded-2xl px-5 py-1.5 active:scale-90 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-weight="fill">dashboard_customize</span>
+<span class="font-inter text-[11px] font-bold uppercase tracking-wider mt-1">PRFs</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-5 py-1.5 hover:text-blue-600 dark:hover:text-blue-300 active:scale-90 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined">notifications_active</span>
+<span class="font-inter text-[11px] font-bold uppercase tracking-wider mt-1">Notifications</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-5 py-1.5 hover:text-blue-600 dark:hover:text-blue-300 active:scale-90 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined">account_circle</span>
+<span class="font-inter text-[11px] font-bold uppercase tracking-wider mt-1">Profile</span>
+</a>
+</nav>
+</body></html>
