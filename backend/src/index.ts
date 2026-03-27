@@ -80,16 +80,19 @@ app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
 const docsDirCandidates = [
   path.resolve(__dirname, '../../docs'),
-  path.resolve(__dirname, '../../../docs')
+  path.resolve(__dirname, '../../../docs'),
+  path.resolve(process.cwd(), '../docs'),
+  path.resolve(process.cwd(), 'docs'),
+  '/app/docs' // Added for Docker production
 ];
 const docsDir =
   docsDirCandidates.find((dir) => fs.existsSync(path.join(dir, 'openapi.yaml'))) ??
-  docsDirCandidates.find((dir) => fs.existsSync(dir)) ??
   docsDirCandidates[0];
 
 app.get('/api/docs/openapi.yaml', (req, res) => {
   const openApiPath = path.join(docsDir, 'openapi.yaml');
   if (!fs.existsSync(openApiPath)) {
+    console.error(`[Docs] openapi.yaml not found at any candidate paths. Tried: ${docsDirCandidates.map(d => path.join(d, 'openapi.yaml')).join(', ')}`);
     return res.status(404).json({ success: false, message: 'OpenAPI spec not found' });
   }
 
