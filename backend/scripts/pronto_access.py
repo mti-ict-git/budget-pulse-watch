@@ -173,10 +173,10 @@ async def _fill_po_number(page, po_number: str) -> bool:
             except Exception:
                 pass
             await page.keyboard.type(po_number, delay=20)
-        await _press_enter_twice(page, 700)
-        await page.keyboard.press("Tab")
-        await page.keyboard.press("Tab")
-        await page.keyboard.press("Tab")
+        await _press_enter_twice(page, 300)
+        #await page.keyboard.press("Tab")
+        #await page.keyboard.press("Tab")
+        #await page.keyboard.press("Tab")
         return True
     except Exception:
         return False
@@ -356,6 +356,8 @@ async def _wait_for_label(page, label: str, timeout_ms: int = 15000) -> bool:
 
 async def main() -> None:
     load_dotenv()
+    if os.path.exists(".env.pronto"):
+        load_dotenv(".env.pronto", override=False)
     url = os.getenv("TARGET_URL", "https://newpronto.merdekacoppergold.com:8443/")
     username = os.getenv("PRONTO_USERNAME")
     password = os.getenv("PRONTO_PASSWORD")
@@ -367,7 +369,12 @@ async def main() -> None:
             if part:
                 po_list.append(part)
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
+        headless_raw = os.getenv("PRONTO_HEADLESS")
+        headless = False
+        if headless_raw is not None:
+            v = headless_raw.strip().lower()
+            headless = v in {"1", "true", "yes", "y", "on"}
+        browser = await p.chromium.launch(headless=headless, args=["--disable-blink-features=AutomationControlled"])
         context = await browser.new_context(ignore_https_errors=True, viewport={"width": 1280, "height": 800})
         page = await context.new_page()
         def _console_handler(msg) -> None:
@@ -382,9 +389,15 @@ async def main() -> None:
             await page.wait_for_load_state("load", timeout=60000)
             title = await page.title()
             print(f"Title: {title}")
-            os.makedirs("artifacts", exist_ok=True)
-            await page.screenshot(path="artifacts/pronto_login.png", full_page=True)
-            print("Saved screenshot to artifacts/pronto_login.png")
+            artifacts_dir = os.getenv("ARTIFACTS_DIR", "artifacts").strip() or "artifacts"
+            try:
+                os.makedirs(artifacts_dir, exist_ok=True)
+            except OSError:
+                artifacts_dir = os.path.join(os.getenv("TMPDIR", "/tmp"), "python-service-artifacts")
+                os.makedirs(artifacts_dir, exist_ok=True)
+            login_path = os.path.join(artifacts_dir, "pronto_login.png")
+            await page.screenshot(path=login_path, full_page=True)
+            print(f"Saved screenshot to {login_path}")
             if username and password:
                 u = await _locate_username(page)
                 p_loc = await _locate_password(page)

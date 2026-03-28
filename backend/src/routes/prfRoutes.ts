@@ -3,6 +3,7 @@ import { PRFModel } from '../models/PRF';
 import { CreatePRFRequest, UpdatePRFRequest, PRFQueryParams, CreatePRFItemRequest, UpdatePRFItemParams } from '../models/types';
 import { executeQuery } from '../config/database';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
+import { NotificationModel } from '../models/Notification';
 
 const router = Router();
 
@@ -33,6 +34,63 @@ const parseNullableString = (value: unknown): ParseNullableStringResult => {
     return trimmed.length === 0 ? { ok: true, value: null } : { ok: true, value: trimmed };
   }
   return { ok: false };
+};
+
+const isProntoSyncRequest = (req: Request): boolean => {
+  const syncSourceHeader = req.headers['x-sync-source'];
+  const syncSource = typeof syncSourceHeader === 'string' ? syncSourceHeader.trim().toLowerCase() : '';
+  const isApiKeyAuth = Boolean(req.user && req.user.UserID === 0 && req.user.Username.startsWith('api-key:'));
+  return syncSource === 'pronto' || isApiKeyAuth;
+};
+
+const valuesEqualForNotification = (a: unknown, b: unknown): boolean => {
+  if (a === b) return true;
+  if (a == null && b == null) return true;
+  if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime();
+  if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) < 1e-9;
+  return false;
+};
+
+const getChangedFields = (existing: unknown, updated: unknown, update: unknown): string[] => {
+  const existingRec = existing as Record<string, unknown>;
+  const updatedRec = updated as Record<string, unknown>;
+  const updateRec = update as Record<string, unknown>;
+  return Object.keys(updateRec)
+    .filter((k) => updateRec[k] !== undefined)
+    .filter((k) => !valuesEqualForNotification(existingRec[k], updatedRec[k]));
+};
+
+const notifyProntoUpdate = async (prf: { PRFID: number; PRFNo: string; RequestorID: number }, changedFields: string[]): Promise<void> => {
+  if (changedFields.length === 0) return;
+  const changed = changedFields.join(', ');
+  const title = 'PRF Updated from Pronto';
+  const message = `PRF ${prf.PRFNo} updated from Pronto. Changes: ${changed}.`;
+
+  const recipients = new Set<number>();
+  if (prf.RequestorID > 0) recipients.add(prf.RequestorID);
+  const admins = await executeQuery<{ UserID: number }>(
+    `
+      SELECT UserID
+      FROM Users
+      WHERE IsActive = 1
+        AND Role IN ('admin', 'doccon')
+    `
+  );
+  admins.recordset.forEach((u) => {
+    if (u.UserID > 0) recipients.add(u.UserID);
+  });
+
+  await Promise.all(
+    Array.from(recipients).map((userId) =>
+      NotificationModel.create({
+        UserID: userId,
+        Title: title,
+        Message: message,
+        ReferenceType: 'PRF',
+        ReferenceID: prf.PRFID
+      })
+    )
+  );
 };
 
 /**
@@ -479,6 +537,17 @@ router.put('/:id', authenticateToken, requireContentManager, async (req: Request
     }
     
     const updatedPRF = await PRFModel.update(prfId, updateData);
+    if (isProntoSyncRequest(req) && existingPRF.PRFID && existingPRF.PRFNo && existingPRF.RequestorID) {
+      const changedFields = getChangedFields(existingPRF, updatedPRF, updateData);
+      try {
+        await notifyProntoUpdate(
+          { PRFID: existingPRF.PRFID, PRFNo: existingPRF.PRFNo, RequestorID: existingPRF.RequestorID },
+          changedFields
+        );
+      } catch (e) {
+        console.error('Failed to create Pronto notifications:', e);
+      }
+    }
     
     return res.json({
       success: true,
@@ -554,6 +623,17 @@ router.put('/prfno/:prfNo', authenticateToken, requireContentManager, async (req
     }
 
     const updatedPRF = await PRFModel.update(existingPRF.PRFID, updateData);
+    if (isProntoSyncRequest(req) && existingPRF.PRFID && existingPRF.PRFNo && existingPRF.RequestorID) {
+      const changedFields = getChangedFields(existingPRF, updatedPRF, updateData);
+      try {
+        await notifyProntoUpdate(
+          { PRFID: existingPRF.PRFID, PRFNo: existingPRF.PRFNo, RequestorID: existingPRF.RequestorID },
+          changedFields
+        );
+      } catch (e) {
+        console.error('Failed to create Pronto notifications:', e);
+      }
+    }
     return res.json({
       success: true,
       message: 'PRF updated successfully',
