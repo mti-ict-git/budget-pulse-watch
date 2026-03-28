@@ -376,6 +376,7 @@ export class PRFModel {
       Priority,
       RequestorID,
       COAID,
+      HasSplitPO,
       DateFrom,
       DateTo,
       Search
@@ -436,6 +437,16 @@ export class PRFModel {
         )
       )`);
       params.Search = `%${Search}%`;
+    }
+    if (HasSplitPO) {
+      whereConditions.push(`
+        EXISTS (
+          SELECT 1 FROM PRFItems pi
+          WHERE pi.PRFID = p.PRFID
+            AND pi.SplitPONumber IS NOT NULL
+            AND LTRIM(RTRIM(pi.SplitPONumber)) <> ''
+        )
+      `);
     }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';

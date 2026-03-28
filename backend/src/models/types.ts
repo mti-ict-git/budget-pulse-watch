@@ -100,6 +100,7 @@ export interface PRFQueryParams {
   Priority?: string;
   RequestorID?: number;
   COAID?: number;
+  HasSplitPO?: boolean;
   DateFrom?: string;
   DateTo?: string;
   Search?: string;

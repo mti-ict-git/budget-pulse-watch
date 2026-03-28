@@ -308,6 +308,7 @@ export default function PRFMonitoring() {
   const [yearFilter, setYearFilter] = useState(currentYear.toString());
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
+  const [splitPoFilter, setSplitPoFilter] = useState<"all" | "split">("all");
   const [prfData, setPrfData] = useState<PRFData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -354,7 +355,8 @@ export default function PRFMonitoring() {
         ...(statusFilter !== 'all' && { status: statusFilter }),
         ...(departmentFilter !== 'all' && { department: departmentFilter }),
         ...(priorityFilter !== 'all' && { priority: priorityFilter }),
-        ...(yearFilter !== 'all' && { year: yearFilter })
+        ...(yearFilter !== 'all' && { year: yearFilter }),
+        ...(splitPoFilter !== 'all' && { hasSplitPo: 'true' })
       });
 
       const response = await fetch(`/api/prfs/with-items?${queryParams}`);
@@ -411,7 +413,7 @@ export default function PRFMonitoring() {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.limit, searchTerm, statusFilter, departmentFilter, priorityFilter, yearFilter]);
+  }, [pagination.page, pagination.limit, searchTerm, statusFilter, departmentFilter, priorityFilter, yearFilter, splitPoFilter]);
 
   // Fetch available status values from API
   const fetchStatusValues = async () => {
@@ -1211,6 +1213,20 @@ export default function PRFMonitoring() {
                       {year}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={splitPoFilter}
+                onValueChange={(value) => {
+                  if (value === "all" || value === "split") setSplitPoFilter(value);
+                }}
+              >
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Split PO" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All PO</SelectItem>
+                  <SelectItem value="split">Split PO Only</SelectItem>
                 </SelectContent>
               </Select>
             </div>

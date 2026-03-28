@@ -304,6 +304,8 @@ router.get('/with-items', async (req: Request, res: Response) => {
   try {
     const yearParam = req.query.year as string | undefined;
     const parsedYear = yearParam && /^\d{4}$/.test(yearParam) ? parseInt(yearParam, 10) : undefined;
+    const hasSplitPoRaw = typeof req.query.hasSplitPo === 'string' ? req.query.hasSplitPo : undefined;
+    const hasSplitPo = hasSplitPoRaw === 'true' || hasSplitPoRaw === '1';
     const queryParams: PRFQueryParams = {
       page: parseInt(req.query.page as string) || 1,
       limit: parseInt(req.query.limit as string) || 10,
@@ -313,6 +315,7 @@ router.get('/with-items', async (req: Request, res: Response) => {
       Priority: req.query.priority as string,
       RequestorID: req.query.requestorId ? parseInt(req.query.requestorId as string) : undefined,
       COAID: req.query.coaId ? parseInt(req.query.coaId as string) : undefined,
+      HasSplitPO: hasSplitPo,
       DateFrom: req.query.dateFrom as string,
       DateTo: req.query.dateTo as string,
       Search: req.query.search as string
