@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import notificationService, { Notification } from "../../services/notificationService";
+import { authService } from "../../services/authService";
 
 export function Header() {
   const { user, logout } = useAuth();
@@ -75,9 +76,33 @@ export function Header() {
     
     // Navigate based on reference type
     if (notification.ReferenceType === 'PRF') {
-      // In a real app, you might want to open the specific PRF modal
-      // For now, we'll navigate to the PRF monitoring page
-      navigate('/prfs');
+      const navigateToPrf = async () => {
+        let prfNo: string | null = null;
+        if (notification.ReferenceID) {
+          try {
+            const resp = await fetch(`/api/prfs/${notification.ReferenceID}`, {
+              headers: authService.getAuthHeaders()
+            });
+            if (resp.ok) {
+              const payload: unknown = await resp.json();
+              const data = payload as { success?: boolean; data?: { PRFNo?: string } };
+              if (data.success && data.data?.PRFNo) prfNo = data.data.PRFNo;
+            }
+          } catch (error) {
+            console.error('Failed to resolve PRF from notification ReferenceID:', error);
+          }
+        }
+        if (!prfNo) {
+          const match = notification.Message.match(/\bPRF\s+([A-Za-z0-9_-]+)\b/);
+          if (match && match[1]) prfNo = match[1];
+        }
+        if (prfNo) {
+          navigate(`/prf?search=${encodeURIComponent(prfNo)}`);
+          return;
+        }
+        navigate('/prf');
+      };
+      void navigateToPrf();
     }
   };
 

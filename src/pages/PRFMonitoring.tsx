@@ -47,6 +47,7 @@ import { toast } from "@/hooks/use-toast";
 import { authService } from "@/services/authService";
 import { budgetService, type ChartOfAccount } from "@/services/budgetService";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLocation } from "react-router-dom";
 
 // PRF Item interface
 interface PRFItem {
@@ -291,6 +292,7 @@ const formatCurrency = (amount: number) => {
 
 export default function PRFMonitoring() {
   const { user } = useAuth();
+  const location = useLocation();
   const currentYear = new Date().getFullYear();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -655,6 +657,15 @@ export default function PRFMonitoring() {
     fetchSubmitYears();
     fetchChartOfAccounts();
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const search = params.get('search');
+    if (search && search.trim().length > 0) {
+      setSearchTerm(search.trim());
+      setPagination(prev => ({ ...prev, page: 1 }));
+    }
+  }, [location.search]);
 
   // Fetch data on component mount and when filters change
   useEffect(() => {
