@@ -57,9 +57,10 @@ BEGIN
     DROP VIEW vw_BudgetSummary;
     PRINT 'Dropped existing vw_BudgetSummary view';
 END
+GO
 
 -- Create updated view with correct column names
-CREATE VIEW vw_BudgetSummary AS
+CREATE OR ALTER VIEW dbo.vw_BudgetSummary AS
 SELECT 
     b.BudgetID,
     b.COAID,
@@ -80,8 +81,8 @@ SELECT
     b.EndDate,
     b.CreatedAt,
     b.UpdatedAt
-FROM Budget b
-INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID;
+FROM dbo.Budget b
+INNER JOIN dbo.ChartOfAccounts coa ON b.COAID = coa.COAID;
 GO
 
 PRINT 'Migration completed: ChartOfAccounts columns renamed and vw_BudgetSummary view updated';

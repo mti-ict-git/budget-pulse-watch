@@ -161,6 +161,8 @@ CREATE TABLE PRFItems (
     UpdatedBy INT NULL,
     StatusOverridden BIT NOT NULL DEFAULT 0,
     PurchaseCostCode NVARCHAR(50) NULL,
+    OriginalPONumber NVARCHAR(50) NULL,
+    SplitPONumber NVARCHAR(50) NULL,
     COAID INT NULL,
     BudgetYear INT NULL,
     CreatedAt DATETIME2 DEFAULT GETDATE(),

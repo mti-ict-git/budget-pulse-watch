@@ -128,6 +128,8 @@ export interface UpdatePRFItemParams {
   
   // Cost code fields - enables multiple cost codes per PRF through item-level assignment
   PurchaseCostCode?: string;
+  OriginalPONumber?: string | null;
+  SplitPONumber?: string | null;
   COAID?: number;
   BudgetYear?: number;
   [key: string]: unknown;
@@ -505,6 +507,8 @@ export interface PRFItem {
   
   // Cost code fields - enables multiple cost codes per PRF through item-level assignment
   PurchaseCostCode?: string;
+  OriginalPONumber?: string | null;
+  SplitPONumber?: string | null;
   COAID?: number;
   BudgetYear?: number;
 }
@@ -518,6 +522,8 @@ export interface CreatePRFItemRequest {
   
   // Cost code fields - enables multiple cost codes per PRF through item-level assignment
   PurchaseCostCode?: string;
+  OriginalPONumber?: string | null;
+  SplitPONumber?: string | null;
   COAID?: number;
   BudgetYear?: number;
 }

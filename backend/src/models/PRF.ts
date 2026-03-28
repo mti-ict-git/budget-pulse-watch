@@ -573,6 +573,14 @@ export class PRFModel {
       setClause.push('PurchaseCostCode = @PurchaseCostCode');
       params.PurchaseCostCode = updateData.PurchaseCostCode;
     }
+    if (updateData.OriginalPONumber !== undefined) {
+      setClause.push('OriginalPONumber = @OriginalPONumber');
+      params.OriginalPONumber = updateData.OriginalPONumber;
+    }
+    if (updateData.SplitPONumber !== undefined) {
+      setClause.push('SplitPONumber = @SplitPONumber');
+      params.SplitPONumber = updateData.SplitPONumber;
+    }
     if (updateData.COAID !== undefined) {
       setClause.push('COAID = @COAID');
       params.COAID = updateData.COAID;

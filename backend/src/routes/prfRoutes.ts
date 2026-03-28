@@ -1020,6 +1020,68 @@ router.put('/items/:itemId', authenticateToken, requireContentManager, async (re
     delete updateData.Status;
     delete updateData.StatusOverridden;
 
+    if (updateData.OriginalPONumber !== undefined) {
+      if (updateData.OriginalPONumber === null) {
+        updateData.OriginalPONumber = null;
+      } else if (typeof updateData.OriginalPONumber === 'string') {
+        const trimmed = updateData.OriginalPONumber.trim();
+        updateData.OriginalPONumber = trimmed.length > 0 ? trimmed : null;
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'OriginalPONumber must be a string or null'
+        });
+      }
+    }
+
+    if (updateData.SplitPONumber !== undefined) {
+      if (updateData.SplitPONumber === null) {
+        updateData.SplitPONumber = null;
+      } else if (typeof updateData.SplitPONumber === 'string') {
+        const trimmed = updateData.SplitPONumber.trim();
+        updateData.SplitPONumber = trimmed.length > 0 ? trimmed : null;
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'SplitPONumber must be a string or null'
+        });
+      }
+    }
+
+    if (updateData.OriginalPONumber !== undefined || updateData.SplitPONumber !== undefined) {
+      const existingItemResult = await executeQuery<{ OriginalPONumber: string | null; SplitPONumber: string | null }>(
+        'SELECT OriginalPONumber, SplitPONumber FROM PRFItems WHERE PRFItemID = @PRFItemID',
+        { PRFItemID: itemId }
+      );
+      const existingItem = existingItemResult.recordset[0];
+      if (!existingItem) {
+        return res.status(404).json({
+          success: false,
+          message: 'PRF item not found'
+        });
+      }
+
+      const nextOriginal =
+        updateData.OriginalPONumber !== undefined ? updateData.OriginalPONumber : existingItem.OriginalPONumber;
+      const nextSplit =
+        updateData.SplitPONumber !== undefined ? updateData.SplitPONumber : existingItem.SplitPONumber;
+
+      if (nextSplit) {
+        if (!nextOriginal) {
+          return res.status(400).json({
+            success: false,
+            message: 'OriginalPONumber wajib diisi jika SplitPONumber diisi'
+          });
+        }
+        if (nextOriginal === nextSplit) {
+          return res.status(400).json({
+            success: false,
+            message: 'SplitPONumber tidak boleh sama dengan OriginalPONumber'
+          });
+        }
+      }
+    }
+
     const pickedUpBy = typeof updateData.PickedUpBy === 'string' ? updateData.PickedUpBy.trim() : '';
     const hasPickedUpName = pickedUpBy.length > 0;
     const hasPickedUpUserId = typeof updateData.PickedUpByUserID === 'number' && Number.isInteger(updateData.PickedUpByUserID) && updateData.PickedUpByUserID > 0;

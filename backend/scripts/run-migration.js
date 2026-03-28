@@ -21,7 +21,8 @@ async function runMigration() {
     await sql.connect(config);
     
     // Read migration file
-    const migrationPath = path.join(__dirname, '..', 'database', 'migrations', '002_add_budget_fields.sql');
+    const migrationFile = process.env.MIGRATION_FILE || '002_add_budget_fields.sql';
+    const migrationPath = path.join(__dirname, '..', 'database', 'migrations', migrationFile);
     const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
     
     // Split by GO statements and execute each batch

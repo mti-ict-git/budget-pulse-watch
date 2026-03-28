@@ -2,25 +2,46 @@
 -- Date: 2025-09-21
 -- Purpose: Add support for CAPEX/OPEX classification and department separation
 
--- Add CAPEX/OPEX and Department fields to ChartOfAccounts table
-ALTER TABLE ChartOfAccounts 
-ADD 
-    ExpenseType NVARCHAR(10) DEFAULT 'OPEX' CHECK (ExpenseType IN ('CAPEX', 'OPEX')),
-    Department NVARCHAR(100) DEFAULT 'IT';
+USE PRFMonitoringDB;
+GO
 
--- Add CAPEX/OPEX and Department fields to Budget table
-ALTER TABLE Budget 
-ADD 
-    ExpenseType NVARCHAR(10) DEFAULT 'OPEX' CHECK (ExpenseType IN ('CAPEX', 'OPEX')),
-    Department NVARCHAR(100) DEFAULT 'IT';
+IF COL_LENGTH('dbo.ChartOfAccounts', 'ExpenseType') IS NULL
+BEGIN
+  ALTER TABLE dbo.ChartOfAccounts
+  ADD ExpenseType NVARCHAR(10) NULL;
+END
+GO
 
--- Add CAPEX/OPEX field to PRF table for consistency
-ALTER TABLE PRF 
-ADD 
-    ExpenseType NVARCHAR(10) DEFAULT 'OPEX' CHECK (ExpenseType IN ('CAPEX', 'OPEX'));
+IF COL_LENGTH('dbo.ChartOfAccounts', 'Department') IS NULL
+BEGIN
+  ALTER TABLE dbo.ChartOfAccounts
+  ADD Department NVARCHAR(100) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Budget', 'ExpenseType') IS NULL
+BEGIN
+  ALTER TABLE dbo.Budget
+  ADD ExpenseType NVARCHAR(10) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Budget', 'Department') IS NULL
+BEGIN
+  ALTER TABLE dbo.Budget
+  ADD Department NVARCHAR(100) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.PRF', 'ExpenseType') IS NULL
+BEGIN
+  ALTER TABLE dbo.PRF
+  ADD ExpenseType NVARCHAR(10) NULL;
+END
+GO
 
 -- Update existing Chart of Accounts with default values
-UPDATE ChartOfAccounts 
+UPDATE dbo.ChartOfAccounts 
 SET 
     ExpenseType = CASE 
         WHEN Category IN ('IT Equipment', 'Equipment', 'Hardware Equipment', 'Office Equipment') THEN 'CAPEX'
@@ -28,40 +49,67 @@ SET
     END,
     Department = 'IT'
 WHERE ExpenseType IS NULL OR Department IS NULL;
+GO
 
 -- Update existing Budget records with default values
-UPDATE Budget 
+UPDATE dbo.Budget 
 SET 
     ExpenseType = CASE 
         WHEN EXISTS (
-            SELECT 1 FROM ChartOfAccounts coa 
-            WHERE coa.COAID = Budget.COAID 
+            SELECT 1 FROM dbo.ChartOfAccounts coa 
+            WHERE coa.COAID = dbo.Budget.COAID 
             AND coa.Category IN ('IT Equipment', 'Equipment', 'Hardware Equipment', 'Office Equipment')
         ) THEN 'CAPEX'
         ELSE 'OPEX'
     END,
     Department = 'IT'
 WHERE ExpenseType IS NULL OR Department IS NULL;
+GO
 
 -- Update existing PRF records with default values
-UPDATE PRF 
+UPDATE dbo.PRF 
 SET 
     ExpenseType = CASE 
         WHEN EXISTS (
-            SELECT 1 FROM ChartOfAccounts coa 
-            WHERE coa.COAID = PRF.COAID 
+            SELECT 1 FROM dbo.ChartOfAccounts coa 
+            WHERE coa.COAID = dbo.PRF.COAID 
             AND coa.Category IN ('IT Equipment', 'Equipment', 'Hardware Equipment', 'Office Equipment')
         ) THEN 'CAPEX'
         ELSE 'OPEX'
     END
 WHERE ExpenseType IS NULL;
+GO
 
 -- Create indexes for better performance
-CREATE INDEX IX_ChartOfAccounts_ExpenseType ON ChartOfAccounts(ExpenseType);
-CREATE INDEX IX_ChartOfAccounts_Department ON ChartOfAccounts(Department);
-CREATE INDEX IX_Budget_ExpenseType ON Budget(ExpenseType);
-CREATE INDEX IX_Budget_Department ON Budget(Department);
-CREATE INDEX IX_PRF_ExpenseType ON PRF(ExpenseType);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ChartOfAccounts_ExpenseType' AND object_id = OBJECT_ID('dbo.ChartOfAccounts'))
+BEGIN
+  CREATE INDEX IX_ChartOfAccounts_ExpenseType ON dbo.ChartOfAccounts(ExpenseType);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ChartOfAccounts_Department' AND object_id = OBJECT_ID('dbo.ChartOfAccounts'))
+BEGIN
+  CREATE INDEX IX_ChartOfAccounts_Department ON dbo.ChartOfAccounts(Department);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Budget_ExpenseType' AND object_id = OBJECT_ID('dbo.Budget'))
+BEGIN
+  CREATE INDEX IX_Budget_ExpenseType ON dbo.Budget(ExpenseType);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Budget_Department' AND object_id = OBJECT_ID('dbo.Budget'))
+BEGIN
+  CREATE INDEX IX_Budget_Department ON dbo.Budget(Department);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_PRF_ExpenseType' AND object_id = OBJECT_ID('dbo.PRF'))
+BEGIN
+  CREATE INDEX IX_PRF_ExpenseType ON dbo.PRF(ExpenseType);
+END
+GO
 
 -- Update the Budget Utilization view to include CAPEX/OPEX breakdown
 DROP VIEW IF EXISTS vw_BudgetUtilization;
@@ -129,12 +177,24 @@ GROUP BY b.FiscalYear, b.Quarter, b.ExpenseType;
 GO
 
 -- Insert sample COA entries for other departments under IT PO
-INSERT INTO ChartOfAccounts (COACode, COAName, Description, Category, ExpenseType, Department) VALUES
-('HR-001', 'HR Software Systems', 'HR management software and tools', 'Software', 'OPEX', 'HR'),
-('HR-002', 'HR Equipment', 'HR department equipment and hardware', 'Equipment', 'CAPEX', 'HR'),
-('FIN-001', 'Financial Software', 'Accounting and financial software', 'Software', 'OPEX', 'Finance'),
-('FIN-002', 'Financial Equipment', 'Finance department equipment', 'Equipment', 'CAPEX', 'Finance'),
-('OPS-001', 'Operations Software', 'Operations management software', 'Software', 'OPEX', 'Operations'),
-('OPS-002', 'Operations Equipment', 'Operations department equipment', 'Equipment', 'CAPEX', 'Operations');
+IF NOT EXISTS (SELECT 1 FROM dbo.ChartOfAccounts WHERE COACode = 'HR-001')
+  INSERT INTO dbo.ChartOfAccounts (COACode, COAName, Description, Category, ExpenseType, Department)
+  VALUES ('HR-001', 'HR Software Systems', 'HR management software and tools', 'Software', 'OPEX', 'HR');
+IF NOT EXISTS (SELECT 1 FROM dbo.ChartOfAccounts WHERE COACode = 'HR-002')
+  INSERT INTO dbo.ChartOfAccounts (COACode, COAName, Description, Category, ExpenseType, Department)
+  VALUES ('HR-002', 'HR Equipment', 'HR department equipment and hardware', 'Equipment', 'CAPEX', 'HR');
+IF NOT EXISTS (SELECT 1 FROM dbo.ChartOfAccounts WHERE COACode = 'FIN-001')
+  INSERT INTO dbo.ChartOfAccounts (COACode, COAName, Description, Category, ExpenseType, Department)
+  VALUES ('FIN-001', 'Financial Software', 'Accounting and financial software', 'Software', 'OPEX', 'Finance');
+IF NOT EXISTS (SELECT 1 FROM dbo.ChartOfAccounts WHERE COACode = 'FIN-002')
+  INSERT INTO dbo.ChartOfAccounts (COACode, COAName, Description, Category, ExpenseType, Department)
+  VALUES ('FIN-002', 'Financial Equipment', 'Finance department equipment', 'Equipment', 'CAPEX', 'Finance');
+IF NOT EXISTS (SELECT 1 FROM dbo.ChartOfAccounts WHERE COACode = 'OPS-001')
+  INSERT INTO dbo.ChartOfAccounts (COACode, COAName, Description, Category, ExpenseType, Department)
+  VALUES ('OPS-001', 'Operations Software', 'Operations management software', 'Software', 'OPEX', 'Operations');
+IF NOT EXISTS (SELECT 1 FROM dbo.ChartOfAccounts WHERE COACode = 'OPS-002')
+  INSERT INTO dbo.ChartOfAccounts (COACode, COAName, Description, Category, ExpenseType, Department)
+  VALUES ('OPS-002', 'Operations Equipment', 'Operations department equipment', 'Equipment', 'CAPEX', 'Operations');
+GO
 
 PRINT 'Migration completed: Added CAPEX/OPEX and Department fields';

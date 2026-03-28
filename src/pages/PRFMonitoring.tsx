@@ -69,6 +69,8 @@ interface PRFItem {
   UpdatedBy?: number;
   CreatedAt: Date;
   StatusOverridden?: boolean; // Indicates if item status was manually overridden vs following PRF status
+  OriginalPONumber?: string | null;
+  SplitPONumber?: string | null;
   
   // Cost code fields - enables multiple cost codes per PRF through item-level assignment
   PurchaseCostCode?: string;
@@ -243,6 +245,8 @@ interface ExportPRFItemRow {
   PickedUpDate: string | null;
   Notes: string | null;
   PurchaseCostCode: string | null;
+  OriginalPONumber: string | null;
+  SplitPONumber: string | null;
   COAID: number | null;
   BudgetYear: number | null;
 }
@@ -824,6 +828,8 @@ export default function PRFMonitoring() {
         PickedUpDate: formatExportDate(item.PickedUpDate),
         Notes: item.Notes ?? null,
         PurchaseCostCode: item.PurchaseCostCode ?? null,
+        OriginalPONumber: item.OriginalPONumber ?? null,
+        SplitPONumber: item.SplitPONumber ?? null,
         COAID: item.COAID ?? null,
         BudgetYear: item.BudgetYear ?? null,
       }))
@@ -1445,6 +1451,11 @@ export default function PRFMonitoring() {
                                           {item.PurchaseCostCode && (
                                             <Badge variant="secondary" className="text-xs font-mono">
                                               Cost: {item.PurchaseCostCode}
+                                            </Badge>
+                                          )}
+                                          {item.SplitPONumber && (
+                                            <Badge variant="outline" className="text-xs" title="PO Split">
+                                              PO: {item.OriginalPONumber ? `${item.OriginalPONumber} → ${item.SplitPONumber}` : item.SplitPONumber}
                                             </Badge>
                                           )}
                                           {item.COAID && (

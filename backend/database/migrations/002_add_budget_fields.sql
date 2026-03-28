@@ -6,27 +6,32 @@ USE PRFMonitoringDB;
 GO
 
 -- Add missing fields to Budget table
-ALTER TABLE Budget ADD 
-    Department NVARCHAR(100) NULL,
-    BudgetType NVARCHAR(50) DEFAULT 'Annual' NOT NULL,
-    Status NVARCHAR(50) DEFAULT 'Active' NOT NULL,
-    StartDate DATETIME2 NULL,
-    EndDate DATETIME2 NULL,
-    Description NVARCHAR(1000) NULL;
+IF COL_LENGTH('dbo.Budget', 'Department') IS NULL
+  ALTER TABLE dbo.Budget ADD Department NVARCHAR(100) NULL;
+IF COL_LENGTH('dbo.Budget', 'BudgetType') IS NULL
+  ALTER TABLE dbo.Budget ADD BudgetType NVARCHAR(50) NULL;
+IF COL_LENGTH('dbo.Budget', 'Status') IS NULL
+  ALTER TABLE dbo.Budget ADD Status NVARCHAR(50) NULL;
+IF COL_LENGTH('dbo.Budget', 'StartDate') IS NULL
+  ALTER TABLE dbo.Budget ADD StartDate DATETIME2 NULL;
+IF COL_LENGTH('dbo.Budget', 'EndDate') IS NULL
+  ALTER TABLE dbo.Budget ADD EndDate DATETIME2 NULL;
+IF COL_LENGTH('dbo.Budget', 'Description') IS NULL
+  ALTER TABLE dbo.Budget ADD Description NVARCHAR(1000) NULL;
 GO
 
 -- Update existing records with default values
-UPDATE Budget SET 
-    Department = 'IT',
-    BudgetType = 'Annual',
-    Status = 'Active',
-    StartDate = DATEFROMPARTS(FiscalYear, 1, 1),
-    EndDate = DATEFROMPARTS(FiscalYear, 12, 31)
-WHERE Department IS NULL;
+UPDATE dbo.Budget SET 
+  Department = COALESCE(Department, 'IT'),
+  BudgetType = COALESCE(BudgetType, 'Annual'),
+  Status = COALESCE(Status, 'Active'),
+  StartDate = COALESCE(StartDate, DATEFROMPARTS(FiscalYear, 1, 1)),
+  EndDate = COALESCE(EndDate, DATEFROMPARTS(FiscalYear, 12, 31))
+WHERE Department IS NULL OR BudgetType IS NULL OR Status IS NULL OR StartDate IS NULL OR EndDate IS NULL;
 GO
 
 -- Create vw_BudgetSummary view
-CREATE VIEW vw_BudgetSummary AS
+CREATE OR ALTER VIEW dbo.vw_BudgetSummary AS
 SELECT 
     b.BudgetID,
     b.COAID,
@@ -47,8 +52,8 @@ SELECT
     b.EndDate,
     b.CreatedAt,
     b.UpdatedAt
-FROM Budget b
-INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID;
+FROM dbo.Budget b
+INNER JOIN dbo.ChartOfAccounts coa ON b.COAID = coa.COAID;
 GO
 
 PRINT 'Migration completed: Added missing fields to Budget table and created vw_BudgetSummary view';

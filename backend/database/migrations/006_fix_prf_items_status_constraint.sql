@@ -32,6 +32,15 @@ END
 GO
 
 -- Add new constraint with frontend status values
+UPDATE dbo.PRFItems
+SET Status = CASE
+  WHEN Status IS NULL THEN NULL
+  WHEN Status IN ('Pending', 'Approved', 'Picked Up', 'On Hold', 'Cancelled') THEN Status
+  WHEN Status IN ('Ordered', 'Received', 'Delivered') THEN 'Approved'
+  ELSE 'Pending'
+END;
+GO
+
 ALTER TABLE PRFItems 
 ADD CONSTRAINT CK_PRFItems_Status 
 CHECK (Status IN ('Pending', 'Approved', 'Picked Up', 'On Hold', 'Cancelled'));

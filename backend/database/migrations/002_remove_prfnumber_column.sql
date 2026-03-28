@@ -8,9 +8,16 @@ GO
 
 -- Step 1: Update any existing data to ensure PRFNo is populated
 -- Copy PRFNumber to PRFNo where PRFNo is null (backup existing data)
-UPDATE PRF 
-SET PRFNo = PRFNumber 
-WHERE PRFNo IS NULL AND PRFNumber IS NOT NULL;
+IF COL_LENGTH('dbo.PRF', 'PRFNumber') IS NOT NULL
+BEGIN
+  DECLARE @sql_prfno NVARCHAR(MAX);
+  SET @sql_prfno = N'
+    UPDATE dbo.PRF
+    SET PRFNo = PRFNumber
+    WHERE PRFNo IS NULL AND PRFNumber IS NOT NULL;
+  ';
+  EXEC sp_executesql @sql_prfno;
+END
 GO
 
 -- Step 2: Drop the unique constraint on PRFNumber (compat-friendly)

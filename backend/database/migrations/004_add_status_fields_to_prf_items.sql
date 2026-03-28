@@ -2,49 +2,61 @@
 -- Date: 2025-09-18
 -- Description: Add status, picked up by, and tracking fields to PRF items
 
--- Add status tracking fields to PRFItems table
-ALTER TABLE PRFItems ADD 
-    Status NVARCHAR(50) DEFAULT 'Pending' CHECK (Status IN ('Pending', 'Approved', 'Ordered', 'Received', 'Delivered', 'Cancelled')),
-    PickedUpBy NVARCHAR(200) NULL, -- Who picked up the item
-    PickedUpDate DATETIME2 NULL, -- When the item was picked up
-    Notes NVARCHAR(1000) NULL, -- Additional notes about the item status
-    UpdatedAt DATETIME2 DEFAULT GETDATE(), -- Track when item was last updated
-    UpdatedBy INT NULL; -- Who last updated the item
+USE PRFMonitoringDB;
+GO
+
+IF COL_LENGTH('dbo.PRFItems', 'Status') IS NULL
+BEGIN
+  ALTER TABLE dbo.PRFItems ADD Status NVARCHAR(50) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.PRFItems', 'PickedUpBy') IS NULL
+BEGIN
+  ALTER TABLE dbo.PRFItems ADD PickedUpBy NVARCHAR(200) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.PRFItems', 'PickedUpDate') IS NULL
+BEGIN
+  ALTER TABLE dbo.PRFItems ADD PickedUpDate DATETIME2 NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.PRFItems', 'Notes') IS NULL
+BEGIN
+  ALTER TABLE dbo.PRFItems ADD Notes NVARCHAR(1000) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.PRFItems', 'UpdatedAt') IS NULL
+BEGIN
+  ALTER TABLE dbo.PRFItems ADD UpdatedAt DATETIME2 NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.PRFItems', 'UpdatedBy') IS NULL
+BEGIN
+  ALTER TABLE dbo.PRFItems ADD UpdatedBy INT NULL;
+END
+GO
 
 -- Add foreign key for UpdatedBy
-ALTER TABLE PRFItems ADD CONSTRAINT FK_PRFItems_UpdatedBy 
-    FOREIGN KEY (UpdatedBy) REFERENCES Users(UserID);
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_PRFItems_UpdatedBy')
+BEGIN
+  ALTER TABLE dbo.PRFItems
+  ADD CONSTRAINT FK_PRFItems_UpdatedBy
+  FOREIGN KEY (UpdatedBy) REFERENCES dbo.Users(UserID);
+END
+GO
 
 -- Add indexes for better performance
-CREATE INDEX IX_PRFItems_Status ON PRFItems(Status);
-CREATE INDEX IX_PRFItems_PickedUpBy ON PRFItems(PickedUpBy);
-CREATE INDEX IX_PRFItems_UpdatedAt ON PRFItems(UpdatedAt);
-
--- Add extended properties for documentation
-EXEC sp_addextendedproperty 
-    @name = N'MS_Description', @value = N'Current status of the PRF item',
-    @level0type = N'SCHEMA', @level0name = N'dbo', 
-    @level1type = N'TABLE', @level1name = N'PRFItems', 
-    @level2type = N'COLUMN', @level2name = N'Status';
-
-EXEC sp_addextendedproperty 
-    @name = N'MS_Description', @value = N'Name of person who picked up the item',
-    @level0type = N'SCHEMA', @level0name = N'dbo', 
-    @level1type = N'TABLE', @level1name = N'PRFItems', 
-    @level2type = N'COLUMN', @level2name = N'PickedUpBy';
-
-EXEC sp_addextendedproperty 
-    @name = N'MS_Description', @value = N'Date and time when item was picked up',
-    @level0type = N'SCHEMA', @level0name = N'dbo', 
-    @level1type = N'TABLE', @level1name = N'PRFItems', 
-    @level2type = N'COLUMN', @level2name = N'PickedUpDate';
-
-EXEC sp_addextendedproperty 
-    @name = N'MS_Description', @value = N'Additional notes about item status or handling',
-    @level0type = N'SCHEMA', @level0name = N'dbo', 
-    @level1type = N'TABLE', @level1name = N'PRFItems', 
-    @level2type = N'COLUMN', @level2name = N'Notes';
-
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_PRFItems_Status' AND object_id = OBJECT_ID('dbo.PRFItems'))
+  CREATE INDEX IX_PRFItems_Status ON dbo.PRFItems(Status);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_PRFItems_PickedUpBy' AND object_id = OBJECT_ID('dbo.PRFItems'))
+  CREATE INDEX IX_PRFItems_PickedUpBy ON dbo.PRFItems(PickedUpBy);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_PRFItems_UpdatedAt' AND object_id = OBJECT_ID('dbo.PRFItems'))
+  CREATE INDEX IX_PRFItems_UpdatedAt ON dbo.PRFItems(UpdatedAt);
 GO
 
 PRINT 'Migration completed: Added status tracking fields to PRFItems table';
