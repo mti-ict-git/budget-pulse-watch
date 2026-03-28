@@ -1,5 +1,6 @@
 import express from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
+import { authenticateToken, requireContentManager } from '../middleware/auth';
 
 const router = express.Router();
 const allocatedAmountToIdrExpr = `
@@ -18,6 +19,101 @@ const prfToCoaJoinExpr = `
   NULLIF(LTRIM(RTRIM(p.PurchaseCostCode)), '') IS NOT NULL
   AND UPPER(LTRIM(RTRIM(p.PurchaseCostCode))) = UPPER(LTRIM(RTRIM(coa_map.COACode)))
 `;
+
+router.get('/audit-log', authenticateToken, requireContentManager, asyncHandler(async (req, res) => {
+  const pageRaw = typeof req.query.page === 'string' ? Number.parseInt(req.query.page, 10) : 1;
+  const limitRaw = typeof req.query.limit === 'string' ? Number.parseInt(req.query.limit, 10) : 50;
+  const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 && limitRaw <= 200 ? limitRaw : 50;
+  const offset = (page - 1) * limit;
+
+  const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+  const dateFrom = typeof req.query.dateFrom === 'string' ? req.query.dateFrom.trim() : '';
+  const dateTo = typeof req.query.dateTo === 'string' ? req.query.dateTo.trim() : '';
+
+  const where: string[] = [
+    `a.TableName = 'PRF'`,
+    `a.Action = 'UPDATE'`,
+    `a.NewValues LIKE '%\"source\":\"pronto\"%'`
+  ];
+  const params: Record<string, unknown> = { Offset: offset, Limit: limit };
+
+  if (search) {
+    where.push(`p.PRFNo LIKE @Search`);
+    params.Search = `%${search}%`;
+  }
+  if (dateFrom) {
+    where.push(`a.ChangedAt >= @DateFrom`);
+    params.DateFrom = dateFrom;
+  }
+  if (dateTo) {
+    where.push(`a.ChangedAt <= @DateTo`);
+    params.DateTo = dateTo;
+  }
+
+  const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+
+  const { executeQuery } = await import('../config/database');
+
+  type AuditLogRow = {
+    AuditID: number;
+    TableName: string;
+    RecordID: number;
+    Action: string;
+    ChangedAt: Date;
+    ChangedByName: string | null;
+    PRFNo: string | null;
+    OldValues: string | null;
+    NewValues: string | null;
+  };
+
+  const query = `
+    SELECT
+      a.AuditID,
+      a.TableName,
+      a.RecordID,
+      a.Action,
+      a.ChangedAt,
+      a.OldValues,
+      a.NewValues,
+      p.PRFNo,
+      u.FirstName + ' ' + u.LastName AS ChangedByName
+    FROM AuditLog a
+    LEFT JOIN PRF p ON a.RecordID = p.PRFID
+    LEFT JOIN Users u ON a.ChangedBy = u.UserID
+    ${whereClause}
+    ORDER BY a.ChangedAt DESC
+    OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY
+  `;
+
+  const countQuery = `
+    SELECT COUNT(1) AS Total
+    FROM AuditLog a
+    LEFT JOIN PRF p ON a.RecordID = p.PRFID
+    ${whereClause}
+  `;
+
+  const countParams = { ...params };
+  delete countParams.Offset;
+  delete countParams.Limit;
+
+  const [rowsResult, countResult] = await Promise.all([
+    executeQuery<AuditLogRow>(query, params),
+    executeQuery<{ Total: number }>(countQuery, countParams)
+  ]);
+
+  const total = countResult.recordset[0]?.Total ?? 0;
+  return res.json({
+    success: true,
+    data: rowsResult.recordset,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit)
+    }
+  });
+}));
 
 /**
  * @route   GET /api/reports/dashboard

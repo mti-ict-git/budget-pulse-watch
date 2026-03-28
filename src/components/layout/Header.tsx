@@ -15,17 +15,69 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import notificationService, { Notification } from "../../services/notificationService";
+import notificationService, { Notification, NotificationDetailResponseData } from "../../services/notificationService";
 import { authService } from "../../services/authService";
+
+type AuditPayload = {
+  source?: string;
+  prfNo?: string;
+  changes?: Record<string, unknown>;
+};
+
+const tryParseJson = (value: string | null): unknown | null => {
+  if (!value) return null;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return null;
+  }
+};
+
+const getAuditPayload = (value: string | null): AuditPayload | null => {
+  const parsed = tryParseJson(value);
+  if (!parsed || typeof parsed !== "object") return null;
+  const rec = parsed as Record<string, unknown>;
+  const changes = rec.changes;
+  const changesObj = changes && typeof changes === "object" ? (changes as Record<string, unknown>) : undefined;
+  return {
+    source: typeof rec.source === "string" ? rec.source : undefined,
+    prfNo: typeof rec.prfNo === "string" ? rec.prfNo : undefined,
+    changes: changesObj,
+  };
+};
+
+const formatFieldLabel = (field: string): string =>
+  field.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\s+/g, " ").trim();
+
+const formatValue = (value: unknown): string => {
+  if (value == null) return "—";
+  if (typeof value === "string") return value.trim().length > 0 ? value.trim() : "—";
+  if (typeof value === "number") return Number.isFinite(value) ? value.toString() : "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+};
 
 export function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailData, setDetailData] = useState<NotificationDetailResponseData | null>(null);
 
   useEffect(() => {
     fetchNotifications();
@@ -69,40 +121,49 @@ export function Header() {
     }
   };
 
-  const handleNotificationClick = (notification: Notification) => {
+  const resolvePrfNoForNavigation = async (notification: Notification, audit: NotificationDetailResponseData["audit"]): Promise<string | null> => {
+    const auditPayload = getAuditPayload(audit?.NewValues ?? null);
+    if (auditPayload?.prfNo) return auditPayload.prfNo;
+
+    if (notification.ReferenceID) {
+      try {
+        const resp = await fetch(`/api/prfs/${notification.ReferenceID}`, {
+          headers: authService.getAuthHeaders()
+        });
+        if (resp.ok) {
+          const payload: unknown = await resp.json();
+          const data = payload as { success?: boolean; data?: { PRFNo?: string } };
+          if (data.success && data.data?.PRFNo) return data.data.PRFNo;
+        }
+      } catch (error) {
+        console.error('Failed to resolve PRF from notification ReferenceID:', error);
+      }
+    }
+
+    const match = notification.Message.match(/\bPRF\s+([A-Za-z0-9_-]+)\b/);
+    return match && match[1] ? match[1] : null;
+  };
+
+  const handleNotificationClick = async (notification: Notification) => {
     if (!notification.IsRead) {
       handleMarkAsRead(notification.NotificationID);
     }
-    
-    // Navigate based on reference type
-    if (notification.ReferenceType === 'PRF') {
-      const navigateToPrf = async () => {
-        let prfNo: string | null = null;
-        if (notification.ReferenceID) {
-          try {
-            const resp = await fetch(`/api/prfs/${notification.ReferenceID}`, {
-              headers: authService.getAuthHeaders()
-            });
-            if (resp.ok) {
-              const payload: unknown = await resp.json();
-              const data = payload as { success?: boolean; data?: { PRFNo?: string } };
-              if (data.success && data.data?.PRFNo) prfNo = data.data.PRFNo;
-            }
-          } catch (error) {
-            console.error('Failed to resolve PRF from notification ReferenceID:', error);
-          }
-        }
-        if (!prfNo) {
-          const match = notification.Message.match(/\bPRF\s+([A-Za-z0-9_-]+)\b/);
-          if (match && match[1]) prfNo = match[1];
-        }
-        if (prfNo) {
-          navigate(`/prf?search=${encodeURIComponent(prfNo)}`);
-          return;
-        }
-        navigate('/prf');
-      };
-      void navigateToPrf();
+
+    setDetailOpen(true);
+    setDetailLoading(true);
+    setDetailError(null);
+    setDetailData(null);
+    try {
+      const result = await notificationService.getNotificationDetail(notification.NotificationID);
+      const payload = result as { success?: boolean; data?: NotificationDetailResponseData; message?: string };
+      if (!payload.success || !payload.data) {
+        throw new Error(payload.message || "Failed to load notification detail");
+      }
+      setDetailData(payload.data);
+    } catch (e) {
+      setDetailError(e instanceof Error ? e.message : "Failed to load notification detail");
+    } finally {
+      setDetailLoading(false);
     }
   };
 
@@ -193,6 +254,7 @@ export function Header() {
                           </p>
                           <p className="text-[10px] text-muted-foreground pt-1">
                             {new Date(notification.CreatedAt).toLocaleString('id-ID', {
+                              timeZone: 'Asia/Jakarta',
                               month: 'short',
                               day: 'numeric',
                               hour: '2-digit',
@@ -241,6 +303,104 @@ export function Header() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Notification Detail</DialogTitle>
+          </DialogHeader>
+          {detailLoading ? (
+            <div className="text-sm text-muted-foreground">Loading...</div>
+          ) : detailError ? (
+            <div className="text-sm text-red-600">{detailError}</div>
+          ) : detailData ? (
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <div className="text-sm font-medium">{detailData.notification.Title}</div>
+                <div className="text-xs text-muted-foreground">{detailData.notification.Message}</div>
+                <div className="text-[11px] text-muted-foreground">
+                  {new Date(detailData.notification.CreatedAt).toLocaleString("id-ID", {
+                    timeZone: "Asia/Jakarta",
+                    year: "numeric",
+                    month: "short",
+                    day: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit"
+                  })}
+                </div>
+              </div>
+
+              <Separator />
+
+              {detailData.audit ? (
+                (() => {
+                  const oldPayload = getAuditPayload(detailData.audit.OldValues);
+                  const newPayload = getAuditPayload(detailData.audit.NewValues);
+                  const oldChanges = oldPayload?.changes || {};
+                  const newChanges = newPayload?.changes || {};
+                  const keys = Array.from(new Set([...Object.keys(oldChanges), ...Object.keys(newChanges)])).sort();
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-medium">
+                          PRF {newPayload?.prfNo || oldPayload?.prfNo || detailData.notification.ReferenceID || "-"}
+                        </div>
+                      </div>
+                      {keys.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">No change detail available.</div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="min-w-[180px]">Field</TableHead>
+                                <TableHead className="min-w-[220px]">Old</TableHead>
+                                <TableHead className="min-w-[220px]">New</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {keys.map((k) => (
+                                <TableRow key={k}>
+                                  <TableCell className="font-medium">{formatFieldLabel(k)}</TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">{formatValue(oldChanges[k])}</TableCell>
+                                  <TableCell className="text-xs">{formatValue(newChanges[k])}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                  Change details are not available for this notification.
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                {detailData.notification.ReferenceType === "PRF" && (
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      const prfNo = await resolvePrfNoForNavigation(detailData.notification, detailData.audit);
+                      if (prfNo) navigate(`/prf?search=${encodeURIComponent(prfNo)}`);
+                      else navigate("/prf");
+                      setDetailOpen(false);
+                    }}
+                  >
+                    View PRF
+                  </Button>
+                )}
+                <Button onClick={() => setDetailOpen(false)}>Close</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">No data.</div>
+          )}
+        </DialogContent>
+      </Dialog>
     </header>
   );
 }

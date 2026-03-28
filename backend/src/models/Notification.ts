@@ -58,6 +58,16 @@ export class NotificationModel {
     return result.recordset;
   }
 
+  static async getByIdForUser(notificationId: number, userId: number): Promise<Notification | null> {
+    const query = `
+      SELECT TOP 1 *
+      FROM Notifications
+      WHERE NotificationID = @NotificationID AND UserID = @UserID
+    `;
+    const result = await executeQuery<Notification>(query, { NotificationID: notificationId, UserID: userId });
+    return result.recordset[0] ?? null;
+  }
+
   /**
    * Mark a specific notification as read
    */

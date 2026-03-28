@@ -13,6 +13,18 @@ export interface Notification {
   CreatedAt: string;
 }
 
+export interface NotificationAuditDetail {
+  AuditID: number;
+  ChangedAt: string;
+  OldValues: string | null;
+  NewValues: string | null;
+}
+
+export interface NotificationDetailResponseData {
+  notification: Notification;
+  audit: NotificationAuditDetail | null;
+}
+
 class NotificationService {
   private async fetchWithAuth(url: string, options: RequestInit = {}) {
     const headers = authService.getAuthHeaders();
@@ -61,6 +73,15 @@ class NotificationService {
       });
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
+      throw error;
+    }
+  }
+
+  async getNotificationDetail(notificationId: number) {
+    try {
+      return await this.fetchWithAuth(`${API_URL}/${notificationId}/detail`);
+    } catch (error) {
+      console.error(`Error fetching notification ${notificationId} detail:`, error);
       throw error;
     }
   }

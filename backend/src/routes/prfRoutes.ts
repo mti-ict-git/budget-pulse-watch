@@ -51,7 +51,7 @@ const valuesEqualForNotification = (a: unknown, b: unknown): boolean => {
   return false;
 };
 
-const getChangedFields = (existing: unknown, updated: unknown, update: unknown): string[] => {
+const getChangedKeys = (existing: unknown, updated: unknown, update: unknown): string[] => {
   const existingRec = existing as Record<string, unknown>;
   const updatedRec = updated as Record<string, unknown>;
   const updateRec = update as Record<string, unknown>;
@@ -60,11 +60,78 @@ const getChangedFields = (existing: unknown, updated: unknown, update: unknown):
     .filter((k) => !valuesEqualForNotification(existingRec[k], updatedRec[k]));
 };
 
-const notifyProntoUpdate = async (prf: { PRFID: number; PRFNo: string; RequestorID: number }, changedFields: string[]): Promise<void> => {
-  if (changedFields.length === 0) return;
-  const changed = changedFields.join(', ');
+const resolveAuditActorUserId = async (req: Request): Promise<number> => {
+  if (req.user && typeof req.user.UserID === 'number' && req.user.UserID > 0) return req.user.UserID;
+  const raw = process.env.PRONTO_SYNC_CHANGED_BY_USER_ID || process.env.SYSTEM_SYNC_USER_ID || '';
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  if (Number.isInteger(parsed) && parsed > 0) return parsed;
+
+  const fallback = await executeQuery<{ UserID: number }>(
+    `
+      SELECT TOP 1 UserID
+      FROM Users
+      WHERE IsActive = 1
+        AND Role IN ('admin', 'doccon')
+      ORDER BY Role DESC, UserID ASC
+    `
+  );
+  const userId = fallback.recordset[0]?.UserID;
+  return typeof userId === 'number' && userId > 0 ? userId : 1;
+};
+
+const insertProntoAuditLog = async (
+  req: Request,
+  prf: { PRFID: number; PRFNo: string },
+  existing: unknown,
+  updated: unknown,
+  changedKeys: string[]
+): Promise<void> => {
+  if (changedKeys.length === 0) return;
+  const existingRec = existing as Record<string, unknown>;
+  const updatedRec = updated as Record<string, unknown>;
+
+  const oldChanges: Record<string, unknown> = {};
+  const newChanges: Record<string, unknown> = {};
+  changedKeys.forEach((k) => {
+    oldChanges[k] = existingRec[k];
+    newChanges[k] = updatedRec[k];
+  });
+
+  const oldValues = JSON.stringify({ source: 'pronto', prfNo: prf.PRFNo, changes: oldChanges });
+  const newValues = JSON.stringify({ source: 'pronto', prfNo: prf.PRFNo, changes: newChanges });
+  const changedBy = await resolveAuditActorUserId(req);
+
+  await executeQuery(
+    `
+      INSERT INTO AuditLog (TableName, RecordID, Action, OldValues, NewValues, ChangedBy)
+      VALUES ('PRF', @RecordID, 'UPDATE', @OldValues, @NewValues, @ChangedBy)
+    `,
+    {
+      RecordID: prf.PRFID,
+      OldValues: oldValues,
+      NewValues: newValues,
+      ChangedBy: changedBy
+    }
+  );
+};
+
+const notifyProntoUpdate = async (
+  prf: { PRFID: number; PRFNo: string; RequestorID: number },
+  updated: unknown,
+  changedKeys: string[]
+): Promise<void> => {
+  const relevant = changedKeys.filter((k) => k === 'Status' || k === 'ApprovedByName');
+  if (relevant.length === 0) return;
+  const updatedRec = updated as Record<string, unknown>;
+  const status = typeof updatedRec.Status === 'string' ? updatedRec.Status : undefined;
+  const approvedByName = typeof updatedRec.ApprovedByName === 'string' ? updatedRec.ApprovedByName : undefined;
+
+  const parts: string[] = [];
+  if (relevant.includes('Status')) parts.push(`Status -> ${status || '—'}`);
+  if (relevant.includes('ApprovedByName')) parts.push(`Approved By -> ${approvedByName || '—'}`);
+
   const title = 'PRF Updated from Pronto';
-  const message = `PRF ${prf.PRFNo} updated from Pronto. Changes: ${changed}.`;
+  const message = `PRF ${prf.PRFNo}: ${parts.join(', ')}`;
 
   const recipients = new Set<number>();
   if (prf.RequestorID > 0) recipients.add(prf.RequestorID);
@@ -538,11 +605,13 @@ router.put('/:id', authenticateToken, requireContentManager, async (req: Request
     
     const updatedPRF = await PRFModel.update(prfId, updateData);
     if (isProntoSyncRequest(req) && existingPRF.PRFID && existingPRF.PRFNo && existingPRF.RequestorID) {
-      const changedFields = getChangedFields(existingPRF, updatedPRF, updateData);
+      const changedKeys = getChangedKeys(existingPRF, updatedPRF, updateData);
       try {
+        await insertProntoAuditLog(req, { PRFID: existingPRF.PRFID, PRFNo: existingPRF.PRFNo }, existingPRF, updatedPRF, changedKeys);
         await notifyProntoUpdate(
           { PRFID: existingPRF.PRFID, PRFNo: existingPRF.PRFNo, RequestorID: existingPRF.RequestorID },
-          changedFields
+          updatedPRF,
+          changedKeys
         );
       } catch (e) {
         console.error('Failed to create Pronto notifications:', e);
@@ -624,11 +693,13 @@ router.put('/prfno/:prfNo', authenticateToken, requireContentManager, async (req
 
     const updatedPRF = await PRFModel.update(existingPRF.PRFID, updateData);
     if (isProntoSyncRequest(req) && existingPRF.PRFID && existingPRF.PRFNo && existingPRF.RequestorID) {
-      const changedFields = getChangedFields(existingPRF, updatedPRF, updateData);
+      const changedKeys = getChangedKeys(existingPRF, updatedPRF, updateData);
       try {
+        await insertProntoAuditLog(req, { PRFID: existingPRF.PRFID, PRFNo: existingPRF.PRFNo }, existingPRF, updatedPRF, changedKeys);
         await notifyProntoUpdate(
           { PRFID: existingPRF.PRFID, PRFNo: existingPRF.PRFNo, RequestorID: existingPRF.RequestorID },
-          changedFields
+          updatedPRF,
+          changedKeys
         );
       } catch (e) {
         console.error('Failed to create Pronto notifications:', e);

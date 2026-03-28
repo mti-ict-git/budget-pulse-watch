@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   BarChart3,
   FileText,
@@ -10,7 +10,9 @@ import {
   TrendingUp,
   AlertTriangle,
   Plus,
-  BookOpen
+  BookOpen,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -22,7 +24,6 @@ const navigation = [
   { name: "Create PRF", href: "/prf/create", icon: Plus },
   { name: "Budget Overview", href: "/budget", icon: Wallet },
   { name: "COA Management", href: "/coa-management", icon: BookOpen },
-  { name: "Reports", href: "/reports", icon: TrendingUp },
   { name: "Alerts", href: "/alerts", icon: AlertTriangle },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
@@ -33,7 +34,10 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [reportsOpen, setReportsOpen] = useState(true);
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   
   // Filter navigation items based on user role
   const filteredNavigation = navigation.filter(item => {
@@ -43,6 +47,11 @@ export function Sidebar({ className }: SidebarProps) {
     }
     return true;
   });
+
+  const isReportsActive = location.pathname.startsWith("/reports");
+  const alertsIndex = filteredNavigation.findIndex((item) => item.href === "/alerts");
+  const navBeforeAlerts = alertsIndex >= 0 ? filteredNavigation.slice(0, alertsIndex) : filteredNavigation;
+  const navFromAlerts = alertsIndex >= 0 ? filteredNavigation.slice(alertsIndex) : [];
 
   return (
     <div className={cn(
@@ -67,7 +76,71 @@ export function Sidebar({ className }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2">
-        {filteredNavigation.map((item) => (
+        {navBeforeAlerts.map((item) => (
+          <NavLink
+            key={item.name}
+            to={item.href}
+            end
+            className={({ isActive }) =>
+              cn(
+                "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                isCollapsed && "justify-center space-x-0"
+              )
+            }
+          >
+            <item.icon className="h-5 w-5 flex-shrink-0" />
+            {!isCollapsed && <span>{item.name}</span>}
+          </NavLink>
+        ))}
+
+        <button
+          type="button"
+          onClick={() => {
+            if (isCollapsed) {
+              navigate("/reports/audit-log");
+              return;
+            }
+            setReportsOpen((prev) => !prev);
+          }}
+          className={cn(
+            "w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+            isReportsActive
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted",
+            isCollapsed && "justify-center space-x-0"
+          )}
+        >
+          <TrendingUp className="h-5 w-5 flex-shrink-0" />
+          {!isCollapsed && (
+            <>
+              <span className="flex-1 text-left">Reports</span>
+              {reportsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </>
+          )}
+        </button>
+
+        {!isCollapsed && reportsOpen && (
+          <NavLink
+            to="/reports/audit-log"
+            end
+            className={({ isActive }) =>
+              cn(
+                "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors pl-10",
+                isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              )
+            }
+          >
+            <FileText className="h-4 w-4 flex-shrink-0" />
+            <span>Audit Log</span>
+          </NavLink>
+        )}
+
+        {navFromAlerts.map((item) => (
           <NavLink
             key={item.name}
             to={item.href}

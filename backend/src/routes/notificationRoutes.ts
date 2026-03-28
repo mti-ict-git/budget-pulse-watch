@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { NotificationModel } from '../models/Notification';
 import { authenticateToken } from '../middleware/auth';
+import { executeQuery } from '../config/database';
 
 const router = Router();
 
@@ -31,6 +32,77 @@ router.get('/', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch notifications',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @route GET /api/notifications/:id/detail
+ * @desc Get notification detail + closest PRF audit log entry (Pronto)
+ */
+router.get('/:id/detail', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.UserID;
+    const notificationId = parseInt(req.params.id);
+
+    if (isNaN(notificationId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid notification ID'
+      });
+    }
+
+    const notification = await NotificationModel.getByIdForUser(notificationId, userId);
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found'
+      });
+    }
+
+    type AuditRow = {
+      AuditID: number;
+      ChangedAt: Date;
+      OldValues: string | null;
+      NewValues: string | null;
+    };
+
+    let audit: AuditRow | null = null;
+    if (notification.ReferenceType === 'PRF' && typeof notification.ReferenceID === 'number') {
+      const query = `
+        SELECT TOP 1
+          a.AuditID,
+          a.ChangedAt,
+          a.OldValues,
+          a.NewValues
+        FROM AuditLog a
+        WHERE a.TableName = 'PRF'
+          AND a.RecordID = @PRFID
+          AND a.Action = 'UPDATE'
+          AND a.NewValues LIKE '%"source":"pronto"%'
+          AND a.ChangedAt BETWEEN DATEADD(minute, -15, @CreatedAt) AND DATEADD(minute, 15, @CreatedAt)
+        ORDER BY ABS(DATEDIFF(second, a.ChangedAt, @CreatedAt)) ASC, a.AuditID DESC
+      `;
+      const result = await executeQuery<AuditRow>(query, {
+        PRFID: notification.ReferenceID,
+        CreatedAt: notification.CreatedAt
+      });
+      audit = result.recordset[0] ?? null;
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        notification,
+        audit
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching notification detail:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch notification detail',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }

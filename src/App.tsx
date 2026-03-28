@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import PRFMonitoring from "./pages/PRFMonitoring";
 import BudgetOverview from "./pages/BudgetOverview";
 import Settings from "./pages/Settings";
+import Reports from "./pages/Reports";
 import CreatePRF from "./pages/CreatePRF";
 import Login from "./pages/Login";
 import COAManagement from "./pages/COAManagement";
@@ -42,7 +43,8 @@ const AppRoutes = () => {
         <Route path="prf/create" element={<CreatePRF />} />
         <Route path="budget" element={<BudgetOverview />} />
         <Route path="coa-management" element={<COAManagement />} />
-        <Route path="reports" element={<div className="p-6">Reports coming soon...</div>} />
+        <Route path="reports" element={<Navigate to="reports/audit-log" replace />} />
+        <Route path="reports/audit-log" element={<Reports />} />
         <Route path="alerts" element={<div className="p-6">Alerts coming soon...</div>} />
         <Route path="settings" element={<Settings />} />
       </Route>
