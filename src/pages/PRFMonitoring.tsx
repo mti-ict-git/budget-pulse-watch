@@ -1453,11 +1453,26 @@ export default function PRFMonitoring() {
                                               Cost: {item.PurchaseCostCode}
                                             </Badge>
                                           )}
-                                          {item.SplitPONumber && (
-                                            <Badge variant="outline" className="text-xs" title="PO Split">
-                                              PO: {item.OriginalPONumber ? `${item.OriginalPONumber} → ${item.SplitPONumber}` : item.SplitPONumber}
-                                            </Badge>
-                                          )}
+                                          {(() => {
+                                            const originalPo = item.OriginalPONumber?.trim() ?? '';
+                                            const splitPo = item.SplitPONumber?.trim() ?? '';
+                                            const hasOriginal = originalPo.length > 0;
+                                            const hasSplit = splitPo.length > 0;
+                                            if (!hasOriginal && !hasSplit) return null;
+
+                                            return (
+                                              <div className="flex items-center gap-1">
+                                                <Badge variant="outline" className="text-xs" title={hasSplit ? 'Split PO' : 'PO'}>
+                                                  PO: {hasSplit ? (hasOriginal ? `${originalPo} → ${splitPo}` : splitPo) : originalPo}
+                                                </Badge>
+                                                {hasSplit ? (
+                                                  <Badge variant="secondary" className="text-xs" title="Split PO">
+                                                    Split
+                                                  </Badge>
+                                                ) : null}
+                                              </div>
+                                            );
+                                          })()}
                                           {item.COAID && (
                                             <Badge variant="outline" className="text-xs" title={`COA ID: ${item.COAID}`}>
                                               COA: {getCOAName(item.COAID)}

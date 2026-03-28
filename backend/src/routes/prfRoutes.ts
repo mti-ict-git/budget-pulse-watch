@@ -160,6 +160,96 @@ const notifyProntoUpdate = async (
   );
 };
 
+type ItemNotificationContext = {
+  PRFItemID: number;
+  PRFID: number;
+  PRFNo: string;
+  RequestorID: number;
+  ItemName: string;
+  PickedUpBy: string | null;
+  PickedUpByUserID: number | null;
+  PickedUpDate: Date | null;
+  Notes: string | null;
+  PurchaseCostCode: string | null;
+  COAID: number | null;
+  BudgetYear: number | null;
+  OriginalPONumber: string | null;
+  SplitPONumber: string | null;
+};
+
+const toComparable = (value: unknown): string => {
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '';
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  return String(value);
+};
+
+const notifyItemUpdate = async (
+  prf: { PRFID: number; PRFNo: string; RequestorID: number },
+  itemName: string,
+  existing: unknown,
+  updated: unknown,
+  candidateKeys: string[]
+): Promise<void> => {
+  const existingRec = existing as Record<string, unknown>;
+  const updatedRec = updated as Record<string, unknown>;
+  const allowed = new Set<string>([
+    'PickedUpBy',
+    'PickedUpByUserID',
+    'PickedUpDate',
+    'Notes',
+    'PurchaseCostCode',
+    'COAID',
+    'BudgetYear',
+    'OriginalPONumber',
+    'SplitPONumber'
+  ]);
+
+  const relevant = candidateKeys.filter((k) => allowed.has(k));
+  if (relevant.length === 0) return;
+
+  const parts: string[] = [];
+  relevant.forEach((k) => {
+    const before = toComparable(existingRec[k]);
+    const after = toComparable(updatedRec[k]);
+    if (before === after) return;
+    parts.push(`${k} -> ${after || '—'}`);
+  });
+
+  if (parts.length === 0) return;
+
+  const title = 'PRF Item Updated';
+  const message = `PRF ${prf.PRFNo} item "${itemName}": ${parts.join(', ')}`;
+
+  const recipients = new Set<number>();
+  if (prf.RequestorID > 0) recipients.add(prf.RequestorID);
+  const admins = await executeQuery<{ UserID: number }>(
+    `
+      SELECT UserID
+      FROM Users
+      WHERE IsActive = 1
+        AND Role IN ('admin', 'doccon')
+    `
+  );
+  admins.recordset.forEach((u) => {
+    if (u.UserID > 0) recipients.add(u.UserID);
+  });
+
+  await Promise.all(
+    Array.from(recipients).map((userId) =>
+      NotificationModel.create({
+        UserID: userId,
+        Title: title,
+        Message: message,
+        ReferenceType: 'PRF',
+        ReferenceID: prf.PRFID
+      })
+    )
+  );
+};
+
 /**
  * @route GET /api/prfs
  * @desc Get all PRFs with filtering and pagination
@@ -1140,7 +1230,49 @@ router.put('/items/:itemId', authenticateToken, requireContentManager, async (re
       });
     }
     
+    const existingItemCtx = await executeQuery<ItemNotificationContext>(
+      `
+        SELECT
+          i.PRFItemID,
+          i.PRFID,
+          p.PRFNo,
+          p.RequestorID,
+          i.ItemName,
+          i.PickedUpBy,
+          i.PickedUpByUserID,
+          i.PickedUpDate,
+          i.Notes,
+          i.PurchaseCostCode,
+          i.COAID,
+          i.BudgetYear,
+          i.OriginalPONumber,
+          i.SplitPONumber
+        FROM PRFItems i
+        INNER JOIN PRF p ON p.PRFID = i.PRFID
+        WHERE i.PRFItemID = @PRFItemID
+      `,
+      { PRFItemID: itemId }
+    );
+    const existingItem = existingItemCtx.recordset[0];
+    if (!existingItem) {
+      return res.status(404).json({
+        success: false,
+        message: 'PRF item not found'
+      });
+    }
+
     const updatedItem = await PRFModel.updateItem(itemId, updateData);
+    try {
+      await notifyItemUpdate(
+        { PRFID: existingItem.PRFID, PRFNo: existingItem.PRFNo, RequestorID: existingItem.RequestorID },
+        existingItem.ItemName,
+        existingItem,
+        updatedItem,
+        Object.keys(updateData)
+      );
+    } catch (notifyError) {
+      console.error('Error creating PRF item notification:', notifyError);
+    }
     
     return res.json({
       success: true,
