@@ -118,7 +118,7 @@ export interface UpdatePRFItemParams {
   Quantity?: number;
   UnitPrice?: number;
   Specifications?: string;
-  Status?: 'Pending' | 'Approved' | 'Picked Up' | 'Cancelled' | 'On Hold';
+  Status?: string;
   PickedUpBy?: string;
   PickedUpByUserID?: number;
   PickedUpDate?: Date;
@@ -493,7 +493,7 @@ export interface PRFItem {
   UnitPrice: number;
   TotalPrice: number;
   Specifications?: string;
-  Status?: 'Pending' | 'Approved' | 'Picked Up' | 'Cancelled' | 'On Hold';
+  Status?: string;
   PickedUpBy?: string;
   PickedUpByUserID?: number;
   PickedUpDate?: Date;

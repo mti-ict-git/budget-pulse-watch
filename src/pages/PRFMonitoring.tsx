@@ -60,7 +60,7 @@ interface PRFItem {
   UnitPrice: number;
   TotalPrice: number;
   Specifications?: string;
-  Status?: 'Pending' | 'Approved' | 'Picked Up' | 'Cancelled' | 'On Hold';
+  Status?: string;
   PickedUpBy?: string;
   PickedUpByUserID?: number;
   PickedUpDate?: Date;
@@ -109,6 +109,11 @@ interface PRFData {
   vendorContact?: string | null;
   notes?: string | null;
 }
+
+type SelectedItemForModification = {
+  item: PRFItem;
+  prfStatus: string;
+};
 
 // Raw API data interface (from backend)
 interface PRFRawData {
@@ -306,7 +311,7 @@ export default function PRFMonitoring() {
   const [availableStatusValues, setAvailableStatusValues] = useState<string[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [isBulkSyncing, setIsBulkSyncing] = useState(false);
-  const [selectedItemForModification, setSelectedItemForModification] = useState<PRFItem | null>(null);
+  const [selectedItemForModification, setSelectedItemForModification] = useState<SelectedItemForModification | null>(null);
   const [isModificationModalOpen, setIsModificationModalOpen] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -847,8 +852,8 @@ export default function PRFMonitoring() {
   };
 
   // Item modification handlers
-  const handleItemModification = (item: PRFItem) => {
-    setSelectedItemForModification(item);
+  const handleItemModification = (item: PRFItem, prfStatus: string) => {
+    setSelectedItemForModification({ item, prfStatus });
     setIsModificationModalOpen(true);
   };
 
@@ -1425,28 +1430,9 @@ export default function PRFMonitoring() {
                                       <div className="flex-1">
                                         <div className="flex items-center gap-2 mb-1">
                                           <div className="font-medium text-sm">{item.ItemName}</div>
-                                          {item.Status && (
+                                          {prf.progress && (
                                             <div className="flex items-center gap-1">
-                                              <Badge 
-                                                className={
-                                                  item.Status === 'Approved' ? 'bg-green-100 text-green-800' :
-                                                  item.Status === 'Picked Up' ? 'bg-blue-100 text-blue-800' :
-                                                  item.Status === 'Cancelled' ? 'bg-red-100 text-red-800' :
-                                                  item.Status === 'On Hold' ? 'bg-orange-100 text-orange-800' :
-                                                  'bg-yellow-100 text-yellow-800'
-                                                }
-                                              >
-                                                {item.Status}
-                                              </Badge>
-                                              {item.StatusOverridden && (
-                                                <Badge 
-                                                  variant="outline" 
-                                                  className="text-xs bg-purple-50 text-purple-700 border-purple-200"
-                                                  title="Status manually overridden - does not follow PRF status"
-                                                >
-                                                  Manual
-                                                </Badge>
-                                              )}
+                                              {getStatusBadge(prf.progress)}
                                             </div>
                                           )}
                                         </div>
@@ -1535,7 +1521,7 @@ export default function PRFMonitoring() {
                                         <Button
                                           size="sm"
                                           variant="outline"
-                                          onClick={() => handleItemModification(item)}
+                                          onClick={() => handleItemModification(item, prf.progress)}
                                           className="ml-2"
                                         >
                                           <Edit className="h-3 w-3" />
@@ -1597,7 +1583,8 @@ export default function PRFMonitoring() {
             setIsModificationModalOpen(false);
             setSelectedItemForModification(null);
           }}
-          item={selectedItemForModification}
+          item={selectedItemForModification.item}
+          prfStatus={selectedItemForModification.prfStatus}
           onUpdate={handleItemUpdate}
         />
       )}

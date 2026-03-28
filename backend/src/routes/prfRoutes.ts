@@ -1017,23 +1017,27 @@ router.put('/items/:itemId', authenticateToken, requireContentManager, async (re
       });
     }
 
-    if (updateData.Status === 'Picked Up') {
-      const pickedUpBy = typeof updateData.PickedUpBy === 'string' ? updateData.PickedUpBy.trim() : '';
-      const hasPickedUpName = pickedUpBy.length > 0;
-      const hasPickedUpUserId = typeof updateData.PickedUpByUserID === 'number' && Number.isInteger(updateData.PickedUpByUserID) && updateData.PickedUpByUserID > 0;
-      const hasPickedUpDate = updateData.PickedUpDate !== undefined && updateData.PickedUpDate !== null;
+    delete updateData.Status;
+    delete updateData.StatusOverridden;
 
+    const pickedUpBy = typeof updateData.PickedUpBy === 'string' ? updateData.PickedUpBy.trim() : '';
+    const hasPickedUpName = pickedUpBy.length > 0;
+    const hasPickedUpUserId = typeof updateData.PickedUpByUserID === 'number' && Number.isInteger(updateData.PickedUpByUserID) && updateData.PickedUpByUserID > 0;
+    const hasPickedUpDate = updateData.PickedUpDate !== undefined && updateData.PickedUpDate !== null;
+    const wantsPickup = hasPickedUpName || hasPickedUpUserId || hasPickedUpDate;
+
+    if (wantsPickup) {
       if (!hasPickedUpName && !hasPickedUpUserId) {
         return res.status(400).json({
           success: false,
-          message: 'Picked Up status requires Picking PIC'
+          message: 'Picking PIC wajib diisi jika set PickedUpDate'
         });
       }
 
       if (!hasPickedUpDate) {
         return res.status(400).json({
           success: false,
-          message: 'Picked Up status requires PickedUpDate'
+          message: 'PickedUpDate wajib diisi jika set Picking PIC'
         });
       }
     }
@@ -1065,6 +1069,13 @@ router.put('/items/:itemId', authenticateToken, requireContentManager, async (re
           message: 'Picking PIC must be a DocCon or Admin user'
         });
       }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Status PRF item mengikuti status PO dan tidak bisa diubah per item'
+      });
     }
     
     const updatedItem = await PRFModel.updateItem(itemId, updateData);

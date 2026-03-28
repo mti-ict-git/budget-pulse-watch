@@ -547,13 +547,6 @@ export class PRFModel {
       setClause.push('Specifications = @Specifications');
       params.Specifications = updateData.Specifications;
     }
-    if (updateData.Status !== undefined) {
-      setClause.push('Status = @Status');
-      params.Status = updateData.Status;
-      // When status is manually changed, mark as overridden
-      setClause.push('StatusOverridden = @StatusOverridden');
-      params.StatusOverridden = true;
-    }
     if (updateData.PickedUpBy !== undefined) {
       setClause.push('PickedUpBy = @PickedUpBy');
       params.PickedUpBy = updateData.PickedUpBy;
@@ -574,23 +567,6 @@ export class PRFModel {
       setClause.push('UpdatedBy = @UpdatedBy, UpdatedAt = GETDATE()');
       params.UpdatedBy = updateData.UpdatedBy;
     }
-    if (updateData.StatusOverridden !== undefined) {
-      setClause.push('StatusOverridden = @StatusOverridden');
-      params.StatusOverridden = updateData.StatusOverridden;
-      
-      // If resetting override to false, cascade PRF status to this item
-      if (updateData.StatusOverridden === false) {
-        const prfQuery = `SELECT Status FROM PRF WHERE PRFID = (SELECT PRFID FROM PRFItems WHERE PRFItemID = @PRFItemID)`;
-        const prfResult = await executeQuery<{ Status: string }>(prfQuery, { PRFItemID: itemId });
-        
-        if (prfResult.recordset.length > 0) {
-          const prfStatus = prfResult.recordset[0].Status;
-          const mappedStatus = this.mapPRFStatusToItemStatus(prfStatus);
-          setClause.push('Status = @CascadedStatus');
-          params.CascadedStatus = mappedStatus;
-        }
-      }
-    }
     
     // Cost code fields
     if (updateData.PurchaseCostCode !== undefined) {
@@ -609,6 +585,9 @@ export class PRFModel {
     if (setClause.length === 0) {
       throw new Error('No fields to update');
     }
+
+    setClause.push('Status = (SELECT Status FROM PRF WHERE PRFID = PRFItems.PRFID)');
+    setClause.push('StatusOverridden = 0');
 
     const query = `
       UPDATE PRFItems 
@@ -681,45 +660,18 @@ export class PRFModel {
   }
 
   /**
-   * Map legacy PRF status values to valid PRFItems status values
-   */
-  private static mapPRFStatusToItemStatus(prfStatus: string): string {
-    const raw = prfStatus.trim();
-    const lower = raw.toLowerCase();
-    if (lower.startsWith('updated:')) return 'Pending';
-
-    const statusMapping: Record<string, 'Pending' | 'Approved' | 'Picked Up' | 'Cancelled' | 'On Hold'> = {
-      'req. approved': 'Approved',
-      'req. approved 2': 'Approved',
-      'request for approval': 'Pending',
-      'completed': 'Picked Up',
-      'in transit': 'Approved',
-      'on order': 'Approved',
-      'rejected': 'Cancelled',
-      'cancelled': 'Cancelled',
-      'on hold': 'On Hold',
-    };
-
-    return statusMapping[lower] ?? 'Pending';
-  }
-
-  /**
    * Cascade status update to all non-overridden items
    */
   private static async cascadeStatusToItems(prfId: number, newStatus: string): Promise<void> {
-    // Map the PRF status to a valid PRFItems status
-    const mappedStatus = this.mapPRFStatusToItemStatus(newStatus);
-    
     const query = `
       UPDATE PRFItems 
-      SET Status = @Status, UpdatedAt = GETDATE()
-      WHERE PRFID = @PRFID 
-        AND (StatusOverridden IS NULL OR StatusOverridden = 0)
+      SET Status = NULLIF(LTRIM(RTRIM(@Status)), ''), UpdatedAt = GETDATE(), StatusOverridden = 0
+      WHERE PRFID = @PRFID
     `;
 
     await executeQuery(query, {
       PRFID: prfId,
-      Status: mappedStatus
+      Status: newStatus
     });
   }
 }

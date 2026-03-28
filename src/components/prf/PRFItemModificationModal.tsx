@@ -4,11 +4,10 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Badge } from '../ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
-import { Calendar, User, Clock, FileText, AlertTriangle, Check, ChevronsUpDown } from 'lucide-react';
+import { Calendar, User, Clock, FileText, Check, ChevronsUpDown } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { authService } from '../../services/authService';
 import { budgetService, ChartOfAccount } from '../../services/budgetService';
@@ -23,7 +22,7 @@ interface PRFItem {
   UnitPrice: number;
   TotalPrice: number;
   Specifications?: string;
-  Status?: 'Pending' | 'Approved' | 'Picked Up' | 'Cancelled' | 'On Hold';
+  Status?: string;
   PickedUpBy?: string;
   PickedUpByUserID?: number;
   PickedUpDate?: Date;
@@ -43,21 +42,15 @@ interface PRFItemModificationModalProps {
   isOpen: boolean;
   onClose: () => void;
   item: PRFItem;
+  prfStatus: string;
   onUpdate: (itemId: number, updateData: Partial<PRFItem>) => Promise<void>;
 }
-
-const statusOptions = [
-  { value: 'Pending', label: 'Pending', color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'Approved', label: 'Approved', color: 'bg-green-100 text-green-800' },
-  { value: 'Picked Up', label: 'Picked Up', color: 'bg-blue-100 text-blue-800' },
-  { value: 'On Hold', label: 'On Hold', color: 'bg-orange-100 text-orange-800' },
-  { value: 'Cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800' },
-];
 
 export const PRFItemModificationModal: React.FC<PRFItemModificationModalProps> = ({
   isOpen,
   onClose,
   item,
+  prfStatus,
   onUpdate,
 }) => {
   const { user } = useAuth();
@@ -131,7 +124,6 @@ export const PRFItemModificationModal: React.FC<PRFItemModificationModalProps> =
   // Initialize form data
   const costCodeData = extractCostCodeFromSpecs(item.Specifications);
   const [formData, setFormData] = useState({
-    Status: item.Status || 'Pending',
     PickedUpBy: item.PickedUpBy || '',
     PickedUpByUserID: item.PickedUpByUserID ? item.PickedUpByUserID.toString() : '',
     PickedUpDate: item.PickedUpDate ? new Date(item.PickedUpDate).toISOString().split('T')[0] : '',
@@ -145,7 +137,6 @@ export const PRFItemModificationModal: React.FC<PRFItemModificationModalProps> =
   useEffect(() => {
     const costCodeData = extractCostCodeFromSpecs(item.Specifications);
     setFormData({
-      Status: item.Status || 'Pending',
       PickedUpBy: item.PickedUpBy || '',
       PickedUpByUserID: item.PickedUpByUserID ? item.PickedUpByUserID.toString() : '',
       PickedUpDate: item.PickedUpDate ? new Date(item.PickedUpDate).toISOString().split('T')[0] : '',
@@ -187,16 +178,22 @@ export const PRFItemModificationModal: React.FC<PRFItemModificationModalProps> =
 
     setIsLoading(true);
     try {
-      if (formData.Status === 'Picked Up') {
-        const hasPicName = formData.PickedUpBy.trim().length > 0;
-        const hasPicUserId = formData.PickedUpByUserID.trim().length > 0;
+      const pickedUpByName = formData.PickedUpBy.trim();
+      const hasPicName = pickedUpByName.length > 0;
+      const hasPicUserId = formData.PickedUpByUserID.trim().length > 0;
+      const hasPickedUpDate = formData.PickedUpDate.trim().length > 0;
+      const wantsPickup = hasPicName || hasPicUserId || hasPickedUpDate;
+
+      if (wantsPickup) {
         if (!hasPicName && !hasPicUserId) {
-          throw new Error('Picking PIC is required for Picked Up status');
+          throw new Error('Picking PIC wajib diisi jika set PickedUpDate');
+        }
+        if (!hasPickedUpDate) {
+          throw new Error('PickedUpDate wajib diisi jika set Picking PIC');
         }
       }
 
       const updateData: Partial<PRFItem> = {
-        Status: formData.Status as PRFItem['Status'],
         Notes: formData.Notes,
         UpdatedBy: user.id,
         PurchaseCostCode: formData.PurchaseCostCode,
@@ -204,8 +201,7 @@ export const PRFItemModificationModal: React.FC<PRFItemModificationModalProps> =
         BudgetYear: formData.BudgetYear,
       };
 
-      // Only include pickup fields if status is "Picked Up"
-      if (formData.Status === 'Picked Up') {
+      if (canManagePickupFields) {
         updateData.PickedUpBy = formData.PickedUpBy;
         updateData.PickedUpByUserID = formData.PickedUpByUserID ? parseInt(formData.PickedUpByUserID, 10) : undefined;
         updateData.PickedUpDate = formData.PickedUpDate ? new Date(formData.PickedUpDate) : undefined;
@@ -221,32 +217,11 @@ export const PRFItemModificationModal: React.FC<PRFItemModificationModalProps> =
     }
   };
 
-  const handleQuickAction = async (action: 'cancel' | 'approve' | 'pickup' | 'reset-override') => {
+  const handleQuickPickup = async () => {
     if (!user) return;
-
-    if (action === 'pickup') {
-      const pickerName = window.prompt('Who picked up this item?');
-      if (!pickerName || pickerName.trim().length === 0) {
-        alert('Picker name is required before marking as Picked Up');
-        return;
-      }
-
-      setIsLoading(true);
-      try {
-        const updateData: Partial<PRFItem> = {
-          UpdatedBy: user.id,
-          Status: 'Picked Up',
-          PickedUpBy: pickerName.trim(),
-          PickedUpByUserID: undefined,
-          PickedUpDate: new Date(),
-        };
-        await onUpdate(item.PRFItemID, updateData);
-        onClose();
-      } catch (error) {
-        console.error('Failed to update item:', error);
-      } finally {
-        setIsLoading(false);
-      }
+    const pickerName = window.prompt('Who picked up this item?');
+    if (!pickerName || pickerName.trim().length === 0) {
+      alert('Picking PIC wajib diisi');
       return;
     }
 
@@ -254,22 +229,10 @@ export const PRFItemModificationModal: React.FC<PRFItemModificationModalProps> =
     try {
       const updateData: Partial<PRFItem> = {
         UpdatedBy: user.id,
+        PickedUpBy: pickerName.trim(),
+        PickedUpByUserID: undefined,
+        PickedUpDate: new Date(),
       };
-
-      switch (action) {
-        case 'cancel':
-          updateData.Status = 'Cancelled';
-          updateData.Notes = formData.Notes || 'Item cancelled';
-          break;
-        case 'approve':
-          updateData.Status = 'Approved';
-          break;
-        case 'reset-override':
-          updateData.StatusOverridden = false;
-          // Don't set Status - let the backend cascade from PRF status
-          break;
-      }
-
       await onUpdate(item.PRFItemID, updateData);
       onClose();
     } catch (error) {
@@ -277,15 +240,6 @@ export const PRFItemModificationModal: React.FC<PRFItemModificationModalProps> =
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const getCurrentStatusBadge = () => {
-    const status = statusOptions.find(s => s.value === item.Status);
-    return (
-      <Badge className={status?.color || 'bg-gray-100 text-gray-800'}>
-        {status?.label || 'Unknown'}
-      </Badge>
-    );
   };
 
   return (
@@ -313,19 +267,10 @@ export const PRFItemModificationModal: React.FC<PRFItemModificationModalProps> =
                 <span className="font-medium">Total:</span> ${item.TotalPrice.toFixed(2)}
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-medium">Current Status:</span> 
-                <div className="flex items-center gap-1">
-                  {getCurrentStatusBadge()}
-                  {item.StatusOverridden && (
-                    <Badge 
-                      variant="outline" 
-                      className="text-xs bg-purple-50 text-purple-700 border-purple-200"
-                      title="Status manually overridden - does not follow PRF status"
-                    >
-                      Manual Override
-                    </Badge>
-                  )}
-                </div>
+                <span className="font-medium">Status PO:</span>
+                <Badge variant="outline" className="whitespace-nowrap">
+                  {prfStatus || '-'}
+                </Badge>
               </div>
               <div>
                 <span className="font-medium">Cost Code:</span> {item.PurchaseCostCode || 'Not assigned'}
@@ -348,53 +293,16 @@ export const PRFItemModificationModal: React.FC<PRFItemModificationModalProps> =
           <div className="space-y-3">
             <h3 className="font-semibold">Quick Actions</h3>
             <div className="flex gap-2 flex-wrap">
-              {item.Status !== 'Approved' && canManagePickupFields && (
+              {canManagePickupFields && (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => handleQuickAction('approve')}
-                  disabled={isLoading}
-                  className="text-green-600 border-green-300 hover:bg-green-50"
-                >
-                  Approve Item
-                </Button>
-              )}
-              {item.Status !== 'Picked Up' && canManagePickupFields && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleQuickAction('pickup')}
+                  onClick={handleQuickPickup}
                   disabled={isLoading}
                   className="text-blue-600 border-blue-300 hover:bg-blue-50"
                 >
                   Mark as Picked Up
-                </Button>
-              )}
-              {item.Status !== 'Cancelled' && canManagePickupFields && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleQuickAction('cancel')}
-                  disabled={isLoading}
-                  className="text-red-600 border-red-300 hover:bg-red-50"
-                >
-                  <AlertTriangle className="h-4 w-4 mr-1" />
-                  Cancel Item
-                </Button>
-              )}
-              {item.StatusOverridden && canManagePickupFields && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleQuickAction('reset-override')}
-                  disabled={isLoading}
-                  className="text-purple-600 border-purple-300 hover:bg-purple-50"
-                >
-                  Reset to PRF Status
                 </Button>
               )}
             </div>
@@ -403,54 +311,27 @@ export const PRFItemModificationModal: React.FC<PRFItemModificationModalProps> =
           {/* Detailed Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-12 gap-4">
-              <div>
-                <Label htmlFor="status">Status</Label>
-                <Select
-                  value={formData.Status}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, Status: value as PRFItem['Status'] }))}
-                  disabled={!canManagePickupFields}
-                >
-                  <SelectTrigger className="col-span-12 md:col-span-6">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {statusOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${option.color.split(' ')[0]}`} />
-                          {option.label}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="col-span-12 md:col-span-6">
+                <Label htmlFor="pickedUpBy">Picking PIC</Label>
+                <Input
+                  id="pickedUpBy"
+                  value={formData.PickedUpBy}
+                  onChange={(e) => setFormData(prev => ({ ...prev, PickedUpBy: e.target.value, PickedUpByUserID: '' }))}
+                  placeholder="Enter picker name"
+                  readOnly={!canManagePickupFields}
+                  className={!canManagePickupFields ? 'bg-muted' : ''}
+                />
               </div>
-
-              {formData.Status === 'Picked Up' && (
-                <>
-                  <div className="col-span-12 md:col-span-6">
-                    <Label htmlFor="pickedUpBy">Picking PIC</Label>
-                    <Input
-                      id="pickedUpBy"
-                      value={formData.PickedUpBy}
-                      onChange={(e) => setFormData(prev => ({ ...prev, PickedUpBy: e.target.value, PickedUpByUserID: '' }))}
-                      placeholder="Enter picker name"
-                      readOnly={!canManagePickupFields}
-                      className={!canManagePickupFields ? 'bg-muted' : ''}
-                    />
-                  </div>
-                  <div className="col-span-12 md:col-span-6">
-                    <Label htmlFor="pickedUpDate">Pickup Date</Label>
-                    <Input
-                      id="pickedUpDate"
-                      type="date"
-                      value={formData.PickedUpDate}
-                      onChange={(e) => setFormData(prev => ({ ...prev, PickedUpDate: e.target.value }))}
-                      disabled={!canManagePickupFields}
-                    />
-                  </div>
-                </>
-              )}
+              <div className="col-span-12 md:col-span-6">
+                <Label htmlFor="pickedUpDate">Pickup Date</Label>
+                <Input
+                  id="pickedUpDate"
+                  type="date"
+                  value={formData.PickedUpDate}
+                  onChange={(e) => setFormData(prev => ({ ...prev, PickedUpDate: e.target.value }))}
+                  disabled={!canManagePickupFields}
+                />
+              </div>
             </div>
 
             {!canManagePickupFields && (

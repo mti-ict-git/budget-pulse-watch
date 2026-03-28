@@ -19,9 +19,19 @@ router.get('/', async (req: Request, res: Response) => {
     const offset = parseInt(req.query.offset as string) || 0;
     const unreadOnly = req.query.unreadOnly === 'true';
 
-    const notifications = unreadOnly 
-      ? await NotificationModel.getUnreadByUserId(userId)
-      : await NotificationModel.getAllByUserId(userId, limit, offset);
+    if (unreadOnly) {
+      const [notifications, unreadTotal] = await Promise.all([
+        NotificationModel.getUnreadByUserId(userId, limit, offset),
+        NotificationModel.getUnreadCountByUserId(userId)
+      ]);
+      return res.json({
+        success: true,
+        data: notifications,
+        meta: { unreadTotal }
+      });
+    }
+
+    const notifications = await NotificationModel.getAllByUserId(userId, limit, offset);
 
     return res.json({
       success: true,

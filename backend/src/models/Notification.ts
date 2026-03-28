@@ -27,15 +27,27 @@ export class NotificationModel {
   /**
    * Get unread notifications for a user
    */
-  static async getUnreadByUserId(userId: number): Promise<Notification[]> {
+  static async getUnreadByUserId(userId: number, limit: number = 50, offset: number = 0): Promise<Notification[]> {
     const query = `
       SELECT * FROM Notifications 
       WHERE UserID = @UserID AND IsRead = 0
       ORDER BY CreatedAt DESC
+      OFFSET @Offset ROWS
+      FETCH NEXT @Limit ROWS ONLY
     `;
     
-    const result = await executeQuery<Notification>(query, { UserID: userId });
+    const result = await executeQuery<Notification>(query, { UserID: userId, Limit: limit, Offset: offset });
     return result.recordset;
+  }
+
+  static async getUnreadCountByUserId(userId: number): Promise<number> {
+    const query = `
+      SELECT COUNT(1) AS Total
+      FROM Notifications
+      WHERE UserID = @UserID AND IsRead = 0
+    `;
+    const result = await executeQuery<{ Total: number }>(query, { UserID: userId });
+    return result.recordset[0]?.Total ?? 0;
   }
 
   /**

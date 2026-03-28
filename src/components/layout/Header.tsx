@@ -88,11 +88,14 @@ export function Header() {
 
   const fetchNotifications = async () => {
     try {
-      // Fetch both read and unread for the dropdown, but we only really care about unread count
-      const result = await notificationService.getNotifications(false, 10);
-      if (result.success && result.data) {
-        setNotifications(result.data);
-        setUnreadCount(result.data.filter((n: Notification) => !n.IsRead).length);
+      const result = await notificationService.getNotifications(true, 10);
+      const payload = result as { success?: boolean; data?: Notification[]; meta?: { unreadTotal?: number } };
+      if (payload.success && payload.data) {
+        setNotifications(payload.data);
+        setUnreadCount(payload.meta?.unreadTotal ?? payload.data.length);
+      } else {
+        setNotifications([]);
+        setUnreadCount(0);
       }
     } catch (error) {
       console.error("Failed to fetch notifications:", error);
@@ -102,9 +105,7 @@ export function Header() {
   const handleMarkAsRead = async (notificationId: number) => {
     try {
       await notificationService.markAsRead(notificationId);
-      setNotifications(prev => 
-        prev.map(n => n.NotificationID === notificationId ? { ...n, IsRead: true } : n)
-      );
+      setNotifications(prev => prev.filter(n => n.NotificationID !== notificationId));
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (error) {
       console.error("Failed to mark notification as read:", error);
@@ -114,7 +115,7 @@ export function Header() {
   const handleMarkAllAsRead = async () => {
     try {
       await notificationService.markAllAsRead();
-      setNotifications(prev => prev.map(n => ({ ...n, IsRead: true })));
+      setNotifications([]);
       setUnreadCount(0);
     } catch (error) {
       console.error("Failed to mark all notifications as read:", error);
@@ -146,7 +147,7 @@ export function Header() {
 
   const handleNotificationClick = async (notification: Notification) => {
     if (!notification.IsRead) {
-      handleMarkAsRead(notification.NotificationID);
+      await handleMarkAsRead(notification.NotificationID);
     }
 
     setDetailOpen(true);
