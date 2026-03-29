@@ -333,6 +333,8 @@ def main() -> int:
 
     loop = 0
     last_handled_request_ms: Optional[int] = None
+    pending_report: Optional[Tuple[int, int, str, str]] = None
+    poll_seconds = max(5, _parse_int(os.getenv("PRONTO_SYNC_POLL_SECONDS"), 15))
     while not stop_flag[0]:
         loop += 1
         fallback = last_config if last_config is not None else env_fallback
@@ -342,10 +344,24 @@ def main() -> int:
         interval_seconds = max(60, int(config.interval_minutes) * 60)
         requested_ms = _extract_run_request_ms(payload)
         requested_now = requested_ms is not None and (last_handled_request_ms is None or requested_ms > last_handled_request_ms)
+        if pending_report is not None and requested_ms is not None and requested_ms == pending_report[0]:
+            requested_now = False
         print(
             f"[pronto-sync] cycle_start loop={loop} loaded_from_api={loaded} enabled={config.enabled} requested_now={requested_now} budget_year={config.budget_year} apply={config.apply} interval_seconds={interval_seconds}",
             flush=True,
         )
+
+        if pending_report is not None:
+            ok = _report_run_complete(
+                base_url=base_url,
+                api_key=api_key,
+                exit_code=pending_report[1],
+                started_at=pending_report[2],
+                finished_at=pending_report[3],
+            )
+            print(f"[pronto-sync] run_now_complete_retry reported={ok} exit_code={pending_report[1]}", flush=True)
+            if ok:
+                pending_report = None
 
         steps = _build_steps(config)
         any_enabled = False
@@ -369,6 +385,7 @@ def main() -> int:
 
         if requested_now:
             last_handled_request_ms = requested_ms
+            pending_report = (requested_ms if requested_ms is not None else 0, worst_exit, started_at, finished_at)
             ok = _report_run_complete(
                 base_url=base_url,
                 api_key=api_key,
@@ -377,6 +394,8 @@ def main() -> int:
                 finished_at=finished_at,
             )
             print(f"[pronto-sync] run_now_complete reported={ok} exit_code={worst_exit}", flush=True)
+            if ok:
+                pending_report = None
 
         if run_once:
             return worst_exit
@@ -385,7 +404,33 @@ def main() -> int:
         if jitter_seconds:
             sleep_for += random.randint(0, jitter_seconds)
         print(f"[pronto-sync] cycle_end loop={loop} sleep_seconds={sleep_for}", flush=True)
-        _sleep_seconds(sleep_for, stop_flag=stop_flag)
+        remaining = int(sleep_for)
+        while remaining > 0 and not stop_flag[0]:
+            chunk = poll_seconds if remaining > poll_seconds else remaining
+            _sleep_seconds(chunk, stop_flag=stop_flag)
+            remaining -= chunk
+            if stop_flag[0]:
+                break
+            if pending_report is not None:
+                ok = _report_run_complete(
+                    base_url=base_url,
+                    api_key=api_key,
+                    exit_code=pending_report[1],
+                    started_at=pending_report[2],
+                    finished_at=pending_report[3],
+                )
+                print(f"[pronto-sync] run_now_complete_retry reported={ok} exit_code={pending_report[1]}", flush=True)
+                if ok:
+                    pending_report = None
+                    continue
+            fallback2 = last_config if last_config is not None else env_fallback
+            config2, payload2, loaded2 = _fetch_config(base_url=base_url, api_key=api_key, fallback=fallback2)
+            last_config = config2
+            requested2_ms = _extract_run_request_ms(payload2)
+            requested2_now = requested2_ms is not None and (last_handled_request_ms is None or requested2_ms > last_handled_request_ms)
+            if requested2_now:
+                print(f"[pronto-sync] wake_for_run_now loaded_from_api={loaded2}", flush=True)
+                break
 
     print("[pronto-sync] stopped", flush=True)
     return 0

@@ -15,6 +15,45 @@ import { formatBytes } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 
+const PRONTO_TIME_ZONES: ReadonlyArray<{ value: string; label: string }> = [
+  { value: 'Asia/Jakarta', label: 'Asia/Jakarta (WIB, UTC+7)' },
+  { value: 'Asia/Makassar', label: 'Asia/Makassar (WITA, UTC+8)' },
+  { value: 'Asia/Jayapura', label: 'Asia/Jayapura (WIT, UTC+9)' },
+  { value: 'UTC', label: 'UTC' },
+  { value: 'Asia/Singapore', label: 'Asia/Singapore' },
+  { value: 'Asia/Kuala_Lumpur', label: 'Asia/Kuala_Lumpur' },
+  { value: 'Asia/Bangkok', label: 'Asia/Bangkok' },
+  { value: 'Asia/Manila', label: 'Asia/Manila' },
+  { value: 'Asia/Hong_Kong', label: 'Asia/Hong_Kong' },
+  { value: 'Asia/Shanghai', label: 'Asia/Shanghai' },
+  { value: 'Asia/Taipei', label: 'Asia/Taipei' },
+  { value: 'Asia/Seoul', label: 'Asia/Seoul' },
+  { value: 'Asia/Tokyo', label: 'Asia/Tokyo' },
+  { value: 'Asia/Dubai', label: 'Asia/Dubai' },
+  { value: 'Asia/Kolkata', label: 'Asia/Kolkata' },
+  { value: 'Australia/Perth', label: 'Australia/Perth' },
+  { value: 'Australia/Adelaide', label: 'Australia/Adelaide' },
+  { value: 'Australia/Sydney', label: 'Australia/Sydney' },
+  { value: 'Pacific/Auckland', label: 'Pacific/Auckland' },
+  { value: 'Europe/London', label: 'Europe/London' },
+  { value: 'Europe/Paris', label: 'Europe/Paris' },
+  { value: 'Europe/Berlin', label: 'Europe/Berlin' },
+  { value: 'Europe/Madrid', label: 'Europe/Madrid' },
+  { value: 'Europe/Rome', label: 'Europe/Rome' },
+  { value: 'Europe/Amsterdam', label: 'Europe/Amsterdam' },
+  { value: 'Europe/Moscow', label: 'Europe/Moscow' },
+  { value: 'Africa/Cairo', label: 'Africa/Cairo' },
+  { value: 'Africa/Nairobi', label: 'Africa/Nairobi' },
+  { value: 'Africa/Johannesburg', label: 'Africa/Johannesburg' },
+  { value: 'America/New_York', label: 'America/New_York' },
+  { value: 'America/Chicago', label: 'America/Chicago' },
+  { value: 'America/Denver', label: 'America/Denver' },
+  { value: 'America/Los_Angeles', label: 'America/Los_Angeles' },
+  { value: 'America/Anchorage', label: 'America/Anchorage' },
+  { value: 'America/Sao_Paulo', label: 'America/Sao_Paulo' },
+  { value: 'America/Mexico_City', label: 'America/Mexico_City' }
+];
+
 interface OCRSettings {
   provider: 'gemini' | 'openai';
   geminiApiKey: string;
@@ -1852,19 +1891,30 @@ const Settings: React.FC = () => {
                 <div className="grid grid-cols-12 gap-4">
                   <div className="col-span-12 md:col-span-6 space-y-2">
                     <Label htmlFor="pronto-timezone">Time zone</Label>
-                    <Input
-                      id="pronto-timezone"
-                      type="text"
+                    <Select
                       value={prontoSettings.timeZone}
-                      onChange={(e) => setProntoSettings((prev) => ({ ...prev, timeZone: e.target.value }))}
-                      placeholder="e.g., Asia/Jakarta"
-                    />
+                      onValueChange={(value) => setProntoSettings((prev) => ({ ...prev, timeZone: value }))}
+                    >
+                      <SelectTrigger id="pronto-timezone">
+                        <SelectValue placeholder="Select time zone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[
+                          ...PRONTO_TIME_ZONES,
+                          ...(PRONTO_TIME_ZONES.some((z) => z.value === prontoSettings.timeZone) || prontoSettings.timeZone.trim().length === 0
+                            ? []
+                            : [{ value: prontoSettings.timeZone, label: `${prontoSettings.timeZone} (custom)` }])
+                        ].map((tz) => (
+                          <SelectItem key={tz.value} value={tz.value}>
+                            {tz.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="col-span-12 md:col-span-6 space-y-2">
-                    <Label>Time zone examples</Label>
-                    <div className="text-xs text-muted-foreground">
-                      Asia/Jakarta, UTC, Asia/Makassar, Asia/Jayapura
-                    </div>
+                    <Label>Notes</Label>
+                    <div className="text-xs text-muted-foreground">Use Asia/Jakarta for WIB.</div>
                   </div>
                 </div>
 

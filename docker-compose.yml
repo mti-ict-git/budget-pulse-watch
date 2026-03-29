@@ -44,8 +44,8 @@ services:
 
   pronto_sync:
     build:
-      context: .
-      dockerfile: backend/pronto-sync/Dockerfile
+      context: ./backend
+      dockerfile: pronto-sync/Dockerfile
     depends_on:
       - backend
     env_file:
