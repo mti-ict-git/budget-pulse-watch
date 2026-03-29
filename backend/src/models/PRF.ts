@@ -432,7 +432,9 @@ export class PRFModel {
           WHERE pi.PRFID = p.PRFID AND (
             pi.ItemName LIKE @Search OR 
             pi.Description LIKE @Search OR 
-            pi.Specifications LIKE @Search
+            pi.Specifications LIKE @Search OR
+            pi.OriginalPONumber LIKE @Search OR
+            pi.SplitPONumber LIKE @Search
           )
         )
       )`);

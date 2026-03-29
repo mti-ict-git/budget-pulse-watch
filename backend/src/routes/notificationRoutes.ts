@@ -81,6 +81,7 @@ router.get('/:id/detail', async (req: Request, res: Response) => {
     let audit: AuditRow | null = null;
     if (notification.ReferenceType === 'PRF' && typeof notification.ReferenceID === 'number') {
       const query = `
+        DECLARE @CreatedAtLocal DATETIME2 = DATEADD(hour, 7, @CreatedAt);
         SELECT TOP 1
           a.AuditID,
           a.ChangedAt,
@@ -91,8 +92,8 @@ router.get('/:id/detail', async (req: Request, res: Response) => {
           AND a.RecordID = @PRFID
           AND a.Action = 'UPDATE'
           AND a.NewValues LIKE '%"source":"pronto"%'
-          AND a.ChangedAt BETWEEN DATEADD(minute, -15, @CreatedAt) AND DATEADD(minute, 15, @CreatedAt)
-        ORDER BY ABS(DATEDIFF(second, a.ChangedAt, @CreatedAt)) ASC, a.AuditID DESC
+          AND a.ChangedAt BETWEEN DATEADD(minute, -15, @CreatedAtLocal) AND DATEADD(minute, 15, @CreatedAtLocal)
+        ORDER BY ABS(DATEDIFF(second, a.ChangedAt, @CreatedAtLocal)) ASC, a.AuditID DESC
       `;
       const result = await executeQuery<AuditRow>(query, {
         PRFID: notification.ReferenceID,

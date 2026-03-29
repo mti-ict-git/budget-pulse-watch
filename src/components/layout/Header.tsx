@@ -255,7 +255,6 @@ export function Header() {
                           </p>
                           <p className="text-[10px] text-muted-foreground pt-1">
                             {new Date(notification.CreatedAt).toLocaleString('id-ID', {
-                              timeZone: 'Asia/Jakarta',
                               month: 'short',
                               day: 'numeric',
                               hour: '2-digit',
@@ -321,7 +320,6 @@ export function Header() {
                 <div className="text-xs text-muted-foreground">{detailData.notification.Message}</div>
                 <div className="text-[11px] text-muted-foreground">
                   {new Date(detailData.notification.CreatedAt).toLocaleString("id-ID", {
-                    timeZone: "Asia/Jakarta",
                     year: "numeric",
                     month: "short",
                     day: "2-digit",

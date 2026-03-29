@@ -1,6 +1,17 @@
 import { executeQuery } from '../config/database';
 import { Notification, CreateNotificationRequest } from './types';
 
+const SELECT_NOTIFICATION_FIELDS = `
+  NotificationID,
+  UserID,
+  Title,
+  Message,
+  ReferenceType,
+  ReferenceID,
+  IsRead,
+  CAST(SWITCHOFFSET(CAST(CAST(CreatedAt AS datetime2) AT TIME ZONE 'SE Asia Standard Time' AS datetimeoffset), '+00:00') AS datetime2) AS CreatedAt
+`;
+
 export class NotificationModel {
   /**
    * Create a new notification
@@ -8,7 +19,15 @@ export class NotificationModel {
   static async create(data: CreateNotificationRequest): Promise<Notification> {
     const query = `
       INSERT INTO Notifications (UserID, Title, Message, ReferenceType, ReferenceID)
-      OUTPUT INSERTED.*
+      OUTPUT
+        INSERTED.NotificationID,
+        INSERTED.UserID,
+        INSERTED.Title,
+        INSERTED.Message,
+        INSERTED.ReferenceType,
+        INSERTED.ReferenceID,
+        INSERTED.IsRead,
+        CAST(SWITCHOFFSET(CAST(CAST(INSERTED.CreatedAt AS datetime2) AT TIME ZONE 'SE Asia Standard Time' AS datetimeoffset), '+00:00') AS datetime2) AS CreatedAt
       VALUES (@UserID, @Title, @Message, @ReferenceType, @ReferenceID)
     `;
 
@@ -29,7 +48,7 @@ export class NotificationModel {
    */
   static async getUnreadByUserId(userId: number, limit: number = 50, offset: number = 0): Promise<Notification[]> {
     const query = `
-      SELECT * FROM Notifications 
+      SELECT ${SELECT_NOTIFICATION_FIELDS} FROM Notifications 
       WHERE UserID = @UserID AND IsRead = 0
       ORDER BY CreatedAt DESC
       OFFSET @Offset ROWS
@@ -55,7 +74,7 @@ export class NotificationModel {
    */
   static async getAllByUserId(userId: number, limit: number = 50, offset: number = 0): Promise<Notification[]> {
     const query = `
-      SELECT * FROM Notifications 
+      SELECT ${SELECT_NOTIFICATION_FIELDS} FROM Notifications 
       WHERE UserID = @UserID
       ORDER BY CreatedAt DESC
       OFFSET @Offset ROWS
@@ -72,7 +91,7 @@ export class NotificationModel {
 
   static async getByIdForUser(notificationId: number, userId: number): Promise<Notification | null> {
     const query = `
-      SELECT TOP 1 *
+      SELECT TOP 1 ${SELECT_NOTIFICATION_FIELDS}
       FROM Notifications
       WHERE NotificationID = @NotificationID AND UserID = @UserID
     `;
