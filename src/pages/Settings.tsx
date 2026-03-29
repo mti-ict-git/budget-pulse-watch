@@ -40,6 +40,12 @@ type ProntoSyncSettings = {
   headless: boolean;
   captureScreenshots: boolean;
   writePerPoJson: boolean;
+  timeZone?: string | null;
+  runNowRequestedAt?: string | null;
+  runNowRequestedBy?: string | null;
+  lastRunStartedAt?: string | null;
+  lastRunFinishedAt?: string | null;
+  lastRunExitCode?: number | null;
 };
 
 type ProntoSyncSettingsState = {
@@ -55,6 +61,15 @@ type ProntoSyncSettingsState = {
   headless: boolean;
   captureScreenshots: boolean;
   writePerPoJson: boolean;
+  timeZone: string;
+};
+
+type ProntoSyncStatus = {
+  runNowRequestedAt: string | null;
+  runNowRequestedBy: string | null;
+  lastRunStartedAt: string | null;
+  lastRunFinishedAt: string | null;
+  lastRunExitCode: number | null;
 };
 
 type FolderMountInfo = {
@@ -161,7 +176,15 @@ const Settings: React.FC = () => {
     logEvery: '25',
     headless: true,
     captureScreenshots: false,
-    writePerPoJson: false
+    writePerPoJson: false,
+    timeZone: 'Asia/Jakarta'
+  });
+  const [prontoStatus, setProntoStatus] = useState<ProntoSyncStatus>({
+    runNowRequestedAt: null,
+    runNowRequestedBy: null,
+    lastRunStartedAt: null,
+    lastRunFinishedAt: null,
+    lastRunExitCode: null
   });
   const [showApiKey, setShowApiKey] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -169,6 +192,7 @@ const Settings: React.FC = () => {
   const [isTestingFolder, setIsTestingFolder] = useState(false);
   const [isDeduping, setIsDeduping] = useState(false);
   const [isSavingPronto, setIsSavingPronto] = useState(false);
+  const [isRunningProntoNow, setIsRunningProntoNow] = useState(false);
   const [dedupePRFNo, setDedupePRFNo] = useState('');
   const [dedupeBudgetYear, setDedupeBudgetYear] = useState('');
   const [isPreviewing, setIsPreviewing] = useState(false);
@@ -291,7 +315,15 @@ const Settings: React.FC = () => {
           logEvery: typeof settings.logEvery === 'number' ? String(settings.logEvery) : '25',
           headless: settings.headless !== false,
           captureScreenshots: !!settings.captureScreenshots,
-          writePerPoJson: !!settings.writePerPoJson
+          writePerPoJson: !!settings.writePerPoJson,
+          timeZone: typeof settings.timeZone === 'string' && settings.timeZone.trim().length > 0 ? settings.timeZone.trim() : 'Asia/Jakarta'
+        });
+        setProntoStatus({
+          runNowRequestedAt: typeof settings.runNowRequestedAt === 'string' ? settings.runNowRequestedAt : null,
+          runNowRequestedBy: typeof settings.runNowRequestedBy === 'string' ? settings.runNowRequestedBy : null,
+          lastRunStartedAt: typeof settings.lastRunStartedAt === 'string' ? settings.lastRunStartedAt : null,
+          lastRunFinishedAt: typeof settings.lastRunFinishedAt === 'string' ? settings.lastRunFinishedAt : null,
+          lastRunExitCode: typeof settings.lastRunExitCode === 'number' ? settings.lastRunExitCode : null
         });
       }
     } catch (error) {
@@ -338,7 +370,8 @@ const Settings: React.FC = () => {
         logEvery,
         headless: prontoSettings.headless,
         captureScreenshots: prontoSettings.captureScreenshots,
-        writePerPoJson: prontoSettings.writePerPoJson
+        writePerPoJson: prontoSettings.writePerPoJson,
+        timeZone: prontoSettings.timeZone.trim().length > 0 ? prontoSettings.timeZone.trim() : null
       };
 
       const response = await fetch('/api/settings/pronto-sync', {
@@ -363,6 +396,48 @@ const Settings: React.FC = () => {
       toast({ title: 'Error', description: 'Network error while saving Pronto Sync settings.', variant: 'destructive' });
     } finally {
       setIsSavingPronto(false);
+    }
+  };
+
+  const formatProntoTimestamp = (iso: string) => {
+    const tz = prontoSettings.timeZone.trim().length > 0 ? prontoSettings.timeZone.trim() : 'Asia/Jakarta';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) {
+      return iso;
+    }
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'medium',
+        timeZone: tz
+      }).format(d);
+    } catch {
+      return d.toLocaleString();
+    }
+  };
+
+  const runProntoSyncNow = async () => {
+    setIsRunningProntoNow(true);
+    try {
+      const response = await fetch('/api/settings/pronto-sync/run-now', {
+        method: 'POST',
+        headers: authService.getAuthHeaders()
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        toast({
+          title: 'Error',
+          description: text || 'Failed to request Pronto sync run.',
+          variant: 'destructive'
+        });
+        return;
+      }
+      toast({ title: 'Requested', description: 'Run requested. Worker will pick it up shortly.', variant: 'default' });
+      await loadSettings();
+    } catch {
+      toast({ title: 'Error', description: 'Network error while requesting run.', variant: 'destructive' });
+    } finally {
+      setIsRunningProntoNow(false);
     }
   };
 
@@ -1540,6 +1615,43 @@ const Settings: React.FC = () => {
                 </Alert>
               )}
 
+              {(prontoStatus.runNowRequestedAt || prontoStatus.lastRunFinishedAt || prontoStatus.lastRunExitCode !== null) && (
+                <Alert>
+                  <AlertDescription>
+                    <div className="space-y-2">
+                      {prontoStatus.runNowRequestedAt && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="warning">Run requested</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {formatProntoTimestamp(prontoStatus.runNowRequestedAt)}
+                          </span>
+                          {prontoStatus.runNowRequestedBy && (
+                            <span className="text-xs text-muted-foreground">by {prontoStatus.runNowRequestedBy}</span>
+                          )}
+                        </div>
+                      )}
+                      {(prontoStatus.lastRunStartedAt || prontoStatus.lastRunFinishedAt || prontoStatus.lastRunExitCode !== null) && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant={prontoStatus.lastRunExitCode === 0 ? 'success' : 'destructive'}>
+                            Last run {prontoStatus.lastRunExitCode === null ? 'unknown' : `exit ${prontoStatus.lastRunExitCode}`}
+                          </Badge>
+                          {prontoStatus.lastRunStartedAt && (
+                            <span className="text-xs text-muted-foreground">
+                              start {formatProntoTimestamp(prontoStatus.lastRunStartedAt)}
+                            </span>
+                          )}
+                          {prontoStatus.lastRunFinishedAt && (
+                            <span className="text-xs text-muted-foreground">
+                              finish {formatProntoTimestamp(prontoStatus.lastRunFinishedAt)}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div className="space-y-4">
                 <div className="flex items-center space-x-2">
                   <input
@@ -1605,6 +1717,25 @@ const Settings: React.FC = () => {
                       onChange={(e) => setProntoSettings((prev) => ({ ...prev, logEvery: e.target.value }))}
                       placeholder="e.g., 25"
                     />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-12 gap-4">
+                  <div className="col-span-12 md:col-span-6 space-y-2">
+                    <Label htmlFor="pronto-timezone">Time zone</Label>
+                    <Input
+                      id="pronto-timezone"
+                      type="text"
+                      value={prontoSettings.timeZone}
+                      onChange={(e) => setProntoSettings((prev) => ({ ...prev, timeZone: e.target.value }))}
+                      placeholder="e.g., Asia/Jakarta"
+                    />
+                  </div>
+                  <div className="col-span-12 md:col-span-6 space-y-2">
+                    <Label>Time zone examples</Label>
+                    <div className="text-xs text-muted-foreground">
+                      Asia/Jakarta, UTC, Asia/Makassar, Asia/Jayapura
+                    </div>
                   </div>
                 </div>
 
@@ -1682,6 +1813,9 @@ const Settings: React.FC = () => {
               </div>
 
               <div className="flex justify-end space-x-2">
+                <Button onClick={runProntoSyncNow} disabled={isRunningProntoNow} variant="outline">
+                  {isRunningProntoNow ? 'Requesting...' : 'Run Sync Now'}
+                </Button>
                 <Button onClick={saveProntoSettings} disabled={isSavingPronto}>
                   <Save className="h-4 w-4 mr-2" />
                   {isSavingPronto ? 'Saving...' : 'Save Settings'}

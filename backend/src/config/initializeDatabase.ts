@@ -141,6 +141,18 @@ export const ensureTablesExist = async (): Promise<void> => {
         ALTER TABLE dbo.AppSettings ADD ProntoCaptureScreenshots BIT NOT NULL CONSTRAINT DF_AppSettings_ProntoCaptureScreenshots DEFAULT 0;
       IF COL_LENGTH('dbo.AppSettings', 'ProntoWritePerPoJson') IS NULL
         ALTER TABLE dbo.AppSettings ADD ProntoWritePerPoJson BIT NOT NULL CONSTRAINT DF_AppSettings_ProntoWritePerPoJson DEFAULT 0;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncRunNowRequestedAt') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoSyncRunNowRequestedAt DATETIME2 NULL;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncRunNowRequestedBy') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoSyncRunNowRequestedBy NVARCHAR(100) NULL;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncLastRunStartedAt') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoSyncLastRunStartedAt DATETIME2 NULL;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncLastRunFinishedAt') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoSyncLastRunFinishedAt DATETIME2 NULL;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncLastRunExitCode') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoSyncLastRunExitCode INT NULL;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncTimeZone') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoSyncTimeZone NVARCHAR(64) NULL;
     `;
     await executeQuery(ensureProntoColumns);
 

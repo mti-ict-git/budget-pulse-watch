@@ -2,8 +2,10 @@ import os
 import random
 import signal
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 
 import requests
@@ -63,8 +65,51 @@ def _sleep_seconds(seconds: int, *, stop_flag: List[bool]) -> None:
         remaining -= step
 
 
+def _load_env_file(path: str, *, override: bool) -> None:
+    if not path:
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return
+
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        key = k.strip()
+        value = v.strip()
+        if not key:
+            continue
+        if not override and key in os.environ:
+            continue
+        if len(value) >= 2 and ((value[0] == value[-1] == "'") or (value[0] == value[-1] == '"')):
+            value = value[1:-1]
+        os.environ[key] = value
+
+
+def _resolve_scripts_dir() -> str:
+    explicit = str(os.getenv("PRONTO_SYNC_SCRIPTS_DIR") or "").strip()
+    if explicit:
+        return explicit
+    if os.path.isdir("/app/scripts"):
+        return "/app/scripts"
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(here, "..", ".."))
+    candidate = os.path.join(repo_root, "backend", "scripts")
+    if os.path.isdir(candidate):
+        return candidate
+    return "/app/scripts"
+
+
 def _run_step(step: Step) -> int:
-    cmd = ["python", "/app/scripts/prf_pronto_sync.py", *step.args]
+    scripts_dir = _resolve_scripts_dir()
+    script_path = os.path.join(scripts_dir, "prf_pronto_sync.py")
+    cmd = [sys.executable, script_path, *step.args]
     print(f"[pronto-sync] step={step.name} start cmd={' '.join(cmd)}", flush=True)
     t0 = time.monotonic()
     p = subprocess.run(cmd, check=False)
@@ -168,20 +213,61 @@ def _merge_config(payload: object, fallback: SyncConfig) -> SyncConfig:
     )
 
 
-def _fetch_config(*, base_url: str, api_key: str, fallback: SyncConfig) -> Tuple[SyncConfig, bool]:
+def _fetch_config(*, base_url: str, api_key: str, fallback: SyncConfig) -> Tuple[SyncConfig, Optional[dict], bool]:
     if not base_url or not api_key:
-        return fallback, False
+        return fallback, None, False
     url = base_url.rstrip("/") + "/api/settings/pronto-sync"
     headers = {"x-api-key": api_key, "accept": "application/json"}
     try:
         resp = requests.get(url, headers=headers, timeout=20)
         if resp.status_code != 200:
-            return fallback, False
+            return fallback, None, False
         payload = resp.json()
         merged = _merge_config(payload, fallback)
-        return merged, True
+        if isinstance(payload, dict):
+            return merged, payload, True
+        return merged, None, True
     except Exception:
-        return fallback, False
+        return fallback, None, False
+
+
+def _parse_iso_ms(value: object) -> Optional[int]:
+    if not isinstance(value, str):
+        return None
+    s = value.strip()
+    if not s:
+        return None
+    try:
+        iso = s.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(iso)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return int(dt.timestamp() * 1000)
+    except Exception:
+        return None
+
+
+def _extract_run_request_ms(payload: Optional[dict]) -> Optional[int]:
+    if not payload:
+        return None
+    return _parse_iso_ms(payload.get("runNowRequestedAt"))
+
+
+def _report_run_complete(*, base_url: str, api_key: str, exit_code: int, started_at: str, finished_at: str) -> bool:
+    if not base_url or not api_key:
+        return False
+    url = base_url.rstrip("/") + "/api/settings/pronto-sync/run-now/complete"
+    headers = {"x-api-key": api_key, "accept": "application/json", "content-type": "application/json"}
+    try:
+        resp = requests.post(
+            url,
+            headers=headers,
+            json={"exitCode": int(exit_code), "startedAt": started_at, "finishedAt": finished_at},
+            timeout=20,
+        )
+        return resp.status_code == 200
+    except Exception:
+        return False
 
 
 def _build_steps(config: SyncConfig) -> List[Step]:
@@ -214,6 +300,11 @@ def _build_steps(config: SyncConfig) -> List[Step]:
 def main() -> int:
     stop_flag: List[bool] = [False]
 
+    env_file = str(os.getenv("PRONTO_ENV_FILE") or "").strip()
+    env_override = _parse_bool(os.getenv("PRONTO_ENV_OVERRIDE"), False)
+    if env_file:
+        _load_env_file(env_file, override=env_override)
+
     def _handle(_sig: int, _frame) -> None:
         stop_flag[0] = True
 
@@ -241,25 +332,29 @@ def main() -> int:
         _sleep_seconds(initial_delay_seconds, stop_flag=stop_flag)
 
     loop = 0
+    last_handled_request_ms: Optional[int] = None
     while not stop_flag[0]:
         loop += 1
         fallback = last_config if last_config is not None else env_fallback
-        config, loaded = _fetch_config(base_url=base_url, api_key=api_key, fallback=fallback)
+        config, payload, loaded = _fetch_config(base_url=base_url, api_key=api_key, fallback=fallback)
         last_config = config
 
         interval_seconds = max(60, int(config.interval_minutes) * 60)
+        requested_ms = _extract_run_request_ms(payload)
+        requested_now = requested_ms is not None and (last_handled_request_ms is None or requested_ms > last_handled_request_ms)
         print(
-            f"[pronto-sync] cycle_start loop={loop} loaded_from_api={loaded} enabled={config.enabled} budget_year={config.budget_year} apply={config.apply} interval_seconds={interval_seconds}",
+            f"[pronto-sync] cycle_start loop={loop} loaded_from_api={loaded} enabled={config.enabled} requested_now={requested_now} budget_year={config.budget_year} apply={config.apply} interval_seconds={interval_seconds}",
             flush=True,
         )
 
         steps = _build_steps(config)
         any_enabled = False
         worst_exit = 0
+        started_at = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
         for step in steps:
             if stop_flag[0]:
                 break
-            if not config.enabled:
+            if not config.enabled and not requested_now:
                 break
             if not step.enabled:
                 continue
@@ -267,9 +362,21 @@ def main() -> int:
             code = _run_step(step)
             if code != 0:
                 worst_exit = code
+        finished_at = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
 
         if not any_enabled:
             print("[pronto-sync] no steps enabled; sleeping", flush=True)
+
+        if requested_now:
+            last_handled_request_ms = requested_ms
+            ok = _report_run_complete(
+                base_url=base_url,
+                api_key=api_key,
+                exit_code=worst_exit,
+                started_at=started_at,
+                finished_at=finished_at,
+            )
+            print(f"[pronto-sync] run_now_complete reported={ok} exit_code={worst_exit}", flush=True)
 
         if run_once:
             return worst_exit

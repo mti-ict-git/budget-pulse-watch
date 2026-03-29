@@ -37,6 +37,12 @@ interface ProntoSyncSettings {
   headless: boolean;
   captureScreenshots: boolean;
   writePerPoJson: boolean;
+  timeZone?: string | null;
+  runNowRequestedAt?: string | null;
+  runNowRequestedBy?: string | null;
+  lastRunStartedAt?: string | null;
+  lastRunFinishedAt?: string | null;
+  lastRunExitCode?: number | null;
 }
 
 interface AppSettings {
@@ -64,6 +70,27 @@ interface DbAppSettingsRow {
   ProntoHeadless: number | null;
   ProntoCaptureScreenshots: number | null;
   ProntoWritePerPoJson: number | null;
+  ProntoSyncRunNowRequestedAt: Date | null;
+  ProntoSyncRunNowRequestedBy: string | null;
+  ProntoSyncLastRunStartedAt: Date | null;
+  ProntoSyncLastRunFinishedAt: Date | null;
+  ProntoSyncLastRunExitCode: number | null;
+  ProntoSyncTimeZone: string | null;
+}
+
+function toIsoOrNull(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string') {
+    const s = value.trim();
+    return s.length > 0 ? s : null;
+  }
+  return null;
+}
+
+function parseIsoDate(value: string): Date | null {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 type FolderMountInfo = {
@@ -249,7 +276,7 @@ async function ensureDataDirectory() {
 async function loadSettings(): Promise<AppSettings> {
   try {
     const result = await executeQuery<DbAppSettingsRow>(
-      'SELECT TOP 1 Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath, ProntoSyncEnabled, ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled, ProntoSyncBudgetYear, ProntoSyncIntervalMinutes, ProntoSyncApply, ProntoSyncMaxPrfs, ProntoSyncLimit, ProntoSyncLogEvery, ProntoHeadless, ProntoCaptureScreenshots, ProntoWritePerPoJson FROM AppSettings ORDER BY SettingsID DESC'
+      'SELECT TOP 1 Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath, ProntoSyncEnabled, ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled, ProntoSyncBudgetYear, ProntoSyncIntervalMinutes, ProntoSyncApply, ProntoSyncMaxPrfs, ProntoSyncLimit, ProntoSyncLogEvery, ProntoHeadless, ProntoCaptureScreenshots, ProntoWritePerPoJson, ProntoSyncRunNowRequestedAt, ProntoSyncRunNowRequestedBy, ProntoSyncLastRunStartedAt, ProntoSyncLastRunFinishedAt, ProntoSyncLastRunExitCode, ProntoSyncTimeZone FROM AppSettings ORDER BY SettingsID DESC'
     );
     const row = result.recordset[0];
     if (row) {
@@ -289,7 +316,13 @@ async function loadSettings(): Promise<AppSettings> {
               : 25,
           headless: row.ProntoHeadless === null ? true : !!row.ProntoHeadless,
           captureScreenshots: !!row.ProntoCaptureScreenshots,
-          writePerPoJson: !!row.ProntoWritePerPoJson
+          writePerPoJson: !!row.ProntoWritePerPoJson,
+          timeZone: typeof row.ProntoSyncTimeZone === 'string' && row.ProntoSyncTimeZone.trim().length > 0 ? row.ProntoSyncTimeZone.trim() : null,
+          runNowRequestedAt: toIsoOrNull(row.ProntoSyncRunNowRequestedAt),
+          runNowRequestedBy: typeof row.ProntoSyncRunNowRequestedBy === 'string' ? row.ProntoSyncRunNowRequestedBy : null,
+          lastRunStartedAt: toIsoOrNull(row.ProntoSyncLastRunStartedAt),
+          lastRunFinishedAt: toIsoOrNull(row.ProntoSyncLastRunFinishedAt),
+          lastRunExitCode: typeof row.ProntoSyncLastRunExitCode === 'number' ? row.ProntoSyncLastRunExitCode : null
         }
       };
       return settings;
@@ -321,7 +354,8 @@ async function loadSettings(): Promise<AppSettings> {
               logEvery: 25,
               headless: true,
               captureScreenshots: false,
-              writePerPoJson: false
+              writePerPoJson: false,
+              timeZone: 'Asia/Jakarta'
             }
       };
     } catch {
@@ -344,7 +378,8 @@ async function loadSettings(): Promise<AppSettings> {
           logEvery: 25,
           headless: true,
           captureScreenshots: false,
-          writePerPoJson: false
+          writePerPoJson: false,
+          timeZone: 'Asia/Jakarta'
         }
       };
     }
@@ -368,7 +403,8 @@ async function loadSettings(): Promise<AppSettings> {
         logEvery: 25,
         headless: true,
         captureScreenshots: false,
-        writePerPoJson: false
+        writePerPoJson: false,
+        timeZone: 'Asia/Jakarta'
       }
     };
   }
@@ -389,13 +425,14 @@ async function saveSettings(settings: AppSettings): Promise<void> {
     logEvery: 25,
     headless: true,
     captureScreenshots: false,
-    writePerPoJson: false
+    writePerPoJson: false,
+    timeZone: 'Asia/Jakarta'
   };
   const existing = await executeQuery<{ Count: number }>('SELECT COUNT(*) AS Count FROM AppSettings');
   const hasRow = (existing.recordset[0]?.Count || 0) > 0;
   if (hasRow) {
     await executeQuery(
-      'UPDATE AppSettings SET Provider=@Provider, GeminiApiKeyEnc=@GeminiApiKeyEnc, OpenAIApiKeyEnc=@OpenAIApiKeyEnc, Enabled=@Enabled, Model=@Model, SharedFolderPath=@SharedFolderPath, ProntoSyncEnabled=@ProntoSyncEnabled, ProntoSyncHeaderEnabled=@ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled=@ProntoSyncItemsEnabled, ProntoSyncBudgetYear=@ProntoSyncBudgetYear, ProntoSyncIntervalMinutes=@ProntoSyncIntervalMinutes, ProntoSyncApply=@ProntoSyncApply, ProntoSyncMaxPrfs=@ProntoSyncMaxPrfs, ProntoSyncLimit=@ProntoSyncLimit, ProntoSyncLogEvery=@ProntoSyncLogEvery, ProntoHeadless=@ProntoHeadless, ProntoCaptureScreenshots=@ProntoCaptureScreenshots, ProntoWritePerPoJson=@ProntoWritePerPoJson, UpdatedAt=GETDATE()',
+      'UPDATE AppSettings SET Provider=@Provider, GeminiApiKeyEnc=@GeminiApiKeyEnc, OpenAIApiKeyEnc=@OpenAIApiKeyEnc, Enabled=@Enabled, Model=@Model, SharedFolderPath=@SharedFolderPath, ProntoSyncEnabled=@ProntoSyncEnabled, ProntoSyncHeaderEnabled=@ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled=@ProntoSyncItemsEnabled, ProntoSyncBudgetYear=@ProntoSyncBudgetYear, ProntoSyncIntervalMinutes=@ProntoSyncIntervalMinutes, ProntoSyncApply=@ProntoSyncApply, ProntoSyncMaxPrfs=@ProntoSyncMaxPrfs, ProntoSyncLimit=@ProntoSyncLimit, ProntoSyncLogEvery=@ProntoSyncLogEvery, ProntoHeadless=@ProntoHeadless, ProntoCaptureScreenshots=@ProntoCaptureScreenshots, ProntoWritePerPoJson=@ProntoWritePerPoJson, ProntoSyncTimeZone=@ProntoSyncTimeZone, UpdatedAt=GETDATE()',
       {
         Provider: settings.ocr.provider,
         GeminiApiKeyEnc: encGemini,
@@ -414,12 +451,13 @@ async function saveSettings(settings: AppSettings): Promise<void> {
         ProntoSyncLogEvery: pronto.logEvery,
         ProntoHeadless: pronto.headless ? 1 : 0,
         ProntoCaptureScreenshots: pronto.captureScreenshots ? 1 : 0,
-        ProntoWritePerPoJson: pronto.writePerPoJson ? 1 : 0
+        ProntoWritePerPoJson: pronto.writePerPoJson ? 1 : 0,
+        ProntoSyncTimeZone: pronto.timeZone || null
       }
     );
   } else {
     await executeQuery(
-      'INSERT INTO AppSettings (Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath, ProntoSyncEnabled, ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled, ProntoSyncBudgetYear, ProntoSyncIntervalMinutes, ProntoSyncApply, ProntoSyncMaxPrfs, ProntoSyncLimit, ProntoSyncLogEvery, ProntoHeadless, ProntoCaptureScreenshots, ProntoWritePerPoJson) VALUES (@Provider, @GeminiApiKeyEnc, @OpenAIApiKeyEnc, @Enabled, @Model, @SharedFolderPath, @ProntoSyncEnabled, @ProntoSyncHeaderEnabled, @ProntoSyncItemsEnabled, @ProntoSyncBudgetYear, @ProntoSyncIntervalMinutes, @ProntoSyncApply, @ProntoSyncMaxPrfs, @ProntoSyncLimit, @ProntoSyncLogEvery, @ProntoHeadless, @ProntoCaptureScreenshots, @ProntoWritePerPoJson)',
+      'INSERT INTO AppSettings (Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath, ProntoSyncEnabled, ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled, ProntoSyncBudgetYear, ProntoSyncIntervalMinutes, ProntoSyncApply, ProntoSyncMaxPrfs, ProntoSyncLimit, ProntoSyncLogEvery, ProntoHeadless, ProntoCaptureScreenshots, ProntoWritePerPoJson, ProntoSyncTimeZone) VALUES (@Provider, @GeminiApiKeyEnc, @OpenAIApiKeyEnc, @Enabled, @Model, @SharedFolderPath, @ProntoSyncEnabled, @ProntoSyncHeaderEnabled, @ProntoSyncItemsEnabled, @ProntoSyncBudgetYear, @ProntoSyncIntervalMinutes, @ProntoSyncApply, @ProntoSyncMaxPrfs, @ProntoSyncLimit, @ProntoSyncLogEvery, @ProntoHeadless, @ProntoCaptureScreenshots, @ProntoWritePerPoJson, @ProntoSyncTimeZone)',
       {
         Provider: settings.ocr.provider,
         GeminiApiKeyEnc: encGemini,
@@ -438,7 +476,8 @@ async function saveSettings(settings: AppSettings): Promise<void> {
         ProntoSyncLogEvery: pronto.logEvery,
         ProntoHeadless: pronto.headless ? 1 : 0,
         ProntoCaptureScreenshots: pronto.captureScreenshots ? 1 : 0,
-        ProntoWritePerPoJson: pronto.writePerPoJson ? 1 : 0
+        ProntoWritePerPoJson: pronto.writePerPoJson ? 1 : 0,
+        ProntoSyncTimeZone: pronto.timeZone || null
       }
     );
   }
@@ -644,7 +683,8 @@ router.post('/pronto-sync', authenticateToken, requireAdmin, async (req: Request
       logEvery,
       headless,
       captureScreenshots,
-      writePerPoJson
+      writePerPoJson,
+      timeZone
     } = req.body as Record<string, unknown>;
 
     if (typeof enabled !== 'boolean') {
@@ -683,6 +723,11 @@ router.post('/pronto-sync', authenticateToken, requireAdmin, async (req: Request
     if (typeof writePerPoJson !== 'boolean') {
       return res.status(400).json({ error: 'writePerPoJson must be a boolean' });
     }
+    if (!(timeZone === null || typeof timeZone === 'string' || typeof timeZone === 'undefined')) {
+      return res.status(400).json({ error: 'timeZone must be a string or null' });
+    }
+    const tz = typeof timeZone === 'string' ? timeZone.trim() : '';
+    const normalizedTimeZone = tz.length > 0 ? tz.slice(0, 64) : null;
 
     const normalizedBudgetYear = budgetYear === null ? null : Math.trunc(budgetYear);
     const normalizedMaxPrfs = maxPrfs === null ? null : Math.trunc(maxPrfs);
@@ -700,13 +745,63 @@ router.post('/pronto-sync', authenticateToken, requireAdmin, async (req: Request
       logEvery: Math.trunc(logEvery),
       headless,
       captureScreenshots,
-      writePerPoJson
+      writePerPoJson,
+      timeZone: normalizedTimeZone
     };
     await saveSettings(currentSettings);
     return res.json({ message: 'Pronto sync settings saved successfully' });
   } catch (error) {
     console.error('Failed to save pronto sync settings:', error);
     return res.status(500).json({ error: 'Failed to save pronto sync settings' });
+  }
+});
+
+router.post('/pronto-sync/run-now', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const requestedBy = typeof req.user?.Username === 'string' ? req.user.Username : 'unknown';
+    await executeQuery(
+      'UPDATE AppSettings SET ProntoSyncRunNowRequestedAt=SYSUTCDATETIME(), ProntoSyncRunNowRequestedBy=@RequestedBy, UpdatedAt=SYSUTCDATETIME()',
+      { RequestedBy: requestedBy }
+    );
+    return res.json({ message: 'Run requested' });
+  } catch (error) {
+    console.error('Failed to request pronto sync run:', error);
+    return res.status(500).json({ error: 'Failed to request run' });
+  }
+});
+
+router.post('/pronto-sync/run-now/complete', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { exitCode, startedAt, finishedAt } = req.body as Record<string, unknown>;
+    if (typeof exitCode !== 'number' || !Number.isFinite(exitCode)) {
+      return res.status(400).json({ error: 'exitCode must be a number' });
+    }
+    if (typeof startedAt !== 'string' || startedAt.trim().length === 0) {
+      return res.status(400).json({ error: 'startedAt must be a non-empty string' });
+    }
+    if (typeof finishedAt !== 'string' || finishedAt.trim().length === 0) {
+      return res.status(400).json({ error: 'finishedAt must be a non-empty string' });
+    }
+    const started = parseIsoDate(startedAt);
+    const finished = parseIsoDate(finishedAt);
+    if (!started) {
+      return res.status(400).json({ error: 'startedAt must be a valid ISO date string' });
+    }
+    if (!finished) {
+      return res.status(400).json({ error: 'finishedAt must be a valid ISO date string' });
+    }
+    await executeQuery(
+      'UPDATE AppSettings SET ProntoSyncRunNowRequestedAt=NULL, ProntoSyncRunNowRequestedBy=NULL, ProntoSyncLastRunStartedAt=@StartedAt, ProntoSyncLastRunFinishedAt=@FinishedAt, ProntoSyncLastRunExitCode=@ExitCode, UpdatedAt=SYSUTCDATETIME()',
+      {
+        StartedAt: started,
+        FinishedAt: finished,
+        ExitCode: Math.trunc(exitCode)
+      }
+    );
+    return res.json({ message: 'Run recorded' });
+  } catch (error) {
+    console.error('Failed to record pronto sync run:', error);
+    return res.status(500).json({ error: 'Failed to record run' });
   }
 });
 

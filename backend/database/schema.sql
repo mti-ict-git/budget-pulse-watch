@@ -37,6 +37,12 @@ CREATE TABLE AppSettings (
     ProntoHeadless BIT NOT NULL DEFAULT 1,
     ProntoCaptureScreenshots BIT NOT NULL DEFAULT 0,
     ProntoWritePerPoJson BIT NOT NULL DEFAULT 0,
+    ProntoSyncRunNowRequestedAt DATETIME2 NULL,
+    ProntoSyncRunNowRequestedBy NVARCHAR(100) NULL,
+    ProntoSyncLastRunStartedAt DATETIME2 NULL,
+    ProntoSyncLastRunFinishedAt DATETIME2 NULL,
+    ProntoSyncLastRunExitCode INT NULL,
+    ProntoSyncTimeZone NVARCHAR(64) NULL,
     UpdatedAt DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 GO
