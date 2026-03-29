@@ -97,12 +97,52 @@ export const ensureTablesExist = async (): Promise<void> => {
           Enabled BIT NOT NULL DEFAULT 0,
           Model NVARCHAR(100) NULL,
           SharedFolderPath NVARCHAR(500) NULL,
+          ProntoSyncEnabled BIT NOT NULL DEFAULT 0,
+          ProntoSyncHeaderEnabled BIT NOT NULL DEFAULT 1,
+          ProntoSyncItemsEnabled BIT NOT NULL DEFAULT 1,
+          ProntoSyncBudgetYear INT NULL,
+          ProntoSyncIntervalMinutes INT NOT NULL DEFAULT 60,
+          ProntoSyncApply BIT NOT NULL DEFAULT 0,
+          ProntoSyncMaxPrfs INT NULL,
+          ProntoSyncLimit INT NOT NULL DEFAULT 1000,
+          ProntoSyncLogEvery INT NOT NULL DEFAULT 25,
+          ProntoHeadless BIT NOT NULL DEFAULT 1,
+          ProntoCaptureScreenshots BIT NOT NULL DEFAULT 0,
+          ProntoWritePerPoJson BIT NOT NULL DEFAULT 0,
           UpdatedAt DATETIME2 NOT NULL DEFAULT GETDATE()
         )
       `;
       await executeQuery(createSettingsQuery);
       console.log('✅ AppSettings table created');
     }
+
+    const ensureProntoColumns = `
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncEnabled') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoSyncEnabled BIT NOT NULL CONSTRAINT DF_AppSettings_ProntoSyncEnabled DEFAULT 0;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncHeaderEnabled') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoSyncHeaderEnabled BIT NOT NULL CONSTRAINT DF_AppSettings_ProntoSyncHeaderEnabled DEFAULT 1;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncItemsEnabled') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoSyncItemsEnabled BIT NOT NULL CONSTRAINT DF_AppSettings_ProntoSyncItemsEnabled DEFAULT 1;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncBudgetYear') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoSyncBudgetYear INT NULL;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncIntervalMinutes') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoSyncIntervalMinutes INT NOT NULL CONSTRAINT DF_AppSettings_ProntoSyncIntervalMinutes DEFAULT 60;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncApply') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoSyncApply BIT NOT NULL CONSTRAINT DF_AppSettings_ProntoSyncApply DEFAULT 0;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncMaxPrfs') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoSyncMaxPrfs INT NULL;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncLimit') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoSyncLimit INT NOT NULL CONSTRAINT DF_AppSettings_ProntoSyncLimit DEFAULT 1000;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncLogEvery') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoSyncLogEvery INT NOT NULL CONSTRAINT DF_AppSettings_ProntoSyncLogEvery DEFAULT 25;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoHeadless') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoHeadless BIT NOT NULL CONSTRAINT DF_AppSettings_ProntoHeadless DEFAULT 1;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoCaptureScreenshots') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoCaptureScreenshots BIT NOT NULL CONSTRAINT DF_AppSettings_ProntoCaptureScreenshots DEFAULT 0;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoWritePerPoJson') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoWritePerPoJson BIT NOT NULL CONSTRAINT DF_AppSettings_ProntoWritePerPoJson DEFAULT 0;
+    `;
+    await executeQuery(ensureProntoColumns);
 
     const checkSettingsRow = `SELECT COUNT(*) AS Count FROM AppSettings`;
     const settingsCount = await executeQuery<{ Count: number }>(checkSettingsRow);

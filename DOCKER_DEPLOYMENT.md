@@ -56,6 +56,39 @@ Similar to production but with staging-specific database and URLs.
 - `docker-compose.staging.yml` - Staging overrides  
 - `docker-compose.production.yml` - Production overrides
 
+## Pronto Sync Worker
+
+A dedicated container (`pronto_sync`) can run the Pronto synchronization script on an interval without impacting the main backend service.
+
+### Required Environment Variables
+
+Provide these variables to the `pronto_sync` service (preferably via your environment file or Docker secrets):
+
+```bash
+POMON_API_KEY=...
+POMON_BASE_URL=http://backend:3001
+TARGET_URL=https://newpronto.merdekacoppergold.com:8443/
+PRONTO_USERNAME=...
+PRONTO_PASSWORD=...
+```
+
+### Worker Controls
+
+```bash
+PRONTO_SYNC_ENABLED=true
+PRONTO_SYNC_JITTER_SECONDS=30
+ARTIFACTS_DIR=/app/artifacts
+PRONTO_HEADLESS=1
+PRONTO_CAPTURE_SCREENSHOTS=0
+PRONTO_WRITE_PER_PO_JSON=0
+```
+
+Reports and artifacts are written to `./backend/artifacts` (mounted into the worker container).
+
+### Runtime Configuration (Database)
+
+Non-secret Pronto Sync parameters (enabled, interval, budget year, apply/dry-run, max PRFs, log frequency, headless/screenshots options) are stored in the application settings database and can be updated from the Settings page.
+
 ## Network Share Configuration
 
 The application uses CIFS mounting to access the network share:

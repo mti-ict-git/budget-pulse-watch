@@ -27,6 +27,36 @@ interface GeneralSettings {
   sharedFolderPath: string;
 }
 
+type ProntoSyncSettings = {
+  enabled: boolean;
+  headerEnabled: boolean;
+  itemsEnabled: boolean;
+  budgetYear: number | null;
+  intervalMinutes: number;
+  apply: boolean;
+  maxPrfs: number | null;
+  limit: number;
+  logEvery: number;
+  headless: boolean;
+  captureScreenshots: boolean;
+  writePerPoJson: boolean;
+};
+
+type ProntoSyncSettingsState = {
+  enabled: boolean;
+  headerEnabled: boolean;
+  itemsEnabled: boolean;
+  budgetYear: string;
+  intervalMinutes: string;
+  apply: boolean;
+  maxPrfs: string;
+  limit: string;
+  logEvery: string;
+  headless: boolean;
+  captureScreenshots: boolean;
+  writePerPoJson: boolean;
+};
+
 type FolderMountInfo = {
   inDocker: boolean;
   mountPoint: string | null;
@@ -119,11 +149,26 @@ const Settings: React.FC = () => {
   const [generalSettings, setGeneralSettings] = useState<GeneralSettings>({
     sharedFolderPath: ''
   });
+  const [prontoSettings, setProntoSettings] = useState<ProntoSyncSettingsState>({
+    enabled: false,
+    headerEnabled: true,
+    itemsEnabled: true,
+    budgetYear: '',
+    intervalMinutes: '60',
+    apply: false,
+    maxPrfs: '',
+    limit: '1000',
+    logEvery: '25',
+    headless: true,
+    captureScreenshots: false,
+    writePerPoJson: false
+  });
   const [showApiKey, setShowApiKey] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isTestingFolder, setIsTestingFolder] = useState(false);
   const [isDeduping, setIsDeduping] = useState(false);
+  const [isSavingPronto, setIsSavingPronto] = useState(false);
   const [dedupePRFNo, setDedupePRFNo] = useState('');
   const [dedupeBudgetYear, setDedupeBudgetYear] = useState('');
   const [isPreviewing, setIsPreviewing] = useState(false);
@@ -228,8 +273,96 @@ const Settings: React.FC = () => {
         setDockerShareMount(settings.dockerShareMount || null);
         setRootFsMount(settings.rootFsMount || null);
       }
+
+      const prontoResponse = await fetch('/api/settings/pronto-sync', {
+        headers: authService.getAuthHeaders()
+      });
+      if (prontoResponse.ok) {
+        const settings = (await prontoResponse.json()) as ProntoSyncSettings;
+        setProntoSettings({
+          enabled: !!settings.enabled,
+          headerEnabled: !!settings.headerEnabled,
+          itemsEnabled: !!settings.itemsEnabled,
+          budgetYear: typeof settings.budgetYear === 'number' ? String(settings.budgetYear) : '',
+          intervalMinutes: typeof settings.intervalMinutes === 'number' ? String(settings.intervalMinutes) : '60',
+          apply: !!settings.apply,
+          maxPrfs: typeof settings.maxPrfs === 'number' ? String(settings.maxPrfs) : '',
+          limit: typeof settings.limit === 'number' ? String(settings.limit) : '1000',
+          logEvery: typeof settings.logEvery === 'number' ? String(settings.logEvery) : '25',
+          headless: settings.headless !== false,
+          captureScreenshots: !!settings.captureScreenshots,
+          writePerPoJson: !!settings.writePerPoJson
+        });
+      }
     } catch (error) {
       console.error('Failed to load OCR settings:', error);
+    }
+  };
+
+  const saveProntoSettings = async () => {
+    setIsSavingPronto(true);
+    try {
+      const intervalMinutes = parseInt(prontoSettings.intervalMinutes.trim(), 10);
+      const limit = parseInt(prontoSettings.limit.trim(), 10);
+      const logEvery = parseInt(prontoSettings.logEvery.trim(), 10);
+
+      if (Number.isNaN(intervalMinutes) || intervalMinutes < 1) {
+        toast({ title: 'Error', description: 'Interval must be a number >= 1.', variant: 'destructive' });
+        return;
+      }
+      if (Number.isNaN(limit) || limit < 1) {
+        toast({ title: 'Error', description: 'Limit must be a number >= 1.', variant: 'destructive' });
+        return;
+      }
+      if (Number.isNaN(logEvery) || logEvery < 1) {
+        toast({ title: 'Error', description: 'Log every must be a number >= 1.', variant: 'destructive' });
+        return;
+      }
+
+      const budgetYearRaw = prontoSettings.budgetYear.trim();
+      const budgetYear =
+        budgetYearRaw.length === 0 ? null : (() => { const v = parseInt(budgetYearRaw, 10); return Number.isNaN(v) ? null : v; })();
+      const maxPrfsRaw = prontoSettings.maxPrfs.trim();
+      const maxPrfs =
+        maxPrfsRaw.length === 0 ? null : (() => { const v = parseInt(maxPrfsRaw, 10); return Number.isNaN(v) ? null : v; })();
+
+      const payload: ProntoSyncSettings = {
+        enabled: prontoSettings.enabled,
+        headerEnabled: prontoSettings.headerEnabled,
+        itemsEnabled: prontoSettings.itemsEnabled,
+        budgetYear,
+        intervalMinutes,
+        apply: prontoSettings.apply,
+        maxPrfs,
+        limit,
+        logEvery,
+        headless: prontoSettings.headless,
+        captureScreenshots: prontoSettings.captureScreenshots,
+        writePerPoJson: prontoSettings.writePerPoJson
+      };
+
+      const response = await fetch('/api/settings/pronto-sync', {
+        method: 'POST',
+        headers: {
+          ...authService.getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        toast({
+          title: 'Error',
+          description: text || 'Failed to save Pronto Sync settings.',
+          variant: 'destructive'
+        });
+        return;
+      }
+      toast({ title: 'Saved', description: 'Pronto Sync settings saved successfully.', variant: 'default' });
+    } catch {
+      toast({ title: 'Error', description: 'Network error while saving Pronto Sync settings.', variant: 'destructive' });
+    } finally {
+      setIsSavingPronto(false);
     }
   };
 
@@ -987,6 +1120,7 @@ const Settings: React.FC = () => {
         <TabsList>
           <TabsTrigger value="ocr">OCR Configuration</TabsTrigger>
           <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="pronto">Pronto Sync</TabsTrigger>
           {user?.role === 'admin' && (
             <TabsTrigger value="users">
               <Users className="h-4 w-4 mr-2" />
@@ -1383,6 +1517,174 @@ const Settings: React.FC = () => {
                 <Button onClick={saveGeneralSettings} disabled={isLoading}>
                   <Save className="h-4 w-4 mr-2" />
                   {isLoading ? 'Saving...' : 'Save Settings'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="pronto">
+          <Card>
+            <CardHeader>
+              <CardTitle>Pronto Sync</CardTitle>
+              <CardDescription>
+                Configure automated synchronization from Pronto to PRF Monitoring without blocking the main backend.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {prontoSettings.apply && (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    Apply mode is enabled. This will update PRF data in the system.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="pronto-enabled"
+                    checked={prontoSettings.enabled}
+                    onChange={(e) => setProntoSettings((prev) => ({ ...prev, enabled: e.target.checked }))}
+                    className="rounded border-gray-300"
+                  />
+                  <Label htmlFor="pronto-enabled">Enable scheduled Pronto sync</Label>
+                </div>
+
+                <div className="grid grid-cols-12 gap-4">
+                  <div className="col-span-12 md:col-span-4 space-y-2">
+                    <Label htmlFor="pronto-interval">Interval (minutes)</Label>
+                    <Input
+                      id="pronto-interval"
+                      type="text"
+                      value={prontoSettings.intervalMinutes}
+                      onChange={(e) => setProntoSettings((prev) => ({ ...prev, intervalMinutes: e.target.value }))}
+                      placeholder="e.g., 60"
+                    />
+                  </div>
+                  <div className="col-span-12 md:col-span-4 space-y-2">
+                    <Label htmlFor="pronto-year">Budget Year (optional)</Label>
+                    <Input
+                      id="pronto-year"
+                      type="text"
+                      value={prontoSettings.budgetYear}
+                      onChange={(e) => setProntoSettings((prev) => ({ ...prev, budgetYear: e.target.value }))}
+                      placeholder="e.g., 2026"
+                    />
+                  </div>
+                  <div className="col-span-12 md:col-span-4 space-y-2">
+                    <Label htmlFor="pronto-max-prfs">Max PRFs (optional)</Label>
+                    <Input
+                      id="pronto-max-prfs"
+                      type="text"
+                      value={prontoSettings.maxPrfs}
+                      onChange={(e) => setProntoSettings((prev) => ({ ...prev, maxPrfs: e.target.value }))}
+                      placeholder="e.g., 50"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-12 gap-4">
+                  <div className="col-span-12 md:col-span-6 space-y-2">
+                    <Label htmlFor="pronto-limit">API page limit</Label>
+                    <Input
+                      id="pronto-limit"
+                      type="text"
+                      value={prontoSettings.limit}
+                      onChange={(e) => setProntoSettings((prev) => ({ ...prev, limit: e.target.value }))}
+                      placeholder="e.g., 1000"
+                    />
+                  </div>
+                  <div className="col-span-12 md:col-span-6 space-y-2">
+                    <Label htmlFor="pronto-log-every">Log every</Label>
+                    <Input
+                      id="pronto-log-every"
+                      type="text"
+                      value={prontoSettings.logEvery}
+                      onChange={(e) => setProntoSettings((prev) => ({ ...prev, logEvery: e.target.value }))}
+                      placeholder="e.g., 25"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Sync steps</Label>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="pronto-header"
+                        checked={prontoSettings.headerEnabled}
+                        onChange={(e) => setProntoSettings((prev) => ({ ...prev, headerEnabled: e.target.checked }))}
+                        className="rounded border-gray-300"
+                      />
+                      <Label htmlFor="pronto-header">Sync PRF header fields</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="pronto-items"
+                        checked={prontoSettings.itemsEnabled}
+                        onChange={(e) => setProntoSettings((prev) => ({ ...prev, itemsEnabled: e.target.checked }))}
+                        className="rounded border-gray-300"
+                      />
+                      <Label htmlFor="pronto-items">Sync PRF items (PO mapping & quantities)</Label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Pronto runtime</Label>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="pronto-apply"
+                        checked={prontoSettings.apply}
+                        onChange={(e) => setProntoSettings((prev) => ({ ...prev, apply: e.target.checked }))}
+                        className="rounded border-gray-300"
+                      />
+                      <Label htmlFor="pronto-apply">Apply changes (not dry-run)</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="pronto-headless"
+                        checked={prontoSettings.headless}
+                        onChange={(e) => setProntoSettings((prev) => ({ ...prev, headless: e.target.checked }))}
+                        className="rounded border-gray-300"
+                      />
+                      <Label htmlFor="pronto-headless">Headless browser</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="pronto-screenshots"
+                        checked={prontoSettings.captureScreenshots}
+                        onChange={(e) => setProntoSettings((prev) => ({ ...prev, captureScreenshots: e.target.checked }))}
+                        className="rounded border-gray-300"
+                      />
+                      <Label htmlFor="pronto-screenshots">Capture screenshots</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="pronto-per-po"
+                        checked={prontoSettings.writePerPoJson}
+                        onChange={(e) => setProntoSettings((prev) => ({ ...prev, writePerPoJson: e.target.checked }))}
+                        className="rounded border-gray-300"
+                      />
+                      <Label htmlFor="pronto-per-po">Write per-PO JSON artifacts</Label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-2">
+                <Button onClick={saveProntoSettings} disabled={isSavingPronto}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {isSavingPronto ? 'Saving...' : 'Save Settings'}
                 </Button>
               </div>
             </CardContent>

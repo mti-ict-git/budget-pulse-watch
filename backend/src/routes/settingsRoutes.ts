@@ -24,9 +24,25 @@ interface GeneralSettings {
   sharedFolderPath?: string;
 }
 
+interface ProntoSyncSettings {
+  enabled: boolean;
+  headerEnabled: boolean;
+  itemsEnabled: boolean;
+  budgetYear: number | null;
+  intervalMinutes: number;
+  apply: boolean;
+  maxPrfs: number | null;
+  limit: number;
+  logEvery: number;
+  headless: boolean;
+  captureScreenshots: boolean;
+  writePerPoJson: boolean;
+}
+
 interface AppSettings {
   ocr: OCRSettings;
   general?: GeneralSettings;
+  prontoSync?: ProntoSyncSettings;
 }
 
 interface DbAppSettingsRow {
@@ -36,6 +52,18 @@ interface DbAppSettingsRow {
   Enabled: number;
   Model: string | null;
   SharedFolderPath: string | null;
+  ProntoSyncEnabled: number | null;
+  ProntoSyncHeaderEnabled: number | null;
+  ProntoSyncItemsEnabled: number | null;
+  ProntoSyncBudgetYear: number | null;
+  ProntoSyncIntervalMinutes: number | null;
+  ProntoSyncApply: number | null;
+  ProntoSyncMaxPrfs: number | null;
+  ProntoSyncLimit: number | null;
+  ProntoSyncLogEvery: number | null;
+  ProntoHeadless: number | null;
+  ProntoCaptureScreenshots: number | null;
+  ProntoWritePerPoJson: number | null;
 }
 
 type FolderMountInfo = {
@@ -221,12 +249,14 @@ async function ensureDataDirectory() {
 async function loadSettings(): Promise<AppSettings> {
   try {
     const result = await executeQuery<DbAppSettingsRow>(
-      'SELECT TOP 1 Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath FROM AppSettings ORDER BY SettingsID DESC'
+      'SELECT TOP 1 Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath, ProntoSyncEnabled, ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled, ProntoSyncBudgetYear, ProntoSyncIntervalMinutes, ProntoSyncApply, ProntoSyncMaxPrfs, ProntoSyncLimit, ProntoSyncLogEvery, ProntoHeadless, ProntoCaptureScreenshots, ProntoWritePerPoJson FROM AppSettings ORDER BY SettingsID DESC'
     );
     const row = result.recordset[0];
     if (row) {
       const geminiKey = row.GeminiApiKeyEnc ? decrypt(row.GeminiApiKeyEnc) : '';
       const openaiKey = row.OpenAIApiKeyEnc ? decrypt(row.OpenAIApiKeyEnc) : '';
+      const prontoBudgetYear = typeof row.ProntoSyncBudgetYear === 'number' ? row.ProntoSyncBudgetYear : null;
+      const prontoMaxPrfs = typeof row.ProntoSyncMaxPrfs === 'number' ? row.ProntoSyncMaxPrfs : null;
       const settings: AppSettings = {
         ocr: {
           provider: row.Provider,
@@ -237,6 +267,29 @@ async function loadSettings(): Promise<AppSettings> {
         },
         general: {
           sharedFolderPath: row.SharedFolderPath || ''
+        },
+        prontoSync: {
+          enabled: !!row.ProntoSyncEnabled,
+          headerEnabled: row.ProntoSyncHeaderEnabled === null ? true : !!row.ProntoSyncHeaderEnabled,
+          itemsEnabled: row.ProntoSyncItemsEnabled === null ? true : !!row.ProntoSyncItemsEnabled,
+          budgetYear: prontoBudgetYear,
+          intervalMinutes:
+            typeof row.ProntoSyncIntervalMinutes === 'number' && row.ProntoSyncIntervalMinutes > 0
+              ? row.ProntoSyncIntervalMinutes
+              : 60,
+          apply: !!row.ProntoSyncApply,
+          maxPrfs: prontoMaxPrfs,
+          limit:
+            typeof row.ProntoSyncLimit === 'number' && row.ProntoSyncLimit > 0
+              ? row.ProntoSyncLimit
+              : 1000,
+          logEvery:
+            typeof row.ProntoSyncLogEvery === 'number' && row.ProntoSyncLogEvery > 0
+              ? row.ProntoSyncLogEvery
+              : 25,
+          headless: row.ProntoHeadless === null ? true : !!row.ProntoHeadless,
+          captureScreenshots: !!row.ProntoCaptureScreenshots,
+          writePerPoJson: !!row.ProntoWritePerPoJson
         }
       };
       return settings;
@@ -253,7 +306,23 @@ async function loadSettings(): Promise<AppSettings> {
           enabled: fileSettings.ocr.enabled || false,
           model: fileSettings.ocr.model || 'gemini-1.5-flash'
         },
-        general: fileSettings.general ? { sharedFolderPath: fileSettings.general.sharedFolderPath || '' } : { sharedFolderPath: '' }
+        general: fileSettings.general ? { sharedFolderPath: fileSettings.general.sharedFolderPath || '' } : { sharedFolderPath: '' },
+        prontoSync: fileSettings.prontoSync
+          ? fileSettings.prontoSync
+          : {
+              enabled: false,
+              headerEnabled: true,
+              itemsEnabled: true,
+              budgetYear: null,
+              intervalMinutes: 60,
+              apply: false,
+              maxPrfs: null,
+              limit: 1000,
+              logEvery: 25,
+              headless: true,
+              captureScreenshots: false,
+              writePerPoJson: false
+            }
       };
     } catch {
       return {
@@ -262,7 +331,21 @@ async function loadSettings(): Promise<AppSettings> {
           provider: 'gemini',
           model: 'gemini-1.5-flash'
         },
-        general: { sharedFolderPath: '' }
+        general: { sharedFolderPath: '' },
+        prontoSync: {
+          enabled: false,
+          headerEnabled: true,
+          itemsEnabled: true,
+          budgetYear: null,
+          intervalMinutes: 60,
+          apply: false,
+          maxPrfs: null,
+          limit: 1000,
+          logEvery: 25,
+          headless: true,
+          captureScreenshots: false,
+          writePerPoJson: false
+        }
       };
     }
   } catch {
@@ -272,7 +355,21 @@ async function loadSettings(): Promise<AppSettings> {
         provider: 'gemini',
         model: 'gemini-1.5-flash'
       },
-      general: { sharedFolderPath: '' }
+      general: { sharedFolderPath: '' },
+      prontoSync: {
+        enabled: false,
+        headerEnabled: true,
+        itemsEnabled: true,
+        budgetYear: null,
+        intervalMinutes: 60,
+        apply: false,
+        maxPrfs: null,
+        limit: 1000,
+        logEvery: 25,
+        headless: true,
+        captureScreenshots: false,
+        writePerPoJson: false
+      }
     };
   }
 }
@@ -280,30 +377,68 @@ async function loadSettings(): Promise<AppSettings> {
 async function saveSettings(settings: AppSettings): Promise<void> {
   const encGemini = settings.ocr.geminiApiKey ? encrypt(settings.ocr.geminiApiKey) : null;
   const encOpenAI = settings.ocr.openaiApiKey ? encrypt(settings.ocr.openaiApiKey) : null;
+  const pronto = settings.prontoSync || {
+    enabled: false,
+    headerEnabled: true,
+    itemsEnabled: true,
+    budgetYear: null,
+    intervalMinutes: 60,
+    apply: false,
+    maxPrfs: null,
+    limit: 1000,
+    logEvery: 25,
+    headless: true,
+    captureScreenshots: false,
+    writePerPoJson: false
+  };
   const existing = await executeQuery<{ Count: number }>('SELECT COUNT(*) AS Count FROM AppSettings');
   const hasRow = (existing.recordset[0]?.Count || 0) > 0;
   if (hasRow) {
     await executeQuery(
-      'UPDATE AppSettings SET Provider=@Provider, GeminiApiKeyEnc=@GeminiApiKeyEnc, OpenAIApiKeyEnc=@OpenAIApiKeyEnc, Enabled=@Enabled, Model=@Model, SharedFolderPath=@SharedFolderPath, UpdatedAt=GETDATE()',
+      'UPDATE AppSettings SET Provider=@Provider, GeminiApiKeyEnc=@GeminiApiKeyEnc, OpenAIApiKeyEnc=@OpenAIApiKeyEnc, Enabled=@Enabled, Model=@Model, SharedFolderPath=@SharedFolderPath, ProntoSyncEnabled=@ProntoSyncEnabled, ProntoSyncHeaderEnabled=@ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled=@ProntoSyncItemsEnabled, ProntoSyncBudgetYear=@ProntoSyncBudgetYear, ProntoSyncIntervalMinutes=@ProntoSyncIntervalMinutes, ProntoSyncApply=@ProntoSyncApply, ProntoSyncMaxPrfs=@ProntoSyncMaxPrfs, ProntoSyncLimit=@ProntoSyncLimit, ProntoSyncLogEvery=@ProntoSyncLogEvery, ProntoHeadless=@ProntoHeadless, ProntoCaptureScreenshots=@ProntoCaptureScreenshots, ProntoWritePerPoJson=@ProntoWritePerPoJson, UpdatedAt=GETDATE()',
       {
         Provider: settings.ocr.provider,
         GeminiApiKeyEnc: encGemini,
         OpenAIApiKeyEnc: encOpenAI,
         Enabled: settings.ocr.enabled ? 1 : 0,
         Model: settings.ocr.model || null,
-        SharedFolderPath: settings.general?.sharedFolderPath || null
+        SharedFolderPath: settings.general?.sharedFolderPath || null,
+        ProntoSyncEnabled: pronto.enabled ? 1 : 0,
+        ProntoSyncHeaderEnabled: pronto.headerEnabled ? 1 : 0,
+        ProntoSyncItemsEnabled: pronto.itemsEnabled ? 1 : 0,
+        ProntoSyncBudgetYear: pronto.budgetYear,
+        ProntoSyncIntervalMinutes: pronto.intervalMinutes,
+        ProntoSyncApply: pronto.apply ? 1 : 0,
+        ProntoSyncMaxPrfs: pronto.maxPrfs,
+        ProntoSyncLimit: pronto.limit,
+        ProntoSyncLogEvery: pronto.logEvery,
+        ProntoHeadless: pronto.headless ? 1 : 0,
+        ProntoCaptureScreenshots: pronto.captureScreenshots ? 1 : 0,
+        ProntoWritePerPoJson: pronto.writePerPoJson ? 1 : 0
       }
     );
   } else {
     await executeQuery(
-      'INSERT INTO AppSettings (Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath) VALUES (@Provider, @GeminiApiKeyEnc, @OpenAIApiKeyEnc, @Enabled, @Model, @SharedFolderPath)',
+      'INSERT INTO AppSettings (Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath, ProntoSyncEnabled, ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled, ProntoSyncBudgetYear, ProntoSyncIntervalMinutes, ProntoSyncApply, ProntoSyncMaxPrfs, ProntoSyncLimit, ProntoSyncLogEvery, ProntoHeadless, ProntoCaptureScreenshots, ProntoWritePerPoJson) VALUES (@Provider, @GeminiApiKeyEnc, @OpenAIApiKeyEnc, @Enabled, @Model, @SharedFolderPath, @ProntoSyncEnabled, @ProntoSyncHeaderEnabled, @ProntoSyncItemsEnabled, @ProntoSyncBudgetYear, @ProntoSyncIntervalMinutes, @ProntoSyncApply, @ProntoSyncMaxPrfs, @ProntoSyncLimit, @ProntoSyncLogEvery, @ProntoHeadless, @ProntoCaptureScreenshots, @ProntoWritePerPoJson)',
       {
         Provider: settings.ocr.provider,
         GeminiApiKeyEnc: encGemini,
         OpenAIApiKeyEnc: encOpenAI,
         Enabled: settings.ocr.enabled ? 1 : 0,
         Model: settings.ocr.model || null,
-        SharedFolderPath: settings.general?.sharedFolderPath || null
+        SharedFolderPath: settings.general?.sharedFolderPath || null,
+        ProntoSyncEnabled: pronto.enabled ? 1 : 0,
+        ProntoSyncHeaderEnabled: pronto.headerEnabled ? 1 : 0,
+        ProntoSyncItemsEnabled: pronto.itemsEnabled ? 1 : 0,
+        ProntoSyncBudgetYear: pronto.budgetYear,
+        ProntoSyncIntervalMinutes: pronto.intervalMinutes,
+        ProntoSyncApply: pronto.apply ? 1 : 0,
+        ProntoSyncMaxPrfs: pronto.maxPrfs,
+        ProntoSyncLimit: pronto.limit,
+        ProntoSyncLogEvery: pronto.logEvery,
+        ProntoHeadless: pronto.headless ? 1 : 0,
+        ProntoCaptureScreenshots: pronto.captureScreenshots ? 1 : 0,
+        ProntoWritePerPoJson: pronto.writePerPoJson ? 1 : 0
       }
     );
   }
@@ -468,6 +603,110 @@ router.post('/general', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Failed to save general settings:', error);
     return res.status(500).json({ error: 'Failed to save general settings' });
+  }
+});
+
+router.get('/pronto-sync', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const settings = await loadSettings();
+    const pronto = settings.prontoSync || {
+      enabled: false,
+      headerEnabled: true,
+      itemsEnabled: true,
+      budgetYear: null,
+      intervalMinutes: 60,
+      apply: false,
+      maxPrfs: null,
+      limit: 1000,
+      logEvery: 25,
+      headless: true,
+      captureScreenshots: false,
+      writePerPoJson: false
+    };
+    res.json(pronto);
+  } catch (error) {
+    console.error('Failed to load pronto sync settings:', error);
+    res.status(500).json({ error: 'Failed to load pronto sync settings' });
+  }
+});
+
+router.post('/pronto-sync', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const {
+      enabled,
+      headerEnabled,
+      itemsEnabled,
+      budgetYear,
+      intervalMinutes,
+      apply,
+      maxPrfs,
+      limit,
+      logEvery,
+      headless,
+      captureScreenshots,
+      writePerPoJson
+    } = req.body as Record<string, unknown>;
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled must be a boolean' });
+    }
+    if (typeof headerEnabled !== 'boolean') {
+      return res.status(400).json({ error: 'headerEnabled must be a boolean' });
+    }
+    if (typeof itemsEnabled !== 'boolean') {
+      return res.status(400).json({ error: 'itemsEnabled must be a boolean' });
+    }
+    if (!(budgetYear === null || typeof budgetYear === 'number')) {
+      return res.status(400).json({ error: 'budgetYear must be a number or null' });
+    }
+    if (typeof intervalMinutes !== 'number' || !Number.isFinite(intervalMinutes) || intervalMinutes < 1) {
+      return res.status(400).json({ error: 'intervalMinutes must be a number >= 1' });
+    }
+    if (typeof apply !== 'boolean') {
+      return res.status(400).json({ error: 'apply must be a boolean' });
+    }
+    if (!(maxPrfs === null || typeof maxPrfs === 'number')) {
+      return res.status(400).json({ error: 'maxPrfs must be a number or null' });
+    }
+    if (typeof limit !== 'number' || !Number.isFinite(limit) || limit < 1) {
+      return res.status(400).json({ error: 'limit must be a number >= 1' });
+    }
+    if (typeof logEvery !== 'number' || !Number.isFinite(logEvery) || logEvery < 1) {
+      return res.status(400).json({ error: 'logEvery must be a number >= 1' });
+    }
+    if (typeof headless !== 'boolean') {
+      return res.status(400).json({ error: 'headless must be a boolean' });
+    }
+    if (typeof captureScreenshots !== 'boolean') {
+      return res.status(400).json({ error: 'captureScreenshots must be a boolean' });
+    }
+    if (typeof writePerPoJson !== 'boolean') {
+      return res.status(400).json({ error: 'writePerPoJson must be a boolean' });
+    }
+
+    const normalizedBudgetYear = budgetYear === null ? null : Math.trunc(budgetYear);
+    const normalizedMaxPrfs = maxPrfs === null ? null : Math.trunc(maxPrfs);
+
+    const currentSettings = await loadSettings();
+    currentSettings.prontoSync = {
+      enabled,
+      headerEnabled,
+      itemsEnabled,
+      budgetYear: normalizedBudgetYear,
+      intervalMinutes: Math.trunc(intervalMinutes),
+      apply,
+      maxPrfs: normalizedMaxPrfs,
+      limit: Math.trunc(limit),
+      logEvery: Math.trunc(logEvery),
+      headless,
+      captureScreenshots,
+      writePerPoJson
+    };
+    await saveSettings(currentSettings);
+    return res.json({ message: 'Pronto sync settings saved successfully' });
+  } catch (error) {
+    console.error('Failed to save pronto sync settings:', error);
+    return res.status(500).json({ error: 'Failed to save pronto sync settings' });
   }
 });
 

@@ -42,6 +42,26 @@ services:
       - GRAPH_TOKEN_CACHE_PATH=/app/data/token_cache.json
     # depends_on removed - SQL Server runs on separate server
 
+  pronto_sync:
+    build:
+      context: .
+      dockerfile: backend/pronto-sync/Dockerfile
+    depends_on:
+      - backend
+    env_file:
+      - ./backend/.env.production
+    environment:
+      - POMON_BASE_URL=http://backend:3001
+      - PRONTO_SYNC_ENABLED=true
+      - PRONTO_SYNC_JITTER_SECONDS=30
+      - ARTIFACTS_DIR=/app/artifacts
+      - PRONTO_HEADLESS=1
+      - PRONTO_CAPTURE_SCREENSHOTS=0
+      - PRONTO_WRITE_PER_PO_JSON=0
+    volumes:
+      - ./backend/artifacts:/app/artifacts
+    restart: unless-stopped
+
 # Note: SQL Server is running on a separate server
 # Database connection configured via environment variables
 # Network share will be mounted inside the container using a startup script

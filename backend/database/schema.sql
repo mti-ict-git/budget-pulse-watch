@@ -25,6 +25,18 @@ CREATE TABLE AppSettings (
     Enabled BIT NOT NULL DEFAULT 0,
     Model NVARCHAR(100) NULL,
     SharedFolderPath NVARCHAR(500) NULL,
+    ProntoSyncEnabled BIT NOT NULL DEFAULT 0,
+    ProntoSyncHeaderEnabled BIT NOT NULL DEFAULT 1,
+    ProntoSyncItemsEnabled BIT NOT NULL DEFAULT 1,
+    ProntoSyncBudgetYear INT NULL,
+    ProntoSyncIntervalMinutes INT NOT NULL DEFAULT 60,
+    ProntoSyncApply BIT NOT NULL DEFAULT 0,
+    ProntoSyncMaxPrfs INT NULL,
+    ProntoSyncLimit INT NOT NULL DEFAULT 1000,
+    ProntoSyncLogEvery INT NOT NULL DEFAULT 25,
+    ProntoHeadless BIT NOT NULL DEFAULT 1,
+    ProntoCaptureScreenshots BIT NOT NULL DEFAULT 0,
+    ProntoWritePerPoJson BIT NOT NULL DEFAULT 0,
     UpdatedAt DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 GO
