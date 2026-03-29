@@ -43,6 +43,26 @@ const isProntoSyncRequest = (req: Request): boolean => {
   return syncSource === 'pronto' || isApiKeyAuth;
 };
 
+const statusRank = (raw: unknown): number => {
+  if (typeof raw !== 'string') return 30;
+  const s = raw.trim().toLowerCase();
+  if (!s) return 30;
+  if (s === 'draft') return 0;
+  if (s === 'req. approval reqd') return 10;
+  if (s === 'req. approved') return 20;
+  if (s.startsWith('updated') || s.includes(' updated')) return 30;
+  if (s === 'on order' || s.includes('on order')) return 40;
+  if (s === 'completed' || s.includes('completed')) return 50;
+  return 30;
+};
+
+const shouldBlockProntoStatusChange = (currentStatus: unknown, nextStatus: unknown): boolean => {
+  const currentRank = statusRank(currentStatus);
+  if (currentRank >= 50) return true;
+  const nextRank = statusRank(nextStatus);
+  return nextRank < currentRank;
+};
+
 const valuesEqualForNotification = (a: unknown, b: unknown): boolean => {
   if (a === b) return true;
   if (a == null && b == null) return true;
@@ -695,6 +715,13 @@ router.put('/:id', authenticateToken, requireContentManager, async (req: Request
         message: 'ExchangeRateToIDR must be greater than 0'
       });
     }
+
+    if (isProntoSyncRequest(req) && typeof updateData.Status === 'string' && updateData.Status.trim().length > 0) {
+      if (shouldBlockProntoStatusChange(existingPRF.Status, updateData.Status)) {
+        const mutable = updateData as Record<string, unknown>;
+        delete mutable.Status;
+      }
+    }
     
     const updatedPRF = await PRFModel.update(prfId, updateData);
     if (isProntoSyncRequest(req) && existingPRF.PRFID && existingPRF.PRFNo && existingPRF.RequestorID) {
@@ -782,6 +809,13 @@ router.put('/prfno/:prfNo', authenticateToken, requireContentManager, async (req
         success: false,
         message: 'ExchangeRateToIDR must be greater than 0'
       });
+    }
+
+    if (isProntoSyncRequest(req) && typeof updateData.Status === 'string' && updateData.Status.trim().length > 0) {
+      if (shouldBlockProntoStatusChange(existingPRF.Status, updateData.Status)) {
+        const mutable = updateData as Record<string, unknown>;
+        delete mutable.Status;
+      }
     }
 
     const updatedPRF = await PRFModel.update(existingPRF.PRFID, updateData);
