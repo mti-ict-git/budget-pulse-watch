@@ -805,6 +805,53 @@ router.post('/pronto-sync/run-now/complete', authenticateToken, requireAdmin, as
   }
 });
 
+router.get('/time', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const serverNow = new Date();
+    const tzEnv = typeof process.env.TZ === 'string' ? process.env.TZ : null;
+    const dbResult = await executeQuery<{ UtcNow: Date; LocalNow: Date }>('SELECT SYSUTCDATETIME() AS UtcNow, SYSDATETIME() AS LocalNow');
+    const row = dbResult.recordset[0];
+    const dbUtc = row?.UtcNow instanceof Date ? row.UtcNow : null;
+    const dbLocal = row?.LocalNow instanceof Date ? row.LocalNow : null;
+    const prontoResult = await executeQuery<{
+      RunRequestedAt: Date | null;
+      RunRequestedBy: string | null;
+      RunRequestedAgeSec: number | null;
+      LastRunStartedAt: Date | null;
+      LastRunFinishedAt: Date | null;
+      LastRunExitCode: number | null;
+    }>(
+      "SELECT TOP 1 ProntoSyncRunNowRequestedAt AS RunRequestedAt, ProntoSyncRunNowRequestedBy AS RunRequestedBy, CASE WHEN ProntoSyncRunNowRequestedAt IS NULL THEN NULL ELSE DATEDIFF_BIG(second, ProntoSyncRunNowRequestedAt, SYSUTCDATETIME()) END AS RunRequestedAgeSec, ProntoSyncLastRunStartedAt AS LastRunStartedAt, ProntoSyncLastRunFinishedAt AS LastRunFinishedAt, ProntoSyncLastRunExitCode AS LastRunExitCode FROM AppSettings ORDER BY SettingsID DESC"
+    );
+    const p = prontoResult.recordset[0];
+    return res.json({
+      server: {
+        nowIso: serverNow.toISOString(),
+        nowEpochMs: serverNow.getTime(),
+        tzEnv,
+        offsetMinutes: -serverNow.getTimezoneOffset()
+      },
+      database: {
+        utcIso: dbUtc ? dbUtc.toISOString() : null,
+        utcEpochMs: dbUtc ? dbUtc.getTime() : null,
+        localIso: dbLocal ? dbLocal.toISOString() : null,
+        localEpochMs: dbLocal ? dbLocal.getTime() : null
+      },
+      prontoSync: {
+        runNowRequestedAtIso: p?.RunRequestedAt instanceof Date ? p.RunRequestedAt.toISOString() : null,
+        runNowRequestedBy: typeof p?.RunRequestedBy === 'string' ? p.RunRequestedBy : null,
+        runNowRequestedAgeSec: typeof p?.RunRequestedAgeSec === 'number' ? p.RunRequestedAgeSec : null,
+        lastRunStartedAtIso: p?.LastRunStartedAt instanceof Date ? p.LastRunStartedAt.toISOString() : null,
+        lastRunFinishedAtIso: p?.LastRunFinishedAt instanceof Date ? p.LastRunFinishedAt.toISOString() : null,
+        lastRunExitCode: typeof p?.LastRunExitCode === 'number' ? p.LastRunExitCode : null
+      }
+    });
+  } catch (error) {
+    console.error('Failed to read server time:', error);
+    return res.status(500).json({ error: 'Failed to read server time' });
+  }
+});
+
 // POST /api/settings/test-folder-path - Test shared folder path accessibility
 router.post('/test-folder-path', async (req: Request, res: Response) => {
   try {

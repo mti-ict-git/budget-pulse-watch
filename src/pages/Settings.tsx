@@ -72,6 +72,29 @@ type ProntoSyncStatus = {
   lastRunExitCode: number | null;
 };
 
+type TimeCheckResponse = {
+  server: {
+    nowIso: string;
+    nowEpochMs: number;
+    tzEnv: string | null;
+    offsetMinutes: number;
+  };
+  database: {
+    utcIso: string | null;
+    utcEpochMs: number | null;
+    localIso: string | null;
+    localEpochMs: number | null;
+  };
+  prontoSync?: {
+    runNowRequestedAtIso: string | null;
+    runNowRequestedBy: string | null;
+    runNowRequestedAgeSec: number | null;
+    lastRunStartedAtIso: string | null;
+    lastRunFinishedAtIso: string | null;
+    lastRunExitCode: number | null;
+  };
+};
+
 type FolderMountInfo = {
   inDocker: boolean;
   mountPoint: string | null;
@@ -193,6 +216,9 @@ const Settings: React.FC = () => {
   const [isDeduping, setIsDeduping] = useState(false);
   const [isSavingPronto, setIsSavingPronto] = useState(false);
   const [isRunningProntoNow, setIsRunningProntoNow] = useState(false);
+  const [isCheckingTime, setIsCheckingTime] = useState(false);
+  const [timeCheck, setTimeCheck] = useState<TimeCheckResponse | null>(null);
+  const [timeCheckClientIso, setTimeCheckClientIso] = useState<string | null>(null);
   const [dedupePRFNo, setDedupePRFNo] = useState('');
   const [dedupeBudgetYear, setDedupeBudgetYear] = useState('');
   const [isPreviewing, setIsPreviewing] = useState(false);
@@ -409,7 +435,8 @@ const Settings: React.FC = () => {
       return new Intl.DateTimeFormat(undefined, {
         dateStyle: 'medium',
         timeStyle: 'medium',
-        timeZone: tz
+        timeZone: tz,
+        hour12: false
       }).format(d);
     } catch {
       return d.toLocaleString();
@@ -438,6 +465,26 @@ const Settings: React.FC = () => {
       toast({ title: 'Error', description: 'Network error while requesting run.', variant: 'destructive' });
     } finally {
       setIsRunningProntoNow(false);
+    }
+  };
+
+  const checkServerTime = async () => {
+    setIsCheckingTime(true);
+    try {
+      const clientNow = new Date().toISOString();
+      setTimeCheckClientIso(clientNow);
+      const response = await fetch('/api/settings/time', { headers: authService.getAuthHeaders() });
+      if (!response.ok) {
+        const text = await response.text();
+        toast({ title: 'Error', description: text || 'Failed to check time.', variant: 'destructive' });
+        return;
+      }
+      const payload = (await response.json()) as TimeCheckResponse;
+      setTimeCheck(payload);
+    } catch {
+      toast({ title: 'Error', description: 'Network error while checking time.', variant: 'destructive' });
+    } finally {
+      setIsCheckingTime(false);
     }
   };
 
@@ -1651,6 +1698,88 @@ const Settings: React.FC = () => {
                   </AlertDescription>
                 </Alert>
               )}
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Time Verification</CardTitle>
+                  <CardDescription>
+                    Compare client time vs backend server time vs database time to confirm timezone and clock drift.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={checkServerTime} disabled={isCheckingTime} variant="outline">
+                      {isCheckingTime ? 'Checking...' : 'Check Time Now'}
+                    </Button>
+                    <div className="text-xs text-muted-foreground">
+                      Display time zone: {prontoSettings.timeZone.trim().length > 0 ? prontoSettings.timeZone.trim() : 'Asia/Jakarta'}
+                    </div>
+                  </div>
+                  {timeCheck && (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-12 gap-2 text-sm">
+                        <div className="col-span-12 md:col-span-4 font-medium">Client</div>
+                        <div className="col-span-12 md:col-span-8 break-all">
+                          {timeCheckClientIso ? formatProntoTimestamp(timeCheckClientIso) : '-'}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2 text-sm">
+                        <div className="col-span-12 md:col-span-4 font-medium">Backend server</div>
+                        <div className="col-span-12 md:col-span-8 break-all">
+                          {formatProntoTimestamp(timeCheck.server.nowIso)} (TZ env: {timeCheck.server.tzEnv ?? '-'})
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2 text-sm">
+                        <div className="col-span-12 md:col-span-4 font-medium">Database UTC</div>
+                        <div className="col-span-12 md:col-span-8 break-all">
+                          {timeCheck.database.utcIso ? formatProntoTimestamp(timeCheck.database.utcIso) : '-'}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2 text-sm">
+                        <div className="col-span-12 md:col-span-4 font-medium">Database local</div>
+                        <div className="col-span-12 md:col-span-8 break-all">
+                          {timeCheck.database.localIso ? formatProntoTimestamp(timeCheck.database.localIso) : '-'}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2 text-sm">
+                        <div className="col-span-12 md:col-span-4 font-medium">Drift (client - server)</div>
+                        <div className="col-span-12 md:col-span-8">
+                          {(() => {
+                            const clientMs = timeCheckClientIso ? new Date(timeCheckClientIso).getTime() : NaN;
+                            const serverMs = new Date(timeCheck.server.nowIso).getTime();
+                            if (Number.isNaN(clientMs) || Number.isNaN(serverMs)) return '-';
+                            const diffSec = Math.round(((clientMs - serverMs) / 1000) * 10) / 10;
+                            return `${diffSec} seconds`;
+                          })()}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2 text-sm">
+                        <div className="col-span-12 md:col-span-4 font-medium">Drift (client - DB UTC)</div>
+                        <div className="col-span-12 md:col-span-8">
+                          {(() => {
+                            const clientMs = timeCheckClientIso ? new Date(timeCheckClientIso).getTime() : NaN;
+                            const dbMs = typeof timeCheck.database.utcEpochMs === 'number' ? timeCheck.database.utcEpochMs : NaN;
+                            if (Number.isNaN(clientMs) || Number.isNaN(dbMs)) return '-';
+                            const diffSec = Math.round(((clientMs - dbMs) / 1000) * 10) / 10;
+                            return `${diffSec} seconds`;
+                          })()}
+                        </div>
+                      </div>
+                      {timeCheck.prontoSync?.runNowRequestedAtIso && (
+                        <div className="grid grid-cols-12 gap-2 text-sm">
+                          <div className="col-span-12 md:col-span-4 font-medium">Run requested (DB)</div>
+                          <div className="col-span-12 md:col-span-8 break-all">
+                            {formatProntoTimestamp(timeCheck.prontoSync.runNowRequestedAtIso)}
+                            {typeof timeCheck.prontoSync.runNowRequestedAgeSec === 'number' && (
+                              <span className="text-xs text-muted-foreground"> (age {timeCheck.prontoSync.runNowRequestedAgeSec}s)</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
               <div className="space-y-4">
                 <div className="flex items-center space-x-2">
