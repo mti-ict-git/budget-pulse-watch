@@ -267,54 +267,63 @@ export class PRFModel {
     const params: PRFQueryParams = { Offset: offset, Limit: limit };
 
     if (Status) {
-      whereConditions.push('Status = @Status');
+      whereConditions.push('v.Status = @Status');
       params.Status = Status;
     }
     if (Year) {
-      whereConditions.push('YEAR(COALESCE(DateSubmit, RequestDate)) = @Year');
+      whereConditions.push('YEAR(COALESCE(v.DateSubmit, v.RequestDate)) = @Year');
       params.Year = Year;
     }
     if (Department) {
-      whereConditions.push('Department = @Department');
+      whereConditions.push('v.Department = @Department');
       params.Department = Department;
     }
     if (Priority) {
-      whereConditions.push('Priority = @Priority');
+      whereConditions.push('v.Priority = @Priority');
       params.Priority = Priority;
     }
     if (RequestorID) {
-      whereConditions.push('PRFID IN (SELECT PRFID FROM PRF WHERE RequestorID = @RequestorID)');
+      whereConditions.push('prf.RequestorID = @RequestorID');
       params.RequestorID = RequestorID;
     }
     if (COAID) {
-      whereConditions.push('PRFID IN (SELECT PRFID FROM PRF WHERE COAID = @COAID)');
+      whereConditions.push('prf.COAID = @COAID');
       params.COAID = COAID;
     }
     if (DateFrom) {
-      whereConditions.push('RequestDate >= @DateFrom');
+      whereConditions.push('v.RequestDate >= @DateFrom');
       params.DateFrom = DateFrom;
     }
     if (DateTo) {
-      whereConditions.push('RequestDate <= @DateTo');
+      whereConditions.push('v.RequestDate <= @DateTo');
       params.DateTo = DateTo;
     }
     if (Search) {
-      whereConditions.push('(PRFNo LIKE @Search OR Title LIKE @Search OR SumDescriptionRequested LIKE @Search OR SubmitBy LIKE @Search OR RequiredFor LIKE @Search)');
+      whereConditions.push(`(
+        v.PRFNo LIKE @Search OR
+        v.Title LIKE @Search OR
+        v.SumDescriptionRequested LIKE @Search OR
+        v.SubmitBy LIKE @Search OR
+        v.RequiredFor LIKE @Search
+      )`);
       params.Search = `%${Search}%`;
     }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     const query = `
-      SELECT * FROM vw_PRFSummary
+      SELECT v.*, prf.ApprovedByName
+      FROM vw_PRFSummary v
+      INNER JOIN PRF prf ON prf.PRFID = v.PRFID
       ${whereClause}
-      ORDER BY RequestDate DESC
+      ORDER BY v.RequestDate DESC
       OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY
     `;
 
     const countQuery = `
       SELECT COUNT(*) as Total 
-      FROM vw_PRFSummary
+      FROM vw_PRFSummary v
+      INNER JOIN PRF prf ON prf.PRFID = v.PRFID
       ${whereClause}
     `;
 
@@ -455,7 +464,9 @@ export class PRFModel {
 
     // Query to get PRFs with enhanced search
     const query = `
-      SELECT DISTINCT p.* FROM vw_PRFSummary p
+      SELECT DISTINCT p.*, prf.ApprovedByName
+      FROM vw_PRFSummary p
+      INNER JOIN PRF prf ON prf.PRFID = p.PRFID
       ${whereClause}
       ORDER BY p.RequestDate DESC
       OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY
@@ -465,6 +476,7 @@ export class PRFModel {
     const countQuery = `
       SELECT COUNT(DISTINCT p.PRFID) as Total 
       FROM vw_PRFSummary p
+      INNER JOIN PRF prf ON prf.PRFID = p.PRFID
       ${whereClause}
     `;
 

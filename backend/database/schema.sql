@@ -281,7 +281,8 @@ SELECT
     p.RequiredFor,
     p.BudgetYear,
     p.Description,
-    p.UpdatedAt
+    p.UpdatedAt,
+    p.ApprovedByName
 FROM PRF p
 INNER JOIN Users u ON p.RequestorID = u.UserID
 INNER JOIN ChartOfAccounts coa ON p.COAID = coa.COAID;

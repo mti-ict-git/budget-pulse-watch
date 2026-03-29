@@ -392,6 +392,12 @@ def _http_headers(api_key: str) -> Dict[str, str]:
     }
 
 
+def _is_completed_status(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    return value.strip().lower() == "completed"
+
+
 def _fetch_all_prfs(base_url: str, api_key: str, limit: int) -> List[Dict[str, object]]:
     out: List[Dict[str, object]] = []
     page = 1
@@ -939,6 +945,25 @@ def main() -> int:
         pronto_by_po: Dict[str, Dict[str, object]] = {}
 
         def sync_one_prf(*, prf_id: int, prf_no: str, po: str) -> Dict[str, object]:
+            prf_detail = _fetch_prf_detail(args.base_url, args.api_key, prf_id)
+            if _is_completed_status(prf_detail.get("Status")):
+                return {
+                    "prfId": prf_id,
+                    "prfNo": prf_no,
+                    "po": po,
+                    "status": "skipped_completed",
+                    "counts": {
+                        "pomon_items": 0,
+                        "matched": 0,
+                        "unmatched": 0,
+                        "changes": 0,
+                        "skipped_qty": 0,
+                        "applied": 0,
+                        "apply_failed": 0,
+                    },
+                    "issues": [],
+                    "items": [],
+                }
             pomon_items = _fetch_prf_items(args.base_url, args.api_key, prf_id)
             pronto_match = pronto_by_po.get(po)
             if not isinstance(pronto_match, dict):
@@ -1307,6 +1332,16 @@ def main() -> int:
             continue
 
         current = _fetch_prf_detail(args.base_url, args.api_key, cand.prf.prf_id)
+        if _is_completed_status(current.get("Status")):
+            report_rows.append(
+                {
+                    "prfNo": cand.prf.prf_no,
+                    "prfId": cand.prf.prf_id,
+                    "orderNo": cand.order_no,
+                    "status": "skipped_completed",
+                }
+            )
+            continue
         desired, evaluated = _evaluate_fields(row, current, options)
         changes = _diff_fields(current, desired)
         if not desired:
