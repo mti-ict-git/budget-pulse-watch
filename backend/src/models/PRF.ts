@@ -388,7 +388,8 @@ export class PRFModel {
       HasSplitPO,
       DateFrom,
       DateTo,
-      Search
+      Search,
+      SearchList
     } = queryParams;
 
     const offset = (page - 1) * limit;
@@ -426,6 +427,35 @@ export class PRFModel {
     if (DateTo) {
       whereConditions.push('prf.RequestDate <= @DateTo');
       params.DateTo = DateTo;
+    }
+    if (SearchList && Array.isArray(SearchList) && SearchList.length > 0) {
+      const normalized = Array.from(
+        new Set(
+          SearchList
+            .map((v) => (typeof v === 'string' ? v.trim() : ''))
+            .filter((v) => v.length > 0)
+        )
+      ).slice(0, 200);
+
+      if (normalized.length > 0) {
+        const placeholders = normalized.map((_, i) => `@SearchList${i}`).join(', ');
+        normalized.forEach((value, i) => {
+          (params as Record<string, unknown>)[`SearchList${i}`] = value;
+        });
+
+        whereConditions.push(`(
+          prf.PRFNo IN (${placeholders})
+          OR EXISTS (
+            SELECT 1
+            FROM PRFItems pi
+            WHERE pi.PRFID = prf.PRFID
+              AND (
+                pi.OriginalPONumber IN (${placeholders})
+                OR pi.SplitPONumber IN (${placeholders})
+              )
+          )
+        )`);
+      }
     }
     if (Search) {
       // Enhanced search: include PRF fields AND PRF items fields

@@ -348,10 +348,21 @@ export default function PRFMonitoring() {
       setLoading(true);
       setError(null);
       
+      const listTokens = Array.from(
+        new Set(
+          searchTerm
+            .split(/[\s,]+/g)
+            .map((v) => v.trim())
+            .filter((v) => v.length > 0)
+        )
+      );
+      const isListSearch = listTokens.length > 1;
+
       const queryParams = new URLSearchParams({
         page: pagination.page.toString(),
         limit: pagination.limit.toString(),
-        ...(searchTerm && { search: searchTerm }),
+        ...(searchTerm && !isListSearch && { search: searchTerm }),
+        ...(isListSearch && { searchList: listTokens.join(',') }),
         ...(statusFilter !== 'all' && { status: statusFilter }),
         ...(departmentFilter !== 'all' && { department: departmentFilter }),
         ...(priorityFilter !== 'all' && { priority: priorityFilter }),

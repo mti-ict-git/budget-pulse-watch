@@ -104,6 +104,7 @@ export interface PRFQueryParams {
   DateFrom?: string;
   DateTo?: string;
   Search?: string;
+  SearchList?: string[];
   [key: string]: unknown;
 }
 

@@ -326,6 +326,17 @@ router.get('/with-items', async (req: Request, res: Response) => {
     const parsedYear = yearParam && /^\d{4}$/.test(yearParam) ? parseInt(yearParam, 10) : undefined;
     const hasSplitPoRaw = typeof req.query.hasSplitPo === 'string' ? req.query.hasSplitPo : undefined;
     const hasSplitPo = hasSplitPoRaw === 'true' || hasSplitPoRaw === '1';
+    const searchListRaw = typeof req.query.searchList === 'string' ? req.query.searchList : undefined;
+    const searchList = searchListRaw
+      ? Array.from(
+          new Set(
+            searchListRaw
+              .split(/[\s,]+/g)
+              .map((v) => v.trim())
+              .filter((v) => v.length > 0)
+          )
+        ).slice(0, 200)
+      : undefined;
     const queryParams: PRFQueryParams = {
       page: parseInt(req.query.page as string) || 1,
       limit: parseInt(req.query.limit as string) || 10,
@@ -338,7 +349,8 @@ router.get('/with-items', async (req: Request, res: Response) => {
       HasSplitPO: hasSplitPo,
       DateFrom: req.query.dateFrom as string,
       DateTo: req.query.dateTo as string,
-      Search: req.query.search as string
+      Search: req.query.search as string,
+      SearchList: searchList
     };
 
     const result = await PRFModel.findAllWithItems(queryParams);
