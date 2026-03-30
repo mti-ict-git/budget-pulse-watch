@@ -396,49 +396,49 @@ export class PRFModel {
     const params: PRFQueryParams = { Offset: offset, Limit: limit };
 
     if (Status) {
-      whereConditions.push('p.Status = @Status');
+      whereConditions.push('prf.Status = @Status');
       params.Status = Status;
     }
     if (Year) {
-      whereConditions.push('YEAR(COALESCE(p.DateSubmit, p.RequestDate)) = @Year');
+      whereConditions.push('YEAR(COALESCE(prf.DateSubmit, prf.RequestDate)) = @Year');
       params.Year = Year;
     }
     if (Department) {
-      whereConditions.push('p.Department = @Department');
+      whereConditions.push('prf.Department = @Department');
       params.Department = Department;
     }
     if (Priority) {
-      whereConditions.push('p.Priority = @Priority');
+      whereConditions.push('prf.Priority = @Priority');
       params.Priority = Priority;
     }
     if (RequestorID) {
-      whereConditions.push('p.RequestorID = @RequestorID');
+      whereConditions.push('prf.RequestorID = @RequestorID');
       params.RequestorID = RequestorID;
     }
     if (COAID) {
-      whereConditions.push('p.COAID = @COAID');
+      whereConditions.push('prf.COAID = @COAID');
       params.COAID = COAID;
     }
     if (DateFrom) {
-      whereConditions.push('p.RequestDate >= @DateFrom');
+      whereConditions.push('prf.RequestDate >= @DateFrom');
       params.DateFrom = DateFrom;
     }
     if (DateTo) {
-      whereConditions.push('p.RequestDate <= @DateTo');
+      whereConditions.push('prf.RequestDate <= @DateTo');
       params.DateTo = DateTo;
     }
     if (Search) {
       // Enhanced search: include PRF fields AND PRF items fields
       whereConditions.push(`(
-        p.PRFNo LIKE @Search OR 
-        p.Title LIKE @Search OR 
-        p.SumDescriptionRequested LIKE @Search OR 
-        p.SubmitBy LIKE @Search OR 
-        p.RequiredFor LIKE @Search OR
-        p.Description LIKE @Search OR
+        prf.PRFNo LIKE @Search OR 
+        prf.Title LIKE @Search OR 
+        prf.SumDescriptionRequested LIKE @Search OR 
+        prf.SubmitBy LIKE @Search OR 
+        prf.RequiredFor LIKE @Search OR
+        prf.Description LIKE @Search OR
         EXISTS (
           SELECT 1 FROM PRFItems pi 
-          WHERE pi.PRFID = p.PRFID AND (
+          WHERE pi.PRFID = prf.PRFID AND (
             pi.ItemName LIKE @Search OR 
             pi.Description LIKE @Search OR 
             pi.Specifications LIKE @Search OR
@@ -453,7 +453,7 @@ export class PRFModel {
       whereConditions.push(`
         EXISTS (
           SELECT 1 FROM PRFItems pi
-          WHERE pi.PRFID = p.PRFID
+          WHERE pi.PRFID = prf.PRFID
             AND pi.SplitPONumber IS NOT NULL
             AND LTRIM(RTRIM(pi.SplitPONumber)) <> ''
         )

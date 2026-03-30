@@ -34,7 +34,7 @@ router.get('/audit-log', authenticateToken, requireContentManager, asyncHandler(
   const where: string[] = [
     `a.TableName = 'PRF'`,
     `a.Action = 'UPDATE'`,
-    `a.NewValues LIKE '%\"source\":\"pronto\"%'`
+    `a.NewValues LIKE '%"source":"pronto"%'`
   ];
   const params: Record<string, unknown> = { Offset: offset, Limit: limit };
 
