@@ -92,6 +92,22 @@ def _load_env_file(path: str, *, override: bool) -> None:
         os.environ[key] = value
 
 
+def _resolve_default_env_file() -> str:
+    explicit = str(os.getenv("PRONTO_ENV_FILE") or "").strip()
+    if explicit:
+        return explicit
+    if os.path.isfile("/app/.env"):
+        return "/app/.env"
+    if os.path.isfile("/app/backend/.env"):
+        return "/app/backend/.env"
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(here, "..", ".."))
+    candidate = os.path.join(repo_root, "backend", ".env")
+    if os.path.isfile(candidate):
+        return candidate
+    return ""
+
+
 def _resolve_scripts_dir() -> str:
     explicit = str(os.getenv("PRONTO_SYNC_SCRIPTS_DIR") or "").strip()
     if explicit:
@@ -300,7 +316,7 @@ def _build_steps(config: SyncConfig) -> List[Step]:
 def main() -> int:
     stop_flag: List[bool] = [False]
 
-    env_file = str(os.getenv("PRONTO_ENV_FILE") or "").strip()
+    env_file = _resolve_default_env_file()
     env_override = _parse_bool(os.getenv("PRONTO_ENV_OVERRIDE"), False)
     if env_file:
         _load_env_file(env_file, override=env_override)
