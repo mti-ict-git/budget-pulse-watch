@@ -726,15 +726,31 @@ export class PRFModel {
    * Cascade status update to all non-overridden items
    */
   private static async cascadeStatusToItems(prfId: number, newStatus: string): Promise<void> {
+    const normalized = typeof newStatus === 'string' ? newStatus.trim().toLowerCase() : '';
+    let itemStatus: 'Pending' | 'Approved' | 'Picked Up' | 'On Hold' | 'Cancelled' = 'Pending';
+
+    if (normalized.includes('cancel')) {
+      itemStatus = 'Cancelled';
+    } else if (normalized.includes('hold')) {
+      itemStatus = 'On Hold';
+    } else if (normalized.includes('picked')) {
+      itemStatus = 'Picked Up';
+    } else if (normalized.includes('req. approved') || normalized === 'approved' || normalized.includes('approved')) {
+      itemStatus = 'Approved';
+    } else {
+      itemStatus = 'Pending';
+    }
+
     const query = `
       UPDATE PRFItems 
-      SET Status = NULLIF(LTRIM(RTRIM(@Status)), ''), UpdatedAt = GETDATE(), StatusOverridden = 0
+      SET Status = @ItemStatus, UpdatedAt = GETDATE()
       WHERE PRFID = @PRFID
+        AND (StatusOverridden IS NULL OR StatusOverridden = 0)
     `;
 
     await executeQuery(query, {
       PRFID: prfId,
-      Status: newStatus
+      ItemStatus: itemStatus
     });
   }
 }
