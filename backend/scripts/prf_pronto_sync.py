@@ -236,6 +236,7 @@ class PrfSummary:
     prf_id: int
     prf_no: str
     budget_year: Optional[int]
+    status: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -429,6 +430,7 @@ def _extract_prf_summary(prf_obj: Dict[str, object]) -> Optional[PrfSummary]:
     prf_id = prf_obj.get("PRFID")
     prf_no = prf_obj.get("PRFNo")
     budget_year = prf_obj.get("BudgetYear")
+    status = prf_obj.get("Status")
     if not isinstance(prf_id, int):
         return None
     if not isinstance(prf_no, str) or not prf_no.strip():
@@ -438,7 +440,12 @@ def _extract_prf_summary(prf_obj: Dict[str, object]) -> Optional[PrfSummary]:
         by = budget_year
     else:
         by = None
-    return PrfSummary(prf_id=prf_id, prf_no=prf_no.strip(), budget_year=by)
+    st: Optional[str]
+    if isinstance(status, str) and status.strip():
+        st = status.strip()
+    else:
+        st = None
+    return PrfSummary(prf_id=prf_id, prf_no=prf_no.strip(), budget_year=by, status=st)
 
 
 def _is_numeric_order_no(value: str) -> bool:
@@ -449,6 +456,8 @@ def _build_candidates(prfs: List[PrfSummary], target_budget_year: int) -> List[S
     out: List[SyncCandidate] = []
     for p in prfs:
         if p.budget_year != target_budget_year:
+            continue
+        if p.status and _is_completed_status(p.status):
             continue
         if not _is_numeric_order_no(p.prf_no):
             continue
