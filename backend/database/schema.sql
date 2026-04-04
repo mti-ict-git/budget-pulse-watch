@@ -43,6 +43,8 @@ CREATE TABLE AppSettings (
     ProntoSyncLastRunFinishedAt DATETIME2 NULL,
     ProntoSyncLastRunExitCode INT NULL,
     ProntoSyncTimeZone NVARCHAR(64) NULL,
+    ProntoSyncProgressJson NVARCHAR(MAX) NULL,
+    ProntoSyncProgressUpdatedAt DATETIME2 NULL,
     UpdatedAt DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 GO

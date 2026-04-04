@@ -6,12 +6,30 @@ import json
 import time
 from typing import List, Optional, Dict, Tuple
 from dotenv import load_dotenv
+import requests
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError, Locator
 
 
 def _dbg(enabled: bool, message: str) -> None:
     if enabled:
         print(message, flush=True)
+
+
+def _report_progress(step: str, event: str, index: int, total: int, payload: Dict[str, object]) -> None:
+    base_url = (os.getenv("POMON_BASE_URL") or "").strip()
+    api_key = (os.getenv("POMON_API_KEY") or "").strip()
+    if not base_url or not api_key:
+        return
+    url = base_url.rstrip("/") + "/api/settings/pronto-sync/progress"
+    try:
+        requests.post(
+            url,
+            headers={"x-api-key": api_key, "content-type": "application/json", "accept": "application/json"},
+            json={"step": step, "event": event, "index": index, "total": total, "payload": payload},
+            timeout=3,
+        )
+    except Exception:
+        return
 
 
 async def _first_available(locators: List[Locator]) -> Optional[Locator]:
@@ -1233,6 +1251,7 @@ async def main(*, check_item: bool = False, debug: bool = False, max_scrolls: in
                         for idx_target, item in enumerate(targets, start=1):
                             _dbg(debug, f"PRF start po={item}")
                             print(f"PRF gather {idx_target}/{total_targets} po={item}", flush=True)
+                            _report_progress("items", "gather", idx_target, total_targets, {"po": item})
                             t0 = time.monotonic()
                             ok_find, find_stats = await _apply_requisition_find(page, item)
                             _dbg(debug, f"apply_find ok={ok_find} stats={find_stats}")
@@ -1343,6 +1362,13 @@ async def main(*, check_item: bool = False, debug: bool = False, max_scrolls: in
                             print(
                                 f"PRF done {idx_target}/{total_targets} po={item} duration_ms={dt_ms} rows={len(filtered)} details={len(details)}",
                                 flush=True,
+                            )
+                            _report_progress(
+                                "items",
+                                "done",
+                                idx_target,
+                                total_targets,
+                                {"po": item, "duration_ms": dt_ms, "rows": len(filtered), "details": len(details)},
                             )
                             _dbg(debug, f"PRF done po={item} duration_ms={dt_ms} rows={len(filtered)}")
                         out_batch = os.path.join(artifacts_dir, "prf_items_batch.json")

@@ -805,6 +805,70 @@ router.post('/pronto-sync/run-now/complete', authenticateToken, requireAdmin, as
   }
 });
 
+router.get('/pronto-sync/progress', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const result = await executeQuery<{ ProntoSyncProgressJson: string | null; ProntoSyncProgressUpdatedAt: Date | null }>(
+      'SELECT TOP 1 ProntoSyncProgressJson, ProntoSyncProgressUpdatedAt FROM AppSettings ORDER BY SettingsID DESC'
+    );
+    const row = result.recordset[0];
+    const jsonRaw = row?.ProntoSyncProgressJson ?? null;
+    let progress: unknown = null;
+    if (typeof jsonRaw === 'string' && jsonRaw.trim().length > 0) {
+      try {
+        progress = JSON.parse(jsonRaw);
+      } catch {
+        progress = jsonRaw;
+      }
+    }
+    return res.json({
+      success: true,
+      data: {
+        progress,
+        updatedAt: toIsoOrNull(row?.ProntoSyncProgressUpdatedAt ?? null)
+      }
+    });
+  } catch (error) {
+    console.error('Failed to load pronto sync progress:', error);
+    return res.status(500).json({ success: false, error: 'Failed to load progress' });
+  }
+});
+
+router.post('/pronto-sync/progress', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { step, event, index, total, payload } = req.body as Record<string, unknown>;
+    if (typeof step !== 'string' || step.trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'step must be a non-empty string' });
+    }
+    if (typeof event !== 'string' || event.trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'event must be a non-empty string' });
+    }
+    const normalizedIndex = typeof index === 'number' && Number.isFinite(index) ? Math.trunc(index) : null;
+    const normalizedTotal = typeof total === 'number' && Number.isFinite(total) ? Math.trunc(total) : null;
+    const receivedBy = typeof req.user?.Username === 'string' ? req.user.Username : 'unknown';
+    const progressObj = {
+      step: step.trim().slice(0, 32),
+      event: event.trim().slice(0, 32),
+      index: normalizedIndex,
+      total: normalizedTotal,
+      payload: typeof payload === 'object' ? payload : null,
+      receivedBy,
+      receivedAt: new Date().toISOString()
+    };
+    const json = JSON.stringify(progressObj);
+    if (json.length > 200000) {
+      return res.status(400).json({ success: false, error: 'payload too large' });
+    }
+    await executeQuery(
+      'UPDATE AppSettings SET ProntoSyncProgressJson=@Json, ProntoSyncProgressUpdatedAt=SYSUTCDATETIME(), UpdatedAt=SYSUTCDATETIME()',
+      { Json: json }
+    );
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Failed to save pronto sync progress:', error);
+    return res.status(500).json({ success: false, error: 'Failed to save progress' });
+  }
+});
+
 router.get('/time', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const serverNow = new Date();
