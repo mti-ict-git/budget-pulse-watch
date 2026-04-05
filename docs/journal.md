@@ -123,11 +123,13 @@ Wednesday, February 11, 2026 10:24:59 PM
 
 ## Feature:
 - Pronto Sync settings: item sync flags
+ - Pronto Sync: run-now scoped to a single PRF
 
 ## Changes:
 - Added AppSettings columns for Pronto item sync flags (replace item, add missing item, sync item description)
 - Exposed new toggles in Settings > Pronto Sync and wired payload to backend
 - Updated Pronto sync worker to pass new CLI flags to item sync step and ignore add-missing when replace is enabled
+ - Added AppSettings column ProntoSyncRunNowPrfNo and enabled requesting a run-now for a specific PRF from PRF list
 
 ## Notes:
 - Defaults OFF; flags are only applied when Sync PRF items step is enabled

@@ -85,6 +85,7 @@ type ProntoSyncSettings = {
   timeZone?: string | null;
   runNowRequestedAt?: string | null;
   runNowRequestedBy?: string | null;
+  runNowPrfNo?: string | null;
   lastRunStartedAt?: string | null;
   lastRunFinishedAt?: string | null;
   lastRunExitCode?: number | null;
@@ -112,6 +113,7 @@ type ProntoSyncSettingsState = {
 type ProntoSyncStatus = {
   runNowRequestedAt: string | null;
   runNowRequestedBy: string | null;
+  runNowPrfNo: string | null;
   lastRunStartedAt: string | null;
   lastRunFinishedAt: string | null;
   lastRunExitCode: number | null;
@@ -253,6 +255,7 @@ const Settings: React.FC = () => {
   const [prontoStatus, setProntoStatus] = useState<ProntoSyncStatus>({
     runNowRequestedAt: null,
     runNowRequestedBy: null,
+    runNowPrfNo: null,
     lastRunStartedAt: null,
     lastRunFinishedAt: null,
     lastRunExitCode: null
@@ -398,6 +401,7 @@ const Settings: React.FC = () => {
         setProntoStatus({
           runNowRequestedAt: typeof settings.runNowRequestedAt === 'string' ? settings.runNowRequestedAt : null,
           runNowRequestedBy: typeof settings.runNowRequestedBy === 'string' ? settings.runNowRequestedBy : null,
+          runNowPrfNo: typeof settings.runNowPrfNo === 'string' ? settings.runNowPrfNo : null,
           lastRunStartedAt: typeof settings.lastRunStartedAt === 'string' ? settings.lastRunStartedAt : null,
           lastRunFinishedAt: typeof settings.lastRunFinishedAt === 'string' ? settings.lastRunFinishedAt : null,
           lastRunExitCode: typeof settings.lastRunExitCode === 'number' ? settings.lastRunExitCode : null
@@ -1728,6 +1732,9 @@ const Settings: React.FC = () => {
                           </span>
                           {prontoStatus.runNowRequestedBy && (
                             <span className="text-xs text-muted-foreground">by {prontoStatus.runNowRequestedBy}</span>
+                          )}
+                          {prontoStatus.runNowPrfNo && (
+                            <span className="text-xs text-muted-foreground">PRF {prontoStatus.runNowPrfNo}</span>
                           )}
                         </div>
                       )}

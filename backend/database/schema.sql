@@ -42,6 +42,7 @@ CREATE TABLE AppSettings (
     ProntoSyncSyncItemDescription BIT NOT NULL DEFAULT 0,
     ProntoSyncRunNowRequestedAt DATETIME2 NULL,
     ProntoSyncRunNowRequestedBy NVARCHAR(100) NULL,
+    ProntoSyncRunNowPrfNo NVARCHAR(50) NULL,
     ProntoSyncLastRunStartedAt DATETIME2 NULL,
     ProntoSyncLastRunFinishedAt DATETIME2 NULL,
     ProntoSyncLastRunExitCode INT NULL,

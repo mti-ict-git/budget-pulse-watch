@@ -281,6 +281,16 @@ def _extract_run_request_ms(payload: Optional[dict]) -> Optional[int]:
     return _parse_iso_ms(payload.get("runNowRequestedAt"))
 
 
+def _extract_run_request_prf_no(payload: Optional[dict]) -> Optional[str]:
+    if not payload:
+        return None
+    raw = payload.get("runNowPrfNo")
+    if isinstance(raw, str):
+        s = raw.strip()
+        return s if s else None
+    return None
+
+
 def _report_run_complete(*, base_url: str, api_key: str, exit_code: int, started_at: str, finished_at: str) -> bool:
     if not base_url or not api_key:
         return False
@@ -298,9 +308,11 @@ def _report_run_complete(*, base_url: str, api_key: str, exit_code: int, started
         return False
 
 
-def _build_steps(config: SyncConfig) -> List[Step]:
+def _build_steps(config: SyncConfig, *, run_now_prf_no: Optional[str]) -> List[Step]:
     base_args = ["--budget-year", str(config.budget_year)]
-    if config.max_prfs is not None and config.max_prfs > 0:
+    if run_now_prf_no:
+        base_args += ["--prfno", run_now_prf_no, "--max-prfs", "1"]
+    elif config.max_prfs is not None and config.max_prfs > 0:
         base_args += ["--max-prfs", str(config.max_prfs)]
     if config.limit > 0:
         base_args += ["--limit", str(config.limit)]
@@ -382,8 +394,9 @@ def main() -> int:
         requested_now = requested_ms is not None and (last_handled_request_ms is None or requested_ms > last_handled_request_ms)
         if pending_report is not None and requested_ms is not None and requested_ms == pending_report[0]:
             requested_now = False
+        requested_prf_no = _extract_run_request_prf_no(payload) if requested_now else None
         print(
-            f"[pronto-sync] cycle_start loop={loop} loaded_from_api={loaded} enabled={config.enabled} requested_now={requested_now} budget_year={config.budget_year} apply={config.apply} interval_seconds={interval_seconds}",
+            f"[pronto-sync] cycle_start loop={loop} loaded_from_api={loaded} enabled={config.enabled} requested_now={requested_now} requested_prf_no={requested_prf_no} budget_year={config.budget_year} apply={config.apply} interval_seconds={interval_seconds}",
             flush=True,
         )
 
@@ -399,7 +412,7 @@ def main() -> int:
             if ok:
                 pending_report = None
 
-        steps = _build_steps(config)
+        steps = _build_steps(config, run_now_prf_no=requested_prf_no)
         any_enabled = False
         worst_exit = 0
         started_at = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())

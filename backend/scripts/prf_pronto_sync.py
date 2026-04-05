@@ -1556,6 +1556,7 @@ def main() -> int:
             {
                 "base_url": args.base_url,
                 "api_key": _mask(args.api_key),
+                "prfno": str(args.prfno).strip() or None,
                 "budget_year": args.budget_year,
                 "limit": args.limit,
                 "max_prfs": args.max_prfs,
@@ -1588,6 +1589,29 @@ def main() -> int:
                 prf_summaries.append(s)
 
     candidates = _build_candidates(prf_summaries, args.budget_year)
+    prfno = str(args.prfno).strip()
+    if prfno:
+        candidates = [c for c in candidates if c.prf.prf_no == prfno]
+        if not candidates:
+            out = {
+                "mode": "sync_prf_header",
+                "dryRun": bool(is_dry_run),
+                "budgetYear": int(args.budget_year),
+                "candidates": 0,
+                "results": [
+                    {
+                        "prfNo": prfno,
+                        "prfId": None,
+                        "orderNo": prfno,
+                        "status": "no_candidate_for_prfno",
+                    }
+                ],
+            }
+            out_path = os.path.join(args.artifacts_dir, f"prf_pronto_sync_{int(args.budget_year)}.json")
+            _write_json(out_path, out)
+            print(f"PRFs total={len(prf_summaries)} candidates=0 budget_year={args.budget_year}")
+            print(f"Wrote report {out_path}")
+            return 0
     if args.max_prfs and args.max_prfs > 0:
         candidates = candidates[: args.max_prfs]
 

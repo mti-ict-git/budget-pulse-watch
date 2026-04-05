@@ -36,7 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync, CloudDownload } from "lucide-react";
+import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync, CloudDownload, Waypoints } from "lucide-react";
 import * as XLSX from "xlsx";
 import { PRFDetailDialog } from "@/components/prf/PRFDetailDialog";
 import { ExcelImportDialog } from "@/components/prf/ExcelImportDialog";
@@ -56,6 +56,7 @@ interface PRFItem {
   PRFID: number;
   ItemName: string;
   Description: string;
+  ItemCode?: string | null;
   Quantity: number;
   UnitPrice: number;
   TotalPrice: number;
@@ -327,6 +328,7 @@ export default function PRFMonitoring() {
   const [chartOfAccounts, setChartOfAccounts] = useState<ChartOfAccount[]>([]);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [isSelectedSyncing, setIsSelectedSyncing] = useState<boolean>(false);
+  const [isProntoSyncingId, setIsProntoSyncingId] = useState<string | null>(null);
   const [isOneDriveTesting, setIsOneDriveTesting] = useState<boolean>(false);
   const [isOneDriveDialogOpen, setIsOneDriveDialogOpen] = useState<boolean>(false);
   const [oneDriveTestOutput, setOneDriveTestOutput] = useState<string>("");
@@ -1060,6 +1062,34 @@ export default function PRFMonitoring() {
     }
   };
 
+  const handleProntoSyncNow = async (prfNo: string) => {
+    if (!user) {
+      toast({ title: "Authentication Required", description: "Please log in to sync", variant: "destructive" });
+      return;
+    }
+    if (user.role !== 'admin') {
+      toast({ title: "Not Allowed", description: "Admin role is required to run Pronto sync.", variant: "destructive" });
+      return;
+    }
+    setIsProntoSyncingId(prfNo);
+    try {
+      const response = await fetch(`/api/settings/pronto-sync/run-now?prfNo=${encodeURIComponent(prfNo)}`, {
+        method: 'POST',
+        headers: authService.getAuthHeaders()
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        toast({ title: "Request Failed", description: text || "Failed to request Pronto sync run.", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Requested", description: `Pronto sync requested for PRF ${prfNo}. Worker will pick it up shortly.` });
+    } catch (error) {
+      toast({ title: "Request Failed", description: error instanceof Error ? error.message : "Network error", variant: "destructive" });
+    } finally {
+      setIsProntoSyncingId(null);
+    }
+  };
+
   const handleTestOneDriveAccess = async () => {
     if (!user) {
       toast({ title: "Authentication Required", description: "Please log in to test OneDrive access", variant: "destructive" });
@@ -1426,6 +1456,22 @@ export default function PRFMonitoring() {
                                   <CloudDownload className="h-4 w-4" />
                                 )}
                               </Button>
+                              {user?.role === 'admin' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2"
+                                  onClick={(e) => { e.stopPropagation(); handleProntoSyncNow(prf.prfNo); }}
+                                  disabled={isProntoSyncingId === prf.prfNo}
+                                  aria-label="Sync this PRF from Pronto"
+                                >
+                                  {isProntoSyncingId === prf.prfNo ? (
+                                    <RefreshCw className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Waypoints className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              )}
                               {prf.items && prf.items.length > 0 && (
                                 <Badge variant="secondary" className="text-xs whitespace-nowrap">
                                   {prf.items.length} items
@@ -1469,9 +1515,22 @@ export default function PRFMonitoring() {
                                             </div>
                                           )}
                                         </div>
-                                        {item.Description && (
-                                          <div className="text-xs text-gray-600 mt-1">{item.Description}</div>
-                                        )}
+                                        {(() => {
+                                          const itemCode = (item.ItemCode ?? '').trim();
+                                          const desc = (item.Description ?? '').trim();
+                                          const partLine = itemCode.length > 0 ? `Part: ${itemCode}` : '';
+                                          const showDesc = desc.length > 0 && (partLine.length === 0 || desc.toLowerCase() !== partLine.toLowerCase());
+                                          return (
+                                            <div className="space-y-1">
+                                              {partLine.length > 0 && (
+                                                <div className="text-xs text-gray-600 font-mono">{partLine}</div>
+                                              )}
+                                              {showDesc && (
+                                                <div className="text-xs text-gray-600">{desc}</div>
+                                              )}
+                                            </div>
+                                          );
+                                        })()}
                                         
                                         {/* Cost Code Information */}
                                         <div className="flex flex-wrap gap-2 mt-2">

@@ -18,6 +18,7 @@ interface PRFItem {
   PRFID: number;
   ItemName: string;
   Description?: string;
+  ItemCode?: string | null;
   Quantity: number;
   UnitPrice: number;
   TotalPrice: number;
