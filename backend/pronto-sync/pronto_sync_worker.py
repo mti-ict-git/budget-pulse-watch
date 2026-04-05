@@ -291,6 +291,22 @@ def _extract_run_request_prf_no(payload: Optional[dict]) -> Optional[str]:
     return None
 
 
+def _extract_run_request_prf_nos(payload: Optional[dict]) -> Optional[List[str]]:
+    if not payload:
+        return None
+    raw = payload.get("runNowPrfNos")
+    if not isinstance(raw, list):
+        return None
+    out: List[str] = []
+    for v in raw:
+        if not isinstance(v, str):
+            continue
+        s = v.strip()
+        if s:
+            out.append(s)
+    return out if out else None
+
+
 def _report_run_complete(*, base_url: str, api_key: str, exit_code: int, started_at: str, finished_at: str) -> bool:
     if not base_url or not api_key:
         return False
@@ -395,8 +411,9 @@ def main() -> int:
         if pending_report is not None and requested_ms is not None and requested_ms == pending_report[0]:
             requested_now = False
         requested_prf_no = _extract_run_request_prf_no(payload) if requested_now else None
+        requested_prf_nos = _extract_run_request_prf_nos(payload) if requested_now else None
         print(
-            f"[pronto-sync] cycle_start loop={loop} loaded_from_api={loaded} enabled={config.enabled} requested_now={requested_now} requested_prf_no={requested_prf_no} budget_year={config.budget_year} apply={config.apply} interval_seconds={interval_seconds}",
+            f"[pronto-sync] cycle_start loop={loop} loaded_from_api={loaded} enabled={config.enabled} requested_now={requested_now} requested_prf_no={requested_prf_no} requested_prf_nos={len(requested_prf_nos) if requested_prf_nos else None} budget_year={config.budget_year} apply={config.apply} interval_seconds={interval_seconds}",
             flush=True,
         )
 
@@ -412,21 +429,37 @@ def main() -> int:
             if ok:
                 pending_report = None
 
-        steps = _build_steps(config, run_now_prf_no=requested_prf_no)
         any_enabled = False
         worst_exit = 0
         started_at = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
-        for step in steps:
-            if stop_flag[0]:
-                break
-            if not config.enabled and not requested_now:
-                break
-            if not step.enabled:
-                continue
-            any_enabled = True
-            code = _run_step(step)
-            if code != 0:
-                worst_exit = code
+        if requested_now and requested_prf_nos:
+            for idx2, prf_no in enumerate(requested_prf_nos, start=1):
+                if stop_flag[0]:
+                    break
+                steps = _build_steps(config, run_now_prf_no=prf_no)
+                print(f"[pronto-sync] run_now_batch {idx2}/{len(requested_prf_nos)} prfNo={prf_no}", flush=True)
+                for step in steps:
+                    if stop_flag[0]:
+                        break
+                    if not step.enabled:
+                        continue
+                    any_enabled = True
+                    code = _run_step(step)
+                    if code != 0:
+                        worst_exit = code
+        else:
+            steps = _build_steps(config, run_now_prf_no=requested_prf_no)
+            for step in steps:
+                if stop_flag[0]:
+                    break
+                if not config.enabled and not requested_now:
+                    break
+                if not step.enabled:
+                    continue
+                any_enabled = True
+                code = _run_step(step)
+                if code != 0:
+                    worst_exit = code
         finished_at = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
 
         if not any_enabled:

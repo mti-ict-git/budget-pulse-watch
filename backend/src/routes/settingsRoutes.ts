@@ -4,7 +4,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 import { executeQuery } from '../config/database';
-import { authenticateToken, requireAdmin } from '../middleware/auth';
+import { authenticateToken, requireAdmin, requireContentManager } from '../middleware/auth';
 import { isRunningInDocker } from '../utils/networkAuth';
 
 const router = express.Router();
@@ -44,6 +44,7 @@ interface ProntoSyncSettings {
   runNowRequestedAt?: string | null;
   runNowRequestedBy?: string | null;
   runNowPrfNo?: string | null;
+  runNowPrfNos?: string[] | null;
   lastRunStartedAt?: string | null;
   lastRunFinishedAt?: string | null;
   lastRunExitCode?: number | null;
@@ -80,6 +81,7 @@ interface DbAppSettingsRow {
   ProntoSyncRunNowRequestedAt: Date | null;
   ProntoSyncRunNowRequestedBy: string | null;
   ProntoSyncRunNowPrfNo: string | null;
+  ProntoSyncRunNowPrfNosJson: string | null;
   ProntoSyncLastRunStartedAt: Date | null;
   ProntoSyncLastRunFinishedAt: Date | null;
   ProntoSyncLastRunExitCode: number | null;
@@ -99,6 +101,24 @@ function toIsoOrNull(value: Date | string | null | undefined): string | null {
 function parseIsoDate(value: string): Date | null {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function parseStringArrayJson(value: string | null | undefined): string[] | null {
+  if (!value || typeof value !== 'string') return null;
+  const raw = value.trim();
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    const out = parsed
+      .filter((v): v is string => typeof v === 'string')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+      .slice(0, 500);
+    return out.length > 0 ? out : null;
+  } catch {
+    return null;
+  }
 }
 
 type FolderMountInfo = {
@@ -284,7 +304,7 @@ async function ensureDataDirectory() {
 async function loadSettings(): Promise<AppSettings> {
   try {
     const result = await executeQuery<DbAppSettingsRow>(
-      'SELECT TOP 1 Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath, ProntoSyncEnabled, ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled, ProntoSyncBudgetYear, ProntoSyncIntervalMinutes, ProntoSyncApply, ProntoSyncMaxPrfs, ProntoSyncLimit, ProntoSyncLogEvery, ProntoHeadless, ProntoCaptureScreenshots, ProntoWritePerPoJson, ProntoSyncReplaceItem, ProntoSyncAddMissingItem, ProntoSyncSyncItemDescription, ProntoSyncRunNowRequestedAt, ProntoSyncRunNowRequestedBy, ProntoSyncRunNowPrfNo, ProntoSyncLastRunStartedAt, ProntoSyncLastRunFinishedAt, ProntoSyncLastRunExitCode, ProntoSyncTimeZone FROM AppSettings ORDER BY SettingsID DESC'
+      'SELECT TOP 1 Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath, ProntoSyncEnabled, ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled, ProntoSyncBudgetYear, ProntoSyncIntervalMinutes, ProntoSyncApply, ProntoSyncMaxPrfs, ProntoSyncLimit, ProntoSyncLogEvery, ProntoHeadless, ProntoCaptureScreenshots, ProntoWritePerPoJson, ProntoSyncReplaceItem, ProntoSyncAddMissingItem, ProntoSyncSyncItemDescription, ProntoSyncRunNowRequestedAt, ProntoSyncRunNowRequestedBy, ProntoSyncRunNowPrfNo, ProntoSyncRunNowPrfNosJson, ProntoSyncLastRunStartedAt, ProntoSyncLastRunFinishedAt, ProntoSyncLastRunExitCode, ProntoSyncTimeZone FROM AppSettings ORDER BY SettingsID DESC'
     );
     const row = result.recordset[0];
     if (row) {
@@ -332,6 +352,7 @@ async function loadSettings(): Promise<AppSettings> {
           runNowRequestedAt: toIsoOrNull(row.ProntoSyncRunNowRequestedAt),
           runNowRequestedBy: typeof row.ProntoSyncRunNowRequestedBy === 'string' ? row.ProntoSyncRunNowRequestedBy : null,
           runNowPrfNo: typeof row.ProntoSyncRunNowPrfNo === 'string' && row.ProntoSyncRunNowPrfNo.trim().length > 0 ? row.ProntoSyncRunNowPrfNo.trim() : null,
+          runNowPrfNos: parseStringArrayJson(row.ProntoSyncRunNowPrfNosJson),
           lastRunStartedAt: toIsoOrNull(row.ProntoSyncLastRunStartedAt),
           lastRunFinishedAt: toIsoOrNull(row.ProntoSyncLastRunFinishedAt),
           lastRunExitCode: typeof row.ProntoSyncLastRunExitCode === 'number' ? row.ProntoSyncLastRunExitCode : null
@@ -419,6 +440,7 @@ async function loadSettings(): Promise<AppSettings> {
         headless: true,
         captureScreenshots: false,
         writePerPoJson: false,
+        runNowPrfNos: null,
         timeZone: 'Asia/Jakarta'
       }
     };
@@ -688,7 +710,8 @@ router.get('/pronto-sync', authenticateToken, requireAdmin, async (req: Request,
       replaceItem: false,
       addMissingItem: false,
       syncItemDescription: false,
-      runNowPrfNo: null
+      runNowPrfNo: null,
+      runNowPrfNos: null
     };
     res.json(pronto);
   } catch (error) {
@@ -799,17 +822,31 @@ router.post('/pronto-sync', authenticateToken, requireAdmin, async (req: Request
   }
 });
 
-router.post('/pronto-sync/run-now', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+router.post('/pronto-sync/run-now', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
   try {
     const requestedBy = typeof req.user?.Username === 'string' ? req.user.Username : 'unknown';
     const body = req.body as Record<string, unknown>;
     const queryPrfNo = typeof req.query.prfNo === 'string' ? req.query.prfNo : '';
+    const queryPrfNos = typeof req.query.prfNos === 'string' ? req.query.prfNos : '';
+
+    const prfNosRaw = body?.prfNos;
+    const bodyPrfNos =
+      Array.isArray(prfNosRaw) ? prfNosRaw.filter((v): v is string => typeof v === 'string').map((s) => s.trim()).filter((s) => s.length > 0) : [];
+    const queryPrfNosParsed = queryPrfNos
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    const mergedPrfNos = [...bodyPrfNos, ...queryPrfNosParsed].slice(0, 200);
+
     const prfNoRaw = body?.prfNo ?? queryPrfNo;
-    const prfNo = typeof prfNoRaw === 'string' ? prfNoRaw.trim() : typeof prfNoRaw === 'number' ? String(Math.trunc(prfNoRaw)) : '';
-    const normalizedPrfNo = prfNo.length > 0 ? prfNo.slice(0, 50) : null;
+    const prfNoSingle = typeof prfNoRaw === 'string' ? prfNoRaw.trim() : typeof prfNoRaw === 'number' ? String(Math.trunc(prfNoRaw)) : '';
+
+    const normalizedPrfNos = mergedPrfNos.length > 0 ? mergedPrfNos.map((s) => s.slice(0, 50)) : null;
+    const normalizedPrfNo = normalizedPrfNos ? null : prfNoSingle.length > 0 ? prfNoSingle.slice(0, 50) : null;
+    const prfNosJson = normalizedPrfNos ? JSON.stringify(normalizedPrfNos) : null;
     await executeQuery(
-      'UPDATE AppSettings SET ProntoSyncRunNowRequestedAt=SYSUTCDATETIME(), ProntoSyncRunNowRequestedBy=@RequestedBy, ProntoSyncRunNowPrfNo=@PrfNo, UpdatedAt=SYSUTCDATETIME()',
-      { RequestedBy: requestedBy, PrfNo: normalizedPrfNo }
+      'UPDATE AppSettings SET ProntoSyncRunNowRequestedAt=SYSUTCDATETIME(), ProntoSyncRunNowRequestedBy=@RequestedBy, ProntoSyncRunNowPrfNo=@PrfNo, ProntoSyncRunNowPrfNosJson=@PrfNosJson, UpdatedAt=SYSUTCDATETIME()',
+      { RequestedBy: requestedBy, PrfNo: normalizedPrfNo, PrfNosJson: prfNosJson }
     );
     return res.json({ message: 'Run requested' });
   } catch (error) {
@@ -839,7 +876,7 @@ router.post('/pronto-sync/run-now/complete', authenticateToken, requireAdmin, as
       return res.status(400).json({ error: 'finishedAt must be a valid ISO date string' });
     }
     await executeQuery(
-      'UPDATE AppSettings SET ProntoSyncRunNowRequestedAt=NULL, ProntoSyncRunNowRequestedBy=NULL, ProntoSyncRunNowPrfNo=NULL, ProntoSyncLastRunStartedAt=@StartedAt, ProntoSyncLastRunFinishedAt=@FinishedAt, ProntoSyncLastRunExitCode=@ExitCode, UpdatedAt=SYSUTCDATETIME()',
+      'UPDATE AppSettings SET ProntoSyncRunNowRequestedAt=NULL, ProntoSyncRunNowRequestedBy=NULL, ProntoSyncRunNowPrfNo=NULL, ProntoSyncRunNowPrfNosJson=NULL, ProntoSyncLastRunStartedAt=@StartedAt, ProntoSyncLastRunFinishedAt=@FinishedAt, ProntoSyncLastRunExitCode=@ExitCode, UpdatedAt=SYSUTCDATETIME()',
       {
         StartedAt: started,
         FinishedAt: finished,

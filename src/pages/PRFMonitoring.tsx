@@ -329,6 +329,7 @@ export default function PRFMonitoring() {
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [isSelectedSyncing, setIsSelectedSyncing] = useState<boolean>(false);
   const [isProntoSyncingId, setIsProntoSyncingId] = useState<string | null>(null);
+  const [isProntoSelectedSyncing, setIsProntoSelectedSyncing] = useState<boolean>(false);
   const [isOneDriveTesting, setIsOneDriveTesting] = useState<boolean>(false);
   const [isOneDriveDialogOpen, setIsOneDriveDialogOpen] = useState<boolean>(false);
   const [oneDriveTestOutput, setOneDriveTestOutput] = useState<string>("");
@@ -1000,6 +1001,11 @@ export default function PRFMonitoring() {
       toast({ title: "Authentication Required", description: "Please log in to sync", variant: "destructive" });
       return;
     }
+    const canManageContent = user.role === 'admin' || user.role === 'doccon';
+    if (!canManageContent) {
+      toast({ title: "Not Allowed", description: "Admin or Document Control role is required to sync.", variant: "destructive" });
+      return;
+    }
     setSyncingId(prfNo);
     try {
       const yearParam = yearFilter !== 'all' ? `&year=${encodeURIComponent(yearFilter)}` : '';
@@ -1025,6 +1031,11 @@ export default function PRFMonitoring() {
   const handleSyncSelected = async () => {
     if (!user) {
       toast({ title: "Authentication Required", description: "Please log in to sync", variant: "destructive" });
+      return;
+    }
+    const canManageContent = user.role === 'admin' || user.role === 'doccon';
+    if (!canManageContent) {
+      toast({ title: "Not Allowed", description: "Admin or Document Control role is required to sync.", variant: "destructive" });
       return;
     }
     const selectedPrfNos: string[] = prfData.filter((p) => selectedItems.has(p.id)).map((p) => p.prfNo);
@@ -1067,8 +1078,9 @@ export default function PRFMonitoring() {
       toast({ title: "Authentication Required", description: "Please log in to sync", variant: "destructive" });
       return;
     }
-    if (user.role !== 'admin') {
-      toast({ title: "Not Allowed", description: "Admin role is required to run Pronto sync.", variant: "destructive" });
+    const canManageContent = user.role === 'admin' || user.role === 'doccon';
+    if (!canManageContent) {
+      toast({ title: "Not Allowed", description: "Admin or Document Control role is required to run Pronto sync.", variant: "destructive" });
       return;
     }
     setIsProntoSyncingId(prfNo);
@@ -1087,6 +1099,44 @@ export default function PRFMonitoring() {
       toast({ title: "Request Failed", description: error instanceof Error ? error.message : "Network error", variant: "destructive" });
     } finally {
       setIsProntoSyncingId(null);
+    }
+  };
+
+  const handleProntoSyncSelected = async () => {
+    if (!user) {
+      toast({ title: "Authentication Required", description: "Please log in to sync", variant: "destructive" });
+      return;
+    }
+    const canManageContent = user.role === 'admin' || user.role === 'doccon';
+    if (!canManageContent) {
+      toast({ title: "Not Allowed", description: "Admin or Document Control role is required to run Pronto sync.", variant: "destructive" });
+      return;
+    }
+    const selectedPrfNos: string[] = prfData.filter((p) => selectedItems.has(p.id)).map((p) => p.prfNo);
+    if (selectedPrfNos.length === 0) {
+      toast({ title: "No Selection", description: "Select at least one PRF to sync from Pronto" });
+      return;
+    }
+    setIsProntoSelectedSyncing(true);
+    try {
+      const response = await fetch('/api/settings/pronto-sync/run-now', {
+        method: 'POST',
+        headers: {
+          ...authService.getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ prfNos: selectedPrfNos })
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        toast({ title: "Request Failed", description: text || "Failed to request Pronto sync run.", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Requested", description: `Pronto sync requested for ${selectedPrfNos.length} PRFs.` });
+    } catch (error) {
+      toast({ title: "Request Failed", description: error instanceof Error ? error.message : "Network error", variant: "destructive" });
+    } finally {
+      setIsProntoSelectedSyncing(false);
     }
   };
 
@@ -1158,7 +1208,7 @@ export default function PRFMonitoring() {
           <Button
             variant="outline"
             onClick={handleSyncSelected}
-            disabled={isSelectedSyncing || selectedItems.size === 0}
+            disabled={isSelectedSyncing || selectedItems.size === 0 || !(user?.role === 'admin' || user?.role === 'doccon')}
           >
             {isSelectedSyncing ? (
               <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
@@ -1166,6 +1216,18 @@ export default function PRFMonitoring() {
               <CloudDownload className="h-4 w-4 mr-2" />
             )}
             Sync Selected PRFs
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleProntoSyncSelected}
+            disabled={isProntoSelectedSyncing || selectedItems.size === 0 || !(user?.role === 'admin' || user?.role === 'doccon')}
+          >
+            {isProntoSelectedSyncing ? (
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Waypoints className="h-4 w-4 mr-2" />
+            )}
+            Sync Selected via Pronto
           </Button>
           {user?.role === 'admin' && (
             <Button
@@ -1447,7 +1509,7 @@ export default function PRFMonitoring() {
                                 size="sm"
                                 className="h-7 px-2"
                                 onClick={(e) => { e.stopPropagation(); handleSyncPRF(prf.prfNo); }}
-                                disabled={syncingId === prf.prfNo}
+                                disabled={syncingId === prf.prfNo || !(user?.role === 'admin' || user?.role === 'doccon')}
                                 aria-label="Sync this PRF from Cloud"
                               >
                                 {syncingId === prf.prfNo ? (
@@ -1456,22 +1518,20 @@ export default function PRFMonitoring() {
                                   <CloudDownload className="h-4 w-4" />
                                 )}
                               </Button>
-                              {user?.role === 'admin' && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 px-2"
-                                  onClick={(e) => { e.stopPropagation(); handleProntoSyncNow(prf.prfNo); }}
-                                  disabled={isProntoSyncingId === prf.prfNo}
-                                  aria-label="Sync this PRF from Pronto"
-                                >
-                                  {isProntoSyncingId === prf.prfNo ? (
-                                    <RefreshCw className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Waypoints className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2"
+                                onClick={(e) => { e.stopPropagation(); handleProntoSyncNow(prf.prfNo); }}
+                                disabled={isProntoSyncingId === prf.prfNo || !(user?.role === 'admin' || user?.role === 'doccon')}
+                                aria-label="Sync this PRF from Pronto"
+                              >
+                                {isProntoSyncingId === prf.prfNo ? (
+                                  <RefreshCw className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Waypoints className="h-4 w-4" />
+                                )}
+                              </Button>
                               {prf.items && prf.items.length > 0 && (
                                 <Badge variant="secondary" className="text-xs whitespace-nowrap">
                                   {prf.items.length} items
