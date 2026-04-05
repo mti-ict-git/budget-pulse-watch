@@ -931,6 +931,8 @@ router.post('/:id/items', authenticateToken, requireContentManager, async (req: 
       });
     }
 
+    const allowMissingCostFields = isProntoSyncRequest(req);
+
     // Validate required fields for each item
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -940,11 +942,13 @@ router.post('/:id/items', authenticateToken, requireContentManager, async (req: 
           message: `Item ${i + 1}: ItemName, Quantity, and UnitPrice are required`
         });
       }
-      if (!item.PurchaseCostCode || !item.COAID || !item.BudgetYear) {
-        return res.status(400).json({
-          success: false,
-          message: `Item ${i + 1}: PurchaseCostCode, COAID, and BudgetYear are required`
-        });
+      if (!allowMissingCostFields) {
+        if (!item.PurchaseCostCode || !item.COAID || !item.BudgetYear) {
+          return res.status(400).json({
+            success: false,
+            message: `Item ${i + 1}: PurchaseCostCode, COAID, and BudgetYear are required`
+          });
+        }
       }
     }
 

@@ -117,6 +117,7 @@ export interface UpdatePRFItemParams {
   PRFItemID: number;
   ItemName?: string;
   Description?: string;
+  ItemCode?: string | null;
   Quantity?: number;
   UnitPrice?: number;
   Specifications?: string;
@@ -493,6 +494,7 @@ export interface PRFItem {
   PRFID: number;
   ItemName: string;
   Description?: string;
+  ItemCode?: string | null;
   Quantity: number;
   UnitPrice: number;
   TotalPrice: number;
@@ -518,6 +520,7 @@ export interface PRFItem {
 export interface CreatePRFItemRequest {
   ItemName: string;
   Description?: string;
+  ItemCode?: string | null;
   Quantity: number;
   UnitPrice: number;
   Specifications?: string;

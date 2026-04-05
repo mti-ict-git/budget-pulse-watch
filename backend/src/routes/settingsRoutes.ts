@@ -37,6 +37,9 @@ interface ProntoSyncSettings {
   headless: boolean;
   captureScreenshots: boolean;
   writePerPoJson: boolean;
+  replaceItem?: boolean;
+  addMissingItem?: boolean;
+  syncItemDescription?: boolean;
   timeZone?: string | null;
   runNowRequestedAt?: string | null;
   runNowRequestedBy?: string | null;
@@ -70,6 +73,9 @@ interface DbAppSettingsRow {
   ProntoHeadless: number | null;
   ProntoCaptureScreenshots: number | null;
   ProntoWritePerPoJson: number | null;
+  ProntoSyncReplaceItem: number | null;
+  ProntoSyncAddMissingItem: number | null;
+  ProntoSyncSyncItemDescription: number | null;
   ProntoSyncRunNowRequestedAt: Date | null;
   ProntoSyncRunNowRequestedBy: string | null;
   ProntoSyncLastRunStartedAt: Date | null;
@@ -276,7 +282,7 @@ async function ensureDataDirectory() {
 async function loadSettings(): Promise<AppSettings> {
   try {
     const result = await executeQuery<DbAppSettingsRow>(
-      'SELECT TOP 1 Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath, ProntoSyncEnabled, ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled, ProntoSyncBudgetYear, ProntoSyncIntervalMinutes, ProntoSyncApply, ProntoSyncMaxPrfs, ProntoSyncLimit, ProntoSyncLogEvery, ProntoHeadless, ProntoCaptureScreenshots, ProntoWritePerPoJson, ProntoSyncRunNowRequestedAt, ProntoSyncRunNowRequestedBy, ProntoSyncLastRunStartedAt, ProntoSyncLastRunFinishedAt, ProntoSyncLastRunExitCode, ProntoSyncTimeZone FROM AppSettings ORDER BY SettingsID DESC'
+      'SELECT TOP 1 Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath, ProntoSyncEnabled, ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled, ProntoSyncBudgetYear, ProntoSyncIntervalMinutes, ProntoSyncApply, ProntoSyncMaxPrfs, ProntoSyncLimit, ProntoSyncLogEvery, ProntoHeadless, ProntoCaptureScreenshots, ProntoWritePerPoJson, ProntoSyncReplaceItem, ProntoSyncAddMissingItem, ProntoSyncSyncItemDescription, ProntoSyncRunNowRequestedAt, ProntoSyncRunNowRequestedBy, ProntoSyncLastRunStartedAt, ProntoSyncLastRunFinishedAt, ProntoSyncLastRunExitCode, ProntoSyncTimeZone FROM AppSettings ORDER BY SettingsID DESC'
     );
     const row = result.recordset[0];
     if (row) {
@@ -317,6 +323,9 @@ async function loadSettings(): Promise<AppSettings> {
           headless: row.ProntoHeadless === null ? true : !!row.ProntoHeadless,
           captureScreenshots: !!row.ProntoCaptureScreenshots,
           writePerPoJson: !!row.ProntoWritePerPoJson,
+          replaceItem: !!row.ProntoSyncReplaceItem,
+          addMissingItem: !!row.ProntoSyncAddMissingItem,
+          syncItemDescription: !!row.ProntoSyncSyncItemDescription,
           timeZone: typeof row.ProntoSyncTimeZone === 'string' && row.ProntoSyncTimeZone.trim().length > 0 ? row.ProntoSyncTimeZone.trim() : null,
           runNowRequestedAt: toIsoOrNull(row.ProntoSyncRunNowRequestedAt),
           runNowRequestedBy: typeof row.ProntoSyncRunNowRequestedBy === 'string' ? row.ProntoSyncRunNowRequestedBy : null,
@@ -355,6 +364,9 @@ async function loadSettings(): Promise<AppSettings> {
               headless: true,
               captureScreenshots: false,
               writePerPoJson: false,
+              replaceItem: false,
+              addMissingItem: false,
+              syncItemDescription: false,
               timeZone: 'Asia/Jakarta'
             }
       };
@@ -426,13 +438,16 @@ async function saveSettings(settings: AppSettings): Promise<void> {
     headless: true,
     captureScreenshots: false,
     writePerPoJson: false,
+    replaceItem: false,
+    addMissingItem: false,
+    syncItemDescription: false,
     timeZone: 'Asia/Jakarta'
   };
   const existing = await executeQuery<{ Count: number }>('SELECT COUNT(*) AS Count FROM AppSettings');
   const hasRow = (existing.recordset[0]?.Count || 0) > 0;
   if (hasRow) {
     await executeQuery(
-      'UPDATE AppSettings SET Provider=@Provider, GeminiApiKeyEnc=@GeminiApiKeyEnc, OpenAIApiKeyEnc=@OpenAIApiKeyEnc, Enabled=@Enabled, Model=@Model, SharedFolderPath=@SharedFolderPath, ProntoSyncEnabled=@ProntoSyncEnabled, ProntoSyncHeaderEnabled=@ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled=@ProntoSyncItemsEnabled, ProntoSyncBudgetYear=@ProntoSyncBudgetYear, ProntoSyncIntervalMinutes=@ProntoSyncIntervalMinutes, ProntoSyncApply=@ProntoSyncApply, ProntoSyncMaxPrfs=@ProntoSyncMaxPrfs, ProntoSyncLimit=@ProntoSyncLimit, ProntoSyncLogEvery=@ProntoSyncLogEvery, ProntoHeadless=@ProntoHeadless, ProntoCaptureScreenshots=@ProntoCaptureScreenshots, ProntoWritePerPoJson=@ProntoWritePerPoJson, ProntoSyncTimeZone=@ProntoSyncTimeZone, UpdatedAt=GETDATE()',
+      'UPDATE AppSettings SET Provider=@Provider, GeminiApiKeyEnc=@GeminiApiKeyEnc, OpenAIApiKeyEnc=@OpenAIApiKeyEnc, Enabled=@Enabled, Model=@Model, SharedFolderPath=@SharedFolderPath, ProntoSyncEnabled=@ProntoSyncEnabled, ProntoSyncHeaderEnabled=@ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled=@ProntoSyncItemsEnabled, ProntoSyncBudgetYear=@ProntoSyncBudgetYear, ProntoSyncIntervalMinutes=@ProntoSyncIntervalMinutes, ProntoSyncApply=@ProntoSyncApply, ProntoSyncMaxPrfs=@ProntoSyncMaxPrfs, ProntoSyncLimit=@ProntoSyncLimit, ProntoSyncLogEvery=@ProntoSyncLogEvery, ProntoHeadless=@ProntoHeadless, ProntoCaptureScreenshots=@ProntoCaptureScreenshots, ProntoWritePerPoJson=@ProntoWritePerPoJson, ProntoSyncReplaceItem=@ProntoSyncReplaceItem, ProntoSyncAddMissingItem=@ProntoSyncAddMissingItem, ProntoSyncSyncItemDescription=@ProntoSyncSyncItemDescription, ProntoSyncTimeZone=@ProntoSyncTimeZone, UpdatedAt=GETDATE()',
       {
         Provider: settings.ocr.provider,
         GeminiApiKeyEnc: encGemini,
@@ -452,12 +467,15 @@ async function saveSettings(settings: AppSettings): Promise<void> {
         ProntoHeadless: pronto.headless ? 1 : 0,
         ProntoCaptureScreenshots: pronto.captureScreenshots ? 1 : 0,
         ProntoWritePerPoJson: pronto.writePerPoJson ? 1 : 0,
+        ProntoSyncReplaceItem: pronto.replaceItem ? 1 : 0,
+        ProntoSyncAddMissingItem: pronto.addMissingItem ? 1 : 0,
+        ProntoSyncSyncItemDescription: pronto.syncItemDescription ? 1 : 0,
         ProntoSyncTimeZone: pronto.timeZone || null
       }
     );
   } else {
     await executeQuery(
-      'INSERT INTO AppSettings (Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath, ProntoSyncEnabled, ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled, ProntoSyncBudgetYear, ProntoSyncIntervalMinutes, ProntoSyncApply, ProntoSyncMaxPrfs, ProntoSyncLimit, ProntoSyncLogEvery, ProntoHeadless, ProntoCaptureScreenshots, ProntoWritePerPoJson, ProntoSyncTimeZone) VALUES (@Provider, @GeminiApiKeyEnc, @OpenAIApiKeyEnc, @Enabled, @Model, @SharedFolderPath, @ProntoSyncEnabled, @ProntoSyncHeaderEnabled, @ProntoSyncItemsEnabled, @ProntoSyncBudgetYear, @ProntoSyncIntervalMinutes, @ProntoSyncApply, @ProntoSyncMaxPrfs, @ProntoSyncLimit, @ProntoSyncLogEvery, @ProntoHeadless, @ProntoCaptureScreenshots, @ProntoWritePerPoJson, @ProntoSyncTimeZone)',
+      'INSERT INTO AppSettings (Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath, ProntoSyncEnabled, ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled, ProntoSyncBudgetYear, ProntoSyncIntervalMinutes, ProntoSyncApply, ProntoSyncMaxPrfs, ProntoSyncLimit, ProntoSyncLogEvery, ProntoHeadless, ProntoCaptureScreenshots, ProntoWritePerPoJson, ProntoSyncReplaceItem, ProntoSyncAddMissingItem, ProntoSyncSyncItemDescription, ProntoSyncTimeZone) VALUES (@Provider, @GeminiApiKeyEnc, @OpenAIApiKeyEnc, @Enabled, @Model, @SharedFolderPath, @ProntoSyncEnabled, @ProntoSyncHeaderEnabled, @ProntoSyncItemsEnabled, @ProntoSyncBudgetYear, @ProntoSyncIntervalMinutes, @ProntoSyncApply, @ProntoSyncMaxPrfs, @ProntoSyncLimit, @ProntoSyncLogEvery, @ProntoHeadless, @ProntoCaptureScreenshots, @ProntoWritePerPoJson, @ProntoSyncReplaceItem, @ProntoSyncAddMissingItem, @ProntoSyncSyncItemDescription, @ProntoSyncTimeZone)',
       {
         Provider: settings.ocr.provider,
         GeminiApiKeyEnc: encGemini,
@@ -477,6 +495,9 @@ async function saveSettings(settings: AppSettings): Promise<void> {
         ProntoHeadless: pronto.headless ? 1 : 0,
         ProntoCaptureScreenshots: pronto.captureScreenshots ? 1 : 0,
         ProntoWritePerPoJson: pronto.writePerPoJson ? 1 : 0,
+        ProntoSyncReplaceItem: pronto.replaceItem ? 1 : 0,
+        ProntoSyncAddMissingItem: pronto.addMissingItem ? 1 : 0,
+        ProntoSyncSyncItemDescription: pronto.syncItemDescription ? 1 : 0,
         ProntoSyncTimeZone: pronto.timeZone || null
       }
     );
@@ -660,7 +681,10 @@ router.get('/pronto-sync', authenticateToken, requireAdmin, async (req: Request,
       logEvery: 25,
       headless: true,
       captureScreenshots: false,
-      writePerPoJson: false
+      writePerPoJson: false,
+      replaceItem: false,
+      addMissingItem: false,
+      syncItemDescription: false
     };
     res.json(pronto);
   } catch (error) {
@@ -684,6 +708,9 @@ router.post('/pronto-sync', authenticateToken, requireAdmin, async (req: Request
       headless,
       captureScreenshots,
       writePerPoJson,
+      replaceItem,
+      addMissingItem,
+      syncItemDescription,
       timeZone
     } = req.body as Record<string, unknown>;
 
@@ -723,6 +750,15 @@ router.post('/pronto-sync', authenticateToken, requireAdmin, async (req: Request
     if (typeof writePerPoJson !== 'boolean') {
       return res.status(400).json({ error: 'writePerPoJson must be a boolean' });
     }
+    if (typeof replaceItem !== 'boolean') {
+      return res.status(400).json({ error: 'replaceItem must be a boolean' });
+    }
+    if (typeof addMissingItem !== 'boolean') {
+      return res.status(400).json({ error: 'addMissingItem must be a boolean' });
+    }
+    if (typeof syncItemDescription !== 'boolean') {
+      return res.status(400).json({ error: 'syncItemDescription must be a boolean' });
+    }
     if (!(timeZone === null || typeof timeZone === 'string' || typeof timeZone === 'undefined')) {
       return res.status(400).json({ error: 'timeZone must be a string or null' });
     }
@@ -746,6 +782,9 @@ router.post('/pronto-sync', authenticateToken, requireAdmin, async (req: Request
       headless,
       captureScreenshots,
       writePerPoJson,
+      replaceItem,
+      addMissingItem: replaceItem ? false : addMissingItem,
+      syncItemDescription,
       timeZone: normalizedTimeZone
     };
     await saveSettings(currentSettings);

@@ -280,16 +280,28 @@ async def _apply_requisition_find(page, requisition_number: str) -> Tuple[bool, 
 
 async def _fill_po_number(page, po_number: str) -> bool:
     try:
-        await _activate_order_cell(page)
-        editor = await _first_available(
-            [
-                page.locator("table input[aria-label*='Order' i]:visible"),
-                page.locator("input[aria-label='Order No']:visible"),
-                page.locator("table input[type='text']:visible"),
-                page.locator("[contenteditable='true']:visible"),
-                page.locator("input:focus"),
-            ]
-        )
+        editor = None
+        focused = page.locator("table input:focus")
+        if (await focused.count()) > 0:
+            editor = focused.first
+        if not editor:
+            focused2 = page.locator("input:focus")
+            if (await focused2.count()) > 0:
+                editor = focused2.first
+        if not editor:
+            editor = await _first_available(
+                [
+                    page.locator("table input[aria-label*='Order' i]:visible"),
+                    page.locator("input[aria-label='Order No']:visible"),
+                    page.locator("table input[type='text']:visible"),
+                    page.locator("[contenteditable='true']:visible"),
+                ]
+            )
+        if not editor:
+            await _activate_order_cell(page)
+            focused3 = page.locator("input:focus")
+            if (await focused3.count()) > 0:
+                editor = focused3.first
         if editor:
             try:
                 await editor.fill("")
@@ -435,7 +447,7 @@ async def _extract_all_rows_by_column(
             count_h = await header_nodes.count()
         for i in range(count_h):
             t = await header_nodes.nth(i).inner_text()
-            headers.append(t.strip())
+            headers.append(re.sub(r"\s+", " ", t).strip())
 
         def _row_to_dict(values: List[str]) -> Dict[str, str]:
             result: Dict[str, str] = {}
@@ -1071,7 +1083,7 @@ async def _extract_top_row_orders(page) -> Dict[str, str]:
         for i in range(min(cell_count, len(headers))):
             key = headers[i] if headers[i] else f"col_{i}"
             val = await cells.nth(i).inner_text()
-            result[key] = val.strip()
+            result[key] = re.sub(r"\s+", " ", val).strip()
         return result
     except Exception:
         return {}
@@ -1107,7 +1119,18 @@ async def _ensure_orders_find_mode(page) -> None:
         if not await _is_orders_grid_active(page):
             await _ensure_purchase_orders(page)
         await _click_find(page)
-        await page.wait_for_timeout(300)
+        t0 = time.monotonic()
+        while int((time.monotonic() - t0) * 1000) < 5000:
+            focused = page.locator("input:focus")
+            if (await focused.count()) > 0:
+                return
+            inputs = page.locator("table input:visible")
+            if (await inputs.count()) > 0:
+                try:
+                    await inputs.first.click(timeout=500, force=True)
+                except Exception:
+                    pass
+            await page.wait_for_timeout(100)
     except Exception:
         return None
 

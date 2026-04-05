@@ -119,6 +119,19 @@ Wednesday, February 11, 2026 10:24:59 PM
 - Hardened Excel range writing for non-A1 usedRange and columns beyond Z
 - Verified TypeScript no-emit typecheck and ESLint
 
+2026-04-05
+
+## Feature:
+- Pronto Sync settings: item sync flags
+
+## Changes:
+- Added AppSettings columns for Pronto item sync flags (replace item, add missing item, sync item description)
+- Exposed new toggles in Settings > Pronto Sync and wired payload to backend
+- Updated Pronto sync worker to pass new CLI flags to item sync step and ignore add-missing when replace is enabled
+
+## Notes:
+- Defaults OFF; flags are only applied when Sync PRF items step is enabled
+
 Wednesday, February 11, 2026 10:43:48 PM
 - Fixed OneDrive sync to fallback from app-only token to delegated Files.ReadWrite on 401/403
 

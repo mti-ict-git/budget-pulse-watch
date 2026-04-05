@@ -70,6 +70,9 @@ type ProntoSyncSettings = {
   enabled: boolean;
   headerEnabled: boolean;
   itemsEnabled: boolean;
+  replaceItem: boolean;
+  addMissingItem: boolean;
+  syncItemDescription: boolean;
   budgetYear: number | null;
   intervalMinutes: number;
   apply: boolean;
@@ -91,6 +94,9 @@ type ProntoSyncSettingsState = {
   enabled: boolean;
   headerEnabled: boolean;
   itemsEnabled: boolean;
+  replaceItem: boolean;
+  addMissingItem: boolean;
+  syncItemDescription: boolean;
   budgetYear: string;
   intervalMinutes: string;
   apply: boolean;
@@ -230,6 +236,9 @@ const Settings: React.FC = () => {
     enabled: false,
     headerEnabled: true,
     itemsEnabled: true,
+    replaceItem: false,
+    addMissingItem: false,
+    syncItemDescription: false,
     budgetYear: '',
     intervalMinutes: '60',
     apply: false,
@@ -372,6 +381,9 @@ const Settings: React.FC = () => {
           enabled: !!settings.enabled,
           headerEnabled: !!settings.headerEnabled,
           itemsEnabled: !!settings.itemsEnabled,
+          replaceItem: !!settings.replaceItem,
+          addMissingItem: !!settings.addMissingItem,
+          syncItemDescription: !!settings.syncItemDescription,
           budgetYear: typeof settings.budgetYear === 'number' ? String(settings.budgetYear) : '',
           intervalMinutes: typeof settings.intervalMinutes === 'number' ? String(settings.intervalMinutes) : '60',
           apply: !!settings.apply,
@@ -427,6 +439,9 @@ const Settings: React.FC = () => {
         enabled: prontoSettings.enabled,
         headerEnabled: prontoSettings.headerEnabled,
         itemsEnabled: prontoSettings.itemsEnabled,
+        replaceItem: prontoSettings.replaceItem,
+        addMissingItem: prontoSettings.replaceItem ? false : prontoSettings.addMissingItem,
+        syncItemDescription: prontoSettings.syncItemDescription,
         budgetYear,
         intervalMinutes,
         apply: prontoSettings.apply,
@@ -1941,6 +1956,56 @@ const Settings: React.FC = () => {
                       />
                       <Label htmlFor="pronto-items">Sync PRF items (PO mapping & quantities)</Label>
                     </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Item sync options</Label>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="pronto-sync-item-description"
+                        checked={prontoSettings.syncItemDescription}
+                        disabled={!prontoSettings.itemsEnabled}
+                        onChange={(e) => setProntoSettings((prev) => ({ ...prev, syncItemDescription: e.target.checked }))}
+                        className="rounded border-gray-300"
+                      />
+                      <Label htmlFor="pronto-sync-item-description">Sync item name & description</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="pronto-add-missing-item"
+                        checked={prontoSettings.addMissingItem}
+                        disabled={!prontoSettings.itemsEnabled || prontoSettings.replaceItem}
+                        onChange={(e) => setProntoSettings((prev) => ({ ...prev, addMissingItem: e.target.checked }))}
+                        className="rounded border-gray-300"
+                      />
+                      <Label htmlFor="pronto-add-missing-item">Add missing items (Pronto has more items than POMON)</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="pronto-replace-item"
+                        checked={prontoSettings.replaceItem}
+                        disabled={!prontoSettings.itemsEnabled}
+                        onChange={(e) =>
+                          setProntoSettings((prev) => ({
+                            ...prev,
+                            replaceItem: e.target.checked,
+                            addMissingItem: e.target.checked ? false : prev.addMissingItem
+                          }))
+                        }
+                        className="rounded border-gray-300"
+                      />
+                      <Label htmlFor="pronto-replace-item">Replace all items for scanned PO (Pronto = source of truth)</Label>
+                    </div>
+                    {prontoSettings.replaceItem && (
+                      <div className="text-xs text-muted-foreground">
+                        Replace mode ignores “Add missing items”.
+                      </div>
+                    )}
                   </div>
                 </div>
 

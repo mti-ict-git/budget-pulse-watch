@@ -16,7 +16,6 @@ import pronto_access
 from pronto_access import (
     _click_find,
     _click_login,
-    _click_ok,
     _ensure_orders_find_mode,
     _ensure_standard_grid,
     _extract_top_row_orders,
@@ -24,6 +23,7 @@ from pronto_access import (
     _locate_password,
     _locate_username,
     _navigate_menu,
+    _wait_order_cell_value,
     _wait_for_label,
 )
 
@@ -37,6 +37,11 @@ def _parse_part_code(text: Optional[str]) -> Optional[str]:
 
 
 def _extract_pomon_part_code(item: Dict[str, object]) -> Optional[str]:
+    item_code = item.get("ItemCode")
+    if isinstance(item_code, str):
+        s = item_code.strip()
+        if s:
+            return s
     for k in ("Description", "ItemName", "Notes", "Specifications"):
         v = item.get(k)
         if isinstance(v, str):
@@ -56,6 +61,25 @@ def _parse_required_qty_int(raw: Optional[str]) -> Tuple[Optional[int], Optional
     if abs(f - rounded) > 1e-9:
         return None, "non_integer"
     return int(rounded), None
+
+
+def _get_case_insensitive(d: Dict[str, object], key: str) -> Optional[str]:
+    direct = d.get(key)
+    if isinstance(direct, str) and direct.strip():
+        return direct.strip()
+    target = key.strip().lower()
+    for k, v in d.items():
+        if isinstance(k, str) and k.strip().lower() == target and isinstance(v, str) and v.strip():
+            return v.strip()
+    return None
+
+
+def _norm_text(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    s = value.strip().lower()
+    s = re.sub(r"\s+", " ", s)
+    return s
 
 
 def _read_pronto_prf_items_batch(path: str) -> Dict[str, object]:
@@ -108,8 +132,9 @@ def _build_pronto_item_code_map(pronto_result: Dict[str, object]) -> Tuple[Dict[
             continue
 
         row = find_row_for_detail(d, i)
-        order_no = ""
-        if isinstance(row, dict):
+        purchase_order_no = _get_case_insensitive(dialog, "Purchase Order No.") or ""
+        order_no = purchase_order_no
+        if not order_no and isinstance(row, dict):
             order_no = str(row.get("Order Number") or "").strip()
         split_po = order_no if order_no and order_no != original_po else ""
 
@@ -118,11 +143,17 @@ def _build_pronto_item_code_map(pronto_result: Dict[str, object]) -> Tuple[Dict[
         if qty_issue:
             issues.append({"type": "qty_skipped", "item_code": item_code, "raw": qty_raw, "reason": qty_issue})
 
+        description = _get_case_insensitive(dialog, "Description") or str(d.get("description") or "").strip()
+        est_price_raw = _get_case_insensitive(dialog, "Estimated price")
+        est_price = _parse_float(est_price_raw) if est_price_raw else None
+
         by_code[item_code] = {
             "item_code": item_code,
             "original_po": original_po,
             "split_po": split_po,
             "quantity": qty_int,
+            "description": description,
+            "unit_price": est_price,
             "dialog": dialog,
             "row": row if isinstance(row, dict) else {},
         }
@@ -167,6 +198,37 @@ def _update_prf_item(base_url: str, api_key: str, item_id: int, payload: Dict[st
     except requests.HTTPError as e:
         body = (resp.text or "")[:1200]
         raise RuntimeError(f"Update item failed status={resp.status_code} url={url} body={body}") from e
+
+
+def _delete_prf_item(base_url: str, api_key: str, item_id: int) -> None:
+    headers = _http_headers(api_key)
+    url = f"{base_url}/api/prfs/items/{item_id}"
+    resp = requests.delete(url, headers=headers, timeout=60)
+    try:
+        resp.raise_for_status()
+    except requests.HTTPError as e:
+        body = (resp.text or "")[:1200]
+        raise RuntimeError(f"Delete item failed status={resp.status_code} url={url} body={body}") from e
+
+
+def _add_prf_items(base_url: str, api_key: str, prf_id: int, items: List[Dict[str, object]]) -> List[Dict[str, object]]:
+    headers = _http_headers(api_key)
+    url = f"{base_url}/api/prfs/{prf_id}/items"
+    resp = requests.post(url, headers=headers, data=json.dumps({"items": items}), timeout=60)
+    try:
+        resp.raise_for_status()
+    except requests.HTTPError as e:
+        body = (resp.text or "")[:1200]
+        raise RuntimeError(f"Add items failed status={resp.status_code} url={url} body={body}") from e
+    payload = resp.json()
+    data = payload.get("data", [])
+    if isinstance(data, list):
+        out: List[Dict[str, object]] = []
+        for it in data:
+            if isinstance(it, dict):
+                out.append(it)
+        return out
+    return []
 
 
 def _setenv_temp(pairs: Dict[str, str]) -> Dict[str, Optional[str]]:
@@ -718,40 +780,6 @@ async def _fetch_pronto_rows_live(
         browser = await p.chromium.launch(headless=headless, args=["--disable-blink-features=AutomationControlled"])
         context = await browser.new_context(ignore_https_errors=True, viewport={"width": 1280, "height": 800})
         page = await context.new_page()
-        async def _is_find_dialog_open() -> bool:
-            try:
-                ok_btn = page.get_by_role("button", name=re.compile(r"^OK$", re.IGNORECASE))
-                cancel_btn = page.get_by_role("button", name=re.compile(r"^Cancel$", re.IGNORECASE))
-                return (await ok_btn.count()) > 0 and (await cancel_btn.count()) > 0
-            except Exception:
-                return False
-
-        async def _open_find_dialog_or_raise(*, attempts: int = 5) -> None:
-            last_state: Dict[str, object] = {}
-            for attempt in range(1, attempts + 1):
-                try:
-                    if await _is_find_dialog_open():
-                        return
-                    clicked = await _click_find(page)
-                    last_state = {"attempt": attempt, "clicked": clicked}
-                    t0 = time.monotonic()
-                    while int((time.monotonic() - t0) * 1000) < 6000:
-                        if await _is_find_dialog_open():
-                            return
-                        await page.wait_for_timeout(200)
-                    try:
-                        await page.keyboard.press("Escape")
-                    except Exception:
-                        pass
-                    await page.wait_for_timeout(200)
-                except Exception as e:
-                    last_state = {"attempt": attempt, "error": type(e).__name__}
-            try:
-                shot = os.path.join(artifacts_dir, "pronto_sync_find_dialog_failed.png")
-                await page.screenshot(path=shot, full_page=True)
-            except Exception:
-                pass
-            raise RuntimeError(f"Cannot open Find dialog state={last_state}")
         try:
             await page.goto(target_url, wait_until="domcontentloaded", timeout=60000)
             await page.wait_for_load_state("load", timeout=60000)
@@ -782,8 +810,8 @@ async def _fetch_pronto_rows_live(
 
             await page.wait_for_timeout(800)
             await page.screenshot(path=os.path.join(artifacts_dir, "pronto_sync_purchase_orders.png"), full_page=True)
-
-            await _open_find_dialog_or_raise()
+            await _ensure_orders_find_mode(page)
+            await _ensure_standard_grid(page)
 
             for idx, order_no in enumerate(order_nos, start=1):
                 t0 = time.monotonic()
@@ -792,11 +820,9 @@ async def _fetch_pronto_rows_live(
                 if not filled:
                     continue
                 try:
-                    await page.wait_for_load_state("networkidle", timeout=60000)
-                except PlaywrightTimeoutError:
+                    await _wait_order_cell_value(page, expected_regex=re.compile(rf"^{re.escape(order_no)}$"), timeout_ms=8000)
+                except Exception:
                     pass
-                await _click_ok(page)
-                await _ensure_standard_grid(page)
                 row = await _extract_top_row_orders(page)
                 if row:
                     results[order_no] = {str(k): str(v) for k, v in row.items()}
@@ -851,6 +877,25 @@ def main() -> int:
     parser.add_argument("--po-no", default=os.getenv("POMON_PO_NO", ""))
     parser.add_argument("--pronto-items-json", default=os.getenv("PRONTO_ITEMS_JSON", os.path.join("artifacts", "prf_items_batch.json")))
     parser.add_argument("--pronto-items-max-scrolls", type=int, default=int(os.getenv("PRONTO_ITEMS_MAX_SCROLLS", "80")))
+    parser.add_argument(
+        "--sync-item-description",
+        action=argparse.BooleanOptionalAction,
+        default=_parse_bool(os.getenv("SYNC_ITEM_DESCRIPTION"), False),
+    )
+    parser.add_argument(
+        "--add-missing-item",
+        action=argparse.BooleanOptionalAction,
+        default=_parse_bool(os.getenv("ADD_MISSING_ITEM"), False),
+    )
+    parser.add_argument(
+        "--replace-item",
+        action=argparse.BooleanOptionalAction,
+        default=_parse_bool(os.getenv("REPLACE_ITEM"), False),
+    )
+    parser.add_argument(
+        "--default-purchase-cost-code",
+        default=os.getenv("DEFAULT_PURCHASE_COST_CODE", ""),
+    )
     parser.add_argument("--log-every", type=int, default=int(os.getenv("POMON_LOG_EVERY", "25")))
     parser.add_argument("--budget-year", type=int, default=int(os.getenv("POMON_BUDGET_YEAR", "2026")))
     parser.add_argument("--limit", type=int, default=int(os.getenv("POMON_LIMIT", "1000")))
@@ -985,6 +1030,19 @@ def main() -> int:
 
             code_map, issues = _build_pronto_item_code_map(pronto_match)
             out_rows: List[Dict[str, object]] = []
+            missing_items_out: List[Dict[str, object]] = []
+            pronto_by_desc: Dict[str, Dict[str, object]] = {}
+            duplicate_descs: set = set()
+            for _code, mapped_obj in code_map.items():
+                if not isinstance(mapped_obj, dict):
+                    continue
+                ddesc = _norm_text(mapped_obj.get("description"))
+                if not ddesc:
+                    continue
+                if ddesc in pronto_by_desc:
+                    duplicate_descs.add(ddesc)
+                    continue
+                pronto_by_desc[ddesc] = mapped_obj
             counts = {
                 "pomon_items": len(pomon_items),
                 "matched": 0,
@@ -993,7 +1051,164 @@ def main() -> int:
                 "skipped_qty": 0,
                 "applied": 0,
                 "apply_failed": 0,
+                "missing_pronto_items": 0,
+                "missing_added": 0,
+                "missing_add_failed": 0,
             }
+            pomon_part_codes = set()
+            for pit in pomon_items:
+                pcode = _extract_pomon_part_code(pit)
+                if pcode:
+                    pomon_part_codes.add(pcode)
+
+            if bool(args.replace_item):
+                existing_item_ids: List[int] = []
+                existing_by_code: Dict[str, Dict[str, object]] = {}
+                for pit in pomon_items:
+                    raw_id = pit.get("PRFItemID") or pit.get("id")
+                    if isinstance(raw_id, int):
+                        existing_item_ids.append(raw_id)
+                    elif isinstance(raw_id, str) and raw_id.isdigit():
+                        existing_item_ids.append(int(raw_id))
+                    code = _extract_pomon_part_code(pit)
+                    if code and code not in existing_by_code:
+                        existing_by_code[code] = pit
+
+                prf_cost_code = str(prf_detail.get("PurchaseCostCode") or "").strip()
+                override_cost_code = str(getattr(args, "default_purchase_cost_code", "") or "").strip()
+                if override_cost_code:
+                    prf_cost_code = override_cost_code
+                prf_coa_id = prf_detail.get("COAID")
+                prf_budget_year = prf_detail.get("BudgetYear")
+                fallback_item = pomon_items[0] if pomon_items else {}
+                if not prf_cost_code and isinstance(fallback_item, dict):
+                    prf_cost_code = str(fallback_item.get("PurchaseCostCode") or "").strip()
+                if not isinstance(prf_coa_id, int) and isinstance(fallback_item, dict):
+                    prf_coa_id = fallback_item.get("COAID")
+                if not isinstance(prf_budget_year, int) and isinstance(fallback_item, dict):
+                    prf_budget_year = fallback_item.get("BudgetYear")
+
+                replace_plan: List[Dict[str, object]] = []
+                items_to_create: List[Dict[str, object]] = []
+                for item_code, mapped in code_map.items():
+                    desc = str(mapped.get("description") or "").strip()
+                    name = desc[:200] if desc else item_code
+                    item_desc = (desc[:1000] if desc else "") or None
+                    qty = mapped.get("quantity")
+                    qty_num = qty if isinstance(qty, int) and qty > 0 else 1
+
+                    unit_price = None
+                    prev = existing_by_code.get(item_code)
+                    if isinstance(prev, dict):
+                        unit_price = prev.get("UnitPrice")
+                    if unit_price is None:
+                        unit_price = mapped.get("unit_price")
+                    unit_price_num = float(unit_price) if isinstance(unit_price, (int, float)) else None
+
+                    split_po = str(mapped.get("split_po") or "").strip() or None
+                    original_po = str(mapped.get("original_po") or "").strip() or None
+
+                    reasons: List[str] = []
+                    if unit_price_num is None or unit_price_num <= 0:
+                        reasons.append("missing_or_non_positive_unit_price")
+                    if split_po and not original_po:
+                        reasons.append("split_po_requires_original_po")
+
+                    desired_item: Dict[str, object] = {
+                        "ItemName": name,
+                        "Description": item_desc,
+                        "ItemCode": item_code,
+                        "Quantity": qty_num,
+                        "UnitPrice": unit_price_num,
+                        "Specifications": None,
+                        "PurchaseCostCode": prf_cost_code or None,
+                        "COAID": prf_coa_id if isinstance(prf_coa_id, int) else None,
+                        "BudgetYear": prf_budget_year if isinstance(prf_budget_year, int) else None,
+                        "OriginalPONumber": original_po,
+                        "SplitPONumber": split_po,
+                    }
+                    replace_plan.append({"itemCode": item_code, "desired": desired_item, "reasons": reasons})
+                    if not reasons:
+                        items_to_create.append(desired_item)
+
+                replace_counts = {
+                    "replace_existing_items": len(existing_item_ids),
+                    "replace_pronto_items": len(code_map),
+                    "replace_ready_to_create": len(items_to_create),
+                    "replace_blocked_items": len([r for r in replace_plan if isinstance(r.get("reasons"), list) and len(r.get("reasons")) > 0]),
+                    "replace_deleted": 0,
+                    "replace_delete_failed": 0,
+                    "replace_created": 0,
+                    "replace_create_failed": 0,
+                }
+                counts.update(replace_counts)
+
+                if is_dry_run:
+                    return {
+                        "prfId": prf_id,
+                        "prfNo": prf_no,
+                        "po": po,
+                        "status": "replace_planned",
+                        "counts": counts,
+                        "issues": issues,
+                        "items": [],
+                        "missingItems": [],
+                        "replaceItems": replace_plan,
+                    }
+
+                if counts["replace_blocked_items"] > 0:
+                    return {
+                        "prfId": prf_id,
+                        "prfNo": prf_no,
+                        "po": po,
+                        "status": "replace_blocked",
+                        "counts": counts,
+                        "issues": issues,
+                        "items": [],
+                        "missingItems": [],
+                        "replaceItems": replace_plan,
+                    }
+
+                for item_id_int in existing_item_ids:
+                    try:
+                        _delete_prf_item(args.base_url, args.api_key, item_id_int)
+                        counts["replace_deleted"] += 1
+                    except Exception:
+                        counts["replace_delete_failed"] += 1
+
+                if counts["replace_delete_failed"] > 0:
+                    return {
+                        "prfId": prf_id,
+                        "prfNo": prf_no,
+                        "po": po,
+                        "status": "replace_delete_failed",
+                        "counts": counts,
+                        "issues": issues,
+                        "items": [],
+                        "missingItems": [],
+                        "replaceItems": replace_plan,
+                    }
+
+                chunk_size = 50
+                for i in range(0, len(items_to_create), chunk_size):
+                    chunk = items_to_create[i : i + chunk_size]
+                    try:
+                        created = _add_prf_items(args.base_url, args.api_key, prf_id, chunk)
+                        counts["replace_created"] += len(created)
+                    except Exception:
+                        counts["replace_create_failed"] += len(chunk)
+
+                return {
+                    "prfId": prf_id,
+                    "prfNo": prf_no,
+                    "po": po,
+                    "status": "replaced",
+                    "counts": counts,
+                    "issues": issues,
+                    "items": [],
+                    "missingItems": [],
+                    "replaceItems": replace_plan,
+                }
             for it in pomon_items:
                 item_id = it.get("PRFItemID") or it.get("id")
                 item_id_int = None
@@ -1003,11 +1218,16 @@ def main() -> int:
                     item_id_int = int(item_id)
                 part_code = _extract_pomon_part_code(it)
                 mapped = code_map.get(part_code) if part_code else None
+                if not mapped and bool(args.sync_item_description):
+                    current_desc = _norm_text(it.get("Description"))
+                    if current_desc and current_desc in pronto_by_desc and current_desc not in duplicate_descs:
+                        mapped = pronto_by_desc[current_desc]
                 desired: Dict[str, object] = {}
                 skipped: List[str] = []
                 if mapped:
                     counts["matched"] += 1
                     desired["OriginalPONumber"] = mapped.get("original_po")
+                    desired["ItemCode"] = mapped.get("item_code")
                     split_po = str(mapped.get("split_po") or "").strip()
                     if split_po:
                         desired["SplitPONumber"] = split_po
@@ -1017,10 +1237,18 @@ def main() -> int:
                     else:
                         skipped.append("quantity_non_integer_or_missing")
                         counts["skipped_qty"] += 1
+                    if bool(args.sync_item_description):
+                        ddesc = str(mapped.get("description") or "").strip()
+                        if ddesc:
+                            desired["ItemName"] = ddesc[:200]
                 else:
                     counts["unmatched"] += 1
 
-                current_subset = {k: it.get(k) for k in ("OriginalPONumber", "SplitPONumber", "Quantity")}
+                fields_to_check = ["OriginalPONumber", "SplitPONumber", "Quantity"]
+                if bool(args.sync_item_description):
+                    fields_to_check.append("ItemName")
+                fields_to_check.append("ItemCode")
+                current_subset = {k: it.get(k) for k in fields_to_check}
                 changes = _diff_fields(current_subset, desired) if desired else {}
                 if changes:
                     counts["changes"] += 1
@@ -1032,7 +1260,7 @@ def main() -> int:
                         applied = True
                         counts["applied"] += 1
                     except Exception as e:
-                        apply_error = type(e).__name__
+                        apply_error = (str(e) or type(e).__name__)[:800]
                         counts["apply_failed"] += 1
                         print(
                             "PRF item apply failed "
@@ -1061,6 +1289,76 @@ def main() -> int:
                     }
                 )
 
+            if bool(args.add_missing_item):
+                prf_cost_code = str(prf_detail.get("PurchaseCostCode") or "").strip()
+                override_cost_code = str(getattr(args, "default_purchase_cost_code", "") or "").strip()
+                if override_cost_code:
+                    prf_cost_code = override_cost_code
+                prf_coa_id = prf_detail.get("COAID")
+                prf_budget_year = prf_detail.get("BudgetYear")
+                fallback_item = pomon_items[0] if pomon_items else {}
+                if not prf_cost_code and isinstance(fallback_item, dict):
+                    prf_cost_code = str(fallback_item.get("PurchaseCostCode") or "").strip()
+                if not isinstance(prf_coa_id, int) and isinstance(fallback_item, dict):
+                    prf_coa_id = fallback_item.get("COAID")
+                if not isinstance(prf_budget_year, int) and isinstance(fallback_item, dict):
+                    prf_budget_year = fallback_item.get("BudgetYear")
+
+                for item_code, mapped in code_map.items():
+                    if item_code in pomon_part_codes:
+                        continue
+                    counts["missing_pronto_items"] += 1
+                    desc = str(mapped.get("description") or "").strip()
+                    item_name = (desc[:200] if desc else item_code) or item_code
+                    item_desc = desc[:1000] if desc else ""
+                    unit_price = mapped.get("unit_price")
+                    unit_price_num = float(unit_price) if isinstance(unit_price, (int, float)) else None
+                    qty = mapped.get("quantity")
+                    qty_num = qty if isinstance(qty, int) and qty > 0 else 1
+
+                    reasons: List[str] = []
+                    if unit_price_num is None or unit_price_num <= 0:
+                        reasons.append("missing_or_non_positive_unit_price")
+
+                    desired_item: Dict[str, object] = {
+                        "ItemName": item_name,
+                        "Description": item_desc or None,
+                        "ItemCode": item_code,
+                        "Quantity": qty_num,
+                        "UnitPrice": unit_price_num,
+                        "Specifications": None,
+                        "PurchaseCostCode": prf_cost_code or None,
+                        "COAID": prf_coa_id if isinstance(prf_coa_id, int) else None,
+                        "BudgetYear": prf_budget_year if isinstance(prf_budget_year, int) else None,
+                        "OriginalPONumber": str(mapped.get("original_po") or "").strip() or None,
+                        "SplitPONumber": str(mapped.get("split_po") or "").strip() or None,
+                    }
+
+                    added = False
+                    add_error = ""
+                    added_ids: List[object] = []
+                    if not is_dry_run and not reasons:
+                        try:
+                            created = _add_prf_items(args.base_url, args.api_key, prf_id, [desired_item])
+                            added = True
+                            counts["missing_added"] += 1
+                            for c in created:
+                                if isinstance(c, dict):
+                                    added_ids.append(c.get("PRFItemID") or c.get("id"))
+                        except Exception as e:
+                            add_error = type(e).__name__
+                            counts["missing_add_failed"] += 1
+                    missing_items_out.append(
+                        {
+                            "itemCode": item_code,
+                            "desired": desired_item,
+                            "reasons": reasons,
+                            "added": added,
+                            "addedItemIds": added_ids,
+                            "addError": add_error,
+                        }
+                    )
+
             return {
                 "prfId": prf_id,
                 "prfNo": prf_no,
@@ -1069,6 +1367,7 @@ def main() -> int:
                 "counts": counts,
                 "issues": issues,
                 "items": out_rows,
+                "missingItems": missing_items_out,
             }
 
         if prfno:
@@ -1362,6 +1661,7 @@ def main() -> int:
             }
             if args.report_all_fields:
                 row_out["evaluated"] = evaluated
+                row_out["prontoRow"] = row
             report_rows.append(row_out)
             continue
         if not changes:
@@ -1374,6 +1674,7 @@ def main() -> int:
             if args.report_all_fields:
                 row_out["evaluated"] = evaluated
                 row_out["desiredPayload"] = desired
+                row_out["prontoRow"] = row
             report_rows.append(row_out)
             continue
 
@@ -1388,6 +1689,7 @@ def main() -> int:
             if args.report_all_fields:
                 row_out["evaluated"] = evaluated
                 row_out["desiredPayload"] = desired
+                row_out["prontoRow"] = row
             report_rows.append(row_out)
             print(f"[DRY] {idx}/{len(candidates)} prfNo={cand.prf.prf_no} changed={list(changes.keys())}")
             continue

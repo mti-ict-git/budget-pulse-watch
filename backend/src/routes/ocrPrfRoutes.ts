@@ -112,6 +112,18 @@ router.post('/create-from-document', authenticateToken, requireContentManager, u
         ? `${req.user.FirstName} ${req.user.LastName}` 
         : req.user.Username;
 
+      const itemCostCodes = (extractedData.items || [])
+        .map((item) => item.purchaseCostCode)
+        .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+        .map((v) => v.trim());
+      const uniqueItemCostCodes = Array.from(new Set<string>(itemCostCodes));
+      const prfCostCode =
+        (typeof extractedData.generalLedgerCode === 'string' && extractedData.generalLedgerCode.trim().length > 0
+          ? extractedData.generalLedgerCode.trim()
+          : uniqueItemCostCodes.length === 1
+            ? uniqueItemCostCodes[0]
+            : '');
+
       // Prepare PRF data for creation
       const prfData: CreatePRFRequest = {
         PRFNo: extractedData.prfNo || `OCR-${uploadId.substring(0, 8)}`,
@@ -127,7 +139,7 @@ router.post('/create-from-document', authenticateToken, requireContentManager, u
         DateSubmit: extractedData.dateRaised ? new Date(extractedData.dateRaised) : new Date(),
         SubmitBy: userDisplayName, // Always use authenticated user, not OCR extracted data
         SumDescriptionRequested: extractedData.projectDescription || '',
-        PurchaseCostCode: extractedData.generalLedgerCode || '',
+        PurchaseCostCode: prfCostCode,
         RequiredFor: extractedData.requestFor || extractedData.projectId || '',
         BudgetYear: new Date().getFullYear()
       };
@@ -141,13 +153,39 @@ router.post('/create-from-document', authenticateToken, requireContentManager, u
       if (extractedData.items && extractedData.items.length > 0) {
         console.log(`📦 Creating ${extractedData.items.length} PRF items`);
         
-        const prfItems: CreatePRFItemRequest[] = extractedData.items.map(item => ({
-          ItemName: item.description || 'Unknown Item',
-          Description: item.partNumber ? `Part: ${item.partNumber}` : '',
-          Quantity: item.quantity || 1,
-          UnitPrice: item.unitPrice || 0,
-          Specifications: ''
-        }));
+        const prfItems: CreatePRFItemRequest[] = extractedData.items.map((item) => {
+          const coaidRaw = item.coaid;
+          const coaidParsed =
+            typeof coaidRaw === 'number'
+              ? coaidRaw
+              : typeof coaidRaw === 'string'
+                ? Number.parseInt(coaidRaw.trim(), 10)
+                : Number.NaN;
+          const coaid = Number.isInteger(coaidParsed) && coaidParsed > 0 ? coaidParsed : undefined;
+
+          const budgetYearRaw = item.budgetYear;
+          const budgetYearParsed =
+            typeof budgetYearRaw === 'number'
+              ? budgetYearRaw
+              : typeof budgetYearRaw === 'string'
+                ? Number.parseInt(budgetYearRaw.trim(), 10)
+                : Number.NaN;
+          const budgetYear =
+            Number.isInteger(budgetYearParsed) && budgetYearParsed >= 2000 && budgetYearParsed <= 2100
+              ? budgetYearParsed
+              : undefined;
+
+          return {
+            ItemName: item.description || 'Unknown Item',
+            Description: item.partNumber ? `Part: ${item.partNumber}` : '',
+            Quantity: item.quantity || 1,
+            UnitPrice: item.unitPrice || 0,
+            Specifications: '',
+            PurchaseCostCode: item.purchaseCostCode || prfCostCode || undefined,
+            COAID: coaid,
+            BudgetYear: budgetYear
+          };
+        });
         
         try {
           await PRFModel.addItems(createdPRF.PRFID, prfItems);
@@ -271,11 +309,19 @@ router.post('/preview-extraction', authenticateToken, requireContentManager, upl
 
     const { buffer, mimetype, originalname } = req.file;
     const uploadId = uuidv4();
+    const debugEnabledRaw = req.query.debug;
+    const debugEnabled =
+      debugEnabledRaw === '1' ||
+      debugEnabledRaw === 'true' ||
+      debugEnabledRaw === 'yes';
     
     try {
       // Extract PRF data using OCR
       console.log(`🔍 Starting OCR preview extraction for file: ${originalname}`);
-      const extractedData = await ocrService.extractPRFData(buffer, mimetype);
+      const extractionResult = debugEnabled
+        ? await ocrService.extractPRFDataWithDebug(buffer, mimetype)
+        : { extractedData: await ocrService.extractPRFData(buffer, mimetype), debug: undefined };
+      const extractedData = extractionResult.extractedData;
       
       console.log(`✅ OCR preview extraction completed with confidence: ${extractedData.confidence}`);
       
@@ -295,7 +341,8 @@ router.post('/preview-extraction', authenticateToken, requireContentManager, upl
               !extractedData.items?.length && 'Items'
             ].filter(Boolean),
             confidence: extractedData.confidence || 0
-          }
+          },
+          debug: debugEnabled ? extractionResult.debug : undefined
         }
       });
       

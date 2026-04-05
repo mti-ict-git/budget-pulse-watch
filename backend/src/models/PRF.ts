@@ -538,23 +538,26 @@ export class PRFModel {
    */
   static async addItems(prfId: number, items: CreatePRFItemRequest[]): Promise<PRFItem[]> {
     const insertValues = items.map((_, index) => 
-      `(@PRFID, @ItemName${index}, @Description${index}, @Quantity${index}, @UnitPrice${index}, @Specifications${index}, @PurchaseCostCode${index}, @COAID${index}, @BudgetYear${index})`
+      `(@PRFID, @ItemName${index}, @Description${index}, @ItemCode${index}, @Quantity${index}, @UnitPrice${index}, @Specifications${index}, @PurchaseCostCode${index}, @COAID${index}, @BudgetYear${index}, @OriginalPONumber${index}, @SplitPONumber${index})`
     ).join(', ');
 
     const params: AddPRFItemsParams = { PRFID: prfId };
     items.forEach((item, index) => {
       params[`ItemName${index}`] = item.ItemName;
       params[`Description${index}`] = item.Description || null;
+      params[`ItemCode${index}`] = item.ItemCode || null;
       params[`Quantity${index}`] = item.Quantity;
       params[`UnitPrice${index}`] = item.UnitPrice;
       params[`Specifications${index}`] = item.Specifications || null;
       params[`PurchaseCostCode${index}`] = item.PurchaseCostCode || null;
       params[`COAID${index}`] = item.COAID || null;
       params[`BudgetYear${index}`] = item.BudgetYear || null;
+      params[`OriginalPONumber${index}`] = item.OriginalPONumber ?? null;
+      params[`SplitPONumber${index}`] = item.SplitPONumber ?? null;
     });
 
     const query = `
-      INSERT INTO PRFItems (PRFID, ItemName, Description, Quantity, UnitPrice, Specifications, PurchaseCostCode, COAID, BudgetYear)
+      INSERT INTO PRFItems (PRFID, ItemName, Description, ItemCode, Quantity, UnitPrice, Specifications, PurchaseCostCode, COAID, BudgetYear, OriginalPONumber, SplitPONumber)
       OUTPUT INSERTED.*
       VALUES ${insertValues}
     `;
@@ -589,6 +592,10 @@ export class PRFModel {
     if (updateData.Description !== undefined) {
       setClause.push('Description = @Description');
       params.Description = updateData.Description;
+    }
+    if (updateData.ItemCode !== undefined) {
+      setClause.push('ItemCode = @ItemCode');
+      params.ItemCode = updateData.ItemCode;
     }
     if (updateData.Quantity) {
       setClause.push('Quantity = @Quantity');
@@ -648,9 +655,6 @@ export class PRFModel {
     if (setClause.length === 0) {
       throw new Error('No fields to update');
     }
-
-    setClause.push('Status = (SELECT Status FROM PRF WHERE PRFID = PRFItems.PRFID)');
-    setClause.push('StatusOverridden = 0');
 
     const query = `
       UPDATE PRFItems 

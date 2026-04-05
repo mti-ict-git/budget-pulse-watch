@@ -1,0 +1,5 @@
+IF COL_LENGTH('dbo.PRFItems', 'ItemCode') IS NULL
+BEGIN
+  ALTER TABLE dbo.PRFItems ADD ItemCode NVARCHAR(64) NULL
+END
+GO

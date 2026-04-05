@@ -23,6 +23,9 @@ class SyncConfig:
     enabled: bool
     header_enabled: bool
     items_enabled: bool
+    replace_item: bool
+    add_missing_item: bool
+    sync_item_description: bool
     budget_year: int
     interval_minutes: int
     apply: bool
@@ -147,6 +150,9 @@ def _default_config_from_env() -> SyncConfig:
         enabled=_parse_bool(os.getenv("PRONTO_SYNC_ENABLED_DEFAULT"), False),
         header_enabled=True,
         items_enabled=True,
+        replace_item=_parse_bool(os.getenv("PRONTO_SYNC_REPLACE_ITEM"), False),
+        add_missing_item=_parse_bool(os.getenv("PRONTO_SYNC_ADD_MISSING_ITEM"), False),
+        sync_item_description=_parse_bool(os.getenv("PRONTO_SYNC_SYNC_ITEM_DESCRIPTION"), False),
         budget_year=budget_year,
         interval_minutes=interval_minutes if interval_minutes > 0 else 60,
         apply=apply_changes,
@@ -206,6 +212,9 @@ def _merge_config(payload: object, fallback: SyncConfig) -> SyncConfig:
     headless = _coerce_bool(payload.get("headless")) if "headless" in payload else None
     capture_screenshots = _coerce_bool(payload.get("captureScreenshots")) if "captureScreenshots" in payload else None
     write_per_po_json = _coerce_bool(payload.get("writePerPoJson")) if "writePerPoJson" in payload else None
+    replace_item = _coerce_bool(payload.get("replaceItem")) if "replaceItem" in payload else None
+    add_missing_item = _coerce_bool(payload.get("addMissingItem")) if "addMissingItem" in payload else None
+    sync_item_description = _coerce_bool(payload.get("syncItemDescription")) if "syncItemDescription" in payload else None
 
     out_budget_year = budget_year if isinstance(budget_year, int) and budget_year > 2000 else fallback.budget_year
     out_interval = interval_minutes if isinstance(interval_minutes, int) and interval_minutes > 0 else fallback.interval_minutes
@@ -217,6 +226,9 @@ def _merge_config(payload: object, fallback: SyncConfig) -> SyncConfig:
         enabled=enabled if enabled is not None else fallback.enabled,
         header_enabled=header_enabled if header_enabled is not None else fallback.header_enabled,
         items_enabled=items_enabled if items_enabled is not None else fallback.items_enabled,
+        replace_item=replace_item if replace_item is not None else fallback.replace_item,
+        add_missing_item=add_missing_item if add_missing_item is not None else fallback.add_missing_item,
+        sync_item_description=sync_item_description if sync_item_description is not None else fallback.sync_item_description,
         budget_year=out_budget_year,
         interval_minutes=out_interval,
         apply=apply_changes if apply_changes is not None else fallback.apply,
@@ -305,7 +317,15 @@ def _build_steps(config: SyncConfig) -> List[Step]:
     per_po_arg = "--pronto-per-po-json" if config.write_per_po_json else "--no-pronto-per-po-json"
 
     header_args = [*base_args, headless_arg, screenshots_arg, per_po_arg]
-    items_args = ["--sync-prf-items", *base_args, headless_arg, screenshots_arg, per_po_arg]
+    item_flags: List[str] = []
+    if config.sync_item_description:
+        item_flags.append("--sync-item-description")
+    if config.replace_item:
+        item_flags.append("--replace-item")
+    elif config.add_missing_item:
+        item_flags.append("--add-missing-item")
+
+    items_args = ["--sync-prf-items", *base_args, headless_arg, screenshots_arg, per_po_arg, *item_flags]
 
     return [
         Step(name="header", args=header_args, enabled=config.header_enabled),
