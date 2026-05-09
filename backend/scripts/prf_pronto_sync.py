@@ -776,6 +776,38 @@ async def _fetch_pronto_rows_live(
 ) -> Dict[str, Dict[str, str]]:
     os.makedirs(artifacts_dir, exist_ok=True)
     results: Dict[str, Dict[str, str]] = {}
+
+    async def _dismiss_pronto_overlays(page) -> None:
+        try:
+            telemetry = page.get_by_text(re.compile(r"Telemetry Policy", re.IGNORECASE))
+            if await telemetry.count() > 0:
+                for label in ("Accept", "I Agree", "Agree", "OK", "Continue"):
+                    btn = page.get_by_role("button", name=re.compile(rf"^{re.escape(label)}$", re.IGNORECASE))
+                    if await btn.count() > 0:
+                        try:
+                            await btn.first.click(timeout=2000)
+                            await page.wait_for_timeout(300)
+                        except Exception:
+                            pass
+                        break
+        except Exception:
+            return
+
+    async def _still_on_login_page(page) -> bool:
+        try:
+            u = await _locate_username(page)
+            if u:
+                return True
+        except Exception:
+            pass
+        try:
+            title = await page.title()
+            if "sign in" in (title or "").strip().lower():
+                return True
+        except Exception:
+            pass
+        return False
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=headless, args=["--disable-blink-features=AutomationControlled"])
         context = await browser.new_context(ignore_https_errors=True, viewport={"width": 1280, "height": 800})
@@ -800,8 +832,14 @@ async def _fetch_pronto_rows_live(
                 except PlaywrightTimeoutError:
                     pass
 
-            ready = await _wait_for_label(page, "Supply Chain", 20000)
+            await _dismiss_pronto_overlays(page)
+            ready = await _wait_for_label(page, "Supply Chain", 60000)
             if not ready:
+                await _dismiss_pronto_overlays(page)
+                if await _still_on_login_page(page):
+                    await page.screenshot(path=os.path.join(artifacts_dir, "pronto_sync_login_failed.png"), full_page=True)
+                    raise RuntimeError("Pronto navigation not ready (likely login did not complete)")
+                await page.screenshot(path=os.path.join(artifacts_dir, "pronto_sync_nav_not_ready.png"), full_page=True)
                 raise RuntimeError("Pronto navigation not ready")
 
             ok = await _navigate_menu(page, ["Supply Chain", "Purchasing", "Purchase Orders"])
