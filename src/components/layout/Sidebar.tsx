@@ -94,7 +94,7 @@ export function Sidebar({ className }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className={cn("relative z-10 flex-1 p-4 space-y-2", isCollapsed ? "pb-16" : "pb-36")}>
+      <nav className={cn("relative z-10 flex-1 p-4 space-y-2", isCollapsed ? "pb-16" : "pb-28")}>
         {navBeforeAlerts.map((item) => (
           <NavLink
             key={item.name}
@@ -179,23 +179,6 @@ export function Sidebar({ className }: SidebarProps) {
           </NavLink>
         ))}
       </nav>
-
-      {/* User Info */}
-      {!isCollapsed && user && (
-        <div className="relative z-10 p-4 border-t border-sidebar-border bg-sidebar/90 backdrop-blur-[2px]">
-          <div className="flex items-center space-x-3">
-            <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-              <span className="text-xs font-medium text-primary-foreground">
-                {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-sidebar-foreground">{user.firstName} {user.lastName}</p>
-              <p className="text-xs text-sidebar-foreground/60">{user.role} • {user.department}</p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

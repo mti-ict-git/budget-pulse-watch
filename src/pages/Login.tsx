@@ -86,11 +86,12 @@ const Login: React.FC = () => {
         className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.10),transparent_42%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.06),transparent_40%),linear-gradient(180deg,rgba(2,6,23,0.32)_0%,rgba(2,6,23,0.44)_100%)]"
       />
       <div className="relative mx-auto flex min-h-screen w-full max-w-7xl items-center px-4 py-8 lg:px-8">
-        <div className="grid w-full overflow-hidden rounded-[28px] border border-white/30 bg-white/[0.42] shadow-[0_28px_90px_-36px_rgba(2,6,23,0.65)] backdrop-blur-2xl md:grid-cols-[1.1fr_0.9fr]">
-          <section className="relative hidden min-h-[720px] flex-col justify-between overflow-hidden bg-slate-950/40 p-10 text-primary-foreground md:flex lg:p-12">
+        {/* Solid container (no glass) */}
+        <div className="grid w-full overflow-hidden rounded-[28px] border border-border bg-card shadow-[0_28px_90px_-36px_rgba(2,6,23,0.55)] md:grid-cols-[1.1fr_0.9fr]">
+          <section className="relative hidden min-h-[720px] flex-col justify-between overflow-hidden bg-[linear-gradient(155deg,rgba(59,130,246,0.56)_0%,rgba(37,99,235,0.46)_42%,rgba(15,23,42,0.92)_100%)] p-10 text-primary-foreground md:flex lg:p-12">
             <div
               aria-hidden="true"
-              className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.22),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.10),transparent_30%),linear-gradient(180deg,rgba(2,6,23,0.12)_0%,rgba(2,6,23,0.58)_100%)]"
+              className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.16),transparent_46%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.10),transparent_38%),linear-gradient(180deg,rgba(2,6,23,0.12)_0%,rgba(2,6,23,0.58)_100%)]"
             />
             <div className="relative space-y-8">
               <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium tracking-[0.14em] text-white/90 uppercase">
@@ -158,7 +159,7 @@ const Login: React.FC = () => {
             </div>
           </section>
 
-          <section className="flex min-h-[720px] items-center bg-white/[0.28] px-4 py-8 sm:px-8 lg:px-12">
+          <section className="flex min-h-[720px] items-center bg-card px-4 py-8 sm:px-8 lg:px-12">
             <div className="mx-auto w-full max-w-md">
               <div className="mb-8 flex items-center gap-3 md:hidden">
                 <div className="rounded-2xl border border-border bg-white p-3 shadow-sm">
@@ -189,7 +190,7 @@ const Login: React.FC = () => {
                 </div>
               </div>
 
-              <Card className="border-white/35 bg-white/[0.58] shadow-[0_16px_44px_-26px_rgba(2,6,23,0.55)] backdrop-blur-xl">
+              <Card className="border-border bg-card shadow-[0_16px_44px_-26px_rgba(2,6,23,0.25)]">
                 <CardHeader className="space-y-1 pb-5">
                   <CardTitle className="text-2xl tracking-tight">Sign in</CardTitle>
                   <CardDescription>

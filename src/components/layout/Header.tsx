@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bell, Search, User, LogOut, Settings, Shield, Check, FileText } from "lucide-react";
+import { Bell, Search, LogOut, Settings, Check, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -177,6 +177,17 @@ export function Header() {
     navigate('/settings');
   };
 
+  const initials = (() => {
+    const first = (user?.firstName || "").trim();
+    const last = (user?.lastName || "").trim();
+    const a = first ? first.charAt(0) : "";
+    const b = last ? last.charAt(0) : "";
+    const combo = `${a}${b}`.trim();
+    if (combo.length > 0) return combo.toUpperCase();
+    const uname = (user?.username || "").trim();
+    return (uname ? uname.charAt(0) : "U").toUpperCase();
+  })();
+
   return (
     <header className="h-16 border-b border-border bg-card/90 backdrop-blur supports-[backdrop-filter]:bg-card/70 px-6 flex items-center justify-between shadow-sm">
       {/* Search */}
@@ -192,15 +203,6 @@ export function Header() {
 
       {/* Actions */}
       <div className="flex items-center space-x-4">
-        {/* User Info */}
-        <div className="hidden md:flex flex-col items-end text-sm">
-          <span className="font-medium">{user?.firstName} {user?.lastName}</span>
-          <div className="flex items-center gap-1 text-muted-foreground">
-            {user?.role === 'admin' && <Shield className="h-3 w-3" />}
-            <span className="text-xs">{user?.role} • {user?.department}</span>
-          </div>
-        </div>
-
         {/* Notifications */}
         <Popover>
           <PopoverTrigger asChild>
@@ -274,9 +276,20 @@ export function Header() {
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              <span className="hidden sm:inline">{user?.username}</span>
+            <Button variant="ghost" size="sm" className="flex items-center gap-3 px-2">
+              <div className="h-9 w-9 rounded-full bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center">
+                <span className="text-xs font-semibold text-primary">
+                  {initials}
+                </span>
+              </div>
+              <div className="hidden md:flex flex-col items-start leading-tight">
+                <span className="text-sm font-medium text-foreground">
+                  {user?.firstName} {user?.lastName}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {user?.role} • {user?.department}
+                </span>
+              </div>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">

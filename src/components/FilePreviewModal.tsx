@@ -73,17 +73,17 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
     if (isPDF) {
       return (
-        <div className="bg-gray-50 rounded-lg p-4">
+        <div className="bg-gray-50 rounded-lg p-2 md:p-3">
           <iframe
-            src={`${fileUrl}#toolbar=1&navpanes=1&scrollbar=1`}
-            className="w-full h-[60vh] rounded-lg border"
+            src={`${fileUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
+            className="w-full h-[76vh] rounded-lg border bg-white"
             title={file.originalName}
             onError={() => {
               // Fallback for PDF preview failure
               const iframe = document.querySelector('iframe');
               if (iframe && iframe.parentElement) {
                 iframe.parentElement.innerHTML = `
-                  <div class="flex flex-col items-center justify-center p-8 text-gray-500 h-[60vh]">
+                  <div class="flex flex-col items-center justify-center p-8 text-gray-500 h-[76vh]">
                     <svg class="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                     </svg>
@@ -111,7 +111,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+      <DialogContent className="max-w-6xl max-h-[92vh] overflow-hidden">
         <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div className="flex-1">
             <DialogTitle className="text-lg font-semibold truncate pr-4">
