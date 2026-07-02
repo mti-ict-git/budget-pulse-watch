@@ -27,7 +27,7 @@ export function MetricCard({
 
   return (
     <Card className={cn("metric-card", className)}>
-      <CardContent className="p-6">
+      <CardContent className="p-5">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
             <p className="text-sm font-medium text-muted-foreground">{title}</p>
@@ -38,7 +38,7 @@ export function MetricCard({
               </p>
             )}
           </div>
-          <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+          <div className="h-11 w-11 rounded-lg bg-primary/10 ring-1 ring-primary/10 flex items-center justify-center">
             <Icon className="h-6 w-6 text-primary" />
           </div>
         </div>

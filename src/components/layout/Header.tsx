@@ -178,14 +178,14 @@ export function Header() {
   };
 
   return (
-    <header className="h-16 border-b border-border bg-card px-6 flex items-center justify-between">
+    <header className="h-16 border-b border-border bg-card/90 backdrop-blur supports-[backdrop-filter]:bg-card/70 px-6 flex items-center justify-between shadow-sm">
       {/* Search */}
       <div className="flex items-center space-x-4 flex-1 max-w-md">
         <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search PRFs, budgets..."
-            className="pl-10"
+            className="pl-10 bg-background"
           />
         </div>
       </div>

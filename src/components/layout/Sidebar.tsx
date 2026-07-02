@@ -55,27 +55,46 @@ export function Sidebar({ className }: SidebarProps) {
 
   return (
     <div className={cn(
-      "flex flex-col bg-card border-r border-border transition-all duration-300",
+      "relative flex flex-col overflow-hidden bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300",
       isCollapsed ? "w-16" : "w-64",
       className
     )}>
+      <div
+        aria-hidden="true"
+        className={cn(
+          "pointer-events-none absolute inset-x-0 z-0 flex justify-center",
+          isCollapsed ? "bottom-14 px-1" : "bottom-24 px-3"
+        )}
+      >
+        <img
+          src="/sidebar-background.png"
+          alt=""
+          className={cn(
+            "select-none object-contain object-bottom opacity-90",
+            isCollapsed ? "w-10" : "w-36"
+          )}
+        />
+      </div>
+
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border">
+      <div className="relative z-10 flex items-center justify-between px-4 py-3 border-b border-sidebar-border">
         {!isCollapsed && (
-          <h1 className="text-xl font-bold text-primary">MTI ICT PO Monitoring</h1>
+          <h1 className="text-[15px] font-semibold tracking-tight text-sidebar-foreground">
+            MTI ICT PO Monitoring
+          </h1>
         )}
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="h-8 w-8 p-0"
+          className="h-8 w-8 p-0 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
           {isCollapsed ? <Menu className="h-4 w-4" /> : <X className="h-4 w-4" />}
         </Button>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2">
+      <nav className={cn("relative z-10 flex-1 p-4 space-y-2", isCollapsed ? "pb-16" : "pb-36")}>
         {navBeforeAlerts.map((item) => (
           <NavLink
             key={item.name}
@@ -85,8 +104,8 @@ export function Sidebar({ className }: SidebarProps) {
               cn(
                 "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                 isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent",
                 isCollapsed && "justify-center space-x-0"
               )
             }
@@ -108,8 +127,8 @@ export function Sidebar({ className }: SidebarProps) {
           className={cn(
             "w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
             isReportsActive
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted",
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent",
             isCollapsed && "justify-center space-x-0"
           )}
         >
@@ -130,8 +149,8 @@ export function Sidebar({ className }: SidebarProps) {
               cn(
                 "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors pl-10",
                 isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
               )
             }
           >
@@ -149,8 +168,8 @@ export function Sidebar({ className }: SidebarProps) {
               cn(
                 "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                 isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent",
                 isCollapsed && "justify-center space-x-0"
               )
             }
@@ -163,7 +182,7 @@ export function Sidebar({ className }: SidebarProps) {
 
       {/* User Info */}
       {!isCollapsed && user && (
-        <div className="p-4 border-t border-border">
+        <div className="relative z-10 p-4 border-t border-sidebar-border bg-sidebar/90 backdrop-blur-[2px]">
           <div className="flex items-center space-x-3">
             <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
               <span className="text-xs font-medium text-primary-foreground">
@@ -171,8 +190,8 @@ export function Sidebar({ className }: SidebarProps) {
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">{user.firstName} {user.lastName}</p>
-              <p className="text-xs text-muted-foreground">{user.role} • {user.department}</p>
+              <p className="text-sm font-medium text-sidebar-foreground">{user.firstName} {user.lastName}</p>
+              <p className="text-xs text-sidebar-foreground/60">{user.role} • {user.department}</p>
             </div>
           </div>
         </div>
