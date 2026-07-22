@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -57,7 +57,7 @@ export default function Reports() {
     return params.toString();
   }, [pagination.page, pagination.limit, search]);
 
-  const fetchAuditLog = async () => {
+  const fetchAuditLog = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -76,11 +76,11 @@ export default function Reports() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [queryString]);
 
   useEffect(() => {
     fetchAuditLog();
-  }, [queryString]);
+  }, [fetchAuditLog]);
 
   const handleSearchSubmit = () => {
     setPagination((prev) => ({ ...prev, page: 1 }));
@@ -185,4 +185,3 @@ export default function Reports() {
     </div>
   );
 }
-

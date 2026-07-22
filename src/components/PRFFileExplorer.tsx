@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -80,7 +80,7 @@ const PRFFileExplorer: React.FC<PRFFileExplorerProps> = ({ prfId, prfNo, readonl
   const [previewFile, setPreviewFile] = useState<PRFFile | null>(null);
 
   // Fetch files for this PRF
-  const fetchFiles = async () => {
+  const fetchFiles = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/prf-files/${prfId}`);
@@ -97,11 +97,11 @@ const PRFFileExplorer: React.FC<PRFFileExplorerProps> = ({ prfId, prfNo, readonl
     } finally {
       setLoading(false);
     }
-  };
+  }, [prfId]);
 
   useEffect(() => {
     fetchFiles();
-  }, [prfId]);
+  }, [fetchFiles]);
 
   // Handle file upload
   const handleFileUpload = async () => {

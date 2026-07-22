@@ -7,6 +7,7 @@
    - `npm run lint`
    - `npx tsc --noEmit`
    - `cd backend && npx tsc --noEmit`
+   - `npm --prefix backend run build`
 3. Run readiness report:
    - `npm --prefix backend run phase5:readiness`
 4. Verify Phase 4 data reports:
@@ -17,8 +18,11 @@
 6. Deploy application using existing deployment path.
 7. Post-deploy smoke checks:
    - `GET /health`
-   - `GET /api/budgets/cutoff/2026`
-   - `GET /api/prfs/picking-pic-users`
+   - authenticated `GET /api/budgets/cutoff/2026`
+   - authenticated `GET /api/budgets/readiness/2026`
+   - authenticated `GET /api/prfs/picking-pic-users`
+   - review `Budget Overview` for HR / IT-only scope, readiness, and carry-forward visibility
+   - review `COA Management` for protected baseline badge, coverage status, and deactivation guard
 
 ## Production Verification
 
@@ -27,6 +31,8 @@
 - Confirm PRF item `Picked Up` requires PIC and date.
 - Confirm non-authorized users cannot modify PIC fields.
 - Confirm OPEX import returns inserted/updated/rejected summary.
+- Confirm mandatory HR / IT OPEX baseline remains active and protected in `COA Management`.
+- Confirm carry-forward remains explicit and separate from annual allocation.
 
 ## Rollback Plan
 
@@ -43,6 +49,7 @@
 - Authentication or role guard failure.
 - Budget write lock not enforced for closed FY.
 - PRF item updates bypass PIC mandatory rule.
+- Protected mandatory COA can be deactivated or mutated outside governance rules.
 - Critical API error rate increase after deployment.
 
 ## Owner Matrix
@@ -52,3 +59,14 @@
 - Frontend Owner:
 - DB Owner:
 - QA Owner:
+
+## Engineering Verification Snapshot
+
+- Date: `2026-07-22`
+- `npm run lint`: completed with `0` errors
+- `npx tsc --noEmit`: pass
+- `cd backend && npx tsc --noEmit`: pass
+- `npm --prefix backend run build`: pass
+- `npm run db:migrate`: pass
+- `npm --prefix backend run phase5:readiness`: `ready`
+- `GET /health`: `200 OK`

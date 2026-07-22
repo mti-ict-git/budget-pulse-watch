@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -21,11 +21,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Wallet, TrendingDown, TrendingUp, AlertTriangle, Download, RefreshCw, Plus, Search, MoreHorizontal, Edit, Trash2, Lock, LockOpen, Upload } from "lucide-react";
+import { Wallet, TrendingDown, TrendingUp, AlertTriangle, Download, RefreshCw, Plus, Search, MoreHorizontal, Edit, Lock, LockOpen, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { budgetService, getUtilizationData, getUnallocatedBudgets, type CostCodeBudget, type BudgetSummary, type Budget, type DashboardMetrics, type UtilizationData, type UnallocatedBudgetData, type BudgetCutoffState, type OpexImportRow, type OpexImportResult } from '@/services/budgetService';
+import { budgetService, type CostCodeBudget, type BudgetSummary, type Budget, type DashboardMetrics, type UtilizationData, type BudgetCutoffState, type OpexImportRow, type OpexImportResult, type BudgetReadinessData, type BudgetReadinessItem } from '@/services/budgetService';
 import { UtilizationChart } from '@/components/budget/UtilizationChart';
-import UnallocatedBudgets from '@/components/budget/UnallocatedBudgets';
 import { BudgetCreateDialog } from '@/components/budget/BudgetCreateDialog';
 import { BudgetEditDialog } from '@/components/budget/BudgetEditDialog';
 import { toast } from "sonner";
@@ -43,7 +42,8 @@ const getStatusBadge = (status: string) => {
   const statusConfig = {
     'On Track': { label: "On Track", variant: "default" as const },
     'Under Budget': { label: "Under Budget", variant: "secondary" as const },
-    'Over Budget': { label: "Over Budget", variant: "destructive" as const }
+    'Over Budget': { label: "Over Budget", variant: "destructive" as const },
+    'No Budget': { label: "No Budget", variant: "outline" as const }
   };
   
   const config = statusConfig[status as keyof typeof statusConfig] || { label: status, variant: "outline" as const };
@@ -62,12 +62,35 @@ const getProgressColor = (percent: number) => {
   return "";
 };
 
+const BUDGET_OVERVIEW_DEPARTMENT = 'HR / IT';
+const BUDGET_OVERVIEW_EXPENSE_TYPES = new Set(['CAPEX', 'OPEX']);
+
+const isBudgetOverviewRowAllowed = (row: Pick<CostCodeBudget, 'Department' | 'ExpenseType'>) =>
+  row.Department === BUDGET_OVERVIEW_DEPARTMENT && BUDGET_OVERVIEW_EXPENSE_TYPES.has(row.ExpenseType);
+
+const buildBudgetSummaryFromRows = (rows: CostCodeBudget[]): BudgetSummary => {
+  const totalBudgetAllocated = rows.reduce((sum, row) => sum + (row.GrandTotalAllocated || 0), 0);
+  const totalBudgetRequested = rows.reduce((sum, row) => sum + (row.GrandTotalRequested || 0), 0);
+  const totalBudgetApproved = rows.reduce((sum, row) => sum + (row.GrandTotalApproved || 0), 0);
+  const totalBudgetActual = rows.reduce((sum, row) => sum + (row.GrandTotalActual || 0), 0);
+
+  return {
+    totalCostCodes: rows.length,
+    totalBudgetAllocated,
+    totalBudgetRequested,
+    totalBudgetApproved,
+    totalBudgetActual,
+    overallUtilization: totalBudgetAllocated > 0 ? (totalBudgetApproved / totalBudgetAllocated) * 100 : 0,
+    overallApprovalRate: totalBudgetRequested > 0 ? (totalBudgetApproved / totalBudgetRequested) * 100 : 0
+  };
+};
+
 export default function BudgetOverview() {
   const [budgetData, setBudgetData] = useState<CostCodeBudget[]>([]);
   const [budgetSummary, setBudgetSummary] = useState<BudgetSummary | null>(null);
   const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetrics | null>(null);
   const [utilizationData, setUtilizationData] = useState<UtilizationData[]>([]);
-  const [unallocatedBudgets, setUnallocatedBudgets] = useState<UnallocatedBudgetData | null>(null);
+  const [readinessData, setReadinessData] = useState<BudgetReadinessData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -83,6 +106,7 @@ export default function BudgetOverview() {
   const [selectedFiscalYear, setSelectedFiscalYear] = useState<string>(new Date().getFullYear().toString());
   const [cutoffStatus, setCutoffStatus] = useState<BudgetCutoffState | null>(null);
   const [cutoffActionLoading, setCutoffActionLoading] = useState(false);
+  const [carryForwardLoadingCoaId, setCarryForwardLoadingCoaId] = useState<number | null>(null);
   const [opexImporting, setOpexImporting] = useState(false);
   const [opexImportResult, setOpexImportResult] = useState<OpexImportResult | null>(null);
   const [opexPayload, setOpexPayload] = useState(`[
@@ -99,10 +123,16 @@ export default function BudgetOverview() {
 
   const canManageBudgets = authService.canManageContent();
   const canReopenCutoff = authService.isAdmin();
+  const canApproveCarryForward = authService.isAdmin();
   const activeFiscalYear = selectedFiscalYear !== 'all' ? parseInt(selectedFiscalYear, 10) : null;
   const isFiscalClosed = cutoffStatus?.isClosed ?? false;
 
-  const loadBudgetData = async (searchParams?: { search?: string; status?: string; fiscalYear?: number | string }) => {
+  const loadBudgetData = useCallback(async (searchParams?: {
+    search?: string;
+    status?: string;
+    fiscalYear?: number | string;
+    expenseType?: 'CAPEX' | 'OPEX';
+  }) => {
     try {
       setLoading(true);
       setError(null);
@@ -119,20 +149,42 @@ export default function BudgetOverview() {
         fiscalYear = parseInt(selectedFiscalYear);
       }
       
-      // Load budget data, dashboard metrics, utilization data, and unallocated budgets in parallel
-       const [budgetResponse, dashboardResponse, utilizationResponse, unallocatedResponse] = await Promise.all([
+      const requestedExpenseType = searchParams?.expenseType && searchParams.expenseType !== 'all'
+        ? searchParams.expenseType
+        : undefined;
+
+      // Load budget data, dashboard metrics, and utilization data in parallel
+       const readinessPromise = fiscalYear
+         ? budgetService.getBudgetReadiness(fiscalYear)
+         : Promise.resolve({ success: true } as const);
+
+       const [budgetResponse, dashboardResponse, utilizationResponse, readinessResponse] = await Promise.all([
          budgetService.getCostCodeBudgets({
            search: searchParams?.search,
-           fiscalYear: fiscalYear
+           fiscalYear: fiscalYear,
+           department: BUDGET_OVERVIEW_DEPARTMENT,
+           expenseType: requestedExpenseType
          }),
-         budgetService.getDashboardMetrics(fiscalYear),
-         getUtilizationData(fiscalYear),
-         getUnallocatedBudgets(fiscalYear)
+         budgetService.getDashboardMetrics(fiscalYear, BUDGET_OVERVIEW_DEPARTMENT),
+         budgetService.getBudgetUtilization(fiscalYear, undefined, BUDGET_OVERVIEW_DEPARTMENT),
+         readinessPromise
        ]);
 
       if (budgetResponse.success && budgetResponse.data) {
-        setBudgetData(budgetResponse.data.costCodes);
-        setBudgetSummary(budgetResponse.data.summary);
+        const filteredCostCodes = budgetResponse.data.costCodes.filter((row) => {
+          if (!isBudgetOverviewRowAllowed(row)) {
+            return false;
+          }
+
+          if (requestedExpenseType) {
+            return row.ExpenseType === requestedExpenseType;
+          }
+
+          return true;
+        });
+
+        setBudgetData(filteredCostCodes);
+        setBudgetSummary(buildBudgetSummaryFromRows(filteredCostCodes));
       } else {
         setError(budgetResponse.message || 'Failed to load budget data');
       }
@@ -144,20 +196,38 @@ export default function BudgetOverview() {
         setDashboardMetrics(null);
       }
 
-      // Utilization data - direct array response
-      setUtilizationData(utilizationResponse || []);
+      if (utilizationResponse.success && utilizationResponse.data) {
+        const filteredUtilization = utilizationResponse.data.filter((item) => {
+          if (item.department !== BUDGET_OVERVIEW_DEPARTMENT) {
+            return false;
+          }
 
-      // Unallocated budgets - direct data response
-      setUnallocatedBudgets(unallocatedResponse || null);
+          if (requestedExpenseType) {
+            return item.expenseType === requestedExpenseType;
+          }
+
+          return true;
+        });
+
+        setUtilizationData(filteredUtilization);
+      } else {
+        setUtilizationData([]);
+      }
+
+      if ('data' in readinessResponse && readinessResponse.success && readinessResponse.data) {
+        setReadinessData(readinessResponse.data);
+      } else {
+        setReadinessData(null);
+      }
     } catch (error) {
       console.error('Error loading budget data:', error);
       setError('Failed to load budget data');
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedFiscalYear]);
 
-  const loadCutoffStatus = async (fiscalYear: number | null) => {
+  const loadCutoffStatus = useCallback(async (fiscalYear: number | null) => {
     if (!fiscalYear) {
       setCutoffStatus(null);
       return;
@@ -172,7 +242,7 @@ export default function BudgetOverview() {
         toast.error(response.message);
       }
     }
-  };
+  }, []);
 
   const handleCutoffAction = async (action: 'close' | 'reopen') => {
     if (!activeFiscalYear) {
@@ -259,6 +329,66 @@ export default function BudgetOverview() {
     }
   };
 
+  const openBudgetEditorByCoa = async (
+    coaCode: string,
+    department: string,
+    expenseType: 'CAPEX' | 'OPEX',
+    coaName?: string,
+    utilizedAmount = 0
+  ) => {
+    try {
+      setLoading(true);
+
+      const coaResponse = await fetch(`/api/coa/code/${encodeURIComponent(coaCode)}`);
+      const coaData = await coaResponse.json();
+
+      if (!coaData.success || !coaData.data) {
+        setError(`Chart of Account not found for code: ${coaCode}`);
+        setLoading(false);
+        return;
+      }
+
+      const coa = coaData.data;
+      const budgetResponse = await fetch(`/api/budgets/coa/${coa.COAID}/year/${selectedFiscalYear}`);
+      const budgetData = await budgetResponse.json();
+
+      let budget: Budget;
+
+      if (budgetData.success && budgetData.data) {
+        budget = budgetData.data;
+      } else {
+        budget = {
+          BudgetID: 0,
+          COAID: coa.COAID,
+          COACode: coa.COACode,
+          COAName: coaName || coa.COAName,
+          Department: department || coa.Department,
+          ExpenseType: expenseType || coa.ExpenseType,
+          FiscalYear: parseInt(selectedFiscalYear, 10),
+          AllocatedAmount: 0,
+          UtilizedAmount: utilizedAmount,
+          RemainingAmount: 0,
+          UtilizationPercentage: 0,
+          CurrencyCode: 'IDR',
+          ExchangeRateToIDR: 1,
+          IsActive: true,
+          Status: 'Active',
+          CreatedBy: 1,
+          CreatedAt: new Date(),
+          UpdatedAt: new Date()
+        };
+      }
+
+      setSelectedBudget(budget);
+      setEditDialogOpen(true);
+      setLoading(false);
+    } catch (openError) {
+      console.error('Error opening budget editor:', openError);
+      setError('Failed to load budget data for editing');
+      setLoading(false);
+    }
+  };
+
   const handleEditBudget = (budget: Budget) => {
     setSelectedBudget(budget);
     setEditDialogOpen(true);
@@ -269,61 +399,47 @@ export default function BudgetOverview() {
       toast.error(`Fiscal year ${activeFiscalYear} is closed`);
       return;
     }
+    await openBudgetEditorByCoa(
+      costCodeBudget.COACode,
+      costCodeBudget.Department,
+      costCodeBudget.ExpenseType,
+      costCodeBudget.COAName,
+      costCodeBudget.GrandTotalActual || 0
+    );
+  };
+
+  const handleEditReadinessItem = async (item: BudgetReadinessItem) => {
+    if (isFiscalClosed) {
+      toast.error(`Fiscal year ${activeFiscalYear} is closed`);
+      return;
+    }
+    await openBudgetEditorByCoa(item.coaCode, item.department, item.expenseType, item.coaName);
+  };
+
+  const handleApplyCarryForward = async (item: BudgetReadinessItem) => {
+    if (!activeFiscalYear) {
+      toast.error('Please select a specific fiscal year');
+      return;
+    }
+
+    setCarryForwardLoadingCoaId(item.coaId);
     try {
-      setLoading(true);
-      
-      // First, get the COA by code to get the COAID
-      const coaResponse = await fetch(`/api/coa/code/${encodeURIComponent(costCodeBudget.COACode)}`);
-      const coaData = await coaResponse.json();
-      
-      if (!coaData.success || !coaData.data) {
-        console.error('COA not found for code:', costCodeBudget.COACode);
-        setError(`Chart of Account not found for code: ${costCodeBudget.COACode}`);
-        setLoading(false);
+      const response = await budgetService.applyCarryForward(activeFiscalYear, {
+        coaId: item.coaId,
+        sourceFiscalYear: item.previousFiscalYear,
+        amount: item.previousRemainingAmount,
+        notes: `Approved from Budget Overview for FY${activeFiscalYear}`
+      });
+
+      if (!response.success) {
+        toast.error(response.message || 'Failed to apply carry forward');
         return;
       }
-      
-      const coa = coaData.data;
-      
-      // Try to get existing budget for this COA and current fiscal year
-      const budgetResponse = await fetch(`/api/budgets/coa/${coa.COAID}/year/${selectedFiscalYear}`);
-      const budgetData = await budgetResponse.json();
-      
-      let budget: Budget;
-      
-      if (budgetData.success && budgetData.data) {
-        // Use existing budget
-        budget = budgetData.data;
-      } else {
-        // Create a new budget object for creation
-        budget = {
-          BudgetID: 0, // 0 indicates new budget
-          COAID: coa.COAID,
-          COACode: coa.COACode,
-          Department: coa.Department,
-          ExpenseType: coa.ExpenseType,
-          FiscalYear: parseInt(selectedFiscalYear, 10),
-          AllocatedAmount: 0,
-          UtilizedAmount: costCodeBudget.GrandTotalActual || 0,
-          RemainingAmount: 0,
-          UtilizationPercentage: 0,
-          CurrencyCode: 'IDR',
-          ExchangeRateToIDR: 1,
-          IsActive: true,
-          Status: 'Active',
-          CreatedBy: 1, // Should be replaced with actual user ID from auth context
-          CreatedAt: new Date(),
-          UpdatedAt: new Date()
-        };
-      }
-      
-      setSelectedBudget(budget);
-      setEditDialogOpen(true);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching budget data for edit:', error);
-      setError('Failed to load budget data for editing');
-      setLoading(false);
+
+      toast.success(response.message || 'Carry forward applied');
+      await loadBudgetData({ fiscalYear: activeFiscalYear, expenseType: expenseTypeFilter !== 'all' ? expenseTypeFilter as 'CAPEX' | 'OPEX' : undefined });
+    } finally {
+      setCarryForwardLoadingCoaId(null);
     }
   };
 
@@ -341,7 +457,7 @@ export default function BudgetOverview() {
   // Initial load
   useEffect(() => {
     loadBudgetData();
-  }, []);
+  }, [loadBudgetData]);
 
   // Debounced search effect
   useEffect(() => {
@@ -356,18 +472,20 @@ export default function BudgetOverview() {
     }, 300); // 300ms delay
 
     return () => clearTimeout(timeoutId);
-  }, [searchTerm, selectedFiscalYear, statusFilter, expenseTypeFilter]);
+  }, [searchTerm, selectedFiscalYear, statusFilter, expenseTypeFilter, loadBudgetData]);
 
   useEffect(() => {
     loadCutoffStatus(activeFiscalYear);
-  }, [selectedFiscalYear]);
+  }, [activeFiscalYear, loadCutoffStatus]);
 
   // Use dashboard metrics if available, fallback to budget summary
   const totalInitialBudget = dashboardMetrics?.budget.totalBudget || budgetSummary?.totalBudgetAllocated || budgetSummary?.totalBudget || 0;
   const totalSpent = dashboardMetrics?.budget.totalSpent || budgetSummary?.totalBudgetApproved || budgetSummary?.totalSpent || 0;
   const totalRemaining = dashboardMetrics?.budget.totalRemaining || (totalInitialBudget - totalSpent);
   const overallUtilization = dashboardMetrics?.budget.overallUtilization || budgetSummary?.overallUtilization || 0;
-  const alertCount = dashboardMetrics?.budget.overBudgetCount || budgetData.filter(b => b.BudgetStatus === 'Over Budget').length;
+  const overBudgetCount = dashboardMetrics?.budget.overBudgetCount || budgetData.filter((b) => b.BudgetStatus === 'Over Budget').length;
+  const needAttentionCount = readinessData?.summary.needAttentionCount || 0;
+  const alertCount = overBudgetCount + needAttentionCount;
   
   // CAPEX and OPEX utilization data is now handled by the UtilizationChart component using utilizationData
 
@@ -379,7 +497,7 @@ export default function BudgetOverview() {
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Budget Overview</h1>
             <p className="text-muted-foreground mt-1">
-              Monitor budget allocation and utilization across categories
+              Monitor HR / IT CAPEX and OPEX allocation and utilization
             </p>
           </div>
           <div className="flex gap-2 w-full lg:w-auto">
@@ -409,7 +527,7 @@ export default function BudgetOverview() {
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
-                  placeholder="Search budgets by code, name, category, or department..."
+                  placeholder="Search budgets by code, name, or category..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -441,6 +559,7 @@ export default function BudgetOverview() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="No Budget">No Budget</SelectItem>
                   <SelectItem value="On Track">On Track</SelectItem>
                   <SelectItem value="Under Budget">Under Budget</SelectItem>
                   <SelectItem value="Over Budget">Over Budget</SelectItem>
@@ -605,7 +724,9 @@ export default function BudgetOverview() {
               <div className="space-y-2">
                 <p className="text-sm font-medium text-muted-foreground">Alerts</p>
                 <p className="text-xl lg:text-2xl font-bold text-warning">{alertCount}</p>
-                <p className="text-xs text-muted-foreground">Categories need attention</p>
+                <p className="text-xs text-muted-foreground">
+                  {needAttentionCount} need setup, {overBudgetCount} over budget
+                </p>
               </div>
               <div className="h-10 w-10 lg:h-12 lg:w-12 rounded-full bg-warning/10 flex items-center justify-center">
                 <AlertTriangle className="h-5 w-5 lg:h-6 lg:w-6 text-warning" />
@@ -614,6 +735,118 @@ export default function BudgetOverview() {
           </CardContent>
         </Card>
       </div>
+
+      {activeFiscalYear && readinessData && (
+        <Card>
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg">New Fiscal Year Readiness</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Mandatory HR / IT OPEX COAs for FY {readinessData.fiscalYear}. Missing budgets stay virtual with zero allocation until you create budget or approve carry forward.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-12 gap-4">
+              <Card className="col-span-12 md:col-span-3">
+                <CardContent className="p-4">
+                  <div className="text-sm text-muted-foreground">Mandatory COAs</div>
+                  <div className="text-2xl font-bold">{readinessData.summary.mandatoryCoaCount}</div>
+                </CardContent>
+              </Card>
+              <Card className="col-span-12 md:col-span-3">
+                <CardContent className="p-4">
+                  <div className="text-sm text-muted-foreground">Ready</div>
+                  <div className="text-2xl font-bold text-green-700">{readinessData.summary.readyCount}</div>
+                </CardContent>
+              </Card>
+              <Card className="col-span-12 md:col-span-3">
+                <CardContent className="p-4">
+                  <div className="text-sm text-muted-foreground">Need Attention</div>
+                  <div className="text-2xl font-bold text-warning">{readinessData.summary.needAttentionCount}</div>
+                </CardContent>
+              </Card>
+              <Card className="col-span-12 md:col-span-3">
+                <CardContent className="p-4">
+                  <div className="text-sm text-muted-foreground">Carry Forward</div>
+                  <div className="text-2xl font-bold text-blue-700">{readinessData.summary.carryForwardAppliedCount}</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>COA</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead className="text-right">Previous Remaining</TableHead>
+                    <TableHead className="text-right">Annual</TableHead>
+                    <TableHead className="text-right">Carry Forward</TableHead>
+                    <TableHead className="text-right">Total Available</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {readinessData.items.map((item) => (
+                    <TableRow key={item.coaId}>
+                      <TableCell className="font-medium">{item.coaCode}</TableCell>
+                      <TableCell>{item.coaName}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.previousRemainingAmount)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.currentAnnualAllocation)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.currentCarryForwardAmount)}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(item.totalAvailableBudget)}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            item.readinessStatus === 'Need Attention'
+                              ? 'destructive'
+                              : item.readinessStatus === 'Carry Forward Applied'
+                              ? 'secondary'
+                              : 'default'
+                          }
+                        >
+                          {item.readinessStatus}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditReadinessItem(item)}
+                            disabled={!canManageBudgets || isFiscalClosed}
+                          >
+                            <Edit className="h-4 w-4" />
+                            Edit Budget
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleApplyCarryForward(item)}
+                            disabled={
+                              !canApproveCarryForward ||
+                              isFiscalClosed ||
+                              !item.canCarryForward ||
+                              carryForwardLoadingCoaId === item.coaId
+                            }
+                          >
+                            {carryForwardLoadingCoaId === item.coaId ? (
+                              <RefreshCw className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <TrendingUp className="h-4 w-4" />
+                            )}
+                            Carry Forward
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Utilization Charts */}
       <div className="grid grid-cols-12 gap-4 lg:gap-6 mb-6">
@@ -670,7 +903,9 @@ export default function BudgetOverview() {
                     <TableHead className="min-w-[200px]">Category</TableHead>
                     <TableHead className="min-w-[120px]">Department</TableHead>
                     <TableHead className="min-w-[80px]">Type</TableHead>
-                    <TableHead className="min-w-[120px] text-right">Initial Budget</TableHead>
+                    <TableHead className="min-w-[120px] text-right">Annual</TableHead>
+                    <TableHead className="min-w-[120px] text-right">Carry Forward</TableHead>
+                    <TableHead className="min-w-[120px] text-right">Total Available</TableHead>
                     <TableHead className="min-w-[100px] text-right">Spent</TableHead>
                     <TableHead className="min-w-[120px] text-right">Remaining</TableHead>
                     <TableHead className="min-w-[120px]">Utilization</TableHead>
@@ -681,12 +916,14 @@ export default function BudgetOverview() {
                 <TableBody>
                   {budgetData.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
+                      <TableCell colSpan={12} className="text-center py-12 text-muted-foreground">
                         No budgets found matching your criteria
                       </TableCell>
                     </TableRow>
                   ) : (
                     budgetData.map((budget, index) => {
+                      const annualAllocated = budget.AnnualAllocated || 0;
+                      const carryForwardAmount = budget.CarryForwardAmount || 0;
                       const totalAllocated = budget.GrandTotalAllocated || 0;
                       const totalSpent = budget.GrandTotalApproved || 0;
                       const remainingAmount = totalAllocated - totalSpent;
@@ -721,6 +958,8 @@ export default function BudgetOverview() {
                               {budget.ExpenseType || 'N/A'}
                             </span>
                           </TableCell>
+                          <TableCell className="text-right font-medium">{formatCurrency(annualAllocated)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(carryForwardAmount)}</TableCell>
                           <TableCell className="text-right font-medium">{formatCurrency(totalAllocated)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(totalSpent)}</TableCell>
                           <TableCell className={cn(
@@ -762,14 +1001,6 @@ export default function BudgetOverview() {
                                 >
                                   <Edit className="mr-2 h-4 w-4" />
                                   Edit
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  onClick={() => handleDeleteBudget(parseInt(budget.PurchaseCostCode) || 0)}
-                                  disabled={!canManageBudgets || isFiscalClosed}
-                                  className="text-destructive"
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>

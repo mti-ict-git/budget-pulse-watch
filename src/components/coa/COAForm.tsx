@@ -11,6 +11,19 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useToast } from '@/hooks/use-toast';
 import { coaService, ChartOfAccounts, CreateCOARequest, UpdateCOARequest } from '@/services/coaService';
 
+const PROTECTED_MANDATORY_COA_BASELINE: Record<string, string> = {
+  MTIRMRAD496137: 'Software Maintenance',
+  MTIRMRAD496232: 'Repairs and maintenance',
+  MTIRMRAD496769: 'Tools',
+  MTIRMRAD496250: 'IT consumeables',
+  MTIRMRAD496313: 'Internet',
+  MTIRMRAD496315: 'Stationery and postage',
+  MTIRMRAD496326: 'Other permit & licenses',
+  MTIRMRAD496328: 'Subscriptions',
+  MTIRMRAD496014: 'Training and seminars',
+  MTIRMRAD496314: 'Telephone and mobile comms'
+};
+
 const coaFormSchema = z.object({
   COACode: z.string().min(1, 'Account code is required').max(20, 'Account code must be 20 characters or less'),
   COAName: z.string().min(1, 'Account name is required').max(100, 'Account name must be 100 characters or less'),
@@ -33,6 +46,8 @@ export function COAForm({ initialData, onSuccess }: COAFormProps) {
   const [loading, setLoading] = useState(false);
   const [parentAccounts, setParentAccounts] = useState<ChartOfAccounts[]>([]);
   const { toast } = useToast();
+  const protectedMandatoryName = initialData ? PROTECTED_MANDATORY_COA_BASELINE[initialData.COACode] : undefined;
+  const isProtectedMandatory = protectedMandatoryName !== undefined;
 
   const form = useForm<COAFormValues>({
     resolver: zodResolver(coaFormSchema),
@@ -165,10 +180,10 @@ export function COAForm({ initialData, onSuccess }: COAFormProps) {
               <FormItem>
                 <FormLabel>Account Code *</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., 1001" {...field} />
+                  <Input placeholder="e.g., 1001" {...field} disabled={isProtectedMandatory} />
                 </FormControl>
                 <FormDescription>
-                  Unique identifier for the account
+                  {isProtectedMandatory ? 'Protected baseline code cannot be changed' : 'Unique identifier for the account'}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -185,7 +200,9 @@ export function COAForm({ initialData, onSuccess }: COAFormProps) {
                   <Input placeholder="e.g., Cash and Cash Equivalents" {...field} />
                 </FormControl>
                 <FormDescription>
-                  Descriptive name for the account
+                  {isProtectedMandatory
+                    ? `Protected baseline label. Approved name: ${protectedMandatoryName}`
+                    : 'Descriptive name for the account'}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -256,7 +273,7 @@ export function COAForm({ initialData, onSuccess }: COAFormProps) {
                 <FormLabel>Expense Type *</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
-                    <SelectTrigger>
+                    <SelectTrigger disabled={isProtectedMandatory}>
                       <SelectValue placeholder="Select expense type" />
                     </SelectTrigger>
                   </FormControl>
@@ -266,7 +283,7 @@ export function COAForm({ initialData, onSuccess }: COAFormProps) {
                   </SelectContent>
                 </Select>
                 <FormDescription>
-                  Type of expense for this account
+                  {isProtectedMandatory ? 'Protected baseline must remain OPEX' : 'Type of expense for this account'}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -281,7 +298,7 @@ export function COAForm({ initialData, onSuccess }: COAFormProps) {
                 <FormLabel>Department *</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
-                    <SelectTrigger>
+                    <SelectTrigger disabled={isProtectedMandatory}>
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                   </FormControl>
@@ -294,7 +311,7 @@ export function COAForm({ initialData, onSuccess }: COAFormProps) {
                   </SelectContent>
                 </Select>
                 <FormDescription>
-                  Department responsible for this account
+                  {isProtectedMandatory ? 'Protected baseline must remain in HR / IT' : 'Department responsible for this account'}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -323,6 +340,12 @@ export function COAForm({ initialData, onSuccess }: COAFormProps) {
           )}
         />
 
+        {isProtectedMandatory && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+            This is a protected mandatory HR / IT OPEX baseline COA. Code, expense type, department, and active status are governed to prevent accidental loss.
+          </div>
+        )}
+
         <FormField
           control={form.control}
           name="IsActive"
@@ -338,6 +361,7 @@ export function COAForm({ initialData, onSuccess }: COAFormProps) {
                 <Switch
                   checked={field.value}
                   onCheckedChange={field.onChange}
+                  disabled={isProtectedMandatory}
                 />
               </FormControl>
             </FormItem>

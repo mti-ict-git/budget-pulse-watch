@@ -5,6 +5,91 @@ import { authenticateToken, requireContentManager } from '../middleware/auth';
 
 const router = Router();
 
+const PROTECTED_MANDATORY_COA_BASELINE: Record<string, string> = {
+  MTIRMRAD496137: 'Software Maintenance',
+  MTIRMRAD496232: 'Repairs and maintenance',
+  MTIRMRAD496769: 'Tools',
+  MTIRMRAD496250: 'IT consumeables',
+  MTIRMRAD496313: 'Internet',
+  MTIRMRAD496315: 'Stationery and postage',
+  MTIRMRAD496326: 'Other permit & licenses',
+  MTIRMRAD496328: 'Subscriptions',
+  MTIRMRAD496014: 'Training and seminars',
+  MTIRMRAD496314: 'Telephone and mobile comms'
+};
+
+const getProtectedMandatoryName = (coaCode: string): string | undefined => PROTECTED_MANDATORY_COA_BASELINE[coaCode];
+
+const validateProtectedMandatoryCoaUpdate = (
+  existingCOA: { COACode: string; COAName: string; ExpenseType: string; Department: string; IsActive: boolean },
+  updateData: UpdateCOARequest
+): string | null => {
+  const approvedName = getProtectedMandatoryName(existingCOA.COACode);
+  if (!approvedName) {
+    return null;
+  }
+
+  if (updateData.COACode !== undefined && updateData.COACode !== existingCOA.COACode) {
+    return `Protected mandatory COA ${existingCOA.COACode} code cannot be changed`;
+  }
+  if (updateData.Department !== undefined && updateData.Department !== 'HR / IT') {
+    return `Protected mandatory COA ${existingCOA.COACode} must remain in Department HR / IT`;
+  }
+  if (updateData.ExpenseType !== undefined && updateData.ExpenseType !== 'OPEX') {
+    return `Protected mandatory COA ${existingCOA.COACode} must remain OPEX`;
+  }
+  if (updateData.IsActive === false) {
+    return `Protected mandatory COA ${existingCOA.COACode} cannot be deactivated`;
+  }
+  if (updateData.COAName !== undefined && updateData.COAName !== approvedName) {
+    return `Protected mandatory COA ${existingCOA.COACode} must keep approved label "${approvedName}"`;
+  }
+
+  return null;
+};
+
+const getProtectedMandatoryConflictForBulkUpdate = (
+  accounts: Array<{ COACode: string }>,
+  updates: BulkUpdateCOARequest['updates']
+): string | null => {
+  const protectedCodes = accounts
+    .map((account) => account.COACode)
+    .filter((code) => getProtectedMandatoryName(code) !== undefined);
+
+  if (protectedCodes.length === 0) {
+    return null;
+  }
+
+  if (updates.Department !== undefined && updates.Department !== 'HR / IT') {
+    return `Bulk update cannot change Department for protected mandatory COAs: ${protectedCodes.join(', ')}`;
+  }
+  if (updates.ExpenseType !== undefined && updates.ExpenseType !== 'OPEX') {
+    return `Bulk update cannot change ExpenseType for protected mandatory COAs: ${protectedCodes.join(', ')}`;
+  }
+  if (updates.IsActive === false) {
+    return `Bulk update cannot deactivate protected mandatory COAs: ${protectedCodes.join(', ')}`;
+  }
+
+  return null;
+};
+
+const getProtectedMandatoryConflictForDelete = (
+  accounts: Array<{ COACode: string }>,
+  hard: boolean
+): string | null => {
+  const protectedCodes = accounts
+    .map((account) => account.COACode)
+    .filter((code) => getProtectedMandatoryName(code) !== undefined);
+
+  if (protectedCodes.length === 0) {
+    return null;
+  }
+
+  return hard
+    ? `Hard delete is not allowed for protected mandatory COAs: ${protectedCodes.join(', ')}`
+    : `Deactivation is not allowed for protected mandatory COAs: ${protectedCodes.join(', ')}`;
+};
+
 // Test endpoint without authentication
 router.get('/test', async (req: Request, res: Response) => {
   res.json({ success: true, message: 'Test endpoint working' });
@@ -211,6 +296,15 @@ router.put('/bulk-update',
       });
     }
 
+    const existingAccounts = await ChartOfAccountsModel.findByIds(bulkData.accountIds);
+    const protectedConflict = getProtectedMandatoryConflictForBulkUpdate(existingAccounts, bulkData.updates);
+    if (protectedConflict) {
+      return res.status(409).json({
+        success: false,
+        message: protectedConflict
+      });
+    }
+
     const updatedAccounts = await ChartOfAccountsModel.bulkUpdate(bulkData);
 
     return res.json({
@@ -264,6 +358,14 @@ router.put('/:id', authenticateToken, requireContentManager, async (req: Request
         });
       }
     }
+
+    const protectedConflict = validateProtectedMandatoryCoaUpdate(existingCOA, updateData);
+    if (protectedConflict) {
+      return res.status(409).json({
+        success: false,
+        message: protectedConflict
+      });
+    }
     
     const updatedCOA = await ChartOfAccountsModel.update(coaId, updateData);
     
@@ -304,6 +406,14 @@ router.delete('/:id', authenticateToken, requireContentManager, async (req: Requ
       return res.status(404).json({
         success: false,
         message: 'Chart of Account not found'
+      });
+    }
+
+    const protectedConflict = getProtectedMandatoryConflictForDelete([existingCOA], false);
+    if (protectedConflict) {
+      return res.status(409).json({
+        success: false,
+        message: protectedConflict
       });
     }
     
@@ -352,6 +462,14 @@ router.delete('/:id/hard', authenticateToken, requireContentManager, async (req:
       return res.status(404).json({
         success: false,
         message: 'Chart of Account not found'
+      });
+    }
+
+    const protectedConflict = getProtectedMandatoryConflictForDelete([existingCOA], true);
+    if (protectedConflict) {
+      return res.status(409).json({
+        success: false,
+        message: protectedConflict
       });
     }
     
@@ -593,6 +711,15 @@ router.delete('/bulk-delete', authenticateToken, requireContentManager, async (r
       return res.status(400).json({
         success: false,
         message: 'Account IDs are required and must be a non-empty array'
+      });
+    }
+
+    const existingAccounts = await ChartOfAccountsModel.findByIds(bulkData.accountIds);
+    const protectedConflict = getProtectedMandatoryConflictForDelete(existingAccounts, Boolean(bulkData.hard));
+    if (protectedConflict) {
+      return res.status(409).json({
+        success: false,
+        message: protectedConflict
       });
     }
 

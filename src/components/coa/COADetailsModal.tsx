@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,14 +21,7 @@ export function COADetailsModal({ account, open, onOpenChange }: COADetailsModal
   const { toast } = useToast();
 
   // Fetch account usage statistics
-  useEffect(() => {
-    if (open && account) {
-      fetchAccountUsage();
-      fetchParentAccount();
-    }
-  }, [open, account]);
-
-  const fetchAccountUsage = async () => {
+  const fetchAccountUsage = useCallback(async () => {
     setLoadingUsage(true);
     try {
       const response = await coaService.getAccountUsage(account.COAID);
@@ -46,9 +39,9 @@ export function COADetailsModal({ account, open, onOpenChange }: COADetailsModal
     } finally {
       setLoadingUsage(false);
     }
-  };
+  }, [account.COAID, toast]);
 
-  const fetchParentAccount = async () => {
+  const fetchParentAccount = useCallback(async () => {
     if (account.ParentCOAID) {
       try {
         const response = await coaService.getById(account.ParentCOAID);
@@ -58,8 +51,17 @@ export function COADetailsModal({ account, open, onOpenChange }: COADetailsModal
       } catch (error) {
         console.error('Error fetching parent account:', error);
       }
+    } else {
+      setParentAccount(null);
     }
-  };
+  }, [account.ParentCOAID]);
+
+  useEffect(() => {
+    if (open) {
+      fetchAccountUsage();
+      fetchParentAccount();
+    }
+  }, [open, fetchAccountUsage, fetchParentAccount]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {

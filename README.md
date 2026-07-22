@@ -1,215 +1,212 @@
-# Welcome to your Lovable project
+# Budget Pulse Watch
 
-## Project info
+Budget Pulse Watch is a PRF and budget monitoring system for operational purchasing workflows. The repository is a monorepo that combines a React web application, an Express API, SQL Server persistence, and supporting sync/document-processing utilities.
 
-**URL**: https://lovable.dev/projects/2161adca-98cc-4f2f-ac94-84a8dd852b12
+## What This Repository Contains
 
-## How can I edit this code?
+- `src/`: React + Vite frontend for dashboard, PRF monitoring, budget overview, reports, settings, and admin flows.
+- `backend/src/`: Express + TypeScript backend for API routes, business rules, SQL access, file handling, OCR, and integrations.
+- `backend/database/`: schema and SQL migrations.
+- `docs/`: source-of-truth product, API, rollout, and operational documents.
+- `mobile/`: optional mobile client references when present in the working copy.
 
-There are several ways of editing your application.
+## Core Business Capabilities
 
-**Use Lovable**
+- PRF monitoring with PRF items, status tracking, detail dialogs, and activity history.
+- Budget management with fiscal year views, budget utilization, budget cut-off, and OPEX import.
+- COA management for account mapping and budget alignment.
+- Reporting for dashboard metrics, alerts, budget summaries, utilization, and audit-style outputs.
+- Document handling for PRF files and shared-folder storage.
+- OCR-assisted PRF ingestion from uploaded files.
+- Sync integrations for OneDrive Excel and a dedicated Pronto sync worker.
+- Access control via JWT auth, local users, LDAP lookup, and API keys.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/2161adca-98cc-4f2f-ac94-84a8dd852b12) and start prompting.
+## Architecture At A Glance
 
-Changes made via Lovable will be committed automatically to this repo.
+### Frontend
 
-**Use your preferred IDE**
+- Stack: React 18, Vite, TypeScript, Tailwind CSS, shadcn-ui, React Router, TanStack Query.
+- App entry: `src/main.tsx`
+- Route composition: `src/App.tsx`
+- Main pages:
+  - `src/pages/Dashboard.tsx`
+  - `src/pages/PRFMonitoring.tsx`
+  - `src/pages/BudgetOverview.tsx`
+  - `src/pages/COAManagement.tsx`
+  - `src/pages/Reports.tsx`
+  - `src/pages/Settings.tsx`
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Backend
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- Stack: Express 5, TypeScript, `mssql`, Swagger UI, LDAP, Microsoft Graph, OCR integrations.
+- API entry: `backend/src/index.ts`
+- Main route groups:
+  - `/api/prfs`
+  - `/api/budgets`
+  - `/api/coa`
+  - `/api/reports`
+  - `/api/auth`
+  - `/api/settings`
+  - `/api/import`
+  - `/api/cloud-sync`
+  - `/api/prf-files`
+  - `/api/prf-documents`
+  - `/api/notifications`
 
-Follow these steps:
+### Runtime Services
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+- `frontend`: serves the web UI.
+- `backend`: serves the API and Swagger docs.
+- `pronto_sync`: Python worker for scheduled/manual Pronto synchronization.
+- SQL Server runs outside the compose stack and is configured through environment variables.
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## Source-Of-Truth Documents
 
-# Step 3: Install the necessary dependencies.
-npm i
+Start here before changing behavior:
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+- `AGENTS.md`: repository working method and mandatory documentation rules.
+- `docs/implementation-roadmap.md`: formal phase tracker and active execution order.
+- `docs/openapi.yaml`: current backend API contract.
+- `docs/upgrade-feature.md`: feature-delivery plan for FY2026 budget cut-off and Picking PIC.
+- `docs/budget-control-policy.md`: budget-control policy for yearly budget reset, new-year attention, and carry-forward handling.
+- `docs/budget-control-checklist.md`: execution checklist for mandatory HR / IT OPEX COA coverage and budget-control follow-up items.
+- `docs/historical-budget-governance.md`: locked historical visibility, retention, archive, and hard-delete policy.
+- `docs/open-questions-and-challenges.md`: unresolved business and technical decisions that must be locked before risky changes.
+- `docs/phase4-runbook.md`: data backfill and reconciliation procedure.
+- `docs/phase5-uat-checklist.md`: UAT checklist for release validation.
+- `docs/phase5-deployment-rollback.md`: deployment and rollback procedure.
+- `docs/pronto-sync.md`: Pronto synchronization behavior and safeguards.
+- `docs/project-onboarding.md`: repository understanding and architecture summary.
+
+## Current Delivery Status
+
+The active roadmap is now restored in `docs/implementation-roadmap.md`. The current documented delivery status is:
+
+- Completed baseline hardening for mandatory HR / IT COA coverage and `Budget Overview` scope control
+- Completed historical governance decision for retention, live-table history, and no-hard-delete policy
+- Completed Phase 7 for current-year readiness, virtual zero placeholders, and explicit carry-forward workflow
+- Completed Phase 8 for COA governance visibility, protected baseline controls, and current-year coverage visibility in `COA Management`
+- Completed Phase 9 for release verification and operational handover
+- Current roadmap status: release-ready verification package completed
+
+## Safe Start Checklist
+
+1. Read `AGENTS.md`.
+2. Read the relevant `docs/` source documents for the area you will change.
+3. Review `docs/openapi.yaml` before any backend or contract change.
+4. Run pending database migrations before relying on new schema behavior.
+5. Keep UI text in English and avoid `any` in TypeScript.
+
+## Local Development
+
+### Prerequisites
+
+- Node.js and npm
+- Access to the target SQL Server instance
+- Backend environment file with database and integration settings
+
+### Install Dependencies
+
+```bash
+npm install
+npm --prefix backend install
 ```
 
-## Database migration
+### Run The App
 
-- Run latest pending SQL migration:
-  - `npm run db:migrate`
-- Run all pending SQL migrations:
-  - `DB_MIGRATE_MODE=all npm run db:migrate`
+```bash
+npm run dev:full
+```
 
-**Edit a file directly in GitHub**
+Useful alternatives:
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- Frontend only: `npm run dev:frontend`
+- Backend only: `npm run dev:backend`
+- Mobile client: `npm run dev:mobile`
 
-**Use GitHub Codespaces**
+### Database Migrations
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Run the latest pending SQL migration:
 
-## What technologies are used for this project?
+```bash
+npm run db:migrate
+```
 
-This project is built with:
+Run all pending migrations:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```bash
+DB_MIGRATE_MODE=all npm run db:migrate
+```
 
-## Mobile app
+## Docker Runtime
 
-- PRF Details now includes Items, Documents, and Activity tabs.
-- Documents loads backend PRF files and supports View/Download.
-- Activity shows a backend-driven PRF timeline.
+The default compose file defines:
+
+- Frontend on host port `9007`
+- Backend on host port `5004`
+- Pronto sync worker as a companion service
+
+The backend mounts:
+
+- `./backend/data`
+- `./backend/temp`
+- `./docs`
+
+It also expects network-share and document-storage related environment variables for production-like behavior.
 
 ## API Documentation
 
-The backend exposes OpenAPI documentation served via Swagger UI.
+The backend serves Swagger UI and the raw OpenAPI spec:
 
-- View docs in browser: http://localhost:3001/api/docs
-- Raw OpenAPI spec (YAML): http://localhost:3001/api/docs/openapi.yaml
+- Swagger UI: `http://localhost:3001/api/docs`
+- OpenAPI YAML: `http://localhost:3001/api/docs/openapi.yaml`
 
-Protected endpoints require a Bearer JWT in the Authorization header.
+Protected endpoints require a Bearer JWT or another supported auth mechanism for the target route.
 
-## Data Maintenance: Remove Duplicate PRF Items
+## Key Operational Features
 
-- UI: Settings > General > Data Maintenance provides filters and actions
-- Filters: Optional PRF No and Budget Year to target specific scope
-- Preview: Shows duplicate count and a sample before deletion
-- Action: Delete duplicates based on normalized key (name, description, unit price, budget year, cost code)
-- Backend endpoint: POST /api/settings/maintenance/dedupe-prf-items (admin only)
-- Request body: { fix: boolean, prfNo?: string, budgetYear?: number }
-- Response preview: { success, fix: false, totalDuplicates, sampleCount }
-- Response deletion: { success, fix: true, deleted }
+### Budget Cut-Off And OPEX Import
 
-## Shared Folder Path: Mount Check
+- Budget cut-off endpoints exist under `/api/budgets/cutoff/:fiscalYear`.
+- Closed fiscal years block budget create, update, and delete actions.
+- OPEX import is handled through `/api/budgets/opex/import`.
+- Currency handling supports `IDR` and `USD` with exchange-rate normalization.
 
-- UI: Settings > General > Shared Folder Path > Test
-- Effective shared folder path uses `SHARED_FOLDER_PATH` from environment when set (recommended for production); the saved GUI setting is a fallback
-- Test shows resolved path and, in Docker/Linux, whether `/app/shared-documents` is mounted as CIFS
-- General tab also shows df-like filesystem usage for `/app/shared-documents` (share) and `/` (root/overlay)
+### Picking PIC Enforcement
 
-## Cloud Sync to OneDrive Excel
+- PRF items marked as `Picked Up` require PIC information and pickup date.
+- Picking PIC editing is restricted to authorized roles such as DocCon/Admin.
 
-- Adds a Sync to Cloud PRF button on the PRF Monitoring page to update the shared Excel.
-- Backend endpoint: POST /api/cloud-sync/prf/{prfNo}
-- Configure environment variables in backend/.env:
-  - AZURE_TENANT_ID
-  - AZURE_CLIENT_ID
-  - AZURE_CLIENT_SECRET
-  - ONEDRIVE_SHARED_EXCEL_LINK
-  - ONEDRIVE_WORKSHEET_NAME (default: "PRF Detail")
+### Data Maintenance
 
-This uses Microsoft Graph to update or append a row by matching PRF No.
+- Duplicate PRF item maintenance is exposed from Settings and the backend maintenance endpoint.
+- Phase 4 utilities include PIC backfill and OPEX reconciliation scripts.
 
-## Budget Cut-Off and OPEX Import
+## Quality And Verification
 
-- New cutoff APIs:
-  - GET `/api/budgets/cutoff/{fiscalYear}`
-  - POST `/api/budgets/cutoff/{fiscalYear}/close`
-  - POST `/api/budgets/cutoff/{fiscalYear}/reopen` (admin only)
-- When fiscal year cutoff is closed, budget write operations are blocked for:
-  - POST `/api/budgets`
-  - PUT `/api/budgets/{id}`
-  - DELETE `/api/budgets/{id}`
-- New OPEX bulk ingestion API:
-  - POST `/api/budgets/opex/import`
-  - Validates fiscal year, COA mapping, and OPEX expense type.
-- Currency support:
-  - Budget and PRF now support `IDR` and `USD` with `ExchangeRateToIDR`.
-  - Budget calculations in cost-code views normalize to IDR automatically.
-  - Budget report aggregations (`/api/reports/dashboard`, `/api/reports/utilization`, `/api/reports/budget-summary`, `/api/reports/budget-utilization`, export) normalize allocated budget to IDR before utilization math.
-  - OPEX import accepts optional `currencyCode` and `exchangeRateToIDR` per row.
-  - Added endpoint `GET /api/budgets/exchange-rate/usd-idr/today` for today's USD→IDR rate.
-  - For USD budget create/update/import, backend auto-fills today's rate when rate is missing.
-  - Environment override: set `FX_USD_TO_IDR` to force a fixed rate.
+Recommended validation commands:
 
-## Picking PIC Enforcement
+```bash
+npm run lint
+npx tsc --noEmit
+npm --prefix backend run build
+```
 
-- PRF item updates enforce pickup rules:
-  - if item status is `Picked Up`, Picking PIC is required (`PickedUpBy` or `PickedUpByUserID`)
-  - `PickedUpDate` is required for `Picked Up`
-  - `PickedUpByUserID` must refer to an active DocCon or Admin user
-- PRF item modal uses free-text input for `Picking PIC`
-- Quick action `Mark as Picked Up` prompts for picker name before status update
-- Non-DocCon/Admin users see PIC fields as read-only in item modification modal
+Release-readiness helper:
 
-## Phase 3 UI Notes
+```bash
+npm --prefix backend run phase5:readiness
+```
 
-- Budget Overview now includes:
-  - fiscal year cut-off status card and close/reopen actions
-  - OPEX FY import payload area and import summary panel
-  - locked-state behavior that disables budget write actions when FY is closed
-  - synchronized fiscal-year source for table, summary cards, and utilization chart to avoid cross-year mismatch
-  - aligned "Spent" semantics between OPEX utilization chart and budget details table to use approved/completed PRF spending
-  - de-duplicated report spend aggregation to avoid multiplying PRF spent when multiple budget rows exist for one COA
-  - report spend now resolves PRFs missing `COAID` via `PurchaseCostCode` mapping to COA
-  - report spend mapping now prioritizes normalized `PurchaseCostCode -> COACode` match before PRF `COAID` to avoid stale COA links
-  - improved edit budget defaults to preserve currency and active/inactive status from latest COA-year budget row
-- PRF Monitoring year filter now auto-adapts:
-  - default selection uses current year
-  - year options are generated from available submit-date years and include current year
-  - new endpoint: `GET /api/prfs/filters/years`
-- Dashboard cards now use live backend data:
-  - metric cards use `GET /api/reports/dashboard`
-  - budget utilization card uses `GET /api/reports/budget-summary` (category breakdown), with `expenseBreakdown` fallback
-  - recent PRFs card uses `GET /api/prfs?page=1&limit=5`
-  - budget alerts card uses `GET /api/reports/alerts` (high utilization, over-budget PRFs, pending approvals)
-- Responsive layout uses `grid grid-cols-12 gap-4` with mobile-first col-span rules
+## Documentation Notes
 
-## Phase 4 Data Backfill and Integrity
+- `docs/` is the documentation source of truth for implementation and operations.
+- `docs/api-documentation.md` appears to be legacy and does not reflect the current mounted routes as accurately as `docs/openapi.yaml`.
+- If you change backend behavior, review and update `docs/openapi.yaml` in the same work item.
 
-- Added backend scripts:
-  - `npm --prefix backend run phase4:pic:dry`
-  - `npm --prefix backend run phase4:pic:apply`
-  - `npm --prefix backend run phase4:opex:reconcile`
-- Added runbook:
-  - `docs/phase4-runbook.md`
-- Added report outputs:
-  - `docs/reports/phase4-pic-backfill-*.json|csv`
-  - `docs/reports/phase4-opex-reconciliation-*.json|csv`
-  - `docs/reports/phase4-data-quality-report-2026-03-15.md`
-- Backfill strategy resolves missing PIC using:
-  - `UpdatedBy` metadata when eligible
-  - Excel `PIC pickup` mapped to active DocCon/Admin user
-  - optional fallback unknown policy
-- OPEX reconciliation validates FY2026 Budget Detail rows against COA existence, active status, and OPEX expense type, then classifies row decision as inserted/updated/rejected.
+## Lovable Integration
 
-## Phase 5 QA, Hardening, and Release
+This repository is connected to Lovable:
 
-- Added readiness validation script:
-  - `npm --prefix backend run phase5:readiness`
-- Readiness report output:
-  - `docs/reports/phase5-readiness-*.json`
-- Added UAT checklist:
-  - `docs/phase5-uat-checklist.md`
-- Added deployment and rollback guide:
-  - `docs/phase5-deployment-rollback.md`
-- Admin release flow:
-  - run readiness report
-  - confirm UAT checklist completion
-  - execute deployment checklist
-  - use rollback plan if release trigger fails
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/2161adca-98cc-4f2f-ac94-84a8dd852b12) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+- Project URL: [lovable.dev/projects/2161adca-98cc-4f2f-ac94-84a8dd852b12](https://lovable.dev/projects/2161adca-98cc-4f2f-ac94-84a8dd852b12)
+- Avoid rewriting published history that has already synced to Lovable.

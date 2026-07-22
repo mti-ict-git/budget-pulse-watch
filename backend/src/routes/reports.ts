@@ -126,7 +126,7 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
   try {
     const { executeQuery } = await import('../config/database');
     
-    let whereClause = 'WHERE b.FiscalYear = @FiscalYear AND b.AllocatedAmount > 0';
+    let whereClause = 'WHERE b.FiscalYear = @FiscalYear';
     const params: Record<string, unknown> = { FiscalYear: fiscalYear };
     
     if (department && department !== 'all') {
@@ -134,16 +134,41 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
       params.Department = department;
     }
     
-    // Get budget metrics (excluding zero allocations)
     const budgetQuery = `
-      WITH BudgetByCoa AS (
+      WITH AnnualBudgetByCoa AS (
         SELECT
           b.COAID,
-          SUM(${allocatedAmountToIdrExpr}) as TotalAllocated
+          SUM(${allocatedAmountToIdrExpr}) as AnnualAllocated
         FROM Budget b
         INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
         ${whereClause}
         GROUP BY b.COAID
+      ),
+      CarryForwardByCoa AS (
+        SELECT
+          cf.COAID,
+          SUM(
+            CAST(
+              cf.CarryForwardAmount *
+              CASE
+                WHEN COALESCE(cf.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(cf.ExchangeRateToIDR, 0), 1)
+                ELSE 1
+              END
+              AS DECIMAL(18,2)
+            )
+          ) as CarryForwardAllocated
+        FROM BudgetCarryForward cf
+        INNER JOIN ChartOfAccounts coa ON cf.COAID = coa.COAID
+        WHERE cf.TargetFiscalYear = @FiscalYear
+        ${department && department !== 'all' ? 'AND coa.Department = @Department' : ''}
+        GROUP BY cf.COAID
+      ),
+      BudgetByCoa AS (
+        SELECT
+          COALESCE(ab.COAID, cf.COAID) AS COAID,
+          COALESCE(ab.AnnualAllocated, 0) + COALESCE(cf.CarryForwardAllocated, 0) AS TotalAllocated
+        FROM AnnualBudgetByCoa ab
+        FULL OUTER JOIN CarryForwardByCoa cf ON ab.COAID = cf.COAID
       ),
       PRFByCoa AS (
         SELECT
@@ -159,7 +184,7 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
         SUM(bb.TotalAllocated) as TotalBudget,
         SUM(COALESCE(pb.TotalSpent, 0)) as TotalSpent,
         SUM(bb.TotalAllocated) - SUM(COALESCE(pb.TotalSpent, 0)) as TotalRemaining,
-        COUNT(bb.COAID) as TotalBudgetItems,
+        COUNT(CASE WHEN bb.TotalAllocated > 0 THEN 1 END) as TotalBudgetItems,
         COUNT(CASE WHEN COALESCE(pb.TotalSpent, 0) > bb.TotalAllocated THEN 1 END) as OverBudgetCount,
         CASE
           WHEN SUM(bb.TotalAllocated) > 0
@@ -188,15 +213,43 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
     
     // Get CAPEX/OPEX breakdown
     const expenseTypeQuery = `
-      WITH BudgetByCoa AS (
+      WITH AnnualBudgetByCoa AS (
         SELECT
           b.COAID,
           coa.ExpenseType,
-          SUM(${allocatedAmountToIdrExpr}) as TotalAllocated
+          SUM(${allocatedAmountToIdrExpr}) as AnnualAllocated
         FROM Budget b
         INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
         ${whereClause}
         GROUP BY b.COAID, coa.ExpenseType
+      ),
+      CarryForwardByCoa AS (
+        SELECT
+          cf.COAID,
+          coa.ExpenseType,
+          SUM(
+            CAST(
+              cf.CarryForwardAmount *
+              CASE
+                WHEN COALESCE(cf.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(cf.ExchangeRateToIDR, 0), 1)
+                ELSE 1
+              END
+              AS DECIMAL(18,2)
+            )
+          ) as CarryForwardAllocated
+        FROM BudgetCarryForward cf
+        INNER JOIN ChartOfAccounts coa ON cf.COAID = coa.COAID
+        WHERE cf.TargetFiscalYear = @FiscalYear
+        ${department && department !== 'all' ? 'AND coa.Department = @Department' : ''}
+        GROUP BY cf.COAID, coa.ExpenseType
+      ),
+      BudgetByCoa AS (
+        SELECT
+          COALESCE(ab.COAID, cf.COAID) AS COAID,
+          COALESCE(ab.ExpenseType, cf.ExpenseType) AS ExpenseType,
+          COALESCE(ab.AnnualAllocated, 0) + COALESCE(cf.CarryForwardAllocated, 0) AS TotalAllocated
+        FROM AnnualBudgetByCoa ab
+        FULL OUTER JOIN CarryForwardByCoa cf ON ab.COAID = cf.COAID
       ),
       PRFByCoa AS (
         SELECT
@@ -591,34 +644,70 @@ router.get('/utilization', asyncHandler(async (req, res) => {
  * @access  Private
  */
 router.get('/budget-utilization', asyncHandler(async (req, res) => {
-  const { fiscalYear = new Date().getFullYear(), expenseType } = req.query;
+  const { fiscalYear = new Date().getFullYear(), expenseType, department } = req.query;
   
   try {
     const { executeQuery } = await import('../config/database');
     
-    let whereClause = 'WHERE b.FiscalYear = @FiscalYear';
+    let annualWhereClause = 'WHERE b.FiscalYear = @FiscalYear';
+    let carryForwardWhereClause = 'WHERE cf.TargetFiscalYear = @FiscalYear';
     const params: Record<string, unknown> = { FiscalYear: fiscalYear };
     
     if (expenseType && (expenseType === 'CAPEX' || expenseType === 'OPEX')) {
-      whereClause += ' AND coa.ExpenseType = @ExpenseType';
+      annualWhereClause += ' AND coa.ExpenseType = @ExpenseType';
+      carryForwardWhereClause += ' AND coa.ExpenseType = @ExpenseType';
       params.ExpenseType = expenseType;
+    }
+    if (department && department !== 'all') {
+      annualWhereClause += ' AND coa.Department = @Department';
+      carryForwardWhereClause += ' AND coa.Department = @Department';
+      params.Department = department;
     }
     
     const query = `
-      WITH BudgetSummary AS (
+      WITH AnnualBudgetSummary AS (
         SELECT 
           b.COAID,
-          SUM(${allocatedAmountToIdrExpr}) as TotalAllocated
+          SUM(${allocatedAmountToIdrExpr}) as AnnualAllocated
         FROM Budget b
-        ${whereClause}
-          AND b.AllocatedAmount > 0
+        INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
+        ${annualWhereClause}
         GROUP BY b.COAID
+      ),
+      CarryForwardSummary AS (
+        SELECT
+          cf.COAID,
+          SUM(
+            CAST(
+              cf.CarryForwardAmount *
+              CASE
+                WHEN COALESCE(cf.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(cf.ExchangeRateToIDR, 0), 1)
+                ELSE 1
+              END
+              AS DECIMAL(18,2)
+            )
+          ) as CarryForwardAllocated
+        FROM BudgetCarryForward cf
+        INNER JOIN ChartOfAccounts coa ON cf.COAID = coa.COAID
+        ${carryForwardWhereClause}
+        GROUP BY cf.COAID
+      ),
+      BudgetSummary AS (
+        SELECT
+          COALESCE(ab.COAID, cf.COAID) AS COAID,
+          COALESCE(ab.AnnualAllocated, 0) AS AnnualAllocated,
+          COALESCE(cf.CarryForwardAllocated, 0) AS CarryForwardAllocated,
+          COALESCE(ab.AnnualAllocated, 0) + COALESCE(cf.CarryForwardAllocated, 0) AS TotalAllocated
+        FROM AnnualBudgetSummary ab
+        FULL OUTER JOIN CarryForwardSummary cf ON ab.COAID = cf.COAID
       )
       SELECT 
         coa.Category,
         coa.ExpenseType,
         coa.Department,
         COUNT(DISTINCT bs.COAID) as BudgetCount,
+        SUM(bs.AnnualAllocated) as AnnualAllocated,
+        SUM(bs.CarryForwardAllocated) as CarryForwardAllocated,
         SUM(bs.TotalAllocated) as TotalAllocated,
         SUM(COALESCE(prf_spent.TotalSpent, 0)) as TotalSpent,
         SUM(bs.TotalAllocated) - SUM(COALESCE(prf_spent.TotalSpent, 0)) as TotalRemaining,

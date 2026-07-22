@@ -6,6 +6,8 @@ interface CostCodeBudget {
   COAName: string;
   Department: string;
   ExpenseType: 'CAPEX' | 'OPEX';
+  AnnualAllocated?: number | null;
+  CarryForwardAmount?: number | null;
   GrandTotalAllocated: number | null;
   GrandTotalRequested: number | null;
   GrandTotalApproved: number | null;
@@ -126,6 +128,8 @@ interface ChartOfAccount {
   COAName: string;
   Description?: string;
   Category?: string;
+  Department?: string;
+  ExpenseType?: 'CAPEX' | 'OPEX';
 }
 
 interface BudgetSummary {
@@ -169,6 +173,72 @@ export interface DashboardMetrics {
     budgetCount: number;
     utilization: number;
   }[];
+}
+
+interface BudgetReadinessItem {
+  coaId: number;
+  coaCode: string;
+  coaName: string;
+  department: string;
+  expenseType: 'CAPEX' | 'OPEX';
+  currentBudgetId: number | null;
+  currentAnnualAllocation: number;
+  currentCarryForwardAmount: number;
+  totalAvailableBudget: number;
+  previousFiscalYear: number;
+  previousBudgetExists: boolean;
+  previousAllocatedAmount: number;
+  previousUtilizedAmount: number;
+  previousRemainingAmount: number;
+  needsAttention: boolean;
+  canCarryForward: boolean;
+  readinessStatus: 'Budget Ready' | 'Carry Forward Applied' | 'Need Attention';
+}
+
+interface BudgetReadinessSummary {
+  mandatoryCoaCount: number;
+  readyCount: number;
+  needAttentionCount: number;
+  carryForwardAppliedCount: number;
+}
+
+interface BudgetReadinessData {
+  fiscalYear: number;
+  previousFiscalYear: number;
+  summary: BudgetReadinessSummary;
+  items: BudgetReadinessItem[];
+}
+
+interface BudgetReadinessResponse {
+  success: boolean;
+  data?: BudgetReadinessData;
+  message?: string;
+  error?: string;
+}
+
+interface CarryForwardRequest {
+  coaId: number;
+  sourceFiscalYear?: number;
+  amount?: number;
+  notes?: string;
+}
+
+interface CarryForwardResult {
+  carryForwardId: number;
+  coaId: number;
+  coaCode: string;
+  sourceFiscalYear: number;
+  targetFiscalYear: number;
+  carryForwardAmount: number;
+  targetBudgetId: number;
+  approvedAt: string;
+}
+
+interface CarryForwardResponse {
+  success: boolean;
+  message?: string;
+  data?: CarryForwardResult;
+  error?: string;
 }
 
 interface UtilizationData {
@@ -336,7 +406,13 @@ class BudgetService {
   /**
    * Get cost code budget data
    */
-  async getCostCodeBudgets(searchParams?: { search?: string; status?: string; fiscalYear?: number }): Promise<CostCodeBudgetResponse> {
+  async getCostCodeBudgets(searchParams?: {
+    search?: string;
+    status?: string;
+    fiscalYear?: number;
+    department?: string;
+    expenseType?: 'CAPEX' | 'OPEX';
+  }): Promise<CostCodeBudgetResponse> {
     try {
       const params = new URLSearchParams();
       
@@ -348,6 +424,12 @@ class BudgetService {
       }
       if (searchParams?.status) {
         params.append('status', searchParams.status);
+      }
+      if (searchParams?.department) {
+        params.append('department', searchParams.department);
+      }
+      if (searchParams?.expenseType) {
+        params.append('expenseType', searchParams.expenseType);
       }
 
       const url = `${this.baseUrl}/cost-codes${params.toString() ? `?${params.toString()}` : ''}`;
@@ -583,10 +665,23 @@ class BudgetService {
   /**
    * Get Chart of Accounts for budget creation
    */
-  async getChartOfAccounts(): Promise<{ success: boolean; data?: ChartOfAccount[]; message?: string }> {
+  async getChartOfAccounts(filters?: {
+    department?: string;
+    expenseType?: 'CAPEX' | 'OPEX';
+  }): Promise<{ success: boolean; data?: ChartOfAccount[]; message?: string }> {
     try {
-      // Request a large limit to get all COA records for the dropdown
-      const response = await fetch('/api/coa?limit=1000&isActive=true', {
+      const params = new URLSearchParams({
+        limit: '1000',
+        isActive: 'true'
+      });
+      if (filters?.department) {
+        params.append('department', filters.department);
+      }
+      if (filters?.expenseType) {
+        params.append('expenseType', filters.expenseType);
+      }
+
+      const response = await fetch(`/api/coa?${params.toString()}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -835,6 +930,54 @@ class BudgetService {
       };
     }
   }
+
+  async getBudgetReadiness(fiscalYear: number): Promise<BudgetReadinessResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/readiness/${fiscalYear}`, {
+        method: 'GET',
+        headers: {
+          ...authService.getAuthHeaders(),
+        }
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch budget readiness');
+      }
+
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
+    }
+  }
+
+  async applyCarryForward(targetFiscalYear: number, payload: CarryForwardRequest): Promise<CarryForwardResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/carry-forward/${targetFiscalYear}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeaders(),
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to apply carry forward');
+      }
+
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
+    }
+  }
 }
 
 export const getUtilizationData = async (fiscalYear?: number): Promise<UtilizationData[]> => {
@@ -912,5 +1055,10 @@ export type {
   UnallocatedBudgetSummary,
   BudgetCutoffState,
   OpexImportRow,
-  OpexImportResult
+  OpexImportResult,
+  BudgetReadinessItem,
+  BudgetReadinessSummary,
+  BudgetReadinessData,
+  CarryForwardRequest,
+  CarryForwardResult
 };

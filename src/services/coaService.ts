@@ -14,6 +14,18 @@ export interface ChartOfAccounts {
   CreatedAt: Date;
 }
 
+export interface CoaCoverageStatus {
+  currentBudgetId: number | null;
+  currentAnnualAllocation: number;
+  currentCarryForwardAmount: number;
+  totalAvailableBudget: number;
+  previousFiscalYear: number;
+  previousRemainingAmount: number;
+  needsAttention: boolean;
+  canCarryForward: boolean;
+  readinessStatus: 'Budget Ready' | 'Carry Forward Applied' | 'Need Attention';
+}
+
 export interface CreateCOARequest {
   COACode: string;
   COAName: string;
@@ -462,6 +474,60 @@ class COAService {
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+
+  async getMandatoryReadiness(fiscalYear: number): Promise<{ success: boolean; data?: Record<number, CoaCoverageStatus>; message?: string }> {
+    try {
+      const response = await fetch(`/api/budgets/readiness/${fiscalYear}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeaders(),
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch mandatory COA readiness');
+      }
+
+      const readinessMap = (data.data?.items || []).reduce((acc: Record<number, CoaCoverageStatus>, item: {
+        coaId: number;
+        currentBudgetId: number | null;
+        currentAnnualAllocation: number;
+        currentCarryForwardAmount: number;
+        totalAvailableBudget: number;
+        previousFiscalYear: number;
+        previousRemainingAmount: number;
+        needsAttention: boolean;
+        canCarryForward: boolean;
+        readinessStatus: 'Budget Ready' | 'Carry Forward Applied' | 'Need Attention';
+      }) => {
+        acc[item.coaId] = {
+          currentBudgetId: item.currentBudgetId,
+          currentAnnualAllocation: item.currentAnnualAllocation,
+          currentCarryForwardAmount: item.currentCarryForwardAmount,
+          totalAvailableBudget: item.totalAvailableBudget,
+          previousFiscalYear: item.previousFiscalYear,
+          previousRemainingAmount: item.previousRemainingAmount,
+          needsAttention: item.needsAttention,
+          canCarryForward: item.canCarryForward,
+          readinessStatus: item.readinessStatus,
+        };
+        return acc;
+      }, {});
+
+      return {
+        success: true,
+        data: readinessMap
+      };
+    } catch (error) {
+      console.error('Error fetching mandatory readiness:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred'
       };
     }
   }

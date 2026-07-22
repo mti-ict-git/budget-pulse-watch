@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Plus, Search, Filter, MoreHorizontal, Edit, Trash2, Eye, Download, Users, Building, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,17 +11,37 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { coaService, ChartOfAccounts, COAQueryParams, BulkUpdateCOARequest, BulkDeleteCOARequest } from '../services/coaService';
+import { coaService, ChartOfAccounts, COAQueryParams, BulkUpdateCOARequest, BulkDeleteCOARequest, CoaCoverageStatus } from '../services/coaService';
 import { COAForm } from '@/components/coa/COAForm';
 import { COADetailsModal } from '@/components/coa/COADetailsModal';
 
+const CURRENT_FISCAL_YEAR = new Date().getFullYear();
+
+const MANDATORY_HR_IT_OPEX_LABELS: Record<string, string> = {
+  MTIRMRAD496137: 'Software Maintenance',
+  MTIRMRAD496232: 'Repairs and maintenance',
+  MTIRMRAD496769: 'Tools',
+  MTIRMRAD496250: 'IT consumeables',
+  MTIRMRAD496313: 'Internet',
+  MTIRMRAD496315: 'Stationery and postage',
+  MTIRMRAD496326: 'Other permit & licenses',
+  MTIRMRAD496328: 'Subscriptions',
+  MTIRMRAD496014: 'Training and seminars',
+  MTIRMRAD496314: 'Telephone and mobile comms'
+};
+
+const getMandatoryApprovedName = (coaCode: string): string | undefined => MANDATORY_HR_IT_OPEX_LABELS[coaCode];
+
 export default function COAManagement() {
   const [accounts, setAccounts] = useState<ChartOfAccounts[]>([]);
+  const [mandatoryCoverage, setMandatoryCoverage] = useState<Record<number, CoaCoverageStatus>>({});
   const [loading, setLoading] = useState(true);
+  const [coverageLoading, setCoverageLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedExpenseType, setSelectedExpenseType] = useState<string>('all');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
+  const [governanceScope, setGovernanceScope] = useState<string>('all');
   const [showActiveOnly, setShowActiveOnly] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -41,8 +61,20 @@ export default function COAManagement() {
   
   const { toast } = useToast();
 
+  const isMandatoryAccount = (account: ChartOfAccounts) => getMandatoryApprovedName(account.COACode) !== undefined;
+  const isProtectedMandatoryAccount = (account: ChartOfAccounts) => isMandatoryAccount(account);
+  const getCoverage = (account: ChartOfAccounts) => mandatoryCoverage[account.COAID];
+  const hasApprovedNameMismatch = (account: ChartOfAccounts) => {
+    const approvedName = getMandatoryApprovedName(account.COACode);
+    return approvedName !== undefined && approvedName !== account.COAName;
+  };
+  const protectedAccountsOnPage = accounts.filter(isProtectedMandatoryAccount);
+  const mandatoryReadyCount = protectedAccountsOnPage.filter((account) => getCoverage(account)?.readinessStatus === 'Budget Ready').length;
+  const mandatoryAttentionCount = protectedAccountsOnPage.filter((account) => getCoverage(account)?.needsAttention).length;
+  const mandatoryCarryForwardCount = protectedAccountsOnPage.filter((account) => getCoverage(account)?.readinessStatus === 'Carry Forward Applied').length;
+
   // Fetch accounts with current filters
-  const fetchAccounts = async () => {
+  const fetchAccounts = useCallback(async () => {
     setLoading(true);
     try {
       const params: COAQueryParams = {
@@ -51,8 +83,16 @@ export default function COAManagement() {
         isActive: showActiveOnly,
         search: searchTerm || undefined,
         category: selectedCategory && selectedCategory !== 'all' ? selectedCategory : undefined,
-        expenseType: selectedExpenseType && selectedExpenseType !== 'all' ? (selectedExpenseType as 'CAPEX' | 'OPEX') : undefined,
-        department: selectedDepartment && selectedDepartment !== 'all' ? selectedDepartment : undefined,
+        expenseType: governanceScope === 'mandatory-hr-it-opex'
+          ? 'OPEX'
+          : selectedExpenseType && selectedExpenseType !== 'all'
+            ? (selectedExpenseType as 'CAPEX' | 'OPEX')
+            : undefined,
+        department: governanceScope === 'mandatory-hr-it-opex'
+          ? 'HR / IT'
+          : selectedDepartment && selectedDepartment !== 'all'
+            ? selectedDepartment
+            : undefined,
       };
 
       const response = await coaService.getAll(params);
@@ -79,22 +119,42 @@ export default function COAManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    currentPage,
+    pageSize,
+    showActiveOnly,
+    searchTerm,
+    selectedCategory,
+    selectedExpenseType,
+    selectedDepartment,
+    governanceScope,
+    toast
+  ]);
+
+  const fetchMandatoryCoverage = useCallback(async () => {
+    setCoverageLoading(true);
+    try {
+      const response = await coaService.getMandatoryReadiness(CURRENT_FISCAL_YEAR);
+      if (response.success && response.data) {
+        setMandatoryCoverage(response.data);
+      } else {
+        setMandatoryCoverage({});
+      }
+    } catch (error) {
+      setMandatoryCoverage({});
+    } finally {
+      setCoverageLoading(false);
+    }
+  }, []);
 
   // Effect to fetch accounts when filters change
   useEffect(() => {
     fetchAccounts();
-  }, [currentPage, pageSize, showActiveOnly, searchTerm, selectedCategory, selectedExpenseType, selectedDepartment]);
+  }, [fetchAccounts]);
 
-  // Handle search with debounce
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setCurrentPage(1); // Reset to first page when searching
-      fetchAccounts();
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm]);
+    fetchMandatoryCoverage();
+  }, [fetchMandatoryCoverage]);
 
   // Handle page size change
   const handlePageSizeChange = (newPageSize: string) => {
@@ -140,7 +200,11 @@ export default function COAManagement() {
   // Bulk selection handlers
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      const allAccountIds = new Set(accounts.map(account => account.COAID));
+      const allAccountIds = new Set(
+        accounts
+          .filter((account) => !isProtectedMandatoryAccount(account))
+          .map((account) => account.COAID)
+      );
       setSelectedAccounts(allAccountIds);
     } else {
       setSelectedAccounts(new Set());
@@ -332,13 +396,51 @@ export default function COAManagement() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Departments</CardTitle>
+            <CardTitle className="text-sm font-medium">Mandatory Ready</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{departments.length}</div>
+            <div className="text-2xl font-bold">{coverageLoading ? '...' : mandatoryReadyCount}</div>
+            <p className="text-xs text-muted-foreground">
+              FY {CURRENT_FISCAL_YEAR} governed COAs ready
+            </p>
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-blue-200 bg-blue-50/40">
+        <CardHeader>
+          <CardTitle>Mandatory HR / IT OPEX Governance</CardTitle>
+          <CardDescription>
+            Protected baseline list with current fiscal-year coverage visibility and label governance.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-4">
+          <div>
+            <div className="text-sm text-muted-foreground">Protected Baseline</div>
+            <div className="text-2xl font-bold">{Object.keys(MANDATORY_HR_IT_OPEX_LABELS).length}</div>
+          </div>
+          <div>
+            <div className="text-sm text-muted-foreground">Need Attention</div>
+            <div className="text-2xl font-bold text-orange-600">{coverageLoading ? '...' : mandatoryAttentionCount}</div>
+          </div>
+          <div>
+            <div className="text-sm text-muted-foreground">Carry Forward Applied</div>
+            <div className="text-2xl font-bold text-blue-700">{coverageLoading ? '...' : mandatoryCarryForwardCount}</div>
+          </div>
+          <div>
+            <div className="text-sm text-muted-foreground">Governance Scope</div>
+            <Select value={governanceScope} onValueChange={setGovernanceScope}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All COAs</SelectItem>
+                <SelectItem value="mandatory-hr-it-opex">Mandatory HR / IT OPEX</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filters */}
       <Card>
@@ -369,7 +471,7 @@ export default function COAManagement() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={selectedExpenseType} onValueChange={setSelectedExpenseType}>
+            <Select value={selectedExpenseType} onValueChange={setSelectedExpenseType} disabled={governanceScope === 'mandatory-hr-it-opex'}>
               <SelectTrigger>
                 <SelectValue placeholder="Expense Type" />
               </SelectTrigger>
@@ -379,7 +481,7 @@ export default function COAManagement() {
                 <SelectItem value="OPEX">OPEX</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+            <Select value={selectedDepartment} onValueChange={setSelectedDepartment} disabled={governanceScope === 'mandatory-hr-it-opex'}>
               <SelectTrigger>
                 <SelectValue placeholder="Department" />
               </SelectTrigger>
@@ -405,9 +507,10 @@ export default function COAManagement() {
               variant="outline"
               onClick={() => {
                 setSearchTerm('');
-                setSelectedCategory('');
-                setSelectedExpenseType('');
-                setSelectedDepartment('');
+                setSelectedCategory('all');
+                setSelectedExpenseType('all');
+                setSelectedDepartment('all');
+                setGovernanceScope('all');
                 setShowActiveOnly(true);
                 setCurrentPage(1);
               }}
@@ -523,6 +626,7 @@ export default function COAManagement() {
                   <TableHead>Category</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Department</TableHead>
+                  <TableHead>Coverage</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -530,13 +634,13 @@ export default function COAManagement() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       Loading accounts...
                     </TableCell>
                   </TableRow>
                 ) : accounts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       No accounts found
                     </TableCell>
                   </TableRow>
@@ -548,10 +652,23 @@ export default function COAManagement() {
                           checked={selectedAccounts.has(account.COAID)}
                           onCheckedChange={(checked) => handleSelectAccount(account.COAID, checked as boolean)}
                           aria-label={`Select account ${account.COACode}`}
+                          disabled={isProtectedMandatoryAccount(account)}
                         />
                       </TableCell>
                       <TableCell className="font-medium">{account.COACode}</TableCell>
-                      <TableCell>{account.COAName}</TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div>{account.COAName}</div>
+                          <div className="flex flex-wrap gap-1">
+                            {isMandatoryAccount(account) && (
+                              <Badge variant="secondary">Protected Baseline</Badge>
+                            )}
+                            {hasApprovedNameMismatch(account) && (
+                              <Badge variant="destructive">Label Mismatch</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </TableCell>
                       <TableCell>{account.Category || '-'}</TableCell>
                       <TableCell>
                         <Badge variant={account.ExpenseType === 'CAPEX' ? 'default' : 'secondary'}>
@@ -559,6 +676,28 @@ export default function COAManagement() {
                         </Badge>
                       </TableCell>
                       <TableCell>{account.Department}</TableCell>
+                      <TableCell>
+                        {isMandatoryAccount(account) ? (
+                          <div className="space-y-1">
+                            <Badge
+                              variant={
+                                getCoverage(account)?.readinessStatus === 'Need Attention'
+                                  ? 'destructive'
+                                  : getCoverage(account)?.readinessStatus === 'Carry Forward Applied'
+                                    ? 'secondary'
+                                    : 'default'
+                              }
+                            >
+                              {getCoverage(account)?.readinessStatus || 'Loading'}
+                            </Badge>
+                            <div className="text-xs text-muted-foreground">
+                              FY {CURRENT_FISCAL_YEAR} total {getCoverage(account) ? getCoverage(account)?.totalAvailableBudget.toLocaleString('en-US') : 0}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={account.IsActive ? 'default' : 'destructive'}>
                           {account.IsActive ? 'Active' : 'Inactive'}
@@ -595,7 +734,7 @@ export default function COAManagement() {
                             <DropdownMenuSeparator />
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={isProtectedMandatoryAccount(account)}>
                                   <Trash2 className="mr-2 h-4 w-4" />
                                   Deactivate
                                 </DropdownMenuItem>
@@ -604,14 +743,16 @@ export default function COAManagement() {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    This will deactivate the account "{account.COAName}". 
-                                    This action can be reversed by editing the account.
+                                    {isProtectedMandatoryAccount(account)
+                                      ? `Protected mandatory COA ${account.COACode} cannot be deactivated from COA Management.`
+                                      : `This will deactivate the account "${account.COAName}". This action can be reversed by editing the account.`}
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                                   <AlertDialogAction
                                     onClick={() => handleDelete(account)}
+                                    disabled={isProtectedMandatoryAccount(account)}
                                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                   >
                                     Deactivate

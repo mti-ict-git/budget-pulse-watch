@@ -143,6 +143,7 @@ export class ChartOfAccountsModel {
     const {
       page = 1,
       limit = 10,
+      category,
       isActive = true,
       parentCOAID,
       expenseType,
@@ -165,6 +166,10 @@ export class ChartOfAccountsModel {
         whereConditions.push('ParentCOAID = @ParentCOAID');
         params.ParentCOAID = parentCOAID;
       }
+    }
+    if (category) {
+      whereConditions.push('Category = @Category');
+      params.Category = category;
     }
     if (expenseType) {
       whereConditions.push('ExpenseType = @ExpenseType');
@@ -315,6 +320,28 @@ export class ChartOfAccountsModel {
     
     const result = await executeQuery<{ Count: number }>(query, params);
     return (result.recordset[0] as ExistsResult).Count > 0;
+  }
+
+  static async findByIds(coaIds: number[]): Promise<ChartOfAccounts[]> {
+    if (coaIds.length === 0) {
+      return [];
+    }
+
+    const idPlaceholders = coaIds.map((_, index) => `@id${index}`).join(', ');
+    const params: Record<string, unknown> = {};
+    coaIds.forEach((id, index) => {
+      params[`id${index}`] = id;
+    });
+
+    const query = `
+      SELECT *
+      FROM ChartOfAccounts
+      WHERE COAID IN (${idPlaceholders})
+      ORDER BY COACode
+    `;
+
+    const result = await executeQuery<ChartOfAccounts>(query, params);
+    return result.recordset;
   }
 
   /**

@@ -2174,6 +2174,15 @@ paths:
           name: fiscalYear
           schema:
             type: integer
+        - in: query
+          name: department
+          schema:
+            type: string
+        - in: query
+          name: expenseType
+          schema:
+            type: string
+            enum: [CAPEX, OPEX]
       responses:
         '200':
           description: Cost code budget summary
@@ -2182,6 +2191,78 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
+
+  /api/budgets/readiness/{fiscalYear}:
+    get:
+      summary: Get mandatory COA readiness for a fiscal year
+      tags: [Budgets]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: fiscalYear
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Readiness data for mandatory HR / IT OPEX COAs
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Invalid fiscal year
+        '401':
+          description: Unauthorized
+
+  /api/budgets/carry-forward/{targetFiscalYear}:
+    post:
+      summary: Approve carry forward into a target fiscal year
+      tags: [Budgets]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: targetFiscalYear
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [coaId]
+              properties:
+                coaId:
+                  type: integer
+                sourceFiscalYear:
+                  type: integer
+                amount:
+                  type: number
+                notes:
+                  type: string
+      responses:
+        '201':
+          description: Carry forward approved
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Admin only
+        '404':
+          description: COA or source budget not found
+        '409':
+          description: Fiscal year closed, source year not closed, duplicate carry forward, or no remaining amount
 
   /api/budgets/cutoff/{fiscalYear}:
     get:
@@ -2682,6 +2763,8 @@ paths:
                 additionalProperties: true
         '400':
           description: Invalid request
+        '409':
+          description: Protected mandatory COA cannot be changed to unsupported department, expense type, or inactive state
 
   /api/coa/{id}:
     get:
@@ -2733,6 +2816,8 @@ paths:
           description: Unauthorized
         '404':
           description: Not found
+        '409':
+          description: Duplicate account code or protected mandatory COA validation conflict
     delete:
       summary: Soft delete chart of account
       tags: [COA]
@@ -2755,6 +2840,8 @@ paths:
           description: Unauthorized
         '404':
           description: Not found
+        '409':
+          description: Protected mandatory COA cannot be deactivated
 
   /api/coa/{id}/hard:
     delete:
@@ -2775,6 +2862,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponse'
+        '409':
+          description: Protected mandatory COA cannot be permanently deleted
 
   /api/coa/code/{coaCode}:
     get:
@@ -2952,6 +3041,8 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
+        '409':
+          description: Protected mandatory COA cannot be deactivated or hard deleted in bulk
 
   /api/users:
     get:

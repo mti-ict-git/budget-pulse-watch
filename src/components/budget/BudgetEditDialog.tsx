@@ -37,8 +37,8 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { budgetService, Budget, UpdateBudgetRequest, CreateBudgetRequest, ChartOfAccount } from "@/services/budgetService";
 
-// Department options
-const departments = ["HR / IT", "Non IT"];
+const HR_IT_DEPARTMENT = "HR / IT";
+const departments = [HR_IT_DEPARTMENT];
 
 interface BudgetEditDialogProps {
   budget: Budget;
@@ -65,7 +65,7 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
     FiscalYear: budget.FiscalYear,
     AllocatedAmount: budget.AllocatedAmount,
     Description: budget.Description || "",
-    Department: budget.Department || "",
+    Department: budget.Department || HR_IT_DEPARTMENT,
     CurrencyCode: budget.CurrencyCode || 'IDR',
     ExchangeRateToIDR: budget.ExchangeRateToIDR || 1,
     IsActive: initialIsActive,
@@ -75,9 +75,13 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
   const loadChartOfAccounts = useCallback(async () => {
     setIsLoadingCOA(true);
     try {
-      const response = await budgetService.getChartOfAccounts();
+      const response = await budgetService.getChartOfAccounts({
+        department: HR_IT_DEPARTMENT
+      });
       if (response.success && response.data) {
-        setChartOfAccounts(response.data);
+        setChartOfAccounts(
+          response.data.filter((account) => account.ExpenseType === 'CAPEX' || account.ExpenseType === 'OPEX')
+        );
       } else {
         throw new Error(response.message || 'Failed to load Chart of Accounts');
       }
@@ -103,7 +107,7 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
         FiscalYear: budget.FiscalYear,
         AllocatedAmount: budget.AllocatedAmount,
         Description: budget.Description || "",
-        Department: budget.Department || "",
+        Department: budget.Department || HR_IT_DEPARTMENT,
         CurrencyCode: budget.CurrencyCode || 'IDR',
         ExchangeRateToIDR: budget.ExchangeRateToIDR || 1,
         IsActive: initialIsActive,
@@ -231,7 +235,7 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
       AllocatedAmount: budget.AllocatedAmount,
       FiscalYear: budget.FiscalYear,
       Description: budget.Description || "",
-      Department: budget.Department || "",
+      Department: budget.Department || HR_IT_DEPARTMENT,
       CurrencyCode: budget.CurrencyCode || 'IDR',
       ExchangeRateToIDR: budget.ExchangeRateToIDR || 1,
       IsActive: initialIsActive,

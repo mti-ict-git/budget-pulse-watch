@@ -30,6 +30,33 @@ type OpexImportItem = {
   exchangeRateToIDR?: number;
 };
 
+type BudgetReadinessRow = {
+  COAID: number;
+  COACode: string;
+  COAName: string;
+  Department: string;
+  ExpenseType: 'CAPEX' | 'OPEX';
+  CurrentBudgetID: number | null;
+  CurrentAnnualAllocation: number;
+  CurrentCarryForwardAmount: number;
+  TotalAvailableBudget: number;
+  PreviousFiscalYear: number;
+  PreviousBudgetExists: boolean | number;
+  PreviousAllocatedAmount: number;
+  PreviousUtilizedAmount: number;
+  PreviousRemainingAmount: number;
+  NeedsAttention: boolean | number;
+  CanCarryForward: boolean | number;
+  ReadinessStatus: string;
+};
+
+type CarryForwardRequestBody = {
+  coaId?: number;
+  sourceFiscalYear?: number;
+  amount?: number;
+  notes?: string;
+};
+
 type ExchangeRateApiResponse = {
   result?: string;
   base_code?: string;
@@ -330,14 +357,20 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
     const search = req.query.search as string;
     const status = req.query.status as string;
     const fiscalYear = req.query.fiscalYear ? parseInt(req.query.fiscalYear as string) : undefined;
+    const department = typeof req.query.department === 'string' ? req.query.department : undefined;
+    const expenseType = req.query.expenseType === 'CAPEX' || req.query.expenseType === 'OPEX'
+      ? req.query.expenseType
+      : undefined;
+    const escapedSearch = search ? search.replace(/'/g, "''") : '';
+    const escapedDepartment = department ? department.replace(/'/g, "''") : '';
     
     // Build WHERE conditions for search
     let searchConditions = '';
     if (search) {
       searchConditions += ` AND (
-        cbs.PurchaseCostCode LIKE '%${search}%' OR 
-        cbs.COACode LIKE '%${search}%' OR 
-        cbs.COAName LIKE '%${search}%'
+        cbs.PurchaseCostCode LIKE '%${escapedSearch}%' OR 
+        cbs.COACode LIKE '%${escapedSearch}%' OR 
+        cbs.COAName LIKE '%${escapedSearch}%'
       )`;
     }
     if (status && status !== 'all') {
@@ -346,11 +379,16 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
     if (fiscalYear) {
       searchConditions += ` AND cbs.LastYear = ${fiscalYear}`;
     }
+    if (department) {
+      searchConditions += ` AND cbs.Department = '${escapedDepartment}'`;
+    }
+    if (expenseType) {
+      searchConditions += ` AND cbs.ExpenseType = '${expenseType}'`;
+    }
 
     // Query that includes both cost code budgets and standalone budgets without cost codes
     const query = `
-      WITH BudgetAllocations AS (
-        -- Get actual budget allocations by COA and fiscal year
+      WITH AnnualBudgetAllocations AS (
         SELECT 
           b.COAID,
           b.FiscalYear,
@@ -367,7 +405,7 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
               END
               AS DECIMAL(18,2)
             )
-          ) as TotalAllocated,
+          ) as AnnualAllocated,
           SUM(
             CAST(
               b.UtilizedAmount *
@@ -383,8 +421,44 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
         ${fiscalYear ? `WHERE b.FiscalYear = ${fiscalYear}` : ''}
         GROUP BY b.COAID, b.FiscalYear, coa.COACode, coa.COAName, coa.Department, coa.ExpenseType
       ),
+      CarryForwardAllocations AS (
+        SELECT
+          cf.COAID,
+          cf.TargetFiscalYear AS FiscalYear,
+          SUM(
+            CAST(
+              cf.CarryForwardAmount *
+              CASE
+                WHEN COALESCE(cf.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(cf.ExchangeRateToIDR, 0), 1)
+                ELSE 1
+              END
+              AS DECIMAL(18,2)
+            )
+          ) AS CarryForwardAmount
+        FROM BudgetCarryForward cf
+        ${fiscalYear ? `WHERE cf.TargetFiscalYear = ${fiscalYear}` : ''}
+        GROUP BY cf.COAID, cf.TargetFiscalYear
+      ),
+      BudgetAvailability AS (
+        SELECT
+          COALESCE(ab.COAID, cf.COAID) AS COAID,
+          COALESCE(ab.FiscalYear, cf.FiscalYear) AS FiscalYear,
+          coa.COACode,
+          coa.COAName,
+          coa.Department,
+          coa.ExpenseType,
+          COALESCE(ab.AnnualAllocated, 0) AS AnnualAllocated,
+          COALESCE(cf.CarryForwardAmount, 0) AS CarryForwardAmount,
+          COALESCE(ab.AnnualAllocated, 0) + COALESCE(cf.CarryForwardAmount, 0) AS TotalAllocated,
+          COALESCE(ab.TotalUtilized, 0) AS TotalUtilized
+        FROM AnnualBudgetAllocations ab
+        FULL OUTER JOIN CarryForwardAllocations cf
+          ON ab.COAID = cf.COAID
+         AND ab.FiscalYear = cf.FiscalYear
+        INNER JOIN ChartOfAccounts coa
+          ON coa.COAID = COALESCE(ab.COAID, cf.COAID)
+      ),
       CostCodeSpending AS (
-        -- Get spending data by cost codes
         SELECT 
           p.PurchaseCostCode,
           p.COAID,
@@ -432,7 +506,6 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
         GROUP BY p.PurchaseCostCode, p.COAID, p.BudgetYear
       ),
       CostCodeBudgetSummary AS (
-        -- Join budget allocations with cost code spending
         SELECT 
           cs.PurchaseCostCode,
           cs.COAID,
@@ -440,6 +513,8 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
           COALESCE(ba.COAName, coa.COAName) as COAName,
           COALESCE(ba.Department, coa.Department) as Department,
           COALESCE(ba.ExpenseType, coa.ExpenseType) as ExpenseType,
+          COALESCE(SUM(ba.AnnualAllocated), 0) as AnnualAllocated,
+          COALESCE(SUM(ba.CarryForwardAmount), 0) as CarryForwardAmount,
           COALESCE(SUM(ba.TotalAllocated), 0) as GrandTotalAllocated,
           SUM(cs.TotalRequested) as GrandTotalRequested,
           SUM(cs.TotalApproved) as GrandTotalApproved,
@@ -449,13 +524,18 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
           MIN(cs.BudgetYear) as FirstYear,
           MAX(cs.BudgetYear) as LastYear
         FROM CostCodeSpending cs
-        LEFT JOIN BudgetAllocations ba ON cs.PurchaseCostCode = ba.COACode AND cs.BudgetYear = ba.FiscalYear
-        LEFT JOIN ChartOfAccounts coa ON cs.PurchaseCostCode = coa.COACode
-        GROUP BY cs.PurchaseCostCode, cs.COAID, COALESCE(ba.COACode, coa.COACode), COALESCE(ba.COAName, coa.COAName), COALESCE(ba.Department, coa.Department), COALESCE(ba.ExpenseType, coa.ExpenseType)
+        LEFT JOIN BudgetAvailability ba ON cs.COAID = ba.COAID AND cs.BudgetYear = ba.FiscalYear
+        LEFT JOIN ChartOfAccounts coa ON cs.COAID = coa.COAID
+        GROUP BY
+          cs.PurchaseCostCode,
+          cs.COAID,
+          COALESCE(ba.COACode, coa.COACode),
+          COALESCE(ba.COAName, coa.COAName),
+          COALESCE(ba.Department, coa.Department),
+          COALESCE(ba.ExpenseType, coa.ExpenseType)
         
         UNION ALL
         
-        -- Include budgets without cost code mappings
         SELECT 
           'NO_COST_CODE_' + ba.COACode as PurchaseCostCode,
           ba.COAID,
@@ -463,6 +543,8 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
           ba.COAName,
           ba.Department,
           ba.ExpenseType,
+          SUM(ba.AnnualAllocated) as AnnualAllocated,
+          SUM(ba.CarryForwardAmount) as CarryForwardAmount,
           SUM(ba.TotalAllocated) as GrandTotalAllocated,
           0 as GrandTotalRequested,
           0 as GrandTotalApproved,
@@ -471,11 +553,11 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
           COUNT(DISTINCT ba.FiscalYear) as YearsActive,
           MIN(ba.FiscalYear) as FirstYear,
           MAX(ba.FiscalYear) as LastYear
-        FROM BudgetAllocations ba
-        WHERE ba.COACode NOT IN (
-          SELECT DISTINCT p.PurchaseCostCode 
-          FROM dbo.PRF p 
-          WHERE p.PurchaseCostCode IS NOT NULL AND p.PurchaseCostCode != ''
+        FROM BudgetAvailability ba
+        WHERE ba.COAID NOT IN (
+          SELECT DISTINCT cs.COAID
+          FROM CostCodeSpending cs
+          WHERE cs.COAID IS NOT NULL
         )
         GROUP BY ba.COAID, ba.COACode, ba.COAName, ba.Department, ba.ExpenseType
       )
@@ -485,6 +567,8 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
         cbs.COAName,
         cbs.Department,
         cbs.ExpenseType,
+        cbs.AnnualAllocated,
+        cbs.CarryForwardAmount,
         cbs.GrandTotalAllocated,
         cbs.GrandTotalRequested,
         cbs.GrandTotalApproved,
@@ -523,6 +607,8 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
       COAName: string;
       Department: string;
       ExpenseType: string;
+      AnnualAllocated: number | string;
+      CarryForwardAmount: number | string;
       GrandTotalAllocated: number | string;
       GrandTotalRequested: number | string;
       GrandTotalApproved: number | string;
@@ -571,6 +657,461 @@ router.get('/cost-codes', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch cost code budgets',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.get('/readiness/:fiscalYear', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const fiscalYear = parseFiscalYearParam(req.params.fiscalYear);
+    if (fiscalYear === null) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid fiscal year'
+      });
+    }
+
+    const previousFiscalYear = fiscalYear - 1;
+    const result = await executeQuery<BudgetReadinessRow>(
+      `
+      WITH MandatoryCoa AS (
+        SELECT
+          coa.COAID,
+          coa.COACode,
+          coa.COAName,
+          coa.Department,
+          coa.ExpenseType
+        FROM ChartOfAccounts coa
+        WHERE coa.IsActive = 1
+          AND coa.Department = 'HR / IT'
+          AND coa.ExpenseType = 'OPEX'
+      ),
+      CurrentBudget AS (
+        SELECT
+          b.COAID,
+          MIN(b.BudgetID) AS CurrentBudgetID,
+          SUM(
+            CAST(
+              b.AllocatedAmount *
+              CASE
+                WHEN COALESCE(b.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(b.ExchangeRateToIDR, 0), 1)
+                ELSE 1
+              END
+              AS DECIMAL(18,2)
+            )
+          ) AS CurrentAnnualAllocation
+        FROM Budget b
+        WHERE b.FiscalYear = @FiscalYear
+        GROUP BY b.COAID
+      ),
+      CurrentCarryForward AS (
+        SELECT
+          cf.COAID,
+          SUM(
+            CAST(
+              cf.CarryForwardAmount *
+              CASE
+                WHEN COALESCE(cf.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(cf.ExchangeRateToIDR, 0), 1)
+                ELSE 1
+              END
+              AS DECIMAL(18,2)
+            )
+          ) AS CurrentCarryForwardAmount
+        FROM BudgetCarryForward cf
+        WHERE cf.TargetFiscalYear = @FiscalYear
+        GROUP BY cf.COAID
+      ),
+      PreviousBudget AS (
+        SELECT
+          b.COAID,
+          CAST(1 AS BIT) AS PreviousBudgetExists,
+          SUM(
+            CAST(
+              b.AllocatedAmount *
+              CASE
+                WHEN COALESCE(b.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(b.ExchangeRateToIDR, 0), 1)
+                ELSE 1
+              END
+              AS DECIMAL(18,2)
+            )
+          ) AS PreviousAllocatedAmount,
+          SUM(
+            CAST(
+              b.UtilizedAmount *
+              CASE
+                WHEN COALESCE(b.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(b.ExchangeRateToIDR, 0), 1)
+                ELSE 1
+              END
+              AS DECIMAL(18,2)
+            )
+          ) AS PreviousUtilizedAmount
+        FROM Budget b
+        WHERE b.FiscalYear = @PreviousFiscalYear
+        GROUP BY b.COAID
+      )
+      SELECT
+        mc.COAID,
+        mc.COACode,
+        mc.COAName,
+        mc.Department,
+        mc.ExpenseType,
+        cb.CurrentBudgetID,
+        COALESCE(cb.CurrentAnnualAllocation, 0) AS CurrentAnnualAllocation,
+        COALESCE(ccf.CurrentCarryForwardAmount, 0) AS CurrentCarryForwardAmount,
+        COALESCE(cb.CurrentAnnualAllocation, 0) + COALESCE(ccf.CurrentCarryForwardAmount, 0) AS TotalAvailableBudget,
+        @PreviousFiscalYear AS PreviousFiscalYear,
+        COALESCE(pb.PreviousBudgetExists, CAST(0 AS BIT)) AS PreviousBudgetExists,
+        COALESCE(pb.PreviousAllocatedAmount, 0) AS PreviousAllocatedAmount,
+        COALESCE(pb.PreviousUtilizedAmount, 0) AS PreviousUtilizedAmount,
+        COALESCE(pb.PreviousAllocatedAmount, 0) - COALESCE(pb.PreviousUtilizedAmount, 0) AS PreviousRemainingAmount,
+        CASE
+          WHEN COALESCE(cb.CurrentAnnualAllocation, 0) = 0 AND COALESCE(ccf.CurrentCarryForwardAmount, 0) = 0 THEN CAST(1 AS BIT)
+          ELSE CAST(0 AS BIT)
+        END AS NeedsAttention,
+        CASE
+          WHEN COALESCE(pb.PreviousAllocatedAmount, 0) - COALESCE(pb.PreviousUtilizedAmount, 0) > 0
+               AND COALESCE(ccf.CurrentCarryForwardAmount, 0) = 0
+          THEN CAST(1 AS BIT)
+          ELSE CAST(0 AS BIT)
+        END AS CanCarryForward,
+        CASE
+          WHEN COALESCE(ccf.CurrentCarryForwardAmount, 0) > 0 THEN 'Carry Forward Applied'
+          WHEN COALESCE(cb.CurrentAnnualAllocation, 0) > 0 THEN 'Budget Ready'
+          ELSE 'Need Attention'
+        END AS ReadinessStatus
+      FROM MandatoryCoa mc
+      LEFT JOIN CurrentBudget cb ON mc.COAID = cb.COAID
+      LEFT JOIN CurrentCarryForward ccf ON mc.COAID = ccf.COAID
+      LEFT JOIN PreviousBudget pb ON mc.COAID = pb.COAID
+      ORDER BY
+        CASE
+          WHEN COALESCE(cb.CurrentAnnualAllocation, 0) = 0 AND COALESCE(ccf.CurrentCarryForwardAmount, 0) = 0 THEN 0
+          ELSE 1
+        END,
+        mc.COACode
+      `,
+      { FiscalYear: fiscalYear, PreviousFiscalYear: previousFiscalYear }
+    );
+
+    const items = result.recordset.map((row) => ({
+      coaId: row.COAID,
+      coaCode: row.COACode,
+      coaName: row.COAName,
+      department: row.Department,
+      expenseType: row.ExpenseType,
+      currentBudgetId: row.CurrentBudgetID,
+      currentAnnualAllocation: Number(row.CurrentAnnualAllocation || 0),
+      currentCarryForwardAmount: Number(row.CurrentCarryForwardAmount || 0),
+      totalAvailableBudget: Number(row.TotalAvailableBudget || 0),
+      previousFiscalYear: row.PreviousFiscalYear,
+      previousBudgetExists: Boolean(row.PreviousBudgetExists),
+      previousAllocatedAmount: Number(row.PreviousAllocatedAmount || 0),
+      previousUtilizedAmount: Number(row.PreviousUtilizedAmount || 0),
+      previousRemainingAmount: Number(row.PreviousRemainingAmount || 0),
+      needsAttention: Boolean(row.NeedsAttention),
+      canCarryForward: Boolean(row.CanCarryForward),
+      readinessStatus: row.ReadinessStatus
+    }));
+
+    const summary = {
+      mandatoryCoaCount: items.length,
+      readyCount: items.filter((item) => item.readinessStatus === 'Budget Ready').length,
+      needAttentionCount: items.filter((item) => item.needsAttention).length,
+      carryForwardAppliedCount: items.filter((item) => item.readinessStatus === 'Carry Forward Applied').length
+    };
+
+    return res.json({
+      success: true,
+      data: {
+        fiscalYear,
+        previousFiscalYear,
+        summary,
+        items
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching budget readiness:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch budget readiness',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.post('/carry-forward/:targetFiscalYear', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
+  try {
+    const targetFiscalYear = parseFiscalYearParam(req.params.targetFiscalYear);
+    if (targetFiscalYear === null) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid target fiscal year'
+      });
+    }
+    if (!req.user?.UserID || !req.user?.Role) {
+      return res.status(401).json({
+        success: false,
+        message: 'User authentication required'
+      });
+    }
+    if (!isAdmin(req.user.Role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required to approve carry forward'
+      });
+    }
+
+    const body = req.body as CarryForwardRequestBody;
+    const coaId = typeof body.coaId === 'number' ? body.coaId : parseInt(String(body.coaId), 10);
+    const sourceFiscalYear = typeof body.sourceFiscalYear === 'number'
+      ? body.sourceFiscalYear
+      : targetFiscalYear - 1;
+    const requestedAmount = body.amount === undefined ? undefined : Number(body.amount);
+    const notes = typeof body.notes === 'string' ? body.notes.trim() : null;
+
+    if (!Number.isInteger(coaId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'coaId is required'
+      });
+    }
+    if (!Number.isInteger(sourceFiscalYear)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid source fiscal year'
+      });
+    }
+    if (sourceFiscalYear >= targetFiscalYear) {
+      return res.status(400).json({
+        success: false,
+        message: 'sourceFiscalYear must be earlier than targetFiscalYear'
+      });
+    }
+    if (requestedAmount !== undefined && (!Number.isFinite(requestedAmount) || requestedAmount <= 0)) {
+      return res.status(400).json({
+        success: false,
+        message: 'amount must be a positive number'
+      });
+    }
+
+    const targetWriteState = await ensureFiscalYearWritable(targetFiscalYear);
+    if (targetWriteState.blocked) {
+      return res.status(409).json({
+        success: false,
+        message: targetWriteState.message
+      });
+    }
+
+    const sourceCutoff = await getBudgetCutoff(sourceFiscalYear);
+    if (!sourceCutoff || sourceCutoff.IsClosed !== true) {
+      return res.status(409).json({
+        success: false,
+        message: `Carry forward requires source fiscal year ${sourceFiscalYear} to be closed first`
+      });
+    }
+
+    const coaResult = await executeQuery<{
+      COAID: number;
+      COACode: string;
+      COAName: string;
+      Department: string;
+      ExpenseType: 'CAPEX' | 'OPEX';
+    }>(
+      `
+      SELECT COAID, COACode, COAName, Department, ExpenseType
+      FROM ChartOfAccounts
+      WHERE COAID = @COAID AND IsActive = 1
+      `,
+      { COAID: coaId }
+    );
+    const coa = coaResult.recordset[0];
+    if (!coa) {
+      return res.status(404).json({
+        success: false,
+        message: 'Chart of account not found'
+      });
+    }
+
+    const sourceBudgetResult = await executeQuery<{
+      SourceBudgetID: number | null;
+      PreviousAllocatedAmount: number;
+      PreviousUtilizedAmount: number;
+      PreviousRemainingAmount: number;
+    }>(
+      `
+      SELECT
+        MIN(b.BudgetID) AS SourceBudgetID,
+        SUM(
+          CAST(
+            b.AllocatedAmount *
+            CASE
+              WHEN COALESCE(b.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(b.ExchangeRateToIDR, 0), 1)
+              ELSE 1
+            END
+            AS DECIMAL(18,2)
+          )
+        ) AS PreviousAllocatedAmount,
+        SUM(
+          CAST(
+            b.UtilizedAmount *
+            CASE
+              WHEN COALESCE(b.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(b.ExchangeRateToIDR, 0), 1)
+              ELSE 1
+            END
+            AS DECIMAL(18,2)
+          )
+        ) AS PreviousUtilizedAmount,
+        SUM(
+          CAST(
+            b.AllocatedAmount *
+            CASE
+              WHEN COALESCE(b.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(b.ExchangeRateToIDR, 0), 1)
+              ELSE 1
+            END
+            AS DECIMAL(18,2)
+          )
+        ) -
+        SUM(
+          CAST(
+            b.UtilizedAmount *
+            CASE
+              WHEN COALESCE(b.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(b.ExchangeRateToIDR, 0), 1)
+              ELSE 1
+            END
+            AS DECIMAL(18,2)
+          )
+        ) AS PreviousRemainingAmount
+      FROM Budget b
+      WHERE b.COAID = @COAID
+        AND b.FiscalYear = @SourceFiscalYear
+      `,
+      { COAID: coaId, SourceFiscalYear: sourceFiscalYear }
+    );
+    const sourceBudget = sourceBudgetResult.recordset[0];
+    if (!sourceBudget || sourceBudget.SourceBudgetID === null) {
+      return res.status(404).json({
+        success: false,
+        message: `No source budget found for fiscal year ${sourceFiscalYear}`
+      });
+    }
+
+    const sourceRemainingAmount = Number(sourceBudget.PreviousRemainingAmount || 0);
+    if (sourceRemainingAmount <= 0) {
+      return res.status(409).json({
+        success: false,
+        message: `No remaining amount available to carry forward from fiscal year ${sourceFiscalYear}`
+      });
+    }
+
+    const carryForwardAmount = requestedAmount ?? sourceRemainingAmount;
+    if (carryForwardAmount > sourceRemainingAmount) {
+      return res.status(400).json({
+        success: false,
+        message: `Carry forward amount cannot exceed previous remaining amount of ${sourceRemainingAmount}`
+      });
+    }
+
+    const existingCarryForwardResult = await executeQuery<{ CarryForwardID: number }>(
+      `
+      SELECT CarryForwardID
+      FROM BudgetCarryForward
+      WHERE COAID = @COAID
+        AND SourceFiscalYear = @SourceFiscalYear
+        AND TargetFiscalYear = @TargetFiscalYear
+      `,
+      { COAID: coaId, SourceFiscalYear: sourceFiscalYear, TargetFiscalYear: targetFiscalYear }
+    );
+    if (existingCarryForwardResult.recordset[0]) {
+      return res.status(409).json({
+        success: false,
+        message: 'Carry forward already exists for this COA and fiscal-year pair'
+      });
+    }
+
+    let targetBudget = await BudgetModel.findByCOAAndYear(coaId, targetFiscalYear);
+    if (!targetBudget) {
+      targetBudget = await BudgetModel.create(
+        {
+          COAID: coaId,
+          FiscalYear: targetFiscalYear,
+          AllocatedAmount: 0,
+          Department: coa.Department,
+          ExpenseType: coa.ExpenseType,
+          CurrencyCode: 'IDR',
+          ExchangeRateToIDR: 1,
+          BudgetType: 'Annual',
+          Description: `Auto-created FY${targetFiscalYear} budget row for carry-forward tracking`,
+          Notes: notes || `Carry forward anchor row from FY${sourceFiscalYear}`
+        },
+        req.user.UserID
+      );
+    }
+
+    const insertResult = await executeQuery<{
+      CarryForwardID: number;
+      CarryForwardAmount: number;
+      ApprovedAt: Date;
+    }>(
+      `
+      INSERT INTO BudgetCarryForward (
+        COAID,
+        SourceBudgetID,
+        SourceFiscalYear,
+        TargetFiscalYear,
+        CarryForwardAmount,
+        CurrencyCode,
+        ExchangeRateToIDR,
+        Notes,
+        ApprovedBy,
+        CreatedBy
+      )
+      OUTPUT INSERTED.CarryForwardID, INSERTED.CarryForwardAmount, INSERTED.ApprovedAt
+      VALUES (
+        @COAID,
+        @SourceBudgetID,
+        @SourceFiscalYear,
+        @TargetFiscalYear,
+        @CarryForwardAmount,
+        'IDR',
+        1,
+        @Notes,
+        @ApprovedBy,
+        @CreatedBy
+      )
+      `,
+      {
+        COAID: coaId,
+        SourceBudgetID: sourceBudget.SourceBudgetID,
+        SourceFiscalYear: sourceFiscalYear,
+        TargetFiscalYear: targetFiscalYear,
+        CarryForwardAmount: carryForwardAmount,
+        Notes: notes,
+        ApprovedBy: req.user.UserID,
+        CreatedBy: req.user.UserID
+      }
+    );
+
+    const createdCarryForward = insertResult.recordset[0];
+    return res.status(201).json({
+      success: true,
+      message: `Carry forward approved for ${coa.COACode} into fiscal year ${targetFiscalYear}`,
+      data: {
+        carryForwardId: createdCarryForward.CarryForwardID,
+        coaId,
+        coaCode: coa.COACode,
+        sourceFiscalYear,
+        targetFiscalYear,
+        carryForwardAmount: Number(createdCarryForward.CarryForwardAmount || 0),
+        targetBudgetId: targetBudget.BudgetID,
+        approvedAt: createdCarryForward.ApprovedAt
+      }
+    });
+  } catch (error) {
+    console.error('Error applying carry forward:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to apply carry forward',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }

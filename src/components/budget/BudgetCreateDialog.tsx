@@ -44,8 +44,8 @@ interface BudgetCreateDialogProps {
   onBudgetCreated?: () => void;
 }
 
-// Department options
-const departments = ["HR / IT", "Non IT"];
+const HR_IT_DEPARTMENT = "HR / IT";
+const departments = [HR_IT_DEPARTMENT];
 
 export function BudgetCreateDialog({ 
   open: externalOpen, 
@@ -67,7 +67,7 @@ export function BudgetCreateDialog({
     AllocatedAmount: 0,
     FiscalYear: new Date().getFullYear(),
     Description: "",
-    Department: "",
+    Department: HR_IT_DEPARTMENT,
     CurrencyCode: 'IDR',
     ExchangeRateToIDR: 1
   });
@@ -75,9 +75,13 @@ export function BudgetCreateDialog({
   const loadChartOfAccounts = useCallback(async () => {
     setIsLoadingCOA(true);
     try {
-      const response = await budgetService.getChartOfAccounts();
+      const response = await budgetService.getChartOfAccounts({
+        department: HR_IT_DEPARTMENT
+      });
       if (response.success && response.data) {
-        setChartOfAccounts(response.data);
+        setChartOfAccounts(
+          response.data.filter((account) => account.ExpenseType === 'CAPEX' || account.ExpenseType === 'OPEX')
+        );
       } else {
         throw new Error(response.message || 'Failed to load Chart of Accounts');
       }
@@ -175,7 +179,7 @@ export function BudgetCreateDialog({
           AllocatedAmount: 0,
           FiscalYear: new Date().getFullYear(),
           Description: "",
-          Department: "",
+          Department: HR_IT_DEPARTMENT,
           CurrencyCode: 'IDR',
           ExchangeRateToIDR: 1
         });
@@ -208,7 +212,7 @@ export function BudgetCreateDialog({
       AllocatedAmount: 0,
       FiscalYear: new Date().getFullYear(),
       Description: "",
-      Department: "",
+      Department: HR_IT_DEPARTMENT,
       CurrencyCode: 'IDR',
       ExchangeRateToIDR: 1
     });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -82,11 +82,7 @@ const PRFDocuments: React.FC<PRFDocumentsProps> = ({ prfId, prfNo, onDocumentUpd
   const [showPreview, setShowPreview] = useState(false);
 
   // Load documents on component mount
-  useEffect(() => {
-    loadDocuments();
-  }, [prfId]);
-
-  const loadDocuments = async () => {
+  const loadDocuments = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await fetch(`/api/prf-documents/documents/${prfId}`, {
@@ -109,7 +105,11 @@ const PRFDocuments: React.FC<PRFDocumentsProps> = ({ prfId, prfNo, onDocumentUpd
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [prfId]);
+
+  useEffect(() => {
+    loadDocuments();
+  }, [loadDocuments]);
 
   const scanFolder = async () => {
     setIsScanning(true);

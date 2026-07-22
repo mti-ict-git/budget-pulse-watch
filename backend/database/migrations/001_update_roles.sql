@@ -29,7 +29,6 @@ END
 GO
 
 DECLARE @sql NVARCHAR(MAX);
-
 SELECT TOP 1 @sql = N'ALTER TABLE dbo.Users DROP CONSTRAINT ' + QUOTENAME(cc.name)
 FROM sys.check_constraints cc
 JOIN sys.columns c ON cc.parent_object_id = c.object_id AND c.column_id = cc.parent_column_id
@@ -38,6 +37,7 @@ WHERE cc.parent_object_id = OBJECT_ID('dbo.Users')
 IF @sql IS NOT NULL EXEC sp_executesql @sql;
 GO
 
+DECLARE @sql NVARCHAR(MAX);
 SELECT TOP 1 @sql = N'ALTER TABLE dbo.Users DROP CONSTRAINT ' + QUOTENAME(dc.name)
 FROM sys.default_constraints dc
 JOIN sys.columns c ON dc.parent_object_id = c.object_id AND c.column_id = dc.parent_column_id
@@ -48,6 +48,7 @@ GO
 
 IF OBJECT_ID('dbo.LDAPUserAccess', 'U') IS NOT NULL
 BEGIN
+  DECLARE @sql NVARCHAR(MAX);
   SELECT TOP 1 @sql = N'ALTER TABLE dbo.LDAPUserAccess DROP CONSTRAINT ' + QUOTENAME(cc.name)
   FROM sys.check_constraints cc
   JOIN sys.columns c ON cc.parent_object_id = c.object_id AND c.column_id = cc.parent_column_id
@@ -59,6 +60,7 @@ GO
 
 IF OBJECT_ID('dbo.LDAPUserAccess', 'U') IS NOT NULL
 BEGIN
+  DECLARE @sql NVARCHAR(MAX);
   SELECT TOP 1 @sql = N'ALTER TABLE dbo.LDAPUserAccess DROP CONSTRAINT ' + QUOTENAME(dc.name)
   FROM sys.default_constraints dc
   JOIN sys.columns c ON dc.parent_object_id = c.object_id AND c.column_id = dc.parent_column_id
