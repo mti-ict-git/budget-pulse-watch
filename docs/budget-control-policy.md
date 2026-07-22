@@ -64,6 +64,7 @@ Policy:
 - On `1 January`, the active working budget year changes to the new fiscal year automatically
 - The new fiscal year starts with `0` allocated budget unless a new yearly budget is created or imported
 - Prior-year remaining balance must not automatically appear in the new year
+- any prior-year remaining amount may be shown only as an audit/reference source for optional carry-forward approval, not as current-year available budget
 
 Practical meaning:
 
@@ -176,6 +177,7 @@ Recommended additions:
 - show a `New Fiscal Year Attention` card when current-year budgets are incomplete
 - show zero-value rows for mandatory COAs that exist but have no budget yet for the selected year
 - show carry-forward as a separate badge or amount, not hidden inside allocation
+- when the new fiscal year is opened, `Previous Remaining` in the operational readiness grid must stay visually reset to `0` unless a carry-forward entry has been explicitly approved into the selected year
 
 ## 6. Recommended Year-End / New-Year Workflow
 

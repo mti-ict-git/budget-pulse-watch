@@ -295,7 +295,7 @@ export default function Dashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <DollarSign className="h-5 w-5 text-primary" />
-              Budget Utilization by Category
+              Budget Utilization by Budget Line
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">

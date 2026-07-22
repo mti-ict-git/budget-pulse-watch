@@ -427,7 +427,7 @@ export default function BudgetOverview() {
       const response = await budgetService.applyCarryForward(activeFiscalYear, {
         coaId: item.coaId,
         sourceFiscalYear: item.previousFiscalYear,
-        amount: item.previousRemainingAmount,
+        amount: item.previousCarryForwardSourceAmount,
         notes: `Approved from Budget Overview for FY${activeFiscalYear}`
       });
 
@@ -778,7 +778,7 @@ export default function BudgetOverview() {
                   <TableRow>
                     <TableHead>COA</TableHead>
                     <TableHead>Name</TableHead>
-                    <TableHead className="text-right">Previous Remaining</TableHead>
+                    <TableHead className="text-right">Previous Remaining (Reset)</TableHead>
                     <TableHead className="text-right">Annual</TableHead>
                     <TableHead className="text-right">Carry Forward</TableHead>
                     <TableHead className="text-right">Total Available</TableHead>

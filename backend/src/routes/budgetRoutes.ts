@@ -44,6 +44,7 @@ type BudgetReadinessRow = {
   PreviousBudgetExists: boolean | number;
   PreviousAllocatedAmount: number;
   PreviousUtilizedAmount: number;
+  PreviousCarryForwardSourceAmount: number;
   PreviousRemainingAmount: number;
   NeedsAttention: boolean | number;
   CanCarryForward: boolean | number;
@@ -764,7 +765,12 @@ router.get('/readiness/:fiscalYear', authenticateToken, async (req: Request, res
         COALESCE(pb.PreviousBudgetExists, CAST(0 AS BIT)) AS PreviousBudgetExists,
         COALESCE(pb.PreviousAllocatedAmount, 0) AS PreviousAllocatedAmount,
         COALESCE(pb.PreviousUtilizedAmount, 0) AS PreviousUtilizedAmount,
-        COALESCE(pb.PreviousAllocatedAmount, 0) - COALESCE(pb.PreviousUtilizedAmount, 0) AS PreviousRemainingAmount,
+        CASE
+          WHEN COALESCE(ccf.CurrentCarryForwardAmount, 0) > 0
+          THEN 0
+          ELSE COALESCE(pb.PreviousAllocatedAmount, 0) - COALESCE(pb.PreviousUtilizedAmount, 0)
+        END AS PreviousCarryForwardSourceAmount,
+        0 AS PreviousRemainingAmount,
         CASE
           WHEN COALESCE(cb.CurrentAnnualAllocation, 0) = 0 AND COALESCE(ccf.CurrentCarryForwardAmount, 0) = 0 THEN CAST(1 AS BIT)
           ELSE CAST(0 AS BIT)
@@ -808,6 +814,7 @@ router.get('/readiness/:fiscalYear', authenticateToken, async (req: Request, res
       previousBudgetExists: Boolean(row.PreviousBudgetExists),
       previousAllocatedAmount: Number(row.PreviousAllocatedAmount || 0),
       previousUtilizedAmount: Number(row.PreviousUtilizedAmount || 0),
+      previousCarryForwardSourceAmount: Number(row.PreviousCarryForwardSourceAmount || 0),
       previousRemainingAmount: Number(row.PreviousRemainingAmount || 0),
       needsAttention: Boolean(row.NeedsAttention),
       canCarryForward: Boolean(row.CanCarryForward),

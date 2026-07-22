@@ -330,7 +330,8 @@ router.get('/budget-summary', asyncHandler(async (req, res) => {
   const { fiscalYear = new Date().getFullYear(), department, expenseType } = req.query;
   try {
     const { executeQuery } = await import('../config/database');
-    let whereClause = 'WHERE b.FiscalYear = @FiscalYear AND b.AllocatedAmount > 0';
+    const summaryLabelExpr = `COALESCE(NULLIF(LTRIM(RTRIM(coa.COAName)), ''), NULLIF(LTRIM(RTRIM(coa.Category)), ''), coa.COACode)`;
+    let whereClause = 'WHERE b.FiscalYear = @FiscalYear AND b.AllocatedAmount > 0 AND coa.IsActive = 1';
     const params: Record<string, unknown> = { FiscalYear: fiscalYear };
     if (department && department !== 'all') {
       whereClause += ' AND coa.Department = @Department';
@@ -354,7 +355,7 @@ router.get('/budget-summary', asyncHandler(async (req, res) => {
         WHERE p.Status IN ('Approved', 'Completed') AND ${prfFiscalYearExpr} = @FiscalYear
         GROUP BY ${prfResolvedCoaExpr}
       )
-      SELECT coa.Category, coa.ExpenseType, COUNT(DISTINCT bt.COAID) AS BudgetCount,
+      SELECT ${summaryLabelExpr} AS Category, coa.ExpenseType, COUNT(DISTINCT bt.COAID) AS BudgetCount,
              SUM(bt.TotalAllocated) AS TotalAllocated,
              SUM(COALESCE(pt.TotalSpent, 0)) AS TotalSpent,
              SUM(bt.TotalAllocated) - SUM(COALESCE(pt.TotalSpent, 0)) AS TotalRemaining,
@@ -362,8 +363,8 @@ router.get('/budget-summary', asyncHandler(async (req, res) => {
       FROM BudgetTotals bt
       INNER JOIN ChartOfAccounts coa ON bt.COAID = coa.COAID
       LEFT JOIN PRFTotals pt ON bt.COAID = pt.COAID
-      GROUP BY coa.Category, coa.ExpenseType
-      ORDER BY coa.ExpenseType, coa.Category
+      GROUP BY ${summaryLabelExpr}, coa.ExpenseType
+      ORDER BY coa.ExpenseType, ${summaryLabelExpr}
     `;
     interface BudgetSummaryRow {
       Category: string;
@@ -648,9 +649,10 @@ router.get('/budget-utilization', asyncHandler(async (req, res) => {
   
   try {
     const { executeQuery } = await import('../config/database');
+    const utilizationLabelExpr = `COALESCE(NULLIF(LTRIM(RTRIM(coa.COAName)), ''), NULLIF(LTRIM(RTRIM(coa.Category)), ''), coa.COACode)`;
     
-    let annualWhereClause = 'WHERE b.FiscalYear = @FiscalYear';
-    let carryForwardWhereClause = 'WHERE cf.TargetFiscalYear = @FiscalYear';
+    let annualWhereClause = 'WHERE b.FiscalYear = @FiscalYear AND coa.IsActive = 1';
+    let carryForwardWhereClause = 'WHERE cf.TargetFiscalYear = @FiscalYear AND coa.IsActive = 1';
     const params: Record<string, unknown> = { FiscalYear: fiscalYear };
     
     if (expenseType && (expenseType === 'CAPEX' || expenseType === 'OPEX')) {
@@ -702,7 +704,7 @@ router.get('/budget-utilization', asyncHandler(async (req, res) => {
         FULL OUTER JOIN CarryForwardSummary cf ON ab.COAID = cf.COAID
       )
       SELECT 
-        coa.Category,
+        ${utilizationLabelExpr} as Category,
         coa.ExpenseType,
         coa.Department,
         COUNT(DISTINCT bs.COAID) as BudgetCount,
@@ -728,8 +730,8 @@ router.get('/budget-utilization', asyncHandler(async (req, res) => {
           AND ${prfFiscalYearExpr} = @FiscalYear
         GROUP BY ${prfResolvedCoaExpr}
       ) prf_spent ON bs.COAID = prf_spent.COAID
-      GROUP BY coa.Category, coa.ExpenseType, coa.Department
-      ORDER BY coa.ExpenseType, coa.Category
+      GROUP BY ${utilizationLabelExpr}, coa.ExpenseType, coa.Department
+      ORDER BY coa.ExpenseType, ${utilizationLabelExpr}
     `;
     
     const result = await executeQuery(query, params);

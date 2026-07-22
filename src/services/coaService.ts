@@ -20,6 +20,7 @@ export interface CoaCoverageStatus {
   currentCarryForwardAmount: number;
   totalAvailableBudget: number;
   previousFiscalYear: number;
+  previousCarryForwardSourceAmount: number;
   previousRemainingAmount: number;
   needsAttention: boolean;
   canCarryForward: boolean;
@@ -500,6 +501,7 @@ class COAService {
         currentCarryForwardAmount: number;
         totalAvailableBudget: number;
         previousFiscalYear: number;
+        previousCarryForwardSourceAmount: number;
         previousRemainingAmount: number;
         needsAttention: boolean;
         canCarryForward: boolean;
@@ -511,6 +513,7 @@ class COAService {
           currentCarryForwardAmount: item.currentCarryForwardAmount,
           totalAvailableBudget: item.totalAvailableBudget,
           previousFiscalYear: item.previousFiscalYear,
+          previousCarryForwardSourceAmount: item.previousCarryForwardSourceAmount,
           previousRemainingAmount: item.previousRemainingAmount,
           needsAttention: item.needsAttention,
           canCarryForward: item.canCarryForward,

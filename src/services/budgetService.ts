@@ -189,6 +189,7 @@ interface BudgetReadinessItem {
   previousBudgetExists: boolean;
   previousAllocatedAmount: number;
   previousUtilizedAmount: number;
+  previousCarryForwardSourceAmount: number;
   previousRemainingAmount: number;
   needsAttention: boolean;
   canCarryForward: boolean;

@@ -54,7 +54,7 @@ export function UtilizationChart({ title, data, expenseType, className }: Utiliz
       <CardHeader className="pb-3">
         <CardTitle className="text-lg font-semibold">{title}</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Budget utilization by category (spent vs allocated)
+          Budget utilization by budget line / COA name (spent vs allocated)
         </p>
 
       </CardHeader>
