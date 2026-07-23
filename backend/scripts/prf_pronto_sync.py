@@ -1562,6 +1562,8 @@ def main() -> int:
             pronto_items_json = _gather_pronto_items_for_pos(
                 pos=pos,
                 artifacts_dir=args.artifacts_dir,
+                storage_state_path=str(args.pronto_storage_state).strip(),
+                profile_dir=str(args.pronto_profile_dir).strip(),
                 headless=headless,
                 max_scrolls=pronto_items_max_scrolls,
                 capture_screenshots=bool(args.pronto_screenshots),
