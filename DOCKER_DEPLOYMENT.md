@@ -25,7 +25,11 @@ The production script will validate the environment file, build containers, star
 ## Notes
 
 - SQL Server is external and configured through `backend/.env.production`
-- CIFS mounting is optional, but if used the environment file must include:
+- Existing network-share env is supported:
+  - `DOMAIN_USERNAME`
+  - `DOMAIN_PASSWORD`
+  - `CIFS_SHARE_PATH`
+- Newer CIFS env is also supported:
   - `CIFS_SERVER`
   - `CIFS_SHARE`
   - `CIFS_USERNAME`

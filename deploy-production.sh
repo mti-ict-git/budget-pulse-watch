@@ -106,16 +106,29 @@ if env_has_key "PORT"; then
   fi
 fi
 
-cifs_keys=("CIFS_SERVER" "CIFS_SHARE" "CIFS_USERNAME" "CIFS_PASSWORD")
-cifs_present=0
-for key in "${cifs_keys[@]}"; do
+new_cifs_keys=("CIFS_SERVER" "CIFS_SHARE" "CIFS_USERNAME" "CIFS_PASSWORD")
+new_cifs_present=0
+for key in "${new_cifs_keys[@]}"; do
   if env_has_key "$key"; then
-    cifs_present=$((cifs_present + 1))
+    new_cifs_present=$((new_cifs_present + 1))
   fi
 done
 
-if [ "$cifs_present" -ne 0 ] && [ "$cifs_present" -ne 4 ]; then
-  echo "ERROR: CIFS configuration must be complete. Set all of: CIFS_SERVER, CIFS_SHARE, CIFS_USERNAME, CIFS_PASSWORD"
+legacy_cifs_keys=("DOMAIN_USERNAME" "DOMAIN_PASSWORD" "CIFS_SHARE_PATH")
+legacy_cifs_present=0
+for key in "${legacy_cifs_keys[@]}"; do
+  if env_has_key "$key"; then
+    legacy_cifs_present=$((legacy_cifs_present + 1))
+  fi
+done
+
+if [ "$new_cifs_present" -ne 0 ] && [ "$new_cifs_present" -ne 4 ]; then
+  echo "ERROR: New CIFS configuration must be complete. Set all of: CIFS_SERVER, CIFS_SHARE, CIFS_USERNAME, CIFS_PASSWORD"
+  exit 1
+fi
+
+if [ "$legacy_cifs_present" -ne 0 ] && [ "$legacy_cifs_present" -ne 3 ]; then
+  echo "ERROR: Legacy CIFS configuration must be complete. Set all of: DOMAIN_USERNAME, DOMAIN_PASSWORD, CIFS_SHARE_PATH"
   exit 1
 fi
 

@@ -38,15 +38,16 @@ FRONTEND_URL=http://localhost:9007
 CORS_ORIGIN=http://localhost:9007
 ```
 
-If production must mount the network share from inside the backend container, also set:
+If production must mount the network share from inside the backend container, keep using the existing env style if that is what your server already has:
 
 ```env
-CIFS_SERVER=your-file-server-host
-CIFS_SHARE=your-share-name
-CIFS_USERNAME=your-domain-username
-CIFS_PASSWORD=your-domain-password
+DOMAIN_USERNAME=your-domain-username
+DOMAIN_PASSWORD=your-domain-password
 SHARED_FOLDER_PATH=/app/shared-documents
+CIFS_SHARE_PATH=//your-file-server/your-share-name
 ```
+
+The newer `CIFS_SERVER` / `CIFS_SHARE` / `CIFS_USERNAME` / `CIFS_PASSWORD` format is also supported, but not required.
 
 ### 2. Run the deployment script
 
@@ -151,7 +152,11 @@ docker compose -f docker-compose.production.yml logs -f backend
 ```
 
 - Confirm `DB_SERVER`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `PORT=3001`
-- If CIFS is used, confirm all four keys are present:
+- If legacy network-share env is used, confirm these keys are present:
+  - `DOMAIN_USERNAME`
+  - `DOMAIN_PASSWORD`
+  - `CIFS_SHARE_PATH`
+- If newer CIFS env is used, confirm these keys are present:
   - `CIFS_SERVER`
   - `CIFS_SHARE`
   - `CIFS_USERNAME`
