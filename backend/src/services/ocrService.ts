@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 import { loadSettings, AppSettings } from '../routes/settingsRoutes';
+import { existsSync } from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
 import puppeteer from 'puppeteer';
@@ -38,6 +39,17 @@ export interface ExtractedPRFData {
   confidence?: number;
   requestFor?: string; // Auto-extracted from item descriptions
 }
+
+const resolveBrowserExecutablePath = (): string | undefined => {
+  const candidates = [
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome-stable'
+  ].filter((value): value is string => Boolean(value && value.trim()));
+
+  return candidates.find((candidate) => existsSync(candidate));
+};
 
 export type OCRExtractionMode = 'image' | 'pdf-single' | 'pdf-pages';
 
@@ -275,8 +287,10 @@ export class OCRService {
       void 0;
     }
 
+    const browserExecutablePath = resolveBrowserExecutablePath();
     const browser = await puppeteer.launch({
       headless: true,
+      executablePath: browserExecutablePath,
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
 

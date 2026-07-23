@@ -1,8 +1,11 @@
 # Production Dockerfile for backend
-FROM node:18-alpine AS base
+FROM node:20-alpine AS base
 
 # Install security updates and dumb-init
 RUN apk update && apk upgrade && apk add --no-cache dumb-init
+
+# Prevent Puppeteer from downloading Chrome during image build.
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 
 # Create app directory
 WORKDIR /app
@@ -39,12 +42,12 @@ RUN npm run build
 # Stage 3: Production
 FROM base AS production
 
-# Install cifs-utils and su-exec for network share mounting
-RUN apk add --no-cache cifs-utils su-exec
+# Install runtime dependencies, including Chromium for OCR/PDF rendering.
+RUN apk add --no-cache cifs-utils su-exec chromium nss freetype harfbuzz ca-certificates ttf-freefont
 
 # Set NODE_ENV
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=3001
 
 # Create directories for mounted volumes and network share mount point
 RUN mkdir -p /app/shared-documents /app/data /app/temp /app/scripts && \
@@ -78,11 +81,11 @@ RUN chown -R nodejs:nodejs /app && \
 # Note: We need to run as root initially for mounting, then switch to nodejs user
 
 # Expose port
-EXPOSE 3000
+EXPOSE 3001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"
+    CMD node -e "require('http').get('http://localhost:3001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"
 
 # Set entrypoint
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
