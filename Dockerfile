@@ -1,15 +1,19 @@
 # Multi-stage build for production frontend
 # Stage 1: Build the application
-FROM node:18-alpine AS builder
+FROM node:20-bookworm-slim AS builder
 
 # Set working directory
 WORKDIR /app
+
+# Run lifecycle scripts in the foreground to avoid sporadic esbuild ETXTBSY
+# failures on some Docker/overlayfs environments.
+ENV npm_config_foreground_scripts=true
 
 # Copy package files
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci && npm cache clean --force
+RUN npm ci --foreground-scripts && npm cache clean --force
 
 # Copy source code
 COPY . .

@@ -1,164 +1,43 @@
 # Docker Deployment Guide
 
-This guide explains how to deploy the Budget Pulse Watch application using Docker with different environment configurations.
+This repository uses Docker Compose for all container-based environments. For production, the single source of truth is:
 
-## Environment Configurations
+- `docker-compose.production.yml`
+- `deploy-production.sh`
+- `backend/.env.production`
 
-### Development Environment
-- **Purpose**: Local development with hot reload
-- **Shared Storage**: Local directory (`./backend/shared-dev`)
-- **Database**: Development database
-- **Command**: `./deploy-development.ps1`
-
-### Staging Environment
-- **Purpose**: Testing production-like setup
-- **Shared Storage**: CIFS network mount (same as production)
-- **Database**: Staging database
-- **Command**: `./deploy-staging.ps1`
-
-### Production Environment
-- **Purpose**: Live production deployment
-- **Shared Storage**: CIFS network mount
-- **Database**: Production database
-- **Command**: `./deploy-production.ps1`
-
-## Prerequisites
-
-### For Development
-- Docker and Docker Compose installed
-- No additional network configuration required
-
-### For Staging/Production
-- Docker and Docker Compose installed
-- Network access to:
-  - SQL Server (10.60.10.47:1433)
-  - LDAP Server (10.60.10.56:636)
-  - Network Share (//mbma.com/shared)
-- Domain credentials configured in environment files
-
-## Environment Files
-
-### `.env.production`
-```bash
-# Network Share Authentication
-DOMAIN_USERNAME=mbma\prfservice
-DOMAIN_PASSWORD=YourSecurePassword123!
-SHARED_FOLDER_PATH=/app/shared
-```
-
-### `.env.staging`
-Similar to production but with staging-specific database and URLs.
-
-## Docker Compose Files
-
-- `docker-compose.yml` - Base configuration
-- `docker-compose.development.yml` - Development overrides
-- `docker-compose.staging.yml` - Staging overrides  
-- `docker-compose.production.yml` - Production overrides
-
-## Pronto Sync Worker
-
-A dedicated container (`pronto_sync`) can run the Pronto synchronization script on an interval without impacting the main backend service.
-
-### Required Environment Variables
-
-Provide these variables to the `pronto_sync` service (preferably via your environment file or Docker secrets):
+## Production
 
 ```bash
-POMON_API_KEY=...
-POMON_BASE_URL=http://backend:3001
-TARGET_URL=https://newpronto.merdekacoppergold.com:8443/
-PRONTO_USERNAME=...
-PRONTO_PASSWORD=...
+cp backend/.env.production.template backend/.env.production
+chmod +x deploy-production.sh
+./deploy-production.sh
 ```
 
-### Worker Controls
+The production script will validate the environment file, build containers, start the stack, run backend migrations, and verify frontend/backend health checks.
+
+## Services
+
+- `frontend`: React build served by Nginx on host port `9007`
+- `backend`: Express API on host port `5004`, container port `3001`
+- `pronto_sync`: background worker connected to `http://backend:3001`
+
+## Notes
+
+- SQL Server is external and configured through `backend/.env.production`
+- CIFS mounting is optional, but if used the environment file must include:
+  - `CIFS_SERVER`
+  - `CIFS_SHARE`
+  - `CIFS_USERNAME`
+  - `CIFS_PASSWORD`
+- Production deploys use `docker compose`, not legacy `docker-compose`
+
+## Useful Commands
 
 ```bash
-PRONTO_SYNC_ENABLED=true
-PRONTO_SYNC_JITTER_SECONDS=30
-ARTIFACTS_DIR=/app/artifacts
-PRONTO_HEADLESS=1
-PRONTO_CAPTURE_SCREENSHOTS=0
-PRONTO_WRITE_PER_PO_JSON=0
+docker compose -f docker-compose.production.yml ps
+docker compose -f docker-compose.production.yml logs -f
+docker compose -f docker-compose.production.yml down
 ```
 
-Reports and artifacts are written to `./backend/artifacts` (mounted into the worker container).
-
-### Runtime Configuration (Database)
-
-Non-secret Pronto Sync parameters (enabled, interval, budget year, apply/dry-run, max PRFs, log frequency, headless/screenshots options) are stored in the application settings database and can be updated from the Settings page.
-
-## Network Share Configuration
-
-The application uses CIFS mounting to access the network share:
-
-```yaml
-volumes:
-  shared_storage:
-    driver: local
-    driver_opts:
-      type: cifs
-      o: "username=${DOMAIN_USERNAME},password=${DOMAIN_PASSWORD},domain=mbma.com,uid=1000,gid=1000,iocharset=utf8,file_mode=0777,dir_mode=0777"
-      device: "//mbma.com/shared/PR_Document/PT Merdeka Tsingshan Indonesia"
-```
-
-## Deployment Commands
-
-### Development
-```powershell
-./deploy-development.ps1
-```
-
-### Staging
-```powershell
-./deploy-staging.ps1
-```
-
-### Production
-```powershell
-./deploy-production.ps1
-```
-
-## Troubleshooting
-
-### Network Share Issues
-1. Verify domain credentials in environment file
-2. Check network connectivity to share
-3. Ensure Docker has permission to mount CIFS volumes
-4. Check container logs: `docker-compose logs backend`
-
-### Database Connection Issues
-1. Verify database server accessibility
-2. Check firewall settings
-3. Validate credentials and connection string
-
-### LDAP Authentication Issues
-1. Verify LDAP server connectivity
-2. Check certificate trust settings
-3. Validate bind DN and credentials
-
-## Monitoring
-
-### Check Container Status
-```bash
-docker-compose ps
-```
-
-### View Logs
-```bash
-docker-compose logs -f backend
-```
-
-### Test Network Share Access
-```bash
-docker-compose exec backend ls -la /app/shared
-```
-
-## Security Considerations
-
-- Environment files contain sensitive credentials
-- Use proper file permissions (600) for .env files
-- Regularly rotate domain service account passwords
-- Monitor container logs for security events
-- Use encrypted database connections (DB_ENCRYPT=true)
+See `DEPLOYMENT.md` for the detailed production workflow and troubleshooting notes.
