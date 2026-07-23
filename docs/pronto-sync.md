@@ -116,6 +116,8 @@ Catatan:
   - `python3 backend/scripts/prf_pronto_sync.py --budget-year 2026 --dry-run`
 - Items sync (contoh dry-run):
   - `python3 backend/scripts/prf_pronto_sync.py --sync-prf-items --budget-year 2026 --dry-run`
+- Jika ingin reuse browser session yang lebih kuat via persistent profile:
+  - `python3 backend/scripts/prf_pronto_sync.py --budget-year 2026 --dry-run --no-pronto-headless --pronto-profile-dir artifacts/pronto-profile`
 
 ### B) Worker (Docker, recommended)
 Worker akan:
@@ -134,6 +136,9 @@ Simpan di environment (bukan di DB):
 - `PRONTO_PASSWORD`
 - `POMON_API_KEY`
 - `POMON_BASE_URL` (penting: di Docker gunakan `http://backend:3001`)
+- Optional untuk session reuse:
+  - `PRONTO_STORAGE_STATE_PATH`
+  - `PRONTO_PROFILE_DIR`
 
 ### Non-secret (configurable via Settings UI / DB)
 - Enable/disable sync, interval, budget year

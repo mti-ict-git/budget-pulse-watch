@@ -51,6 +51,8 @@ services:
       PRONTO_HEADLESS: "1"
       PRONTO_CAPTURE_SCREENSHOTS: "0"
       PRONTO_WRITE_PER_PO_JSON: "0"
+      PRONTO_STORAGE_STATE_PATH: /app/artifacts/pronto_storage_state.json
+      PRONTO_PROFILE_DIR: /app/artifacts/pronto-profile
     volumes:
       - ./backend/artifacts:/app/artifacts
     restart: unless-stopped

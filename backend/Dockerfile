@@ -66,6 +66,7 @@ COPY package*.json ./
 
 # Copy any additional required files
 COPY data ./data
+COPY database ./database
 
 # Copy scripts
 COPY scripts/ ./scripts/

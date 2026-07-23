@@ -62,9 +62,15 @@ The script will:
 - create required local folders
 - build and start Docker services
 - wait for backend health
-- run backend migrations
+- skip backend migrations by default
 - wait for frontend health
 - print container status and recent logs
+
+If you explicitly want to run migrations during deploy:
+
+```bash
+SKIP_MIGRATIONS=0 ./deploy-production.sh
+```
 
 ## Manual Commands
 
@@ -116,6 +122,9 @@ docker compose -f docker-compose.production.yml logs -f
 - Uses the same production environment file
 - Stores artifacts in `./backend/artifacts`
 - Talks to backend via `http://backend:3001`
+- Reuses Pronto browser session via:
+  - `PRONTO_STORAGE_STATE_PATH=/app/artifacts/pronto_storage_state.json`
+  - `PRONTO_PROFILE_DIR=/app/artifacts/pronto-profile`
 
 ## Health Checks
 

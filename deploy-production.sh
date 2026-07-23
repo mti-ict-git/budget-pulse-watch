@@ -8,7 +8,7 @@ ENV_FILE="$ROOT_DIR/backend/.env.production"
 ENV_TEMPLATE="$ROOT_DIR/backend/.env.production.template"
 BACKEND_HEALTH_URL="${BACKEND_HEALTH_URL:-http://localhost:5004/health}"
 FRONTEND_HEALTH_URL="${FRONTEND_HEALTH_URL:-http://localhost:9007/health}"
-SKIP_MIGRATIONS="${SKIP_MIGRATIONS:-0}"
+SKIP_MIGRATIONS="${SKIP_MIGRATIONS:-1}"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -146,7 +146,7 @@ if [ "$SKIP_MIGRATIONS" != "1" ]; then
   echo "Running database migrations..."
   compose exec -T backend npm run db:migrate
 else
-  echo "Skipping database migrations because SKIP_MIGRATIONS=1"
+  echo "Skipping database migrations by default. Set SKIP_MIGRATIONS=0 if you want to run them explicitly."
 fi
 
 wait_for_url "$FRONTEND_HEALTH_URL" "frontend" 240

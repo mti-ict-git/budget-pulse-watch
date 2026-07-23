@@ -111,5 +111,9 @@ backend/pronto
 # OneDrive / MSAL token cache
 backend/token_cache.json
 
+# Local Pronto / worker runtime artifacts
+artifacts/
+backend/artifacts/
+
 # Local mobile client (excluded from git)
 mobile/

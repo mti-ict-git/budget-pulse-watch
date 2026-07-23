@@ -258,6 +258,8 @@ def _gather_pronto_items_for_pos(
     max_scrolls: int,
     capture_screenshots: bool,
     write_per_po_json: bool,
+    storage_state_path: str,
+    profile_dir: str,
 ) -> str:
     po_list = ",".join([p.strip() for p in pos if p.strip()])
     if not po_list:
@@ -282,6 +284,8 @@ def _gather_pronto_items_for_pos(
         "PRONTO_HEADLESS": "1" if headless else "0",
         "PRONTO_CAPTURE_SCREENSHOTS": "1" if capture_screenshots else "0",
         "PRONTO_WRITE_PER_PO_JSON": "1" if write_per_po_json else "0",
+        "PRONTO_STORAGE_STATE_PATH": storage_state_path,
+        "PRONTO_PROFILE_DIR": profile_dir,
     }
     old = _setenv_temp(env)
     try:
@@ -773,6 +777,8 @@ async def _fetch_pronto_rows_live(
     order_nos: List[str],
     headless: bool,
     artifacts_dir: str,
+    storage_state_path: str,
+    profile_dir: str,
 ) -> Dict[str, Dict[str, str]]:
     os.makedirs(artifacts_dir, exist_ok=True)
     results: Dict[str, Dict[str, str]] = {}
@@ -808,9 +814,45 @@ async def _fetch_pronto_rows_live(
             pass
         return False
 
+    def _normalize_storage_state_path(raw: str) -> str:
+        value = raw.strip()
+        if not value:
+            return ""
+        return value
+
+    def _normalize_profile_dir(raw: str) -> str:
+        value = raw.strip()
+        if not value:
+            return ""
+        return value
+
+    storage_state_file = _normalize_storage_state_path(storage_state_path)
+    storage_state_exists = bool(storage_state_file and os.path.exists(storage_state_file))
+    persistent_profile_dir = _normalize_profile_dir(profile_dir)
+
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=headless, args=["--disable-blink-features=AutomationControlled"])
-        context = await browser.new_context(ignore_https_errors=True, viewport={"width": 1280, "height": 800})
+        context_kwargs = {
+            "ignore_https_errors": True,
+            "viewport": {"width": 1280, "height": 800},
+        }
+        if persistent_profile_dir:
+            os.makedirs(persistent_profile_dir, exist_ok=True)
+            context = await p.chromium.launch_persistent_context(
+                persistent_profile_dir,
+                headless=headless,
+                args=["--disable-blink-features=AutomationControlled"],
+                **context_kwargs,
+            )
+            browser = context.browser
+            print(f"Pronto persistent profile loaded from {persistent_profile_dir}", flush=True)
+        else:
+            browser = await p.chromium.launch(headless=headless, args=["--disable-blink-features=AutomationControlled"])
+            if storage_state_exists:
+                context_kwargs["storage_state"] = storage_state_file
+                print(f"Pronto storage state loaded from {storage_state_file}", flush=True)
+            context = await browser.new_context(**context_kwargs)
+        if storage_state_exists and not persistent_profile_dir:
+            context_kwargs["storage_state"] = storage_state_file
         page = await context.new_page()
         try:
             await page.goto(target_url, wait_until="domcontentloaded", timeout=60000)
@@ -819,18 +861,20 @@ async def _fetch_pronto_rows_live(
             os.makedirs(artifacts_dir, exist_ok=True)
             await page.screenshot(path=os.path.join(artifacts_dir, "pronto_sync_login.png"), full_page=True)
 
-            u = await _locate_username(page)
-            p_loc = await _locate_password(page)
-            if not u or not p_loc:
-                raise RuntimeError("Cannot locate Pronto username/password fields")
-            await u.fill(username)
-            await p_loc.fill(password)
-            clicked = await _click_login(page)
-            if clicked:
-                try:
-                    await page.wait_for_load_state("networkidle", timeout=60000)
-                except PlaywrightTimeoutError:
-                    pass
+            ready = await _wait_for_label(page, "Supply Chain", 8000)
+            if not ready:
+                u = await _locate_username(page)
+                p_loc = await _locate_password(page)
+                if not u or not p_loc:
+                    raise RuntimeError("Cannot locate Pronto username/password fields")
+                await u.fill(username)
+                await p_loc.fill(password)
+                clicked = await _click_login(page)
+                if clicked:
+                    try:
+                        await page.wait_for_load_state("networkidle", timeout=60000)
+                    except PlaywrightTimeoutError:
+                        pass
 
             await _dismiss_pronto_overlays(page)
             ready = await _wait_for_label(page, "Supply Chain", 60000)
@@ -841,6 +885,11 @@ async def _fetch_pronto_rows_live(
                     raise RuntimeError("Pronto navigation not ready (likely login did not complete)")
                 await page.screenshot(path=os.path.join(artifacts_dir, "pronto_sync_nav_not_ready.png"), full_page=True)
                 raise RuntimeError("Pronto navigation not ready")
+
+            if storage_state_file:
+                os.makedirs(os.path.dirname(storage_state_file) or ".", exist_ok=True)
+                await context.storage_state(path=storage_state_file)
+                print(f"Pronto storage state saved to {storage_state_file}", flush=True)
 
             ok = await _navigate_menu(page, ["Supply Chain", "Purchasing", "Purchase Orders"])
             if not ok:
@@ -946,6 +995,14 @@ def main() -> int:
     parser.add_argument("--pronto-url", default=os.getenv("TARGET_URL", "https://newpronto.merdekacoppergold.com:8443/"))
     parser.add_argument("--pronto-username", default=os.getenv("PRONTO_USERNAME", ""))
     parser.add_argument("--pronto-password", default=os.getenv("PRONTO_PASSWORD", ""))
+    parser.add_argument(
+        "--pronto-storage-state",
+        default=os.getenv("PRONTO_STORAGE_STATE_PATH", os.path.join("artifacts", "pronto_storage_state.json")),
+    )
+    parser.add_argument(
+        "--pronto-profile-dir",
+        default=os.getenv("PRONTO_PROFILE_DIR", ""),
+    )
     parser.add_argument(
         "--pronto-screenshots",
         action=argparse.BooleanOptionalAction,
@@ -1416,6 +1473,8 @@ def main() -> int:
                 pronto_items_json = _gather_pronto_items_for_pos(
                     pos=[po_no],
                     artifacts_dir=args.artifacts_dir,
+                    storage_state_path=str(args.pronto_storage_state).strip(),
+                    profile_dir=str(args.pronto_profile_dir).strip(),
                     headless=headless,
                     max_scrolls=pronto_items_max_scrolls,
                     capture_screenshots=bool(args.pronto_screenshots),
@@ -1671,6 +1730,8 @@ def main() -> int:
                 order_nos=order_nos,
                 headless=headless,
                 artifacts_dir=args.artifacts_dir,
+                storage_state_path=str(args.pronto_storage_state).strip(),
+                profile_dir=str(args.pronto_profile_dir).strip(),
             )
         )
 

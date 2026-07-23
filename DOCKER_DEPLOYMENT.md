@@ -21,6 +21,7 @@ The production script will validate the environment file, build containers, star
 - `frontend`: React build served by Nginx on host port `9007`
 - `backend`: Express API on host port `5004`, container port `3001`
 - `pronto_sync`: background worker connected to `http://backend:3001`
+- `pronto_sync` persists browser session artifacts under `./backend/artifacts`
 
 ## Notes
 

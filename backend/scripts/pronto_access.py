@@ -1204,14 +1204,34 @@ async def main(*, check_item: bool = False, debug: bool = False, max_scrolls: in
         for part in re.split(r"[,\s]+", po_list_raw.strip()):
             if part:
                 po_list.append(part)
+    storage_state_path = (os.getenv("PRONTO_STORAGE_STATE_PATH") or "").strip()
+    profile_dir = (os.getenv("PRONTO_PROFILE_DIR") or "").strip()
     async with async_playwright() as p:
         headless_raw = os.getenv("PRONTO_HEADLESS")
         headless = False
         if headless_raw is not None:
             v = headless_raw.strip().lower()
             headless = v in {"1", "true", "yes", "y", "on"}
-        browser = await p.chromium.launch(headless=headless, args=["--disable-blink-features=AutomationControlled"])
-        context = await browser.new_context(ignore_https_errors=True, viewport={"width": 1280, "height": 800})
+        context_kwargs = {
+            "ignore_https_errors": True,
+            "viewport": {"width": 1280, "height": 800},
+        }
+        if profile_dir:
+            os.makedirs(profile_dir, exist_ok=True)
+            context = await p.chromium.launch_persistent_context(
+                profile_dir,
+                headless=headless,
+                args=["--disable-blink-features=AutomationControlled"],
+                **context_kwargs,
+            )
+            browser = context.browser
+            print(f"Loaded Pronto persistent profile from {profile_dir}", flush=True)
+        else:
+            browser = await p.chromium.launch(headless=headless, args=["--disable-blink-features=AutomationControlled"])
+            if storage_state_path and os.path.exists(storage_state_path):
+                context_kwargs["storage_state"] = storage_state_path
+                print(f"Loaded Pronto storage state from {storage_state_path}", flush=True)
+            context = await browser.new_context(**context_kwargs)
         page = await context.new_page()
         def _console_handler(msg) -> None:
             t = msg.text
@@ -1237,8 +1257,13 @@ async def main(*, check_item: bool = False, debug: bool = False, max_scrolls: in
                 print(f"Saved screenshot to {login_path}", flush=True)
             if username and password:
                 print("Login attempt", flush=True)
-                u = await _locate_username(page)
-                p_loc = await _locate_password(page)
+                ready = await _wait_for_label(page, "Supply Chain", 8000)
+                if not ready:
+                    u = await _locate_username(page)
+                    p_loc = await _locate_password(page)
+                else:
+                    u = None
+                    p_loc = None
                 if u and p_loc:
                     print("Login fields found", flush=True)
                     await u.fill(username)
@@ -1254,6 +1279,10 @@ async def main(*, check_item: bool = False, debug: bool = False, max_scrolls: in
                     ready = await _wait_for_label(page, "Supply Chain", 20000)
                     if not ready:
                         print("Left navigation not ready", flush=True)
+                if storage_state_path:
+                    os.makedirs(os.path.dirname(storage_state_path) or ".", exist_ok=True)
+                    await context.storage_state(path=storage_state_path)
+                    print(f"Saved Pronto storage state to {storage_state_path}", flush=True)
                     if check_item:
                         _dbg(debug, "Mode: check-item")
                         ok = await _navigate_menu(
