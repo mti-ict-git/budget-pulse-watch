@@ -241,3 +241,36 @@ Recommended decisions:
 The following business rules should be locked before implementation:
 
 - should mandatory COA coverage apply only to `HR / IT`, or become a reusable rule for other departments later
+
+## 11. Utilization Calculation Baseline
+
+Budget utilization is calculated from PRF item lines, not from the PRF header total.
+
+Locked behavior:
+
+- each `PRFItems` row contributes `Quantity * UnitPrice`
+- the item is allocated to the COA matched by `PRFItems.PurchaseCostCode`
+- item-level or parent header COA fields are not used as allocation fallbacks
+- a blank or unknown item cost code remains unmapped and must not consume any budget line
+- the fiscal year is resolved from `PRFItems.BudgetYear`, then `PRF.BudgetYear`, then the request-date year
+- every PRF and item status contributes to utilization except statuses containing `cancel`, case-insensitively
+- a cancelled parent PRF excludes all of its items
+- a cancelled item is excluded even when its parent PRF remains active
+
+This rule allows one PRF to consume multiple budget lines and makes requested, approval-required, approved, ordered, and completed commitments visible in utilization.
+
+## 12. Existing PRF AI Rescan
+
+An authorized content manager may rescan the stored `OCR Source` document for an existing PRF.
+
+Locked behavior:
+
+- rescan preview is read-only and must not update the PRF
+- preview shows existing values beside AI-extracted item values and cost codes
+- users explicitly select item proposals before applying them
+- matching priority is item/part code, then normalized item name plus quantity, then row position
+- existing items not found in the rescan are preserved by default
+- no item is deleted automatically
+- PRF/item status, PO numbers, pickup fields, approval history, and Pronto-managed fields are never overwritten by OCR
+- safe header fields are updated only when the user selects the header-update option
+- approved changes are applied atomically and recorded with before, after, extraction, source-file, user, and timestamp audit data

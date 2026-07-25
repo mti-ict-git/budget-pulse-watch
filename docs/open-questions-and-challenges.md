@@ -6,6 +6,21 @@ This document records unresolved business and implementation questions that must
 
 ## Resolved Questions
 
+### Item-Level Utilization
+
+- Utilization is calculated from `PRFItems.Quantity * PRFItems.UnitPrice`, not the PRF header amount
+- Multi-cost-code PRFs are split across item-level COAs
+- All PRF and item statuses count except statuses containing `cancel`, case-insensitively
+- Blank and unknown item cost codes remain unmapped; neither item nor parent header COA fields are allocation fallbacks
+- The FY2026 live-data audit confirmed every non-cancelled PRF currently has item rows
+
+### Existing PRF AI Rescan
+
+- Existing items absent from an OCR rescan are preserved and never auto-deleted
+- Users approve item proposals individually after a side-by-side preview
+- Status, PO, pickup, approval, and Pronto-managed fields are protected from OCR updates
+- Apply is transactional and writes a dedicated immutable audit snapshot
+
 ### Historical Visibility Model
 
 - Prior-year visibility is considered sufficient through `FiscalYear` filtering on live tables for the current product phase

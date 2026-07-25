@@ -39,10 +39,13 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-  Eye
+  Eye,
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
 import { formatBytes, formatDate } from '@/lib/utils';
 import FilePreviewModal from './FilePreviewModal';
+import { authService } from '@/services/authService';
 
 interface PRFFile {
   FileID: number;
@@ -67,6 +70,42 @@ interface PRFFileExplorerProps {
   readonly?: boolean;
 }
 
+interface RescanProposal {
+  index: number;
+  action: 'update' | 'add';
+  matchReason: 'item-code' | 'name-quantity' | 'position' | 'new';
+  existingItemId?: number;
+  existing?: {
+    ItemName: string;
+    ItemCode?: string | null;
+    Quantity: number;
+    UnitPrice: number;
+    PurchaseCostCode?: string | null;
+  };
+  scanned: {
+    partNumber?: string;
+    description?: string;
+    quantity?: number;
+    unitPrice?: number;
+    purchaseCostCode?: string;
+    budgetYear?: number;
+  };
+}
+
+interface RescanPreview {
+  extractedData: {
+    prfNo?: string;
+    projectDescription?: string;
+    department?: string;
+    totalAmount?: number;
+    confidence?: number;
+    items?: RescanProposal['scanned'][];
+  };
+  proposals: RescanProposal[];
+  preservedItems: Array<{ PRFItemID: number; ItemName: string; PurchaseCostCode?: string | null }>;
+  warnings: string[];
+}
+
 const PRFFileExplorer: React.FC<PRFFileExplorerProps> = ({ prfId, prfNo, readonly = false }) => {
   const [files, setFiles] = useState<PRFFile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,6 +117,13 @@ const PRFFileExplorer: React.FC<PRFFileExplorerProps> = ({ prfId, prfNo, readonl
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState<PRFFile | null>(null);
+  const [rescanDialogOpen, setRescanDialogOpen] = useState(false);
+  const [rescanFile, setRescanFile] = useState<PRFFile | null>(null);
+  const [rescanPreview, setRescanPreview] = useState<RescanPreview | null>(null);
+  const [rescanLoading, setRescanLoading] = useState(false);
+  const [rescanApplying, setRescanApplying] = useState(false);
+  const [selectedRescanIndexes, setSelectedRescanIndexes] = useState<Set<number>>(new Set());
+  const [updateHeaderFromOCR, setUpdateHeaderFromOCR] = useState(false);
 
   // Fetch files for this PRF
   const fetchFiles = useCallback(async () => {
@@ -146,6 +192,72 @@ const PRFFileExplorer: React.FC<PRFFileExplorerProps> = ({ prfId, prfNo, readonl
   const handlePreviewFile = (file: PRFFile) => {
     setPreviewFile(file);
     setPreviewModalOpen(true);
+  };
+
+  const handleRescanFile = async (file: PRFFile) => {
+    setRescanFile(file);
+    setRescanPreview(null);
+    setSelectedRescanIndexes(new Set());
+    setUpdateHeaderFromOCR(false);
+    setRescanDialogOpen(true);
+    setRescanLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/ocr-prf/rescan/${prfId}/file/${file.FileID}/preview`, {
+        method: 'POST',
+        headers: authService.getAuthHeaders(),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.message || 'OCR rescan failed');
+      const preview = body.data as RescanPreview;
+      setRescanPreview(preview);
+      setSelectedRescanIndexes(new Set(preview.proposals.map((proposal) => proposal.index)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'OCR rescan failed');
+      setRescanDialogOpen(false);
+    } finally {
+      setRescanLoading(false);
+    }
+  };
+
+  const toggleRescanProposal = (index: number) => {
+    setSelectedRescanIndexes((current) => {
+      const next = new Set(current);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
+
+  const handleApplyRescan = async () => {
+    if (!rescanFile || !rescanPreview) return;
+    setRescanApplying(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/ocr-prf/rescan/${prfId}/file/${rescanFile.FileID}/apply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          extractedData: rescanPreview.extractedData,
+          selectedIndexes: Array.from(selectedRescanIndexes),
+          updateHeader: updateHeaderFromOCR,
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.message || 'Failed to apply OCR rescan');
+      setUploadProgress(
+        `OCR rescan applied: ${body.data.updatedItemCount} updated, ${body.data.addedItemCount} added, ${body.data.preservedItemCount} preserved.`
+      );
+      setRescanDialogOpen(false);
+      setTimeout(() => setUploadProgress(null), 6000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to apply OCR rescan');
+    } finally {
+      setRescanApplying(false);
+    }
   };
 
   // Handle file download
@@ -408,6 +520,12 @@ const PRFFileExplorer: React.FC<PRFFileExplorerProps> = ({ prfId, prfNo, readonl
                               <Download className="w-4 h-4 mr-2" />
                               Download
                             </DropdownMenuItem>
+                            {file.IsOriginalDocument && (
+                              <DropdownMenuItem onClick={() => handleRescanFile(file)}>
+                                <Sparkles className="w-4 h-4 mr-2" />
+                                Rescan with AI
+                              </DropdownMenuItem>
+                            )}
                             {!file.IsOriginalDocument && (
                               <DropdownMenuItem
                                 onClick={() => handleDeleteFile(file.FileID)}
@@ -453,6 +571,111 @@ const PRFFileExplorer: React.FC<PRFFileExplorerProps> = ({ prfId, prfNo, readonl
         } : null}
         prfId={prfId.toString()}
       />
+
+      <Dialog open={rescanDialogOpen} onOpenChange={(open) => !rescanApplying && setRescanDialogOpen(open)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              AI Rescan Preview — PRF {prfNo}
+            </DialogTitle>
+            <DialogDescription>
+              Review and select item changes. Existing items not found by OCR are preserved automatically.
+            </DialogDescription>
+          </DialogHeader>
+
+          {rescanLoading ? (
+            <div className="flex items-center justify-center gap-3 py-12">
+              <RefreshCw className="h-5 w-5 animate-spin" />
+              Reading {rescanFile?.OriginalFileName} with AI...
+            </div>
+          ) : rescanPreview ? (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-4 rounded-lg border p-4 text-sm">
+                <div><span className="text-muted-foreground">Scanned PRF</span><p className="font-medium">{rescanPreview.extractedData.prfNo || '-'}</p></div>
+                <div><span className="text-muted-foreground">Department</span><p className="font-medium">{rescanPreview.extractedData.department || '-'}</p></div>
+                <div><span className="text-muted-foreground">Amount</span><p className="font-medium">{Number(rescanPreview.extractedData.totalAmount || 0).toLocaleString('id-ID')}</p></div>
+                <div><span className="text-muted-foreground">Confidence</span><p className="font-medium">{Math.round(Number(rescanPreview.extractedData.confidence || 0) * 100)}%</p></div>
+              </div>
+
+              {rescanPreview.warnings.length > 0 && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{rescanPreview.warnings.join(' • ')}</AlertDescription>
+                </Alert>
+              )}
+
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={updateHeaderFromOCR}
+                  onChange={(event) => setUpdateHeaderFromOCR(event.target.checked)}
+                />
+                Also update safe header fields (title, department, amount, vendor, required-for)
+              </label>
+
+              <div className="rounded-lg border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">Use</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Existing item</TableHead>
+                      <TableHead>AI scanned item</TableHead>
+                      <TableHead>Existing cost code</TableHead>
+                      <TableHead>Scanned cost code</TableHead>
+                      <TableHead className="text-right">Scanned total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rescanPreview.proposals.map((proposal) => (
+                      <TableRow key={proposal.index}>
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            checked={selectedRescanIndexes.has(proposal.index)}
+                            onChange={() => toggleRescanProposal(proposal.index)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={proposal.action === 'add' ? 'default' : 'secondary'}>
+                            {proposal.action === 'add' ? 'Add' : `Update · ${proposal.matchReason}`}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{proposal.existing?.ItemName || 'New item'}</TableCell>
+                        <TableCell>{proposal.scanned.description || proposal.scanned.partNumber || '-'}</TableCell>
+                        <TableCell>{proposal.existing?.PurchaseCostCode || <span className="text-destructive">Blank</span>}</TableCell>
+                        <TableCell>{proposal.scanned.purchaseCostCode || <span className="text-destructive">Blank</span>}</TableCell>
+                        <TableCell className="text-right">
+                          {(Number(proposal.scanned.quantity || 1) * Number(proposal.scanned.unitPrice || 0)).toLocaleString('id-ID')}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {rescanPreview.preservedItems.length > 0 && (
+                <Alert>
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {rescanPreview.preservedItems.length} existing item(s) not found by OCR will remain unchanged.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setRescanDialogOpen(false)} disabled={rescanApplying}>
+                  Cancel
+                </Button>
+                <Button onClick={handleApplyRescan} disabled={rescanApplying || selectedRescanIndexes.size === 0}>
+                  {rescanApplying ? 'Applying...' : `Approve & Update ${selectedRescanIndexes.size} Item(s)`}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

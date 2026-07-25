@@ -236,6 +236,73 @@ components:
           type: integer
           nullable: true
 paths:
+  /api/ocr-prf/rescan/{prfId}/file/{fileId}/preview:
+    post:
+      summary: Preview AI rescan for an existing PRF
+      description: Reads a stored OCR Source document and returns item-level update/add proposals without changing PRF data.
+      tags: [OCR]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: prfId
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: fileId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Rescan preview with matching proposals and preserved existing items
+        '400':
+          description: Invalid source or request
+        '404':
+          description: PRF or OCR source not found
+        '503':
+          description: OCR service not configured
+
+  /api/ocr-prf/rescan/{prfId}/file/{fileId}/apply:
+    post:
+      summary: Apply approved AI rescan proposals
+      description: Atomically updates selected existing items, adds selected new items, preserves unmatched existing items, and records an audit snapshot.
+      tags: [OCR]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: prfId
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: fileId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [extractedData, selectedIndexes]
+              properties:
+                extractedData:
+                  type: object
+                  additionalProperties: true
+                selectedIndexes:
+                  type: array
+                  items: { type: integer }
+                updateHeader:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Selected changes applied and audited
+        '400':
+          description: Invalid approval payload
+        '404':
+          description: PRF or OCR source not found
+
   /health:
     get:
       summary: Health check
@@ -1382,6 +1449,7 @@ paths:
   /api/reports/dashboard:
     get:
       summary: Dashboard metrics
+      description: Budget utilization is aggregated from non-cancelled PRF item values (`Quantity * UnitPrice`) by item cost code.
       tags: [Reports]
       responses:
         '200':
@@ -1395,6 +1463,7 @@ paths:
   /api/reports/budget-summary:
     get:
       summary: Budget summary
+      description: Summarizes budget against non-cancelled PRF item values grouped by the COA resolved from each item cost code.
       tags: [Reports]
       parameters:
         - in: query
@@ -1469,6 +1538,7 @@ paths:
   /api/reports/utilization:
     get:
       summary: Department utilization report
+      description: Calculates utilization from non-cancelled PRF item values rather than PRF header totals.
       tags: [Reports]
       parameters:
         - in: query
@@ -1492,6 +1562,7 @@ paths:
   /api/reports/budget-utilization:
     get:
       summary: Budget utilization report
+      description: Calculates utilization per budget line from non-cancelled PRF item values and item-level cost-code allocation.
       tags: [Reports]
       parameters:
         - in: query
@@ -1519,6 +1590,7 @@ paths:
   /api/reports/alerts:
     get:
       summary: System alerts
+      description: Budget alerts and over-budget PRF checks use non-cancelled item-level values allocated by item cost code.
       tags: [Reports]
       parameters:
         - in: query
@@ -1538,6 +1610,7 @@ paths:
   /api/reports/export:
     get:
       summary: Export report data (CSV)
+      description: Budget-summary exports use the same non-cancelled item-level utilization algorithm as the dashboard.
       tags: [Reports]
       parameters:
         - in: query
@@ -2516,6 +2589,7 @@ paths:
   /api/budgets/{id}/utilization:
     get:
       summary: Get budget utilization by budget ID
+      description: Returns utilization calculated from non-cancelled PRF item values allocated to this budget's COA.
       tags: [Budgets]
       parameters:
         - in: path
@@ -2535,6 +2609,7 @@ paths:
   /api/budgets/utilization/department/{department}:
     get:
       summary: Get budget utilization by department
+      description: Returns department utilization calculated from non-cancelled PRF item values.
       tags: [Budgets]
       parameters:
         - in: path
@@ -2558,6 +2633,7 @@ paths:
   /api/budgets/utilization/summary/{fiscalYear}:
     get:
       summary: Get budget utilization summary for fiscal year
+      description: Returns fiscal-year utilization calculated from non-cancelled PRF item values.
       tags: [Budgets]
       parameters:
         - in: path
@@ -2577,6 +2653,7 @@ paths:
   /api/budgets/{id}/update-utilization:
     put:
       summary: Recalculate budget utilization from PRF data
+      description: Persists utilization recalculated from non-cancelled PRF item values allocated by item cost code.
       tags: [Budgets]
       security:
         - bearerAuth: []

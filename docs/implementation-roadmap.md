@@ -7,8 +7,8 @@ This roadmap restores the formal phase tracker required by `AGENTS.md` and defin
 ## Status Summary
 
 - Roadmap status: Completed
-- Active phase: `None - Release Verification Complete`
-- Last updated: `2026-07-22`
+- Active phase: `Phase 11 - Existing PRF AI Rescan`
+- Last updated: `2026-07-25`
 
 ## Historical Delivery Context
 
@@ -242,6 +242,97 @@ Verify the combined budget-control hardening changes and prepare the repository 
 2. `Phase 7 - New Year Readiness And Carry-Forward Workflow`
 3. `Phase 8 - COA Governance And Operational Visibility`
 4. `Phase 9 - Release Verification And Operational Handover`
+5. `Phase 10 - Item-Level Utilization Correction`
+6. `Phase 11 - Existing PRF AI Rescan`
+
+## Phase 10 - Item-Level Utilization Correction
+
+### Status
+
+Completed
+
+### Objective
+
+Correct utilization allocation for multi-cost-code PRFs and include every active commitment except cancelled PRFs or items.
+
+### Source Documents
+
+- `docs/budget-control-policy.md`
+- `docs/openapi.yaml`
+- `docs/implementation-roadmap.md`
+- `docs/open-questions-and-challenges.md`
+
+### Checklist
+
+- [x] Replace PRF-header spending allocation with `PRFItems` allocation
+- [x] Calculate each item as `Quantity * UnitPrice`
+- [x] Resolve fiscal year at item level and allocate COA strictly from the item cost code
+- [x] Include all statuses except case-insensitive cancel statuses
+- [x] Synchronize dashboard, reports, exports, alerts, and budget-utilization model queries
+- [x] Review and update `docs/openapi.yaml`
+- [x] Verify FY2026 item coverage and PRF 49087 behavior against the live database
+
+### Output
+
+- Multi-cost-code PRFs are split across their actual item budget lines
+- Active commitments are visible before final approval or completion
+- Blank and unknown item cost codes remain unmapped and do not consume a header COA
+
+### Challenge / Verification
+
+- Live FY2026 audit found 143 non-cancelled PRFs and confirmed all 143 have item rows
+- Status audit confirmed 7 cancelled PRFs and 17 cancelled items are excluded
+- PRF 49087 verified as two Repairs and maintenance items totaling `Rp 11,065,000`
+- Repairs and maintenance verified at `Rp 282,171,000` (about `38.0%`) after removing all COA fallbacks
+- Direct SQL execution of the new aggregation completed successfully
+- `git diff --check` completed
+- TypeScript build could not be executed in the current host because Node.js is not installed on `PATH`; backend SQL was challenged directly against SQL Server instead
+
+## Phase 11 - Existing PRF AI Rescan
+
+### Status
+
+In Progress
+
+### Objective
+
+Allow an authorized user to reread a stored OCR Source, review item-level differences, and safely update an existing PRF without overwriting protected workflow data or deleting unmatched items.
+
+### Source Documents
+
+- `docs/budget-control-policy.md`
+- `docs/openapi.yaml`
+- `docs/implementation-roadmap.md`
+- `docs/open-questions-and-challenges.md`
+
+### Checklist
+
+- [x] Add stored OCR Source rescan preview endpoint
+- [x] Add deterministic item matching and preserved-item reporting
+- [x] Add selective transactional apply endpoint
+- [x] Protect status, PO, pickup, approval, and Pronto-managed fields
+- [x] Add immutable rescan audit schema
+- [x] Add OCR Source `Rescan with AI` UI and side-by-side preview
+- [x] Update `docs/openapi.yaml` and policy documentation
+- [ ] Complete build/typecheck and end-to-end rescan verification
+
+### Output
+
+- Existing PRFs can be repaired from their original source document
+- Missing item cost codes can be reviewed and applied without recreating the PRF
+- Unmatched existing items remain intact unless handled manually outside the rescan workflow
+
+### Challenge / Verification
+
+- Migration SQL validated inside a rolled-back transaction, then applied atomically and recorded in `SchemaMigrations`
+- Live source lookup confirmed PRF 49137 and other recent PRFs have readable-path metadata for their OCR Source documents
+- Audit foreign keys and rollback behavior validated with audit row count unchanged (`0 -> 0`)
+- `git diff --check` passed
+- Backend TypeScript build passed using the Visual Studio Node runtime
+- Frontend production build passed (`vite build`, 1,804 modules transformed)
+- Targeted ESLint passed for `OCRRescanDialog`, `PRFDocuments`, and `PRFFileExplorer`
+- Full frontend TypeScript check remains blocked by three pre-existing errors in `BudgetOverview.tsx` and `Dashboard.tsx`; no rescan-file TypeScript errors were reported
+- Preview/apply end-to-end verification remains pending because the local frontend/backend processes were not running
 
 ## Completion Rule
 

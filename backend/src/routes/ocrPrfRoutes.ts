@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { ocrService } from '../services/ocrService';
+import { ocrService, ExtractedPRFData } from '../services/ocrService';
 import { PRFModel } from '../models/PRF';
 import { CreatePRFRequest, CreatePRFItemRequest } from '../models/types';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,6 +12,8 @@ import { PRFFilesModel } from '../models/PRFFiles';
 import type { PRFFile } from '../models/PRFFiles';
 import { loadSettings } from './settingsRoutes';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
+import { getPool } from '../config/database';
+import sql from 'mssql';
 
 const router = express.Router();
 
@@ -41,6 +43,94 @@ const upload = multer({
     }
   }
 });
+
+type ExistingRescanItem = {
+  PRFItemID: number;
+  ItemName: string;
+  Description?: string | null;
+  ItemCode?: string | null;
+  Quantity: number;
+  UnitPrice: number;
+  PurchaseCostCode?: string | null;
+  COAID?: number | null;
+  BudgetYear?: number | null;
+};
+
+type RescanProposal = {
+  index: number;
+  action: 'update' | 'add';
+  matchReason: 'item-code' | 'name-quantity' | 'position' | 'new';
+  existingItemId?: number;
+  existing?: ExistingRescanItem;
+  scanned: NonNullable<ExtractedPRFData['items']>[number];
+};
+
+const normalizeMatchText = (value: unknown): string =>
+  typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().toLowerCase() : '';
+
+const buildRescanProposals = (
+  existingItems: ExistingRescanItem[],
+  scannedItems: NonNullable<ExtractedPRFData['items']>
+): { proposals: RescanProposal[]; preservedItems: ExistingRescanItem[] } => {
+  const used = new Set<number>();
+  const proposals = scannedItems.map((scanned, index): RescanProposal => {
+    const partNumber = normalizeMatchText(scanned.partNumber);
+    const description = normalizeMatchText(scanned.description);
+    let matchIndex = partNumber
+      ? existingItems.findIndex((item, i) => !used.has(i) && normalizeMatchText(item.ItemCode) === partNumber)
+      : -1;
+    let matchReason: RescanProposal['matchReason'] = 'item-code';
+
+    if (matchIndex < 0 && description) {
+      matchIndex = existingItems.findIndex(
+        (item, i) =>
+          !used.has(i) &&
+          normalizeMatchText(item.ItemName) === description &&
+          Number(item.Quantity) === Number(scanned.quantity || 1)
+      );
+      matchReason = 'name-quantity';
+    }
+
+    if (matchIndex < 0 && index < existingItems.length && !used.has(index)) {
+      matchIndex = index;
+      matchReason = 'position';
+    }
+
+    if (matchIndex >= 0) {
+      used.add(matchIndex);
+      return {
+        index,
+        action: 'update',
+        matchReason,
+        existingItemId: existingItems[matchIndex].PRFItemID,
+        existing: existingItems[matchIndex],
+        scanned
+      };
+    }
+
+    return { index, action: 'add', matchReason: 'new', scanned };
+  });
+
+  return {
+    proposals,
+    preservedItems: existingItems.filter((_item, index) => !used.has(index))
+  };
+};
+
+const readStoredPRFFile = async (file: PRFFile): Promise<Buffer> => {
+  const candidates = [file.FilePath, file.SharedPath].filter(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0
+  );
+  let lastError: unknown;
+  for (const candidate of candidates) {
+    try {
+      return await fs.readFile(candidate);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw new Error(`OCR source file is not readable${lastError instanceof Error ? `: ${lastError.message}` : ''}`);
+};
 
 // Create PRF from uploaded document using OCR
 router.post('/create-from-document', authenticateToken, requireContentManager, upload.single('document'), async (req, res) => {
@@ -361,6 +451,238 @@ router.post('/preview-extraction', authenticateToken, requireContentManager, upl
     return res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'OCR preview failed'
+    });
+  }
+});
+
+router.post('/rescan/:prfId/file/:fileId/preview', authenticateToken, requireContentManager, async (req, res) => {
+  try {
+    const prfId = Number.parseInt(req.params.prfId, 10);
+    const fileId = Number.parseInt(req.params.fileId, 10);
+    if (!Number.isInteger(prfId) || !Number.isInteger(fileId)) {
+      return res.status(400).json({ success: false, message: 'Invalid PRF or file ID' });
+    }
+
+    const [prf, file, existingItems] = await Promise.all([
+      PRFModel.findById(prfId),
+      PRFFilesModel.getById(fileId),
+      PRFModel.getItems(prfId)
+    ]);
+    if (!prf) return res.status(404).json({ success: false, message: 'PRF not found' });
+    if (!file || file.PRFID !== prfId) {
+      return res.status(404).json({ success: false, message: 'OCR source document not found for this PRF' });
+    }
+    if (!file.IsOriginalDocument) {
+      return res.status(400).json({ success: false, message: 'Only an OCR Source document can be rescanned' });
+    }
+    if (!(await ocrService.isEnabled())) {
+      return res.status(503).json({ success: false, message: 'OCR service is not configured' });
+    }
+
+    const buffer = await readStoredPRFFile(file);
+    const extractedData = await ocrService.extractPRFData(buffer, file.MimeType);
+    const { proposals, preservedItems } = buildRescanProposals(
+      existingItems as ExistingRescanItem[],
+      extractedData.items || []
+    );
+
+    return res.json({
+      success: true,
+      message: 'OCR rescan preview completed',
+      data: {
+        prf: {
+          PRFID: prf.PRFID,
+          PRFNo: prf.PRFNo,
+          Title: prf.Title,
+          Department: prf.Department,
+          RequestedAmount: prf.RequestedAmount,
+          VendorName: prf.VendorName,
+          RequiredFor: prf.RequiredFor
+        },
+        file: { FileID: file.FileID, OriginalFileName: file.OriginalFileName },
+        extractedData,
+        proposals,
+        preservedItems,
+        warnings: [
+          extractedData.prfNo && String(extractedData.prfNo).trim() !== String(prf.PRFNo).trim()
+            ? `Scanned PRF number ${extractedData.prfNo} differs from existing PRF ${prf.PRFNo}`
+            : null,
+          ...(extractedData.items || []).map((item, index) =>
+            item.purchaseCostCode ? null : `Scanned item ${index + 1} has no cost code`
+          )
+        ].filter(Boolean)
+      }
+    });
+  } catch (error) {
+    console.error('OCR rescan preview failed:', error);
+    return res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'OCR rescan preview failed'
+    });
+  }
+});
+
+router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireContentManager, async (req, res) => {
+  const transaction = new sql.Transaction(getPool());
+  let transactionStarted = false;
+  try {
+    const prfId = Number.parseInt(req.params.prfId, 10);
+    const fileId = Number.parseInt(req.params.fileId, 10);
+    const extractedData = req.body?.extractedData as ExtractedPRFData | undefined;
+    const selectedIndexes = Array.isArray(req.body?.selectedIndexes)
+      ? req.body.selectedIndexes.filter((value: unknown): value is number => Number.isInteger(value))
+      : [];
+    const updateHeader = req.body?.updateHeader === true;
+
+    if (!Number.isInteger(prfId) || !Number.isInteger(fileId) || !extractedData || !Array.isArray(extractedData.items)) {
+      return res.status(400).json({ success: false, message: 'Invalid rescan approval payload' });
+    }
+    if (!req.user) return res.status(401).json({ success: false, message: 'Authentication required' });
+
+    const [prf, file, existingItems] = await Promise.all([
+      PRFModel.findById(prfId),
+      PRFFilesModel.getById(fileId),
+      PRFModel.getItems(prfId)
+    ]);
+    if (!prf) return res.status(404).json({ success: false, message: 'PRF not found' });
+    if (!file || file.PRFID !== prfId || !file.IsOriginalDocument) {
+      return res.status(404).json({ success: false, message: 'OCR source document not found for this PRF' });
+    }
+
+    const { proposals, preservedItems } = buildRescanProposals(
+      existingItems as ExistingRescanItem[],
+      extractedData.items
+    );
+    const selected = proposals.filter((proposal) => selectedIndexes.includes(proposal.index));
+    await transaction.begin();
+    transactionStarted = true;
+
+    if (updateHeader) {
+      const headerRequest = new sql.Request(transaction);
+      await headerRequest
+        .input('PRFID', sql.Int, prfId)
+        .input('Title', sql.NVarChar(200), extractedData.projectDescription || prf.Title)
+        .input('Description', sql.NVarChar(sql.MAX), extractedData.projectDescription || prf.Description || '')
+        .input('Department', sql.NVarChar(100), extractedData.department || prf.Department)
+        .input('RequestedAmount', sql.Decimal(18, 2), extractedData.totalAmount ?? prf.RequestedAmount ?? 0)
+        .input('VendorName', sql.NVarChar(200), extractedData.proposedSupplier || prf.VendorName || '')
+        .input('RequiredFor', sql.NVarChar(500), extractedData.requestFor || extractedData.projectId || prf.RequiredFor || '')
+        .query(`
+          UPDATE dbo.PRF
+          SET Title = @Title,
+              Description = @Description,
+              Department = @Department,
+              RequestedAmount = @RequestedAmount,
+              VendorName = @VendorName,
+              RequiredFor = @RequiredFor,
+              UpdatedAt = GETDATE()
+          WHERE PRFID = @PRFID
+        `);
+    }
+
+    let updatedItemCount = 0;
+    let addedItemCount = 0;
+    for (const proposal of selected) {
+      const scanned = proposal.scanned;
+      const costCode = typeof scanned.purchaseCostCode === 'string' && scanned.purchaseCostCode.trim()
+        ? scanned.purchaseCostCode.trim()
+        : null;
+      const coaRequest = new sql.Request(transaction);
+      const coaResult = costCode
+        ? await coaRequest.input('COACode', sql.NVarChar(50), costCode).query<{ COAID: number }>(
+            `SELECT TOP 1 COAID FROM dbo.ChartOfAccounts
+             WHERE UPPER(LTRIM(RTRIM(COACode))) = UPPER(LTRIM(RTRIM(@COACode)))`
+          )
+        : null;
+      const coaId = coaResult?.recordset[0]?.COAID ?? null;
+
+      if (proposal.action === 'update' && proposal.existingItemId) {
+        const request = new sql.Request(transaction);
+        await request
+          .input('PRFItemID', sql.Int, proposal.existingItemId)
+          .input('ItemName', sql.NVarChar(200), scanned.description || proposal.existing?.ItemName || 'Unknown Item')
+          .input('Description', sql.NVarChar(1000), scanned.partNumber ? `Part: ${scanned.partNumber}` : proposal.existing?.Description || '')
+          .input('ItemCode', sql.NVarChar(64), scanned.partNumber || proposal.existing?.ItemCode || null)
+          .input('Quantity', sql.Int, Number(scanned.quantity || proposal.existing?.Quantity || 1))
+          .input('UnitPrice', sql.Decimal(15, 2), Number(scanned.unitPrice ?? proposal.existing?.UnitPrice ?? 0))
+          .input('PurchaseCostCode', sql.NVarChar(50), costCode)
+          .input('COAID', sql.Int, coaId)
+          .input('BudgetYear', sql.Int, Number(scanned.budgetYear || prf.BudgetYear || new Date().getFullYear()))
+          .input('UpdatedBy', sql.Int, req.user.UserID)
+          .query(`
+            UPDATE dbo.PRFItems
+            SET ItemName = @ItemName, Description = @Description, ItemCode = @ItemCode,
+                Quantity = @Quantity, UnitPrice = @UnitPrice,
+                PurchaseCostCode = @PurchaseCostCode, COAID = @COAID,
+                BudgetYear = @BudgetYear, UpdatedBy = @UpdatedBy, UpdatedAt = GETDATE()
+            WHERE PRFItemID = @PRFItemID AND PRFID = ${prfId}
+          `);
+        updatedItemCount += 1;
+      } else if (proposal.action === 'add') {
+        const request = new sql.Request(transaction);
+        await request
+          .input('PRFID', sql.Int, prfId)
+          .input('ItemName', sql.NVarChar(200), scanned.description || 'Unknown Item')
+          .input('Description', sql.NVarChar(1000), scanned.partNumber ? `Part: ${scanned.partNumber}` : '')
+          .input('ItemCode', sql.NVarChar(64), scanned.partNumber || null)
+          .input('Quantity', sql.Int, Number(scanned.quantity || 1))
+          .input('UnitPrice', sql.Decimal(15, 2), Number(scanned.unitPrice || 0))
+          .input('PurchaseCostCode', sql.NVarChar(50), costCode)
+          .input('COAID', sql.Int, coaId)
+          .input('BudgetYear', sql.Int, Number(scanned.budgetYear || prf.BudgetYear || new Date().getFullYear()))
+          .input('UpdatedBy', sql.Int, req.user.UserID)
+          .query(`
+            INSERT INTO dbo.PRFItems
+              (PRFID, ItemName, Description, ItemCode, Quantity, UnitPrice,
+               PurchaseCostCode, COAID, BudgetYear, UpdatedBy)
+            VALUES
+              (@PRFID, @ItemName, @Description, @ItemCode, @Quantity, @UnitPrice,
+               @PurchaseCostCode, @COAID, @BudgetYear, @UpdatedBy)
+          `);
+        addedItemCount += 1;
+      }
+    }
+
+    const afterRequest = new sql.Request(transaction);
+    const afterResult = await afterRequest
+      .input('PRFID', sql.Int, prfId)
+      .query('SELECT * FROM dbo.PRFItems WHERE PRFID = @PRFID ORDER BY PRFItemID');
+    const auditRequest = new sql.Request(transaction);
+    await auditRequest
+      .input('PRFID', sql.Int, prfId)
+      .input('FileID', sql.Int, fileId)
+      .input('AppliedBy', sql.Int, req.user.UserID)
+      .input('OCRConfidence', sql.Decimal(8, 6), extractedData.confidence ?? null)
+      .input('UpdatedItemCount', sql.Int, updatedItemCount)
+      .input('AddedItemCount', sql.Int, addedItemCount)
+      .input('PreservedItemCount', sql.Int, preservedItems.length)
+      .input('BeforeSnapshot', sql.NVarChar(sql.MAX), JSON.stringify({ prf, items: existingItems }))
+      .input('AfterSnapshot', sql.NVarChar(sql.MAX), JSON.stringify({ items: afterResult.recordset }))
+      .input('ExtractionSnapshot', sql.NVarChar(sql.MAX), JSON.stringify(extractedData))
+      .query(`
+        INSERT INTO dbo.PRFOCRRescanAudit
+          (PRFID, FileID, AppliedBy, OCRConfidence, UpdatedItemCount, AddedItemCount,
+           PreservedItemCount, BeforeSnapshot, AfterSnapshot, ExtractionSnapshot)
+        VALUES
+          (@PRFID, @FileID, @AppliedBy, @OCRConfidence, @UpdatedItemCount, @AddedItemCount,
+           @PreservedItemCount, @BeforeSnapshot, @AfterSnapshot, @ExtractionSnapshot)
+      `);
+
+    await transaction.commit();
+    transactionStarted = false;
+    return res.json({
+      success: true,
+      message: 'OCR rescan changes applied successfully',
+      data: { updatedItemCount, addedItemCount, preservedItemCount: preservedItems.length, headerUpdated: updateHeader }
+    });
+  } catch (error) {
+    if (transactionStarted) {
+      try { await transaction.rollback(); } catch { /* transaction may not have started */ }
+    }
+    console.error('OCR rescan apply failed:', error);
+    return res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'OCR rescan apply failed'
     });
   }
 });

@@ -27,12 +27,14 @@ import {
   Folder,
   HardDrive,
   Clock,
-  Trash2
+  Trash2,
+  Sparkles
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import FilePreviewModal from '@/components/FilePreviewModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { authService } from '@/services/authService';
+import { OCRRescanDialog } from './OCRRescanDialog';
 
 interface PRFDocument {
   FileID: number;
@@ -80,6 +82,8 @@ const PRFDocuments: React.FC<PRFDocumentsProps> = ({ prfId, prfNo, onDocumentUpd
   const [deletingFileId, setDeletingFileId] = useState<number | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<PRFDocument | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [rescanDocument, setRescanDocument] = useState<PRFDocument | null>(null);
+  const [showRescan, setShowRescan] = useState(false);
 
   // Load documents on component mount
   const loadDocuments = useCallback(async () => {
@@ -234,6 +238,9 @@ const PRFDocuments: React.FC<PRFDocumentsProps> = ({ prfId, prfNo, onDocumentUpd
     if (doc.IsOriginalDocument) return false;
     return user.role === 'admin' || user.role === 'doccon';
   };
+
+  const canRescanDocument = (doc: PRFDocument): boolean =>
+    Boolean(doc.IsOriginalDocument && user && (user.role === 'admin' || user.role === 'doccon'));
 
   const deleteDocument = async (doc: PRFDocument) => {
     if (!canDeleteSyncedDocument(doc)) return;
@@ -425,6 +432,19 @@ const PRFDocuments: React.FC<PRFDocumentsProps> = ({ prfId, prfNo, onDocumentUpd
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
+                    {canRescanDocument(doc) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setRescanDocument(doc);
+                          setShowRescan(true);
+                        }}
+                      >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Rescan
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -495,6 +515,24 @@ const PRFDocuments: React.FC<PRFDocumentsProps> = ({ prfId, prfNo, onDocumentUpd
           uploadedAt: selectedDocument.UploadDate
         } : null}
         prfId={prfId.toString()}
+      />
+
+      <OCRRescanDialog
+        open={showRescan}
+        onOpenChange={(open) => {
+          setShowRescan(open);
+          if (!open) setRescanDocument(null);
+        }}
+        prfId={prfId}
+        prfNo={prfNo}
+        file={rescanDocument ? {
+          FileID: rescanDocument.FileID,
+          OriginalFileName: rescanDocument.OriginalFileName,
+        } : null}
+        onApplied={() => {
+          loadDocuments();
+          onDocumentUpdate?.();
+        }}
       />
     </div>
   );

@@ -19,6 +19,33 @@ interface CountResult {
   Total: number;
 }
 
+const itemSpendByCoaCte = `
+  WITH ItemSpendByCoa AS (
+    SELECT
+      coa_map.COAID AS COAID,
+      COALESCE(pi.BudgetYear, p.BudgetYear, YEAR(p.RequestDate)) AS FiscalYear,
+      SUM(CAST(COALESCE(pi.Quantity, 0) * COALESCE(pi.UnitPrice, 0) AS DECIMAL(18,2))) AS UtilizedAmount,
+      COUNT(DISTINCT p.PRFID) AS TotalPRFs,
+      COUNT(DISTINCT CASE WHEN LOWER(COALESCE(p.Status, '')) LIKE '%pending%'
+                           OR LOWER(COALESCE(p.Status, '')) LIKE '%approval%req%'
+                          THEN p.PRFID END) AS PendingPRFs,
+      COUNT(DISTINCT CASE WHEN LOWER(COALESCE(p.Status, '')) LIKE '%approved%'
+                          THEN p.PRFID END) AS ApprovedPRFs,
+      COUNT(DISTINCT CASE WHEN LOWER(COALESCE(p.Status, '')) LIKE '%complete%'
+                          THEN p.PRFID END) AS CompletedPRFs
+    FROM PRF p
+    INNER JOIN PRFItems pi ON p.PRFID = pi.PRFID
+    LEFT JOIN ChartOfAccounts coa_map
+      ON NULLIF(LTRIM(RTRIM(pi.PurchaseCostCode)), '') IS NOT NULL
+      AND UPPER(LTRIM(RTRIM(pi.PurchaseCostCode))) = UPPER(LTRIM(RTRIM(coa_map.COACode)))
+    WHERE LOWER(LTRIM(RTRIM(COALESCE(p.Status, '')))) NOT LIKE '%cancel%'
+      AND LOWER(LTRIM(RTRIM(COALESCE(pi.Status, '')))) NOT LIKE '%cancel%'
+    GROUP BY
+      coa_map.COAID,
+      COALESCE(pi.BudgetYear, p.BudgetYear, YEAR(p.RequestDate))
+  )
+`;
+
 export class BudgetModel {
   /**
    * Create a new budget
@@ -239,6 +266,7 @@ export class BudgetModel {
    */
   static async getBudgetUtilization(budgetId: number): Promise<BudgetUtilization | null> {
     const query = `
+      ${itemSpendByCoaCte}
       SELECT 
         b.BudgetID,
         b.COAID,
@@ -247,27 +275,23 @@ export class BudgetModel {
         b.FiscalYear,
         b.Department,
         b.AllocatedAmount,
-        COALESCE(SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount)), 0) as UtilizedAmount,
-        b.AllocatedAmount - COALESCE(SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount)), 0) as RemainingAmount,
+        COALESCE(spend.UtilizedAmount, 0) as UtilizedAmount,
+        b.AllocatedAmount - COALESCE(spend.UtilizedAmount, 0) as RemainingAmount,
         CASE 
           WHEN b.AllocatedAmount > 0 
-          THEN (COALESCE(SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount)), 0) * 100.0 / b.AllocatedAmount)
+          THEN (COALESCE(spend.UtilizedAmount, 0) * 100.0 / b.AllocatedAmount)
           ELSE 0 
         END as UtilizationPercentage,
-        COUNT(p.PRFID) as TotalPRFs,
-        SUM(CASE WHEN p.Status = 'Pending' THEN 1 ELSE 0 END) as PendingPRFs,
-        SUM(CASE WHEN p.Status = 'Approved' THEN 1 ELSE 0 END) as ApprovedPRFs,
-        SUM(CASE WHEN p.Status = 'Completed' THEN 1 ELSE 0 END) as CompletedPRFs
+        COALESCE(spend.TotalPRFs, 0) as TotalPRFs,
+        COALESCE(spend.PendingPRFs, 0) as PendingPRFs,
+        COALESCE(spend.ApprovedPRFs, 0) as ApprovedPRFs,
+        COALESCE(spend.CompletedPRFs, 0) as CompletedPRFs
       FROM Budget b
       INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
-      LEFT JOIN PRF p ON b.COAID = p.COAID 
-        AND p.RequestDate >= b.StartDate 
-        AND p.RequestDate <= b.EndDate
-        AND p.Status IN ('Approved', 'Completed')
+      LEFT JOIN ItemSpendByCoa spend
+        ON b.COAID = spend.COAID
+        AND b.FiscalYear = spend.FiscalYear
       WHERE b.BudgetID = @BudgetID
-      GROUP BY 
-        b.BudgetID, b.COAID, coa.COACode, coa.COAName, 
-        b.FiscalYear, b.Department, b.AllocatedAmount
     `;
     
     const result = await executeQuery<BudgetUtilization>(query, { BudgetID: budgetId });
@@ -287,6 +311,7 @@ export class BudgetModel {
     }
 
     const query = `
+      ${itemSpendByCoaCte}
       SELECT 
         b.BudgetID,
         b.COAID,
@@ -295,27 +320,23 @@ export class BudgetModel {
         b.FiscalYear,
         b.Department,
         b.AllocatedAmount,
-        COALESCE(SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount)), 0) as UtilizedAmount,
-        b.AllocatedAmount - COALESCE(SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount)), 0) as RemainingAmount,
+        COALESCE(spend.UtilizedAmount, 0) as UtilizedAmount,
+        b.AllocatedAmount - COALESCE(spend.UtilizedAmount, 0) as RemainingAmount,
         CASE 
           WHEN b.AllocatedAmount > 0 
-          THEN (COALESCE(SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount)), 0) * 100.0 / b.AllocatedAmount)
+          THEN (COALESCE(spend.UtilizedAmount, 0) * 100.0 / b.AllocatedAmount)
           ELSE 0 
         END as UtilizationPercentage,
-        COUNT(p.PRFID) as TotalPRFs,
-        SUM(CASE WHEN p.Status = 'Pending' THEN 1 ELSE 0 END) as PendingPRFs,
-        SUM(CASE WHEN p.Status = 'Approved' THEN 1 ELSE 0 END) as ApprovedPRFs,
-        SUM(CASE WHEN p.Status = 'Completed' THEN 1 ELSE 0 END) as CompletedPRFs
+        COALESCE(spend.TotalPRFs, 0) as TotalPRFs,
+        COALESCE(spend.PendingPRFs, 0) as PendingPRFs,
+        COALESCE(spend.ApprovedPRFs, 0) as ApprovedPRFs,
+        COALESCE(spend.CompletedPRFs, 0) as CompletedPRFs
       FROM Budget b
       INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
-      LEFT JOIN PRF p ON b.COAID = p.COAID 
-        AND p.RequestDate >= b.StartDate 
-        AND p.RequestDate <= b.EndDate
-        AND p.Status IN ('Approved', 'Completed')
+      LEFT JOIN ItemSpendByCoa spend
+        ON b.COAID = spend.COAID
+        AND b.FiscalYear = spend.FiscalYear
       WHERE ${whereConditions.join(' AND ')}
-      GROUP BY 
-        b.BudgetID, b.COAID, coa.COACode, coa.COAName, 
-        b.FiscalYear, b.Department, b.AllocatedAmount
       ORDER BY coa.COACode
     `;
     
@@ -328,6 +349,7 @@ export class BudgetModel {
    */
   static async getBudgetUtilizationSummary(fiscalYear: number): Promise<BudgetUtilizationSummary[]> {
     const query = `
+      ${itemSpendByCoaCte}
       SELECT 
         b.Department,
         COUNT(b.BudgetID) as TotalBudgets,
@@ -340,15 +362,9 @@ export class BudgetModel {
           ELSE 0 
         END as OverallUtilizationPercentage
       FROM Budget b
-      LEFT JOIN (
-        SELECT 
-          p.COAID,
-          SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount)) as UtilizedAmount
-        FROM PRF p
-        WHERE p.Status IN ('Approved', 'Completed')
-          AND YEAR(p.RequestDate) = @FiscalYear
-        GROUP BY p.COAID
-      ) utilized ON b.COAID = utilized.COAID
+      LEFT JOIN ItemSpendByCoa utilized
+        ON b.COAID = utilized.COAID
+        AND b.FiscalYear = utilized.FiscalYear
       WHERE b.FiscalYear = @FiscalYear
       GROUP BY b.Department
       ORDER BY b.Department
@@ -363,14 +379,13 @@ export class BudgetModel {
    */
   static async updateUtilization(budgetId: number): Promise<Budget> {
     const query = `
+      ${itemSpendByCoaCte}
       UPDATE Budget 
       SET UtilizedAmount = (
-        SELECT COALESCE(SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount)), 0)
-        FROM PRF p
-        WHERE p.COAID = Budget.COAID
-          AND p.RequestDate >= Budget.StartDate
-          AND p.RequestDate <= Budget.EndDate
-          AND p.Status IN ('Approved', 'Completed')
+        SELECT COALESCE(MAX(spend.UtilizedAmount), 0)
+        FROM ItemSpendByCoa spend
+        WHERE spend.COAID = Budget.COAID
+          AND spend.FiscalYear = Budget.FiscalYear
       ),
       UpdatedAt = GETDATE()
       OUTPUT INSERTED.*
@@ -386,6 +401,7 @@ export class BudgetModel {
    */
   static async getBudgetAlerts(thresholdPercentage: number = 90): Promise<BudgetAlert[]> {
     const query = `
+      ${itemSpendByCoaCte}
       SELECT 
         b.BudgetID,
         b.COAID,
@@ -407,14 +423,9 @@ export class BudgetModel {
         END as AlertType
       FROM Budget b
       INNER JOIN ChartOfAccounts coa ON b.COAID = coa.COAID
-      LEFT JOIN (
-        SELECT 
-          p.COAID,
-          SUM(COALESCE(p.ApprovedAmount, p.RequestedAmount)) as UtilizedAmount
-        FROM PRF p
-        WHERE p.Status IN ('Approved', 'Completed')
-        GROUP BY p.COAID
-      ) utilized ON b.COAID = utilized.COAID
+      LEFT JOIN ItemSpendByCoa utilized
+        ON b.COAID = utilized.COAID
+        AND b.FiscalYear = utilized.FiscalYear
       WHERE b.Status = 'Active'
         AND (
           COALESCE(utilized.UtilizedAmount, 0) > b.AllocatedAmount
