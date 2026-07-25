@@ -313,6 +313,10 @@ Allow an authorized user to reread a stored OCR Source, review item-level differ
 - [x] Protect status, PO, pickup, approval, and Pronto-managed fields
 - [x] Add immutable rescan audit schema
 - [x] Add OCR Source `Rescan with AI` UI and side-by-side preview
+- [x] Allow an explicitly selected alternative PDF/image when no OCR Source exists
+- [x] Detect visibly struck-through item rows as selectable `Cancelled` proposals
+- [x] Propagate a shared merged-cell cost code to every covered item
+- [x] Reconcile printed, extracted, cancelled, and active totals in preview
 - [x] Update `docs/openapi.yaml` and policy documentation
 - [ ] Complete build/typecheck and end-to-end rescan verification
 
@@ -326,11 +330,15 @@ Allow an authorized user to reread a stored OCR Source, review item-level differ
 
 - Migration SQL validated inside a rolled-back transaction, then applied atomically and recorded in `SchemaMigrations`
 - Live source lookup confirmed PRF 49137 and other recent PRFs have readable-path metadata for their OCR Source documents
+- Coverage audit found 429 PRFs: 161 with OCR Source, 267 without OCR Source but with a supported PDF/image alternative, and 1 without a supported document
+- PRF 41436 verified with two alternative PDFs and one unsupported `Thumbs.db`; only the PDFs are eligible
+- PRF 41600 visual challenge established the expected reconciliation: printed/extracted `Rp 32,931,200`, cancelled rows 1/2/8 `Rp 5,306,500`, active budget total `Rp 27,624,700`, with shared cost code `AMINBD13.6250`
 - Audit foreign keys and rollback behavior validated with audit row count unchanged (`0 -> 0`)
 - `git diff --check` passed
 - Backend TypeScript build passed using the Visual Studio Node runtime
 - Frontend production build passed (`vite build`, 1,804 modules transformed)
 - Targeted ESLint passed for `OCRRescanDialog`, `PRFDocuments`, and `PRFFileExplorer`
+- Backend typecheck, targeted rescan UI lint, and production build were rerun successfully after item-status detection and total reconciliation were added
 - Full frontend TypeScript check remains blocked by three pre-existing errors in `BudgetOverview.tsx` and `Dashboard.tsx`; no rescan-file TypeScript errors were reported
 - Preview/apply end-to-end verification remains pending because the local frontend/backend processes were not running
 

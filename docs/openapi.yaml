@@ -239,7 +239,7 @@ paths:
   /api/ocr-prf/rescan/{prfId}/file/{fileId}/preview:
     post:
       summary: Preview AI rescan for an existing PRF
-      description: Reads a stored OCR Source document and returns item-level update/add proposals without changing PRF data.
+      description: Reads a stored OCR Source or explicitly selected alternative PDF/image and returns item-level update/add proposals without changing PRF data. Shared merged-cell cost codes are repeated per item, visible strikethroughs are returned as selectable Cancelled proposals, and printed/extracted/cancelled/active totals are reconciled.
       tags: [OCR]
       security:
         - bearerAuth: []
@@ -254,18 +254,18 @@ paths:
           schema: { type: integer }
       responses:
         '200':
-          description: Rescan preview with matching proposals and preserved existing items
+          description: Rescan preview with matching proposals, per-item status evidence, total reconciliation, and preserved existing items
         '400':
           description: Invalid source or request
         '404':
-          description: PRF or OCR source not found
+          description: PRF or selected source document not found
         '503':
           description: OCR service not configured
 
   /api/ocr-prf/rescan/{prfId}/file/{fileId}/apply:
     post:
       summary: Apply approved AI rescan proposals
-      description: Atomically updates selected existing items, adds selected new items, preserves unmatched existing items, and records an audit snapshot.
+      description: Atomically applies selected proposals from an OCR Source or alternative PDF/image, preserves unmatched items and active workflow statuses, applies selected visual-cancellation proposals as item-level overrides, uses the active-item total for an approved header update when cancellations exist, and records the exact source FileID in an audit snapshot.
       tags: [OCR]
       security:
         - bearerAuth: []
@@ -301,7 +301,7 @@ paths:
         '400':
           description: Invalid approval payload
         '404':
-          description: PRF or OCR source not found
+          description: PRF or selected source document not found
 
   /health:
     get:

@@ -239,8 +239,13 @@ const PRFDocuments: React.FC<PRFDocumentsProps> = ({ prfId, prfNo, onDocumentUpd
     return user.role === 'admin' || user.role === 'doccon';
   };
 
-  const canRescanDocument = (doc: PRFDocument): boolean =>
-    Boolean(doc.IsOriginalDocument && user && (user.role === 'admin' || user.role === 'doccon'));
+  const canRescanDocument = (doc: PRFDocument): boolean => {
+    if (!user || (user.role !== 'admin' && user.role !== 'doccon')) return false;
+    const mimeType = (doc.MimeType || '').toLowerCase();
+    const fileType = (doc.FileType || '').toLowerCase();
+    return mimeType === 'application/pdf' || mimeType.startsWith('image/') ||
+      ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(fileType);
+  };
 
   const deleteDocument = async (doc: PRFDocument) => {
     if (!canDeleteSyncedDocument(doc)) return;
@@ -442,7 +447,7 @@ const PRFDocuments: React.FC<PRFDocumentsProps> = ({ prfId, prfNo, onDocumentUpd
                         }}
                       >
                         <Sparkles className="h-4 w-4 mr-2" />
-                        Rescan
+                        {doc.IsOriginalDocument ? 'Rescan' : 'Scan with AI'}
                       </Button>
                     )}
                     <Button
@@ -528,6 +533,7 @@ const PRFDocuments: React.FC<PRFDocumentsProps> = ({ prfId, prfNo, onDocumentUpd
         file={rescanDocument ? {
           FileID: rescanDocument.FileID,
           OriginalFileName: rescanDocument.OriginalFileName,
+          IsOriginalDocument: rescanDocument.IsOriginalDocument,
         } : null}
         onApplied={() => {
           loadDocuments();

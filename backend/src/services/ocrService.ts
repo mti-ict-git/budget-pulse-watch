@@ -26,6 +26,9 @@ export interface ExtractedPRFData {
     purchaseCostCode?: string;
     coaid?: number | string;
     budgetYear?: number | string;
+    status?: 'Active' | 'Cancelled';
+    statusReason?: string;
+    isStruckThrough?: boolean;
   }>;
   projectDescription?: string;
   projectId?: string;
@@ -494,7 +497,10 @@ Return ONLY a valid JSON object with this structure:
       "unitPrice": number or null,
       "totalPrice": number or null,
       "currency": "string or null",
-      "purchaseCostCode": "string or null"
+      "purchaseCostCode": "string or null",
+      "status": "Active or Cancelled",
+      "statusReason": "short visual reason or null",
+      "isStruckThrough": boolean
     }
   ],
   "projectDescription": "string or null",
@@ -510,7 +516,11 @@ Return ONLY a valid JSON object with this structure:
   "confidence": number
 }
 
-CRITICAL: For Cost Code / General Ledger Code / Project #, extract from the rightmost column of the items table. Valid examples: AMITOMTI9.6250, 12710806.6250, MTIRMRAD496328. Do not return amounts.`;
+CRITICAL:
+- For Cost Code / General Ledger Code / Project #, extract from the rightmost column of the items table. Valid examples: AMITOMTI9.6250, 12710806.6250, MTIRMRAD496328. Do not return amounts.
+- A single vertically merged cost-code cell may apply to many or all item rows. Repeat that shared code in purchaseCostCode for every covered item.
+- Inspect every item row for visual cancellation marks. A line struck through or clearly crossed out is status "Cancelled", isStruckThrough true, with statusReason describing the visible mark. Otherwise use status "Active".
+- Do not infer cancellation merely from color, low confidence, a blank field, or an unrelated annotation.`;
 
       const resp = await this.openAI!.chat.completions.create({
         model: modelName,
@@ -582,6 +592,8 @@ Please extract:
    - Unit Price
    - Total Price
    - Cost Code/General Ledger Code (CRITICAL: Extract the specific cost code for THIS item from the rightmost column. Each item may have a different cost code. Look for alphanumeric codes like 'MTIRMRAD496328' in the 'General Ledger Code/Project #' column for each individual item row)
+   - Item Status (use "Cancelled" only when the row is visibly struck through/crossed out; otherwise "Active")
+   - Status Reason (briefly describe the visible cancellation mark)
 9. Project Description/Area (if not explicitly provided, generate a concise description based on the item descriptions)
 10. Project ID
 11. Reference Drawing Number
@@ -605,6 +617,8 @@ IMPORTANT INSTRUCTIONS:
 - The generated project description should summarize what the items are for in 1-2 sentences
 - CRITICAL: For Cost Code/General Ledger Code, extract codes from the rightmost column of the items table. Cost codes can be alphanumeric (e.g., 'MTIRMRAD496328') or numeric (e.g., '12710806.6250'). DO NOT use total amounts, subtotals, or summary values from the bottom of the form
 - Cost codes can be alphanumeric strings or numeric values that appear in individual item rows, not summary totals
+- A vertically merged cost-code cell applies to every item row it spans; repeat the shared code on each item
+- Inspect each row for strikethrough/cross-out marks. Mark those rows Cancelled and set isStruckThrough true; do not treat red text alone as cancellation
 
 Return ONLY a valid JSON object with this structure:
 {
@@ -624,6 +638,9 @@ Return ONLY a valid JSON object with this structure:
       "totalPrice": number,
       "currency": "string",
       "purchaseCostCode": "string", // Cost code specific to this item
+      "status": "Active or Cancelled",
+      "statusReason": "short visual reason or null",
+      "isStruckThrough": boolean,
       "coaid": number, // Chart of Accounts ID if available
       "budgetYear": number // Budget year for this item
     }
@@ -703,6 +720,8 @@ Please extract:
    - Cost Code / General Ledger Code / Project # (CRITICAL: extract from the rightmost column "General Ledger Code/Project #")
      - If the same code applies to all items (single code shown for the whole table), repeat it for every item in purchaseCostCode
      - If each row has its own code, extract each row's code into purchaseCostCode
+   - Item Status: "Cancelled" only when that item row is visibly struck through/crossed out; otherwise "Active"
+   - Status Reason: briefly identify the visible mark, and set isStruckThrough true for a struck/crossed row
 9. Project Description/Area (if not explicitly provided, generate a concise description based on the item descriptions)
 10. Project ID
 11. Reference Drawing Number
@@ -726,6 +745,8 @@ IMPORTANT INSTRUCTIONS:
 - The generated project description should summarize what the items are for in 1-2 sentences
 - CRITICAL: For Cost Code/General Ledger Code, extract codes from the rightmost column of the items table. This may be a single code for all rows or unique per row. Always output per-row in items[].purchaseCostCode.
 - Valid code formats include alphanumeric codes and mixed codes with dot suffix like "AMITOMTI9.6250" as well as numeric codes like "12710806.6250". Do not output currency amounts.
+- A vertically merged rightmost cell applies to all rows it spans. Repeat its code for every covered item.
+- Visually inspect every item row. A clear strikethrough/cross-out means status "Cancelled" and isStruckThrough true. Red text alone is not sufficient evidence.
 
 Return ONLY a valid JSON object with this structure:
 {
@@ -744,7 +765,10 @@ Return ONLY a valid JSON object with this structure:
       "unitPrice": number,
       "totalPrice": number,
       "currency": "string",
-      "purchaseCostCode": "string"
+      "purchaseCostCode": "string",
+      "status": "Active or Cancelled",
+      "statusReason": "short visual reason or null",
+      "isStruckThrough": boolean
     }
   ],
   "projectDescription": "string", // Auto-generate if not explicitly provided
@@ -940,6 +964,9 @@ For requestFor: look for text starting with 'FOR' or 'For' in item descriptions 
           purchaseCostCode?: string;
           coaid?: number;
           budgetYear?: number;
+          status?: 'Active' | 'Cancelled';
+          statusReason?: string;
+          isStruckThrough?: boolean;
         }> = {};
 
         if (item.rowNo !== undefined && item.rowNo !== null) {
@@ -968,6 +995,16 @@ For requestFor: look for text starting with 'FOR' or 'For' in item descriptions 
           if (this.isValidCostCode(trimmed)) {
             cleanedItem.purchaseCostCode = trimmed;
           }
+        }
+
+        const normalizedStatus = typeof item.status === 'string' ? item.status.trim().toLowerCase() : '';
+        const visiblyCancelled = item.isStruckThrough === true || normalizedStatus.includes('cancel');
+        cleanedItem.status = visiblyCancelled ? 'Cancelled' : 'Active';
+        cleanedItem.isStruckThrough = item.isStruckThrough === true;
+        if (item.statusReason && typeof item.statusReason === 'string') {
+          cleanedItem.statusReason = item.statusReason.trim().slice(0, 240);
+        } else if (visiblyCancelled) {
+          cleanedItem.statusReason = 'Visible strikethrough or cross-out detected';
         }
 
         if (item.coaid !== undefined && item.coaid !== null) {

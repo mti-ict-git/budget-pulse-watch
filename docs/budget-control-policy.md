@@ -261,16 +261,22 @@ This rule allows one PRF to consume multiple budget lines and makes requested, a
 
 ## 12. Existing PRF AI Rescan
 
-An authorized content manager may rescan the stored `OCR Source` document for an existing PRF.
+An authorized content manager may rescan the stored `OCR Source` document for an existing PRF. When no OCR Source exists, the user may explicitly select another stored PDF or supported image as an alternative scan source.
 
 Locked behavior:
 
 - rescan preview is read-only and must not update the PRF
+- OCR Source is preferred, but an alternative PDF/image is permitted with a prominent review warning
+- unsupported documents such as database, Office, archive, or text files cannot be used as AI scan sources
 - preview shows existing values beside AI-extracted item values and cost codes
 - users explicitly select item proposals before applying them
 - matching priority is item/part code, then normalized item name plus quantity, then row position
 - existing items not found in the rescan are preserved by default
 - no item is deleted automatically
-- PRF/item status, PO numbers, pickup fields, approval history, and Pronto-managed fields are never overwritten by OCR
+- active OCR rows never overwrite existing workflow status; a visibly struck-through/crossed-out row may propose `Cancelled`, is unchecked by default, and only an explicitly selected proposal applies it as an item-level override
+- PO numbers, pickup fields, approval history, and Pronto-managed fields are never overwritten by OCR
+- a vertically merged cost-code cell is repeated into `items[].purchaseCostCode` for every covered row
+- preview reconciles printed document total, extracted-row total, cancelled-row total, and active budget total
+- when safe header updates are selected and cancelled rows exist, `RequestedAmount` uses the active budget total rather than the printed gross total
 - safe header fields are updated only when the user selects the header-update option
 - approved changes are applied atomically and recorded with before, after, extraction, source-file, user, and timestamp audit data

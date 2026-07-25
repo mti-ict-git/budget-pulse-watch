@@ -19,7 +19,11 @@ This document records unresolved business and implementation questions that must
 - Existing items absent from an OCR rescan are preserved and never auto-deleted
 - Users approve item proposals individually after a side-by-side preview
 - Status, PO, pickup, approval, and Pronto-managed fields are protected from OCR updates
+- A clear visual strikethrough/cross-out is proposed as item-level `Cancelled`, remains unchecked by default, and becomes a status override only after that item proposal is explicitly approved
+- Active OCR rows do not reset an existing workflow status
+- Shared/merged cost codes are materialized per item, and preview separates printed, extracted, cancelled, and active totals
 - Apply is transactional and writes a dedicated immutable audit snapshot
+- If no OCR Source exists, Admin/DocCon may select another stored PDF or supported image; the preview identifies it as an alternative source
 
 ### Historical Visibility Model
 

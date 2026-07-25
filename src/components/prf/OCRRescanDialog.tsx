@@ -11,19 +11,23 @@ import { toast } from '@/hooks/use-toast';
 interface OCRSourceRef {
   FileID: number;
   OriginalFileName: string;
+  IsOriginalDocument?: boolean;
 }
 
 interface RescanProposal {
   index: number;
   action: 'update' | 'add';
   matchReason: string;
-  existing?: { ItemName: string; PurchaseCostCode?: string | null };
+  existing?: { ItemName: string; PurchaseCostCode?: string | null; Status?: string | null };
   scanned: {
     partNumber?: string;
     description?: string;
     quantity?: number;
     unitPrice?: number;
     purchaseCostCode?: string;
+    status?: 'Active' | 'Cancelled';
+    statusReason?: string;
+    isStruckThrough?: boolean;
   };
 }
 
@@ -38,6 +42,13 @@ interface RescanPreview {
   proposals: RescanProposal[];
   preservedItems: Array<{ PRFItemID: number; ItemName: string }>;
   warnings: string[];
+  totals: {
+    documentTotal: number;
+    extractedItemsTotal: number;
+    activeItemsTotal: number;
+    cancelledItemsTotal: number;
+    documentItemVariance: number;
+  };
 }
 
 interface OCRRescanDialogProps {
@@ -75,7 +86,11 @@ export function OCRRescanDialog({ open, onOpenChange, prfId, prfNo, file, onAppl
         if (!active) return;
         const next = body.data as RescanPreview;
         setPreview(next);
-        setSelected(new Set(next.proposals.map((proposal) => proposal.index)));
+        setSelected(new Set(
+          next.proposals
+            .filter((proposal) => proposal.scanned.status !== 'Cancelled' && !proposal.scanned.isStruckThrough)
+            .map((proposal) => proposal.index)
+        ));
       })
       .catch((reason: unknown) => {
         if (active) setError(reason instanceof Error ? reason.message : 'OCR rescan failed');
@@ -114,8 +129,8 @@ export function OCRRescanDialog({ open, onOpenChange, prfId, prfNo, file, onAppl
       const body = await response.json();
       if (!response.ok || !body.success) throw new Error(body.message || 'Failed to apply OCR rescan');
       toast({
-        title: 'PRF updated from OCR source',
-        description: `${body.data.updatedItemCount} updated, ${body.data.addedItemCount} added, ${body.data.preservedItemCount} preserved.`,
+        title: 'PRF updated from AI scan',
+        description: `${body.data.updatedItemCount} updated, ${body.data.addedItemCount} added, ${body.data.cancelledItemCount || 0} cancelled, ${body.data.preservedItemCount} preserved.`,
       });
       onOpenChange(false);
       onApplied?.();
@@ -135,7 +150,8 @@ export function OCRRescanDialog({ open, onOpenChange, prfId, prfNo, file, onAppl
             AI Rescan Preview — PRF {prfNo}
           </DialogTitle>
           <DialogDescription>
-            Review the OCR proposal. Existing items that are not found remain unchanged.
+            Review the AI proposal from {file?.IsOriginalDocument ? 'the OCR Source' : 'the selected alternative document'}.
+            Existing items that are not found remain unchanged.
           </DialogDescription>
         </DialogHeader>
 
@@ -158,13 +174,20 @@ export function OCRRescanDialog({ open, onOpenChange, prfId, prfNo, file, onAppl
               <div><span className="text-muted-foreground">Confidence</span><p className="font-medium">{Math.round(Number(preview.extractedData.confidence || 0) * 100)}%</p></div>
             </div>
 
+            <div className="grid gap-3 rounded-lg border p-4 text-sm md:grid-cols-4">
+              <div><span className="text-muted-foreground">Document total</span><p className="font-medium">{Number(preview.totals.documentTotal).toLocaleString('id-ID')}</p></div>
+              <div><span className="text-muted-foreground">Extracted row total</span><p className="font-medium">{Number(preview.totals.extractedItemsTotal).toLocaleString('id-ID')}</p></div>
+              <div><span className="text-muted-foreground">Cancelled rows</span><p className="font-medium text-destructive">− {Number(preview.totals.cancelledItemsTotal).toLocaleString('id-ID')}</p></div>
+              <div><span className="text-muted-foreground">Active budget total</span><p className="font-semibold text-primary">{Number(preview.totals.activeItemsTotal).toLocaleString('id-ID')}</p></div>
+            </div>
+
             {preview.warnings.length > 0 && (
               <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>{preview.warnings.join(' • ')}</AlertDescription></Alert>
             )}
 
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={updateHeader} onChange={(event) => setUpdateHeader(event.target.checked)} />
-              Also update safe header fields
+              Also update safe header fields{preview.totals.cancelledItemsTotal > 0 ? ' (amount uses active budget total)' : ''}
             </label>
 
             <div className="overflow-x-auto rounded-lg border">
@@ -177,6 +200,8 @@ export function OCRRescanDialog({ open, onOpenChange, prfId, prfNo, file, onAppl
                     <TableHead>AI scanned item</TableHead>
                     <TableHead>Existing cost code</TableHead>
                     <TableHead>Scanned cost code</TableHead>
+                    <TableHead>Existing status</TableHead>
+                    <TableHead>AI status proposal</TableHead>
                     <TableHead className="text-right">Scanned total</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -189,6 +214,17 @@ export function OCRRescanDialog({ open, onOpenChange, prfId, prfNo, file, onAppl
                       <TableCell>{proposal.scanned.description || proposal.scanned.partNumber || '-'}</TableCell>
                       <TableCell>{proposal.existing?.PurchaseCostCode || <span className="text-destructive">Blank</span>}</TableCell>
                       <TableCell>{proposal.scanned.purchaseCostCode || <span className="text-destructive">Blank</span>}</TableCell>
+                      <TableCell>{proposal.existing?.Status || (proposal.action === 'add' ? 'New item' : '-')}</TableCell>
+                      <TableCell>
+                        {proposal.scanned.status === 'Cancelled' || proposal.scanned.isStruckThrough ? (
+                          <div className="space-y-1">
+                            <Badge variant="destructive">Cancelled</Badge>
+                            <p className="max-w-48 text-xs text-muted-foreground">{proposal.scanned.statusReason || 'Visible strikethrough detected'}</p>
+                          </div>
+                        ) : (
+                          <Badge variant="outline">No status change</Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">{(Number(proposal.scanned.quantity || 1) * Number(proposal.scanned.unitPrice || 0)).toLocaleString('id-ID')}</TableCell>
                     </TableRow>
                   ))}

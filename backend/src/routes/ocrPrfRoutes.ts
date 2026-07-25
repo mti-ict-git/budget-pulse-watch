@@ -54,6 +54,8 @@ type ExistingRescanItem = {
   PurchaseCostCode?: string | null;
   COAID?: number | null;
   BudgetYear?: number | null;
+  Status?: string | null;
+  StatusOverridden?: boolean | null;
 };
 
 type RescanProposal = {
@@ -63,6 +65,31 @@ type RescanProposal = {
   existingItemId?: number;
   existing?: ExistingRescanItem;
   scanned: NonNullable<ExtractedPRFData['items']>[number];
+};
+
+const isScannedCancelled = (
+  item: NonNullable<ExtractedPRFData['items']>[number]
+): boolean =>
+  (typeof item.status === 'string' && item.status.trim().toLowerCase().includes('cancel')) ||
+  item.isStruckThrough === true;
+
+const calculateRescanTotals = (extractedData: ExtractedPRFData) => {
+  const items = extractedData.items || [];
+  const itemTotal = (item: NonNullable<ExtractedPRFData['items']>[number]) =>
+    Number(item.totalPrice ?? (Number(item.quantity || 0) * Number(item.unitPrice || 0)));
+  const extractedItemsTotal = items.reduce((sum, item) => sum + itemTotal(item), 0);
+  const cancelledItemsTotal = items
+    .filter(isScannedCancelled)
+    .reduce((sum, item) => sum + itemTotal(item), 0);
+  const activeItemsTotal = extractedItemsTotal - cancelledItemsTotal;
+  const documentTotal = Number(extractedData.totalAmount || 0);
+  return {
+    documentTotal,
+    extractedItemsTotal,
+    activeItemsTotal,
+    cancelledItemsTotal,
+    documentItemVariance: documentTotal - extractedItemsTotal
+  };
 };
 
 const normalizeMatchText = (value: unknown): string =>
@@ -130,6 +157,22 @@ const readStoredPRFFile = async (file: PRFFile): Promise<Buffer> => {
     }
   }
   throw new Error(`OCR source file is not readable${lastError instanceof Error ? `: ${lastError.message}` : ''}`);
+};
+
+const supportedStoredOCRMimeType = (file: PRFFile): string | null => {
+  const mimeType = (file.MimeType || '').trim().toLowerCase();
+  if (mimeType === 'application/pdf' || mimeType.startsWith('image/')) return mimeType;
+  const extension = (file.FileType || path.extname(file.OriginalFileName).slice(1)).toLowerCase();
+  const byExtension: Record<string, string> = {
+    pdf: 'application/pdf',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    bmp: 'image/bmp',
+    webp: 'image/webp'
+  };
+  return byExtension[extension] || null;
 };
 
 // Create PRF from uploaded document using OCR
@@ -470,21 +513,24 @@ router.post('/rescan/:prfId/file/:fileId/preview', authenticateToken, requireCon
     ]);
     if (!prf) return res.status(404).json({ success: false, message: 'PRF not found' });
     if (!file || file.PRFID !== prfId) {
-      return res.status(404).json({ success: false, message: 'OCR source document not found for this PRF' });
+      return res.status(404).json({ success: false, message: 'Selected document not found for this PRF' });
     }
-    if (!file.IsOriginalDocument) {
-      return res.status(400).json({ success: false, message: 'Only an OCR Source document can be rescanned' });
+    const ocrMimeType = supportedStoredOCRMimeType(file);
+    if (!ocrMimeType) {
+      return res.status(400).json({ success: false, message: 'Only PDF or supported image documents can be scanned with AI' });
     }
     if (!(await ocrService.isEnabled())) {
       return res.status(503).json({ success: false, message: 'OCR service is not configured' });
     }
 
     const buffer = await readStoredPRFFile(file);
-    const extractedData = await ocrService.extractPRFData(buffer, file.MimeType);
+    const extractedData = await ocrService.extractPRFData(buffer, ocrMimeType);
     const { proposals, preservedItems } = buildRescanProposals(
       existingItems as ExistingRescanItem[],
       extractedData.items || []
     );
+    const totals = calculateRescanTotals(extractedData);
+    const cancelledCount = (extractedData.items || []).filter(isScannedCancelled).length;
 
     return res.json({
       success: true,
@@ -503,9 +549,19 @@ router.post('/rescan/:prfId/file/:fileId/preview', authenticateToken, requireCon
         extractedData,
         proposals,
         preservedItems,
+        totals,
         warnings: [
+          !file.IsOriginalDocument
+            ? `${file.OriginalFileName} is an alternative synced document, not the original OCR Source. Review every proposed change carefully.`
+            : null,
           extractedData.prfNo && String(extractedData.prfNo).trim() !== String(prf.PRFNo).trim()
             ? `Scanned PRF number ${extractedData.prfNo} differs from existing PRF ${prf.PRFNo}`
+            : null,
+          cancelledCount > 0
+            ? `${cancelledCount} item(s) appear struck through and are proposed as Cancelled. Confirm each status change before applying.`
+            : null,
+          Math.abs(totals.documentItemVariance) > 1
+            ? `Document total differs from the sum of extracted item rows by ${totals.documentItemVariance.toLocaleString('en-US')}`
             : null,
           ...(extractedData.items || []).map((item, index) =>
             item.purchaseCostCode ? null : `Scanned item ${index + 1} has no cost code`
@@ -545,8 +601,11 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
       PRFModel.getItems(prfId)
     ]);
     if (!prf) return res.status(404).json({ success: false, message: 'PRF not found' });
-    if (!file || file.PRFID !== prfId || !file.IsOriginalDocument) {
-      return res.status(404).json({ success: false, message: 'OCR source document not found for this PRF' });
+    if (!file || file.PRFID !== prfId) {
+      return res.status(404).json({ success: false, message: 'Selected document not found for this PRF' });
+    }
+    if (!supportedStoredOCRMimeType(file)) {
+      return res.status(400).json({ success: false, message: 'Only PDF or supported image documents can be applied as an AI scan source' });
     }
 
     const { proposals, preservedItems } = buildRescanProposals(
@@ -558,13 +617,18 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
     transactionStarted = true;
 
     if (updateHeader) {
+      const totals = calculateRescanTotals(extractedData);
+      const hasCancelledItems = extractedData.items.some(isScannedCancelled);
+      const requestedAmount = hasCancelledItems
+        ? totals.activeItemsTotal
+        : extractedData.totalAmount ?? prf.RequestedAmount ?? 0;
       const headerRequest = new sql.Request(transaction);
       await headerRequest
         .input('PRFID', sql.Int, prfId)
         .input('Title', sql.NVarChar(200), extractedData.projectDescription || prf.Title)
         .input('Description', sql.NVarChar(sql.MAX), extractedData.projectDescription || prf.Description || '')
         .input('Department', sql.NVarChar(100), extractedData.department || prf.Department)
-        .input('RequestedAmount', sql.Decimal(18, 2), extractedData.totalAmount ?? prf.RequestedAmount ?? 0)
+        .input('RequestedAmount', sql.Decimal(18, 2), requestedAmount)
         .input('VendorName', sql.NVarChar(200), extractedData.proposedSupplier || prf.VendorName || '')
         .input('RequiredFor', sql.NVarChar(500), extractedData.requestFor || extractedData.projectId || prf.RequiredFor || '')
         .query(`
@@ -597,6 +661,7 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
       const coaId = coaResult?.recordset[0]?.COAID ?? null;
 
       if (proposal.action === 'update' && proposal.existingItemId) {
+        const applyCancelledStatus = isScannedCancelled(scanned);
         const request = new sql.Request(transaction);
         await request
           .input('PRFItemID', sql.Int, proposal.existingItemId)
@@ -608,17 +673,22 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
           .input('PurchaseCostCode', sql.NVarChar(50), costCode)
           .input('COAID', sql.Int, coaId)
           .input('BudgetYear', sql.Int, Number(scanned.budgetYear || prf.BudgetYear || new Date().getFullYear()))
+          .input('ApplyCancelledStatus', sql.Bit, applyCancelledStatus)
           .input('UpdatedBy', sql.Int, req.user.UserID)
           .query(`
             UPDATE dbo.PRFItems
             SET ItemName = @ItemName, Description = @Description, ItemCode = @ItemCode,
                 Quantity = @Quantity, UnitPrice = @UnitPrice,
                 PurchaseCostCode = @PurchaseCostCode, COAID = @COAID,
-                BudgetYear = @BudgetYear, UpdatedBy = @UpdatedBy, UpdatedAt = GETDATE()
+                BudgetYear = @BudgetYear,
+                Status = CASE WHEN @ApplyCancelledStatus = 1 THEN 'Cancelled' ELSE Status END,
+                StatusOverridden = CASE WHEN @ApplyCancelledStatus = 1 THEN 1 ELSE StatusOverridden END,
+                UpdatedBy = @UpdatedBy, UpdatedAt = GETDATE()
             WHERE PRFItemID = @PRFItemID AND PRFID = ${prfId}
           `);
         updatedItemCount += 1;
       } else if (proposal.action === 'add') {
+        const applyCancelledStatus = isScannedCancelled(scanned);
         const request = new sql.Request(transaction);
         await request
           .input('PRFID', sql.Int, prfId)
@@ -630,14 +700,16 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
           .input('PurchaseCostCode', sql.NVarChar(50), costCode)
           .input('COAID', sql.Int, coaId)
           .input('BudgetYear', sql.Int, Number(scanned.budgetYear || prf.BudgetYear || new Date().getFullYear()))
+          .input('Status', sql.NVarChar(50), applyCancelledStatus ? 'Cancelled' : 'Pending')
+          .input('StatusOverridden', sql.Bit, applyCancelledStatus)
           .input('UpdatedBy', sql.Int, req.user.UserID)
           .query(`
             INSERT INTO dbo.PRFItems
               (PRFID, ItemName, Description, ItemCode, Quantity, UnitPrice,
-               PurchaseCostCode, COAID, BudgetYear, UpdatedBy)
+               PurchaseCostCode, COAID, BudgetYear, Status, StatusOverridden, UpdatedBy)
             VALUES
               (@PRFID, @ItemName, @Description, @ItemCode, @Quantity, @UnitPrice,
-               @PurchaseCostCode, @COAID, @BudgetYear, @UpdatedBy)
+               @PurchaseCostCode, @COAID, @BudgetYear, @Status, @StatusOverridden, @UpdatedBy)
           `);
         addedItemCount += 1;
       }
@@ -673,7 +745,13 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
     return res.json({
       success: true,
       message: 'OCR rescan changes applied successfully',
-      data: { updatedItemCount, addedItemCount, preservedItemCount: preservedItems.length, headerUpdated: updateHeader }
+      data: {
+        updatedItemCount,
+        addedItemCount,
+        cancelledItemCount: selected.filter((proposal) => isScannedCancelled(proposal.scanned)).length,
+        preservedItemCount: preservedItems.length,
+        headerUpdated: updateHeader
+      }
     });
   } catch (error) {
     if (transactionStarted) {
