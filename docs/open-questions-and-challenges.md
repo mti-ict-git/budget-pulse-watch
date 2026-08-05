@@ -46,6 +46,23 @@ This document records unresolved business and implementation questions that must
 - PRF 49099 is the production compatibility reference for an attachment that can already be previewed
 - A zero-file scan remains ambiguous between an empty/missing folder and an access error; a later contract revision should expose a structured scan status instead of silently collapsing all filesystem failures to zero
 
+### Phase 13B Budget Intelligence
+
+- Chatbot budget utilization must match dashboard/report item-level allocation and must not use PRF header totals
+- Total available budget includes annual allocation and approved carry-forward, normalized to IDR
+- Initial risk bands are explicit query parameters with a default attention threshold of 80%; over budget means utilization above 100%
+- CAPEX/OPEX and department filters come from the matched active COA, not free-form inference
+- Missing/unknown cost-code items remain excluded from a COA budget and should be surfaced later as workflow/data-quality intelligence
+- Forecasting remains outside the first Phase 13B slice until an approved forecasting definition exists
+
+### Phase 13B Workflow Intelligence
+
+- Default stale threshold is 30 days when the user does not specify one; the evidence block must expose the applied threshold
+- Completed/cancelled PRFs are excluded from stale detection, while cancelled items are excluded from PO, cost-code, and amount checks
+- Header/item mismatch is a review signal, not proof that either value is wrong
+- Missing attachment currently means no database attachment metadata; physical file availability is a separate attachment-integrity check
+- The first slice reports issues only and does not create tickets, alerts, assignments, or mutations
+
 ### Historical Visibility Model
 
 - Prior-year visibility is considered sufficient through `FiscalYear` filtering on live tables for the current product phase

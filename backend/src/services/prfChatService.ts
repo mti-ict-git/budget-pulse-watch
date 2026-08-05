@@ -30,6 +30,8 @@ export interface ChatContext {
   dateTo?: string;
   department?: string;
   purchaseDefinition?: 'with_po' | 'all_requested' | 'picked_up';
+  fiscalYear?: number;
+  expenseType?: 'CAPEX' | 'OPEX';
 }
 
 export interface ChatEvidence {
@@ -88,6 +90,31 @@ type ItemStatisticsArgs = {
   dateTo?: string | null;
   purchaseDefinition: 'with_po' | 'all_requested' | 'picked_up';
   department?: string | null;
+};
+
+type BudgetUtilizationArgs = {
+  fiscalYear: number;
+  expenseType?: 'CAPEX' | 'OPEX' | null;
+  department?: string | null;
+  coaQuery?: string | null;
+  minimumUtilization?: number | null;
+  sortBy: 'risk' | 'utilization' | 'remaining';
+  limit?: number | null;
+};
+
+type BudgetContributorArgs = {
+  fiscalYear: number;
+  coaCode: string;
+  limit?: number | null;
+};
+
+type WorkflowIssueArgs = {
+  fiscalYear: number;
+  issueType: 'all' | 'stale' | 'missing_po' | 'missing_attachment' | 'missing_cost_code' | 'amount_mismatch';
+  department?: string | null;
+  expenseType?: 'CAPEX' | 'OPEX' | null;
+  ageDays?: number | null;
+  limit?: number | null;
 };
 
 const MODEL = process.env.CHATBOT_OPENAI_MODEL?.trim() || 'gpt-5.6-sol';
@@ -183,6 +210,58 @@ const tools: Tool[] = [
         latestOnly: { type: 'boolean' }
       },
       required: ['prfId', 'prfNo', 'latestOnly']
+    }
+  },
+  {
+    type: 'function',
+    name: 'get_budget_utilization',
+    description: 'Get governed CAPEX/OPEX budget availability, committed item value, remaining amount, utilization, and risk by active COA for one fiscal year. Use for budget status, usage, remaining budget, near-limit, or over-budget questions.',
+    strict: true,
+    parameters: {
+      type: 'object', additionalProperties: false,
+      properties: {
+        fiscalYear: { type: 'integer', minimum: 2020, maximum: 2100 },
+        expenseType: { type: ['string', 'null'], enum: ['CAPEX', 'OPEX', null] },
+        department: { type: ['string', 'null'] },
+        coaQuery: { type: ['string', 'null'], description: 'Optional exact/partial COA code or COA name.' },
+        minimumUtilization: { type: ['number', 'null'], minimum: 0, maximum: 10000 },
+        sortBy: { type: 'string', enum: ['risk', 'utilization', 'remaining'] },
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: MAX_RESULTS }
+      },
+      required: ['fiscalYear', 'expenseType', 'department', 'coaQuery', 'minimumUtilization', 'sortBy', 'limit']
+    }
+  },
+  {
+    type: 'function',
+    name: 'get_budget_contributors',
+    description: 'List the bounded PRFs contributing non-cancelled item value to one active COA in one fiscal year. Use a COA code returned by get_budget_utilization.',
+    strict: true,
+    parameters: {
+      type: 'object', additionalProperties: false,
+      properties: {
+        fiscalYear: { type: 'integer', minimum: 2020, maximum: 2100 },
+        coaCode: { type: 'string', minLength: 1, maxLength: 100 },
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: MAX_RESULTS }
+      },
+      required: ['fiscalYear', 'coaCode', 'limit']
+    }
+  },
+  {
+    type: 'function',
+    name: 'get_workflow_issues',
+    description: 'Summarize and list bounded PRF workflow/data-quality issues: stale active PRFs, missing PO, missing attachment metadata, missing/unknown item cost code, or header/item amount mismatch. Read-only review signals only.',
+    strict: true,
+    parameters: {
+      type: 'object', additionalProperties: false,
+      properties: {
+        fiscalYear: { type: 'integer', minimum: 2020, maximum: 2100 },
+        issueType: { type: 'string', enum: ['all', 'stale', 'missing_po', 'missing_attachment', 'missing_cost_code', 'amount_mismatch'] },
+        department: { type: ['string', 'null'] },
+        expenseType: { type: ['string', 'null'], enum: ['CAPEX', 'OPEX', null] },
+        ageDays: { type: ['integer', 'null'], minimum: 1, maximum: 3650 },
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: MAX_RESULTS }
+      },
+      required: ['fiscalYear', 'issueType', 'department', 'expenseType', 'ageDays', 'limit']
     }
   }
 ];
@@ -388,6 +467,247 @@ async function getItemStatistics(args: ItemStatisticsArgs): Promise<ToolResult> 
   };
 }
 
+const budgetScopeCte = `
+  WITH AnnualBudget AS (
+    SELECT b.COAID,
+      SUM(CAST(COALESCE(b.AllocatedAmount, 0) * CASE WHEN COALESCE(b.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(b.ExchangeRateToIDR, 0), 1) ELSE 1 END AS DECIMAL(18,2))) AS AnnualAllocated
+    FROM Budget b WHERE b.FiscalYear = @fiscalYear GROUP BY b.COAID
+  ),
+  CarryForward AS (
+    SELECT cf.COAID,
+      SUM(CAST(COALESCE(cf.CarryForwardAmount, 0) * CASE WHEN COALESCE(cf.CurrencyCode, 'IDR') = 'USD' THEN COALESCE(NULLIF(cf.ExchangeRateToIDR, 0), 1) ELSE 1 END AS DECIMAL(18,2))) AS CarryForwardAllocated
+    FROM BudgetCarryForward cf WHERE cf.TargetFiscalYear = @fiscalYear GROUP BY cf.COAID
+  ),
+  ItemCommitment AS (
+    SELECT coa_map.COAID,
+      SUM(CAST(COALESCE(i.Quantity, 0) * COALESCE(i.UnitPrice, 0) AS DECIMAL(18,2))) AS CommittedAmount,
+      COUNT(DISTINCT p.PRFID) AS PRFCount,
+      COUNT(*) AS LineItemCount
+    FROM PRF p
+    INNER JOIN PRFItems i ON i.PRFID = p.PRFID
+    INNER JOIN ChartOfAccounts coa_map ON NULLIF(LTRIM(RTRIM(i.PurchaseCostCode)), '') IS NOT NULL
+      AND UPPER(LTRIM(RTRIM(i.PurchaseCostCode))) = UPPER(LTRIM(RTRIM(coa_map.COACode)))
+    WHERE LOWER(LTRIM(RTRIM(COALESCE(p.Status, '')))) NOT LIKE '%cancel%'
+      AND LOWER(LTRIM(RTRIM(COALESCE(i.Status, '')))) NOT LIKE '%cancel%'
+      AND COALESCE(i.BudgetYear, p.BudgetYear, YEAR(p.RequestDate)) = @fiscalYear
+    GROUP BY coa_map.COAID
+  ),
+  ScopeKeys AS (
+    SELECT COAID FROM AnnualBudget UNION SELECT COAID FROM CarryForward UNION SELECT COAID FROM ItemCommitment
+  ),
+  BudgetScope AS (
+    SELECT coa.COAID, coa.COACode, coa.COAName, coa.Department, coa.ExpenseType,
+      COALESCE(ab.AnnualAllocated, 0) AS AnnualAllocated,
+      COALESCE(cf.CarryForwardAllocated, 0) AS CarryForwardAllocated,
+      COALESCE(ab.AnnualAllocated, 0) + COALESCE(cf.CarryForwardAllocated, 0) AS TotalAvailable,
+      COALESCE(ic.CommittedAmount, 0) AS CommittedAmount,
+      COALESCE(ic.PRFCount, 0) AS PRFCount,
+      COALESCE(ic.LineItemCount, 0) AS LineItemCount
+    FROM ScopeKeys sk
+    INNER JOIN ChartOfAccounts coa ON coa.COAID = sk.COAID AND coa.IsActive = 1
+    LEFT JOIN AnnualBudget ab ON ab.COAID = sk.COAID
+    LEFT JOIN CarryForward cf ON cf.COAID = sk.COAID
+    LEFT JOIN ItemCommitment ic ON ic.COAID = sk.COAID
+  ),
+  FilteredScope AS (
+    SELECT *, TotalAvailable - CommittedAmount AS RemainingAmount,
+      CASE WHEN TotalAvailable > 0 THEN ROUND(CommittedAmount * 100.0 / TotalAvailable, 2) ELSE CASE WHEN CommittedAmount > 0 THEN 10000 ELSE 0 END END AS UtilizationPercentage
+    FROM BudgetScope
+    WHERE (@expenseType IS NULL OR ExpenseType = @expenseType)
+      AND (@department IS NULL OR Department LIKE @department)
+      AND (@coaQuery IS NULL OR COACode LIKE @coaQuery OR COAName LIKE @coaQuery)
+  )
+`;
+
+export async function getBudgetUtilization(args: BudgetUtilizationArgs): Promise<ToolResult> {
+  const fiscalYear = Number.isInteger(args.fiscalYear) ? args.fiscalYear : Number(jakartaToday().slice(0, 4));
+  const threshold = typeof args.minimumUtilization === 'number' ? Math.max(0, Math.min(args.minimumUtilization, 10000)) : 0;
+  const attentionThreshold = threshold > 0 ? threshold : 80;
+  const params: Record<string, unknown> = {
+    fiscalYear,
+    expenseType: args.expenseType === 'CAPEX' || args.expenseType === 'OPEX' ? args.expenseType : null,
+    department: args.department?.trim() ? `%${args.department.trim()}%` : null,
+    coaQuery: args.coaQuery?.trim() ? `%${args.coaQuery.trim()}%` : null,
+    minimumUtilization: threshold,
+    limit: boundedLimit(args.limit)
+  };
+  const summary = await executeQuery<{
+    COACount: number; TotalAnnual: number; TotalCarryForward: number; TotalAvailable: number;
+    TotalCommitted: number; TotalRemaining: number; PRFCount: number; LineItemCount: number;
+  }>(`${budgetScopeCte}
+    SELECT COUNT(*) AS COACount, COALESCE(SUM(AnnualAllocated), 0) AS TotalAnnual,
+      COALESCE(SUM(CarryForwardAllocated), 0) AS TotalCarryForward,
+      COALESCE(SUM(TotalAvailable), 0) AS TotalAvailable,
+      COALESCE(SUM(CommittedAmount), 0) AS TotalCommitted,
+      COALESCE(SUM(RemainingAmount), 0) AS TotalRemaining,
+      COALESCE(SUM(PRFCount), 0) AS PRFCount, COALESCE(SUM(LineItemCount), 0) AS LineItemCount
+    FROM FilteredScope WHERE UtilizationPercentage >= @minimumUtilization`, params);
+  const orderBy = args.sortBy === 'remaining'
+    ? 'RemainingAmount ASC, UtilizationPercentage DESC'
+    : args.sortBy === 'utilization'
+      ? 'UtilizationPercentage DESC, CommittedAmount DESC'
+      : 'CASE WHEN TotalAvailable = 0 AND CommittedAmount > 0 THEN 0 WHEN UtilizationPercentage > 100 THEN 1 WHEN UtilizationPercentage >= @attentionThreshold THEN 2 ELSE 3 END, UtilizationPercentage DESC';
+  const rows = await executeQuery(`${budgetScopeCte}
+    SELECT TOP (@limit) *,
+      CASE WHEN TotalAvailable = 0 AND CommittedAmount > 0 THEN 'No Budget'
+           WHEN UtilizationPercentage > 100 THEN 'Over Budget'
+           WHEN UtilizationPercentage >= @attentionThreshold THEN 'Attention'
+           ELSE 'Healthy' END AS RiskStatus
+    FROM FilteredScope WHERE UtilizationPercentage >= @minimumUtilization
+    ORDER BY ${orderBy}`, { ...params, attentionThreshold });
+  const totals = summary.recordset[0];
+  const overallUtilization = Number(totals?.TotalAvailable || 0) > 0
+    ? Math.round(Number(totals.TotalCommitted || 0) * 10000 / Number(totals.TotalAvailable)) / 100
+    : Number(totals?.TotalCommitted || 0) > 0 ? 10000 : 0;
+  return { data: {
+    fiscalYear, currency: 'IDR', expenseType: params.expenseType || 'ALL', department: args.department?.trim() || 'ALL',
+    calculation: 'Non-cancelled PRFItems Quantity × UnitPrice allocated only by item PurchaseCostCode to active COA',
+    availableBudgetDefinition: 'Annual allocation plus approved carry-forward, normalized to IDR',
+    attentionThreshold, minimumUtilization: threshold, overallUtilization,
+    ...totals, rows: rows.recordset, resultLimit: boundedLimit(args.limit)
+  } };
+}
+
+export async function getBudgetContributors(args: BudgetContributorArgs): Promise<ToolResult> {
+  const fiscalYear = Number.isInteger(args.fiscalYear) ? args.fiscalYear : Number(jakartaToday().slice(0, 4));
+  const coaCode = args.coaCode.trim();
+  const result = await executeQuery<{
+    PRFID: number; PRFNo: string; Title: string; Department: string; Status: string;
+    LineItemCount: number; CommittedAmount: number;
+  }>(`
+    SELECT TOP (@limit) p.PRFID, p.PRFNo, p.Title, p.Department, p.Status,
+      COUNT(*) AS LineItemCount,
+      SUM(CAST(COALESCE(i.Quantity, 0) * COALESCE(i.UnitPrice, 0) AS DECIMAL(18,2))) AS CommittedAmount
+    FROM PRF p
+    INNER JOIN PRFItems i ON i.PRFID = p.PRFID
+    INNER JOIN ChartOfAccounts coa ON UPPER(LTRIM(RTRIM(i.PurchaseCostCode))) = UPPER(LTRIM(RTRIM(coa.COACode)))
+    WHERE coa.IsActive = 1 AND UPPER(LTRIM(RTRIM(coa.COACode))) = UPPER(@coaCode)
+      AND COALESCE(i.BudgetYear, p.BudgetYear, YEAR(p.RequestDate)) = @fiscalYear
+      AND LOWER(LTRIM(RTRIM(COALESCE(p.Status, '')))) NOT LIKE '%cancel%'
+      AND LOWER(LTRIM(RTRIM(COALESCE(i.Status, '')))) NOT LIKE '%cancel%'
+    GROUP BY p.PRFID, p.PRFNo, p.Title, p.Department, p.Status
+    ORDER BY CommittedAmount DESC, p.PRFID DESC
+  `, { fiscalYear, coaCode, limit: boundedLimit(args.limit) });
+  const references: ChatReference[] = result.recordset.map((row) => ({
+    type: 'prf', id: row.PRFID, prfId: row.PRFID, prfNo: row.PRFNo, label: `${row.PRFNo} — ${row.Title}`
+  }));
+  return { data: {
+    fiscalYear, coaCode, currency: 'IDR', resultLimit: boundedLimit(args.limit),
+    calculation: 'Non-cancelled PRFItems Quantity × UnitPrice', contributors: result.recordset
+  }, references };
+}
+
+const workflowIssueCte = `
+  WITH ItemFacts AS (
+    SELECT p.PRFID,
+      SUM(CASE WHEN i.PRFItemID IS NOT NULL AND LOWER(LTRIM(RTRIM(COALESCE(i.Status, '')))) NOT LIKE '%cancel%' THEN 1 ELSE 0 END) AS ActiveItemCount,
+      SUM(CASE WHEN i.PRFItemID IS NOT NULL AND LOWER(LTRIM(RTRIM(COALESCE(i.Status, '')))) NOT LIKE '%cancel%'
+        AND NULLIF(LTRIM(RTRIM(COALESCE(i.SplitPONumber, i.OriginalPONumber, ''))), '') IS NULL THEN 1 ELSE 0 END) AS MissingPOCount,
+      SUM(CASE WHEN i.PRFItemID IS NOT NULL AND LOWER(LTRIM(RTRIM(COALESCE(i.Status, '')))) NOT LIKE '%cancel%'
+        AND (NULLIF(LTRIM(RTRIM(i.PurchaseCostCode)), '') IS NULL OR coa.COAID IS NULL) THEN 1 ELSE 0 END) AS MissingCostCodeCount,
+      SUM(CASE WHEN i.PRFItemID IS NOT NULL AND LOWER(LTRIM(RTRIM(COALESCE(i.Status, '')))) NOT LIKE '%cancel%'
+        THEN CAST(COALESCE(i.Quantity, 0) * COALESCE(i.UnitPrice, 0) AS DECIMAL(18,2)) ELSE 0 END) AS ItemTotal
+    FROM PRF p
+    LEFT JOIN PRFItems i ON i.PRFID = p.PRFID
+    LEFT JOIN ChartOfAccounts coa ON coa.IsActive = 1
+      AND NULLIF(LTRIM(RTRIM(i.PurchaseCostCode)), '') IS NOT NULL
+      AND UPPER(LTRIM(RTRIM(i.PurchaseCostCode))) = UPPER(LTRIM(RTRIM(coa.COACode)))
+    GROUP BY p.PRFID
+  ),
+  AttachmentFacts AS (
+    SELECT PRFID, COUNT(*) AS AttachmentCount FROM PRFFiles GROUP BY PRFID
+  ),
+  IssueScope AS (
+    SELECT p.PRFID, p.PRFNo, p.Title, p.Department, p.Status,
+      COALESCE(p.BudgetYear, YEAR(p.RequestDate)) AS FiscalYear,
+      COALESCE(p.UpdatedAt, p.DateSubmit, p.RequestDate) AS LastActivityAt,
+      DATEDIFF(DAY, COALESCE(p.UpdatedAt, p.DateSubmit, p.RequestDate), GETDATE()) AS AgeDays,
+      COALESCE(f.ActiveItemCount, 0) AS ActiveItemCount,
+      COALESCE(f.MissingPOCount, 0) AS MissingPOCount,
+      COALESCE(f.MissingCostCodeCount, 0) AS MissingCostCodeCount,
+      COALESCE(a.AttachmentCount, 0) AS AttachmentCount,
+      COALESCE(p.RequestedAmount, 0) AS HeaderAmount,
+      COALESCE(f.ItemTotal, 0) AS ItemTotal,
+      CASE WHEN LOWER(COALESCE(p.Status, '')) NOT LIKE '%cancel%'
+        AND LOWER(COALESCE(p.Status, '')) NOT LIKE '%complete%'
+        AND LOWER(COALESCE(p.Status, '')) NOT LIKE '%picked up%'
+        AND DATEDIFF(DAY, COALESCE(p.UpdatedAt, p.DateSubmit, p.RequestDate), GETDATE()) >= @ageDays THEN 1 ELSE 0 END AS IsStale,
+      CASE WHEN COALESCE(f.MissingPOCount, 0) > 0 THEN 1 ELSE 0 END AS HasMissingPO,
+      CASE WHEN COALESCE(a.AttachmentCount, 0) = 0 THEN 1 ELSE 0 END AS HasMissingAttachment,
+      CASE WHEN COALESCE(f.MissingCostCodeCount, 0) > 0 THEN 1 ELSE 0 END AS HasMissingCostCode,
+      CASE WHEN ABS(COALESCE(p.RequestedAmount, 0) - COALESCE(f.ItemTotal, 0)) > 1 THEN 1 ELSE 0 END AS HasAmountMismatch
+    FROM PRF p
+    LEFT JOIN ItemFacts f ON f.PRFID = p.PRFID
+    LEFT JOIN AttachmentFacts a ON a.PRFID = p.PRFID
+    WHERE LOWER(COALESCE(p.Status, '')) NOT LIKE '%cancel%'
+      AND COALESCE(p.BudgetYear, YEAR(p.RequestDate)) = @fiscalYear
+      AND (@department IS NULL OR p.Department LIKE @department)
+      AND (@expenseType IS NULL OR EXISTS (
+        SELECT 1 FROM PRFItems ei
+        INNER JOIN ChartOfAccounts ecoa ON ecoa.IsActive = 1
+          AND UPPER(LTRIM(RTRIM(ei.PurchaseCostCode))) = UPPER(LTRIM(RTRIM(ecoa.COACode)))
+        WHERE ei.PRFID = p.PRFID AND ecoa.ExpenseType = @expenseType
+          AND LOWER(LTRIM(RTRIM(COALESCE(ei.Status, '')))) NOT LIKE '%cancel%'
+      ))
+  ),
+  FilteredIssues AS (
+    SELECT * FROM IssueScope WHERE
+      (@issueType = 'all' AND (IsStale = 1 OR HasMissingPO = 1 OR HasMissingAttachment = 1 OR HasMissingCostCode = 1 OR HasAmountMismatch = 1))
+      OR (@issueType = 'stale' AND IsStale = 1)
+      OR (@issueType = 'missing_po' AND HasMissingPO = 1)
+      OR (@issueType = 'missing_attachment' AND HasMissingAttachment = 1)
+      OR (@issueType = 'missing_cost_code' AND HasMissingCostCode = 1)
+      OR (@issueType = 'amount_mismatch' AND HasAmountMismatch = 1)
+  )
+`;
+
+export async function getWorkflowIssues(args: WorkflowIssueArgs): Promise<ToolResult> {
+  const fiscalYear = Number.isInteger(args.fiscalYear) ? args.fiscalYear : Number(jakartaToday().slice(0, 4));
+  const ageDays = typeof args.ageDays === 'number' ? Math.max(1, Math.min(Math.floor(args.ageDays), 3650)) : 30;
+  const issueTypes = ['all', 'stale', 'missing_po', 'missing_attachment', 'missing_cost_code', 'amount_mismatch'];
+  const issueType = issueTypes.includes(args.issueType) ? args.issueType : 'all';
+  const params: Record<string, unknown> = {
+    fiscalYear, ageDays, issueType,
+    department: args.department?.trim() ? `%${args.department.trim()}%` : null,
+    expenseType: args.expenseType === 'CAPEX' || args.expenseType === 'OPEX' ? args.expenseType : null,
+    limit: boundedLimit(args.limit)
+  };
+  const summary = await executeQuery<{
+    MatchingPRFs: number; StaleCount: number; MissingPOCount: number; MissingAttachmentCount: number;
+    MissingCostCodeCount: number; AmountMismatchCount: number;
+  }>(`${workflowIssueCte}
+    SELECT COUNT(*) AS MatchingPRFs, COALESCE(SUM(IsStale), 0) AS StaleCount,
+      COALESCE(SUM(HasMissingPO), 0) AS MissingPOCount,
+      COALESCE(SUM(HasMissingAttachment), 0) AS MissingAttachmentCount,
+      COALESCE(SUM(HasMissingCostCode), 0) AS MissingCostCodeCount,
+      COALESCE(SUM(HasAmountMismatch), 0) AS AmountMismatchCount
+    FROM FilteredIssues`, params);
+  const rows = await executeQuery<{
+    PRFID: number; PRFNo: string; Title: string; Department: string; Status: string; FiscalYear: number;
+    LastActivityAt: Date; AgeDays: number; ActiveItemCount: number; MissingPOCount: number;
+    MissingCostCodeCount: number; AttachmentCount: number; HeaderAmount: number; ItemTotal: number;
+    IsStale: number; HasMissingPO: number; HasMissingAttachment: number; HasMissingCostCode: number; HasAmountMismatch: number;
+  }>(`${workflowIssueCte}
+    SELECT TOP (@limit) * FROM FilteredIssues
+    ORDER BY (IsStale + HasMissingPO + HasMissingAttachment + HasMissingCostCode + HasAmountMismatch) DESC,
+      AgeDays DESC, PRFID DESC`, params);
+  const references: ChatReference[] = rows.recordset.map((row) => ({
+    type: 'prf', id: row.PRFID, prfId: row.PRFID, prfNo: row.PRFNo, label: `${row.PRFNo} — ${row.Title}`
+  }));
+  return { data: {
+    fiscalYear, issueType, ageDays, department: args.department?.trim() || 'ALL',
+    expenseType: params.expenseType || 'ALL', resultLimit: boundedLimit(args.limit),
+    definitions: {
+      stale: `Active PRF with no update for at least ${ageDays} days`,
+      missingPO: 'At least one non-cancelled item has neither Original nor Split PO',
+      missingAttachment: 'No PRFFiles metadata record',
+      missingCostCode: 'At least one non-cancelled item has blank cost code or no active COA match',
+      amountMismatch: 'Absolute header requested amount minus non-cancelled item total is greater than 1'
+    },
+    ...summary.recordset[0], rows: rows.recordset
+  }, references };
+}
+
 async function listPrfAttachments(args: Record<string, unknown>): Promise<ToolResult> {
   const prf = await resolvePrf(args.prfId, args.prfNo);
   if (!prf) return { data: { found: false, message: 'PRF not found or no identifier supplied.' } };
@@ -416,6 +736,9 @@ async function runTool(call: ResponseFunctionToolCall): Promise<ToolResult> {
     case 'get_prf_detail': return getPrfDetail(args);
     case 'get_prf_statistics': return getPrfStatistics(args);
     case 'get_item_statistics': return getItemStatistics(args as ItemStatisticsArgs);
+    case 'get_budget_utilization': return getBudgetUtilization(args as BudgetUtilizationArgs);
+    case 'get_budget_contributors': return getBudgetContributors(args as BudgetContributorArgs);
+    case 'get_workflow_issues': return getWorkflowIssues(args as WorkflowIssueArgs);
     case 'list_prf_attachments': return listPrfAttachments(args);
     default: return { data: { error: `Unknown tool: ${call.name}` } };
   }
@@ -433,7 +756,10 @@ function dedupeReferences(references: ChatReference[]): ChatReference[] {
 
 function referencesUsedInAnswer(answer: string, references: ChatReference[]): ChatReference[] {
   return dedupeReferences(references).filter((reference) => {
-    if (reference.type === 'file') return true;
+    if (reference.type === 'file') {
+      const fileName = (reference.fileName || reference.label).trim().toLocaleLowerCase('id-ID');
+      return fileName.length > 0 && answer.toLocaleLowerCase('id-ID').includes(fileName);
+    }
     const escaped = reference.prfNo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return new RegExp(`(^|[^0-9A-Za-z])${escaped}([^0-9A-Za-z]|$)`).test(answer);
   });
@@ -441,8 +767,9 @@ function referencesUsedInAnswer(answer: string, references: ChatReference[]): Ch
 
 function clarifyAmbiguity(message: string, context: ChatContext): ChatClarification | undefined {
   const normalized = message.toLocaleLowerCase('id-ID');
+  const isBudgetQuestion = /\b(budget|capex|opex|utili[sz]ation|pemakaian anggaran|sisa anggaran|coa)\b/.test(normalized);
   if (/\bdefinisi\s*:/.test(normalized)) return undefined;
-  if (/\b(dibeli|bought|purchased|pengeluaran|spending)\b/.test(normalized) && !context.purchaseDefinition) {
+  if (!isBudgetQuestion && /\b(dibeli|bought|purchased|pengeluaran|spending)\b/.test(normalized) && !context.purchaseDefinition) {
     return {
       question: 'Apa definisi yang ingin dipakai untuk “dibeli/pengeluaran”?',
       options: [
@@ -485,7 +812,7 @@ function clarifyAmbiguity(message: string, context: ChatContext): ChatClarificat
       ]
     };
   }
-  if (/\b(nilai|value)\b/.test(normalized) && !/(requested|approved|actual|item)/.test(normalized)) {
+  if (!isBudgetQuestion && /\b(nilai|value)\b/.test(normalized) && !/(requested|approved|actual|item)/.test(normalized)) {
     return {
       question: 'Nilai PRF yang ingin digunakan yang mana?',
       options: [
@@ -531,6 +858,40 @@ function evidenceForTool(name: string, args: Record<string, unknown>, result: To
       { label: 'Currency', value: 'Normalized to IDR' }
     ] };
   }
+  if (name === 'get_budget_utilization') {
+    return { tool: name, title: 'Budget utilization', details: [
+      { label: 'Fiscal year', value: Number(data.fiscalYear || args.fiscalYear || 0) },
+      { label: 'Expense type', value: String(data.expenseType || 'ALL') },
+      { label: 'Department', value: String(data.department || 'ALL') },
+      { label: 'Currency', value: String(data.currency || 'IDR') },
+      { label: 'Commitment definition', value: String(data.calculation || '') },
+      { label: 'Available budget', value: String(data.availableBudgetDefinition || '') },
+      { label: 'Attention threshold', value: `${Number(data.attentionThreshold || 80)}%` },
+      { label: 'COAs in scope', value: Number(data.COACount || 0) },
+      { label: 'Rows returned', value: Array.isArray(data.rows) ? data.rows.length : 0 }
+    ] };
+  }
+  if (name === 'get_budget_contributors') {
+    return { tool: name, title: 'Budget contributors', details: [
+      { label: 'Fiscal year', value: Number(data.fiscalYear || args.fiscalYear || 0) },
+      { label: 'COA', value: String(data.coaCode || args.coaCode || '') },
+      { label: 'Definition', value: String(data.calculation || '') },
+      { label: 'PRFs returned', value: Array.isArray(data.contributors) ? data.contributors.length : 0 },
+      { label: 'Result limit', value: Number(data.resultLimit || boundedLimit(args.limit)) }
+    ] };
+  }
+  if (name === 'get_workflow_issues') {
+    return { tool: name, title: 'Workflow intelligence', details: [
+      { label: 'Fiscal year', value: Number(data.fiscalYear || args.fiscalYear || 0) },
+      { label: 'Issue type', value: String(data.issueType || args.issueType || 'all') },
+      { label: 'Aging threshold', value: `${Number(data.ageDays || 30)} days` },
+      { label: 'Department', value: String(data.department || 'ALL') },
+      { label: 'Expense type', value: String(data.expenseType || 'ALL') },
+      { label: 'Matching PRFs', value: Number(data.MatchingPRFs || 0) },
+      { label: 'Rows returned', value: Array.isArray(data.rows) ? data.rows.length : 0 },
+      { label: 'Result limit', value: Number(data.resultLimit || boundedLimit(args.limit)) }
+    ] };
+  }
   if (name === 'list_prf_attachments') {
     const attachments = Array.isArray(data.attachments) ? data.attachments : [];
     return { tool: name, title: 'Attachment metadata', details: [
@@ -554,6 +915,8 @@ function mergeContext(base: ChatContext, executed: Array<{ name: string; args: R
     if (isIsoDate(data.dateFrom)) next.dateFrom = data.dateFrom;
     if (isIsoDate(data.dateTo)) next.dateTo = data.dateTo;
     if (typeof item.args.department === 'string' && item.args.department.trim()) next.department = item.args.department.trim();
+    if (typeof item.args.fiscalYear === 'number' && Number.isInteger(item.args.fiscalYear)) next.fiscalYear = item.args.fiscalYear;
+    if (item.args.expenseType === 'CAPEX' || item.args.expenseType === 'OPEX') next.expenseType = item.args.expenseType;
     if (['with_po', 'all_requested', 'picked_up'].includes(String(item.args.purchaseDefinition))) {
       next.purchaseDefinition = item.args.purchaseDefinition as ChatContext['purchaseDefinition'];
     }
@@ -580,6 +943,19 @@ function buildFollowUps(executed: Array<{ name: string }>, context: ChatContext)
   if (names.has('get_item_statistics')) {
     actions.push({ id: 'show-prfs', label: 'Show contributing PRFs', prompt: 'Tampilkan daftar PRF yang masuk dalam perhitungan tersebut.' });
     actions.push({ id: 'compare-previous', label: 'Compare previous period', prompt: 'Bandingkan hasil tersebut dengan periode sebelumnya yang setara.' });
+  }
+  if (names.has('get_budget_utilization')) {
+    actions.push({ id: 'budget-risk', label: 'Show budget risks', prompt: 'Untuk cakupan budget yang sama, tampilkan COA dengan utilization minimal 80%, urutkan dari risiko tertinggi.' });
+    actions.push({ id: 'compare-capex-opex', label: 'Compare CAPEX/OPEX', prompt: 'Untuk fiscal year yang sama, bandingkan ringkasan CAPEX dan OPEX.' });
+    actions.push({ id: 'budget-contributors', label: 'Show top contributors', prompt: 'Tampilkan PRF contributor terbesar untuk COA dengan risiko tertinggi pada hasil tersebut.' });
+  }
+  if (names.has('get_budget_contributors')) {
+    actions.push({ id: 'contributor-details', label: 'Show PRF details', prompt: 'Tampilkan detail PRF contributor terbesar pada hasil tersebut.' });
+  }
+  if (names.has('get_workflow_issues')) {
+    actions.push({ id: 'workflow-stale', label: 'Show stale PRFs', prompt: 'Untuk cakupan yang sama, tampilkan hanya PRF stale dengan threshold 30 hari.' });
+    actions.push({ id: 'workflow-missing-po', label: 'Show missing PO', prompt: 'Untuk cakupan yang sama, tampilkan hanya PRF yang memiliki item tanpa PO.' });
+    actions.push({ id: 'workflow-data-quality', label: 'Show data issues', prompt: 'Untuk cakupan yang sama, tampilkan PRF dengan cost code hilang/tidak dikenal atau nilai header-item tidak cocok.' });
   }
   return actions.filter((action, index, all) => all.findIndex((candidate) => candidate.id === action.id) === index).slice(0, 3);
 }
@@ -611,7 +987,11 @@ Treat every standalone number supplied by a user as the business PRFNo, never as
 When an Indonesian search word may have an English equivalent in stored data, search with the tool and use its alias-expanded results before concluding that nothing exists.
 Do not carry a specific PRF from earlier conversation into a new broad question unless the user explicitly refers to it with words such as "PRF ini", "yang tadi", or its PRF number.
 For item-count questions, use get_item_statistics with the purchaseDefinition explicitly stated by the user or supplied context. Report both line-item count and total quantity because "item" can mean either. State the date basis and selected definition briefly.
+For budget usage, CAPEX/OPEX, remaining budget, utilization, or risk questions, use get_budget_utilization. Use the supplied fiscalYear and expenseType context when relevant; otherwise use the explicit question, or the current fiscal year if omitted and state that choice. Budget commitment is strictly non-cancelled item Quantity × UnitPrice allocated by item cost code to an active COA. Never substitute PRF header totals.
+Use get_budget_contributors only for a specific COA code, normally one returned by get_budget_utilization. State that contributor values are commitments in IDR and respect the bounded result limit.
+For stale, aging, missing PO, missing attachment, missing cost code, or header/item mismatch questions, use get_workflow_issues. Treat every issue as a review signal, not proof of wrongdoing. State the fiscal year, issue definition, aging threshold, and result limit. Never claim a physical file is missing when the tool only reports missing attachment metadata.
 Attachments are metadata-only: never claim to have read file contents. Tell users they can preview or download referenced files.
+When listing attachments, always use a Markdown table with one file per row and include the exact OriginalFileName text. Do not create action URLs or an action column; the application adds trusted Preview and Download controls to matching table rows.
 State material filters and limits. If no data matches, say so clearly. Keep answers concise but include useful evidence.
 Do not add generic "if you want" suggestions at the end; the application renders approved follow-up action chips separately.
 Never suggest that you changed data; you cannot create, update, or delete anything.`;

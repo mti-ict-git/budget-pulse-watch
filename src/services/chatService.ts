@@ -18,6 +18,8 @@ export interface ChatContext {
   dateTo?: string;
   department?: string;
   purchaseDefinition?: 'with_po' | 'all_requested' | 'picked_up';
+  fiscalYear?: number;
+  expenseType?: 'CAPEX' | 'OPEX';
 }
 
 export interface ChatEvidence {

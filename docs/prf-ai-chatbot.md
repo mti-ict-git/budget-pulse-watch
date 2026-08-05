@@ -46,19 +46,46 @@ Relative periods such as `today`, `this week`, and `this month` are resolved det
 
 Attachment metadata is treated as untrusted data. File names and descriptions are not instructions to the model. File content is served through an authenticated endpoint and is not sent to OpenAI.
 
+When an attachment answer contains a Markdown table, the frontend matches each exact file name to a trusted backend reference and inserts Preview/Download controls into that row. Only unmatched referenced files use separate fallback cards; file metadata not named in the answer is not rendered as an unrelated card.
+
 ## User Experience
 
 A floating `PRF Assistant` button is available inside the protected application layout. Responses can contain:
 
 - clickable PRF references that open PRF Monitoring with the PRF number selected
-- attachment cards with authenticated Preview and Download actions
+- inline authenticated Preview and Download actions in matching attachment-table rows, with cards as an unmatched-reference fallback
 - a concise statement of filters, limits, or missing data
 - GitHub-Flavored Markdown including headings, emphasis, lists, task lists, links, code blocks, and responsive tables
 - a maximize/minimize control that switches the chat between drawer and full-window layouts
 
-Assistant Markdown is rendered with raw HTML disabled. Tables scroll horizontally on narrow screens, external links use `noopener noreferrer`, and trusted PRF/attachment actions remain application-rendered cards rather than model-generated URLs.
+Assistant Markdown is rendered with raw HTML disabled. Tables scroll horizontally on narrow screens, external links use `noopener noreferrer`, and trusted PRF/attachment actions remain application-rendered controls rather than model-generated URLs.
 
 The UI explicitly communicates that the assistant is read-only, sees all PRFs, does not read attachments, and keeps conversation history for the browser session only.
+
+## Phase 13B Budget Intelligence
+
+The assistant may query bounded, parameterized budget summaries and contributing PRFs. Budget utilization follows the governed dashboard definition:
+
+- total available budget = annual allocation in IDR + approved carry-forward in IDR
+- utilized/committed amount = non-cancelled PRF item `Quantity * UnitPrice`
+- fiscal year is resolved from item budget year, then PRF budget year, then request-date year
+- each item is allocated only through its normalized purchase cost code to an active COA
+- CAPEX/OPEX comes from `ChartOfAccounts.ExpenseType`
+- missing or unknown item cost codes are not silently assigned to a header COA
+
+Budget tools are read-only, accept only fixed filters, cap returned rows, state their risk threshold, and return structured calculation evidence. The initial Phase 13B slice does not forecast, mutate budgets, or create alerts/subscriptions.
+
+### Workflow Intelligence
+
+The assistant may identify bounded operational/data-quality issues using structured PRF metadata:
+
+- stale PRF: non-cancelled/non-completed PRF whose last update (falling back to submit/request date) is at least the explicit aging threshold
+- missing PO: at least one non-cancelled item has neither Original nor Split PO
+- missing attachment: the PRF has no `PRFFiles` record
+- missing cost code: at least one non-cancelled item has a blank cost code or cannot match an active COA
+- amount mismatch: absolute difference between header requested amount and item `Quantity * UnitPrice` total is greater than IDR 1 in the PRF transaction currency
+
+Issue tools do not modify statuses, attachments, cost codes, PO data, or amounts. Results are capped and provide trusted PRF references for user review.
 
 ## Trust And Conversation Control
 

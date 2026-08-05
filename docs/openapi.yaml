@@ -95,6 +95,8 @@ components:
         dateTo: { type: string, format: date }
         department: { type: string }
         purchaseDefinition: { type: string, enum: [with_po, all_requested, picked_up] }
+        fiscalYear: { type: integer, minimum: 2020, maximum: 2100 }
+        expenseType: { type: string, enum: [CAPEX, OPEX] }
     ChatEvidence:
       type: object
       required: [tool, title, details]
@@ -1174,7 +1176,7 @@ paths:
   /api/chat/messages:
     post:
       summary: Ask a read-only question about all PRFs
-      description: Uses fixed read-only tools over PRF/item data and attachment metadata. Returns structured evidence, allow-listed follow-up actions, session context, or clarification choices for ambiguous business terms. Attachment contents are not read, chat/context is not persisted by the backend, and OpenAI storage is disabled.
+      description: Uses fixed read-only tools over PRF/item data, governed CAPEX/OPEX budget utilization, contributing PRFs, bounded workflow/data-quality issue signals, and attachment metadata. Returns structured evidence, allow-listed follow-up actions, session context, or clarification choices for ambiguous business terms. Budget commitment uses non-cancelled item Quantity × UnitPrice allocated by item cost code. Workflow signals cover stale PRFs, missing PO/attachment metadata/cost code, and header-item mismatch. Attachment contents are not read, chat/context is not persisted by the backend, and OpenAI storage is disabled.
       tags: [Chat]
       security:
         - bearerAuth: []

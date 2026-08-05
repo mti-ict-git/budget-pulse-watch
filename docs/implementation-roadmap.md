@@ -7,7 +7,7 @@ This roadmap restores the formal phase tracker required by `AGENTS.md` and defin
 ## Status Summary
 
 - Roadmap status: In Progress
-- Active phase: `Phase 13A - Trust And Conversation Control`
+- Active phase: `Phase 13B - Operational Intelligence`
 - Last updated: `2026-08-05`
 
 ## Historical Delivery Context
@@ -435,7 +435,7 @@ No Phase 13 item is considered active or complete until it has its own checklist
 
 ### Status
 
-In Progress
+Completed
 
 ### Objective
 
@@ -458,7 +458,7 @@ Make assistant answers auditable and conversationally safe by exposing calculati
 - [x] Update `docs/openapi.yaml` for request and response contract changes
 - [x] Complete typecheck, build, lint, and live SQL/OpenAI verification
 - [x] Unify legacy/current attachment path resolution for preview, download, folder scan/sync, and AI rescan
-- [ ] Complete targeted browser UAT for clarification choices, evidence disclosure, follow-up actions, and context removal
+- [x] Complete targeted browser UAT for clarification choices, evidence disclosure, follow-up actions, and context removal
 
 ### Output
 
@@ -479,7 +479,76 @@ Make assistant answers auditable and conversationally safe by exposing calculati
 - Attachment path compatibility tests passed for direct PRF folders (reference pattern PRF 49099), company-nested folders, legacy UNC paths, and forward-slash deployment paths
 - Backend TypeScript build passed after preview, scan/sync, download, and AI-rescan were moved to the shared storage resolver
 - `docs/openapi.yaml` was reviewed and its attachment/scan descriptions were synchronized; route shapes and response schemas did not change
-- Targeted browser UAT remains pending; Phase 13A stays `In Progress` until accepted
+- Browser UAT accepted by the product owner; Phase 13A is complete
+
+## Phase 13B - Operational Intelligence
+
+### Status
+
+In Progress
+
+### Objective
+
+Add governed read-only operational intelligence to the assistant, beginning with CAPEX/OPEX budget utilization, remaining budget, risk thresholds, and contributing PRFs using the same item-level definition as the dashboard and reports.
+
+### Source Documents
+
+- `docs/prf-ai-chatbot.md`
+- `docs/prf-ai-chatbot-enhancement-roadmap.md`
+- `docs/openapi.yaml`
+- `docs/open-questions-and-challenges.md`
+- `docs/budget-control-policy.md`
+
+### Budget Intelligence Checklist
+
+- [x] Add a bounded budget summary/breakdown tool filtered by fiscal year, CAPEX/OPEX, department, COA, and risk threshold
+- [x] Add a bounded contributing-PRF tool for a selected COA/cost code
+- [x] Use non-cancelled `PRFItems.Quantity * UnitPrice` and item cost-code-to-COA allocation
+- [x] Include annual allocation plus approved carry-forward in total available budget
+- [x] Return structured evidence, safe follow-up actions, and PRF references
+- [x] Add visible/removable fiscal-year and expense-type session context
+- [x] Update `docs/openapi.yaml` for chatbot context and response behavior
+- [x] Complete typecheck, build, lint, and deterministic SQL-shape tests
+- [ ] Complete live SQL/OpenAI verification from a network-authorized environment
+- [x] Complete targeted browser UAT for CAPEX/OPEX summary, risk list, contributor references, and context removal
+
+### Workflow Intelligence Checklist
+
+- [x] Add a bounded workflow-issue tool for stale PRFs, missing PO, missing attachment, missing/unknown cost code, and header/item amount mismatch
+- [x] Exclude cancelled PRFs/items from actionable issue calculations where applicable
+- [x] Make aging threshold explicit and return per-issue counts plus matching PRF references
+- [x] Support fiscal-year, department, CAPEX/OPEX, issue-type, and result-limit filters
+- [x] Return structured evidence and allow-listed follow-up actions
+- [x] Update `docs/openapi.yaml` and chatbot behavior documentation
+- [x] Complete typecheck, build, lint, and deterministic SQL-shape tests
+- [ ] Complete live SQL/OpenAI verification from a network-authorized environment
+- [x] Complete targeted browser UAT for workflow issue summary and drill-down
+
+### Output
+
+- Read-only CAPEX/OPEX utilization and remaining-budget answers
+- COA-level budget risk visibility with explicit thresholds
+- Traceable contributing PRFs without arbitrary SQL
+- Shared definitions between chatbot, dashboard, reports, and exports
+
+### Challenge / Verification
+
+- Backend TypeScript build passed: `npm --prefix backend run build`
+- Root TypeScript check passed: `npx tsc --noEmit`
+- Frontend production build passed: `npm run build` (2,060 modules transformed; existing bundle-size warning remains)
+- Full ESLint completed with zero errors and nine pre-existing Fast Refresh warnings
+- `docs/openapi.yaml` parsed successfully and `git diff --check` passed
+- Deterministic budget-tool challenge passed eight checks: item-level value, item cost-code allocation, cancelled exclusion, fiscal-year fallback, carry-forward inclusion, bounded results, CAPEX/FY context, and PRF references
+- Live SQL verification is blocked from this workspace because SQL Server `10.60.10.47:1433` is unreachable
+- Live OpenAI tool-selection verification is blocked from this workspace by an outbound connection error
+- Phase 13B remains `In Progress` pending network-authorized live SQL/OpenAI verification and the remaining planned slices
+- Workflow-intelligence deterministic challenge passed nine checks: bounded results, cancelled exclusion, explicit stale threshold, missing PO, missing attachment metadata, missing/unknown cost code, amount mismatch, CAPEX/OPEX filtering, and PRF references
+- Backend build, root TypeScript check, full ESLint (zero errors; nine existing warnings), OpenAPI YAML parse, and `git diff --check` passed after the workflow-intelligence slice
+- Workflow-intelligence live SQL/OpenAI verification inherits the same network blockers recorded above
+- Browser UAT for the delivered Phase 13B Budget and Workflow Intelligence slices was accepted by the product owner
+- Attachment references named in Markdown table rows now render trusted Preview/Download actions inline; only unmatched references use fallback cards
+- Backend reference filtering no longer renders unrelated attachment cards whose exact filenames were not used in the answer
+- `docs/openapi.yaml` was reviewed for the attachment-table refinement; no update was required because request and response contracts did not change
 
 ## Completion Rule
 

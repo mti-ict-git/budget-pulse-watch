@@ -185,6 +185,10 @@ Deliver next:
 
 Why next: these provide the highest operational value without expanding the read-only boundary.
 
+Implementation begins with Budget Intelligence: CAPEX/OPEX summary, COA utilization/risk, remaining budget, and contributing PRFs. Workflow intelligence, attachment metadata intelligence, and on-demand briefing follow after this slice passes UAT.
+
+Workflow Intelligence is the second implementation slice and reports stale PRFs, missing PO, missing attachment metadata, missing/unknown cost code, and header/item amount mismatch as bounded read-only review signals.
+
 ### Phase 13C - Presentation And Reuse
 
 Deliver after analytics stabilize:

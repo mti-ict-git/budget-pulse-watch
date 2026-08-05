@@ -42,11 +42,48 @@ function isPrfMentioned(content: string, prfNo: string): boolean {
   return new RegExp(`(^|[^0-9A-Za-z])${prfNo}([^0-9A-Za-z]|$)`).test(content);
 }
 
-function MarkdownMessage({ content, references, onViewPrf }: {
+const FILE_ACTION_PREFIX = 'PRF_FILE_ACTION_';
+
+function inlineAttachmentActions(content: string, references: ChatReference[]): { content: string; fileIds: Set<number> } {
+  const fileReferences = references.filter((reference) => reference.type === 'file');
+  if (fileReferences.length === 0) return { content, fileIds: new Set() };
+  const lines = content.split('\n');
+  const fileIds = new Set<number>();
+  for (let start = 0; start < lines.length - 1;) {
+    if (!lines[start].includes('|') || !/^\s*\|?\s*:?-{3,}/.test(lines[start + 1])) { start += 1; continue; }
+    let end = start + 2;
+    while (end < lines.length && lines[end].includes('|') && lines[end].trim()) end += 1;
+    const matches = new Map<number, ChatReference>();
+    for (let row = start + 2; row < end; row += 1) {
+      const normalizedRow = lines[row].toLocaleLowerCase('id-ID');
+      const reference = fileReferences.find((file) => {
+        if (fileIds.has(file.id)) return false;
+        const fileName = (file.fileName || file.label).trim().toLocaleLowerCase('id-ID');
+        return fileName.length > 0 && normalizedRow.includes(fileName);
+      });
+      if (reference) matches.set(row, reference);
+    }
+    if (matches.size > 0) {
+      lines[start] = `${lines[start].trimEnd()} Actions |`;
+      lines[start + 1] = `${lines[start + 1].trimEnd()} --- |`;
+      for (let row = start + 2; row < end; row += 1) {
+        const reference = matches.get(row);
+        lines[row] = `${lines[row].trimEnd()} ${reference ? `${FILE_ACTION_PREFIX}${reference.id}` : ''} |`;
+        if (reference) fileIds.add(reference.id);
+      }
+    }
+    start = end;
+  }
+  return { content: lines.join('\n'), fileIds };
+}
+
+function MarkdownMessage({ content, references, onViewPrf, onOpenFile }: {
   content: string;
   references: ChatReference[];
   onViewPrf: (prfNo: string) => void;
+  onOpenFile: (reference: ChatReference, download: boolean) => void;
 }) {
+  const inline = inlineAttachmentActions(content, references);
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -69,10 +106,17 @@ function MarkdownMessage({ content, references, onViewPrf }: {
         th: ({ children }) => <th className="border-b border-r px-3 py-2 font-semibold last:border-r-0">{children}</th>,
         td: ({ children }) => {
           const text = Array.isArray(children) ? children.filter((child) => typeof child === 'string' || typeof child === 'number').join('') : String(children ?? '');
+          const fileActionId = text.trim().startsWith(FILE_ACTION_PREFIX) ? Number(text.trim().slice(FILE_ACTION_PREFIX.length)) : NaN;
+          const fileReference = Number.isFinite(fileActionId) ? references.find((item) => item.type === 'file' && item.id === fileActionId) : undefined;
           const reference = references.find((item) => item.type === 'prf' && text.trim() === item.prfNo);
           return (
             <td className="border-b border-r px-3 py-2 align-top last:border-r-0">
-              {reference ? (
+              {fileReference ? (
+                <div className="flex gap-1.5 whitespace-nowrap">
+                  <Button type="button" size="sm" variant="outline" onClick={() => onOpenFile(fileReference, false)}><ExternalLink /> Preview</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => onOpenFile(fileReference, true)}><Download /> Download</Button>
+                </div>
+              ) : reference ? (
                 <Button
                   type="button" variant="link" size="sm" className="h-auto p-0 font-semibold"
                   onClick={() => onViewPrf(reference.prfNo)} title={`View PRF ${reference.prfNo}`}
@@ -98,7 +142,7 @@ function MarkdownMessage({ content, references, onViewPrf }: {
         hr: () => <hr className="my-3 border-border" />
       }}
     >
-      {content}
+      {inline.content}
     </ReactMarkdown>
   );
 }
@@ -179,6 +223,8 @@ export function PRFChat() {
   if (context.activePrf) contextChips.push({ key: 'activePrf', label: `PRF ${context.activePrf.prfNo}` });
   if (context.dateFrom || context.dateTo) contextChips.push({ key: 'dateFrom', label: `${context.dateFrom || '…'} — ${context.dateTo || '…'}` });
   if (context.department) contextChips.push({ key: 'department', label: context.department });
+  if (context.fiscalYear) contextChips.push({ key: 'fiscalYear', label: `FY ${context.fiscalYear}` });
+  if (context.expenseType) contextChips.push({ key: 'expenseType', label: context.expenseType });
   if (context.purchaseDefinition) {
     const labels = { with_po: 'Purchased = has PO', all_requested: 'Purchased = requested', picked_up: 'Purchased = picked up' };
     contextChips.push({ key: 'purchaseDefinition', label: labels[context.purchaseDefinition] });
@@ -243,11 +289,14 @@ export function PRFChat() {
             <div className="space-y-4">
               {messages.map((message) => {
                 const references = (message.references || []).filter((reference) => reference.type === 'file' || isPrfMentioned(message.content, reference.prfNo));
-                const cardReferences = references.filter((reference) => reference.type === 'file' || !isPrfInMarkdownTable(message.content, reference.prfNo));
+                const inlineFileIds = inlineAttachmentActions(message.content, references).fileIds;
+                const cardReferences = references.filter((reference) => reference.type === 'file'
+                  ? !inlineFileIds.has(reference.id)
+                  : !isPrfInMarkdownTable(message.content, reference.prfNo));
                 return (
                 <div key={message.id} className={cn('w-full', message.role === 'user' ? 'ml-auto max-w-3xl pl-10' : 'max-w-5xl pr-6')}>
                   <div className={`rounded-2xl px-4 py-3 text-sm ${message.role === 'user' ? 'whitespace-pre-wrap bg-primary text-primary-foreground' : 'bg-muted text-foreground'}`}>
-                    {message.role === 'assistant' ? <MarkdownMessage content={message.content} references={references} onViewPrf={viewPrf} /> : message.content}
+                    {message.role === 'assistant' ? <MarkdownMessage content={message.content} references={references} onViewPrf={viewPrf} onOpenFile={(reference, download) => void openFile(reference, download)} /> : message.content}
                   </div>
                   {cardReferences.length > 0 && (
                     <div className="mt-2 space-y-2">

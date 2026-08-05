@@ -11,6 +11,8 @@ function parseContext(value: unknown): ChatContext {
   if (typeof raw.dateFrom === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.dateFrom)) context.dateFrom = raw.dateFrom;
   if (typeof raw.dateTo === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.dateTo)) context.dateTo = raw.dateTo;
   if (typeof raw.department === 'string' && raw.department.trim().length <= 100) context.department = raw.department.trim();
+  if (typeof raw.fiscalYear === 'number' && Number.isInteger(raw.fiscalYear) && raw.fiscalYear >= 2020 && raw.fiscalYear <= 2100) context.fiscalYear = raw.fiscalYear;
+  if (raw.expenseType === 'CAPEX' || raw.expenseType === 'OPEX') context.expenseType = raw.expenseType;
   if (['with_po', 'all_requested', 'picked_up'].includes(String(raw.purchaseDefinition))) {
     context.purchaseDefinition = raw.purchaseDefinition as ChatContext['purchaseDefinition'];
   }
