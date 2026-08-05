@@ -18,6 +18,7 @@ Budget Pulse Watch is a PRF and budget monitoring system for operational purchas
 - Reporting for dashboard metrics, alerts, budget summaries, utilization, and audit-style outputs.
 - Document handling for PRF files and shared-folder storage.
 - OCR-assisted PRF ingestion from uploaded files.
+- Read-only OpenAI PRF Assistant for natural-language PRF queries and attachment links.
 - Sync integrations for OneDrive Excel and a dedicated Pronto sync worker.
 - Access control via JWT auth, local users, LDAP lookup, and API keys.
 
@@ -76,6 +77,8 @@ Start here before changing behavior:
 - `docs/phase5-uat-checklist.md`: UAT checklist for release validation.
 - `docs/phase5-deployment-rollback.md`: deployment and rollback procedure.
 - `docs/pronto-sync.md`: Pronto synchronization behavior and safeguards.
+- `docs/prf-ai-chatbot.md`: PRF Assistant scope, retention, provider, security, and operations.
+- `docs/prf-ai-chatbot-enhancement-roadmap.md`: feasibility and phased delivery plan for the sixteen proposed assistant enhancements.
 - `docs/project-onboarding.md`: repository understanding and architecture summary.
 
 ## Current Delivery Status

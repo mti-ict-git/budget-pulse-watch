@@ -29,6 +29,7 @@ tags:
   - name: LDAP
   - name: Reports
   - name: API Keys
+  - name: Chat
 components:
   securitySchemes:
     bearerAuth:
@@ -57,6 +58,40 @@ components:
           type: string
         data:
           nullable: true
+    ChatMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+          minLength: 1
+          maxLength: 4000
+    ChatReference:
+      type: object
+      required: [type, id, label, prfId, prfNo]
+      properties:
+        type: { type: string, enum: [prf, file] }
+        id: { type: integer }
+        label: { type: string }
+        prfId: { type: integer }
+        prfNo: { type: string }
+        mimeType: { type: string }
+        fileName: { type: string }
+        previewUrl: { type: string }
+        downloadUrl: { type: string }
+    ChatAnswer:
+      type: object
+      required: [answer, references, model]
+      properties:
+        answer: { type: string }
+        references:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatReference'
+        model: { type: string }
     User:
       type: object
       properties:
@@ -684,6 +719,8 @@ paths:
     get:
       summary: Get OCR settings (keys masked)
       tags: [Settings]
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: OCR settings
@@ -694,6 +731,8 @@ paths:
     post:
       summary: Save OCR settings
       tags: [Settings]
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -891,6 +930,8 @@ paths:
     post:
       summary: Test OCR provider configuration
       tags: [Settings]
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Test result
@@ -902,16 +943,30 @@ paths:
 
   /api/settings/ocr/key:
     get:
-      summary: Get OCR key status
+      summary: Reveal the decrypted OCR API key to an administrator
+      description: Returns the selected provider key with no-store cache headers. The plaintext key must not be logged or persisted by clients.
       tags: [Settings]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: provider
+          schema:
+            type: string
+            enum: [gemini, openai]
       responses:
         '200':
-          description: Key status
+          description: Decrypted key for the selected provider
           content:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  apiKey: { type: string }
+                  provider: { type: string, enum: [gemini, openai] }
+                  enabled: { type: boolean }
+        '401': { description: Authentication required }
+        '403': { description: Administrator access required }
 
   /api/upload/prf-document:
     post:
@@ -1053,6 +1108,44 @@ paths:
         '503':
           description: OCR not configured
 
+  /api/chat/messages:
+    post:
+      summary: Ask a read-only question about all PRFs
+      description: Uses fixed read-only tools over PRF/item data and attachment metadata. Attachment contents are not read, chat is not persisted by the backend, and OpenAI storage is disabled.
+      tags: [Chat]
+      security:
+        - bearerAuth: []
+        - ApiKeyHeader: []
+        - ApiKeyAuthorization: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [messages]
+              properties:
+                messages:
+                  type: array
+                  minItems: 1
+                  maxItems: 20
+                  items:
+                    $ref: '#/components/schemas/ChatMessage'
+      responses:
+        '200':
+          description: Assistant answer and application references
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    $ref: '#/components/schemas/ChatAnswer'
+        '400': { description: Invalid message history }
+        '401': { description: Authentication required }
+        '503': { description: OpenAI API key is not configured }
+
   /api/prf-files/{prfId}:
     get:
       summary: List PRF files
@@ -1192,6 +1285,31 @@ paths:
           description: Forbidden
         '404':
           description: Not found
+
+  /api/prf-files/file/{fileId}/content:
+    get:
+      summary: Preview or download a stored PRF attachment
+      tags: [PRF Files]
+      security:
+        - bearerAuth: []
+        - ApiKeyHeader: []
+        - ApiKeyAuthorization: []
+      parameters:
+        - in: path
+          name: fileId
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: disposition
+          schema: { type: string, enum: [inline, attachment], default: inline }
+      responses:
+        '200':
+          description: Binary file content
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401': { description: Authentication required }
+        '404': { description: File metadata or stored file not found }
 
   /api/prf-files/stats:
     get:

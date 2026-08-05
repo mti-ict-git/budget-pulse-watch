@@ -7,8 +7,8 @@ This roadmap restores the formal phase tracker required by `AGENTS.md` and defin
 ## Status Summary
 
 - Roadmap status: Completed
-- Active phase: `Phase 11 - Existing PRF AI Rescan`
-- Last updated: `2026-07-25`
+- Active phase: `Phase 12 - PRF AI Chatbot`
+- Last updated: `2026-08-05`
 
 ## Historical Delivery Context
 
@@ -244,6 +244,7 @@ Verify the combined budget-control hardening changes and prepare the repository 
 4. `Phase 9 - Release Verification And Operational Handover`
 5. `Phase 10 - Item-Level Utilization Correction`
 6. `Phase 11 - Existing PRF AI Rescan`
+7. `Phase 12 - PRF AI Chatbot`
 
 ## Phase 10 - Item-Level Utilization Correction
 
@@ -341,6 +342,93 @@ Allow an authorized user to reread a stored OCR Source, review item-level differ
 - Backend typecheck, targeted rescan UI lint, and production build were rerun successfully after item-status detection and total reconciliation were added
 - Full frontend TypeScript check remains blocked by three pre-existing errors in `BudgetOverview.tsx` and `Dashboard.tsx`; no rescan-file TypeScript errors were reported
 - Preview/apply end-to-end verification remains pending because the local frontend/backend processes were not running
+
+## Phase 12 - PRF AI Chatbot
+
+### Status
+
+In Progress
+
+### Objective
+
+Allow any authenticated user to ask read-only natural-language questions about all PRFs and receive evidence-backed PRF and attachment references without exposing arbitrary SQL or sending attachment contents to the AI provider.
+
+### Source Documents
+
+- `docs/prf-ai-chatbot.md`
+- `docs/prf-ai-chatbot-enhancement-roadmap.md`
+- `docs/openapi.yaml`
+- `docs/implementation-roadmap.md`
+- `docs/open-questions-and-challenges.md`
+- OpenAI Responses API and model guidance
+
+### Checklist
+
+- [x] Lock product scope, provider, retention, and attachment behavior
+- [x] Add authenticated chatbot endpoint and bounded request validation
+- [x] Add fixed read-only PRF search, detail, statistics, and attachment tools
+- [x] Use OpenAI Responses API with `store: false` and safety identifiers
+- [x] Add authenticated attachment preview/download endpoint
+- [x] Add protected-layout chat drawer with session-only history
+- [x] Add clickable PRF and attachment references
+- [x] Add safe GitHub-Flavored Markdown rendering and responsive tables
+- [x] Add user-controlled full-window chat mode
+- [x] Secure OCR key reveal behind admin authentication and no-store responses
+- [x] Update `docs/openapi.yaml`, README, onboarding, and open questions
+- [ ] Complete build, typecheck, lint, and targeted runtime verification
+
+### Output
+
+- Read-only AI assistant available throughout the authenticated application
+- Natural-language access to all structured PRF and item data
+- Attachment availability answers with secure preview/download actions
+- No database-backed chat retention and no attachment-content ingestion
+
+### Challenge / Verification
+
+- Backend TypeScript build passed: `npm --prefix backend run build`
+- Root TypeScript check passed: `npx tsc --noEmit`
+- Frontend production build passed: `npm run build` (1,807 modules transformed; existing bundle-size warning remains)
+- Full ESLint passed with zero errors and nine pre-existing Fast Refresh warnings
+- Targeted chatbot/backend ESLint passed with zero findings
+- `docs/openapi.yaml` parsed successfully as YAML
+- `git diff --check` passed
+- Static challenge confirmed authentication on chat and file-content routes, 20-message/4,000-character limits, bounded tool rounds/results, `store: false`, parameterized SQL, and no write tools
+- End-to-end service verification passed against live SQL Server and OpenAI for `cari prf 49656`; the assistant returned PRFNo `49656` (`PRFID 18271`) with the correct reference
+- End-to-end alias-expanded verification passed for `cari prf terkait kamera`; the assistant returned camera-related PRFs including `46934`, `47649`, `43030`, `43365`, and `41437`
+- Context-isolation and relative-period verification passed on `gpt-5.4-mini`: after a prior `46934` conversation, `ada berapa item yang dibeli minggu ini` used the Asia/Jakarta week `2026-08-03` through `2026-08-09` and returned 2 line items / quantity 2 from PRFs `49656` and `49642`
+- Markdown/full-window frontend production build passed with 2,060 modules transformed; root typecheck, targeted ESLint, backend build, and `git diff --check` passed
+- Monthly-list reference verification passed against live SQL/OpenAI: `tampilkan seluruh list PRF dalam bulan ini` returned only PRFs `49642` and `49656`; their View PRF actions are embedded in the Markdown table and unrelated intermediate references are filtered in both backend and frontend
+- Production dependency audit reports 12 existing findings (11 high, 1 moderate), including an unpatched `xlsx` advisory; no automatic audit fix was applied because it would broaden dependency changes beyond this feature
+
+## Planned Phase 13 - PRF Assistant Enhancements
+
+### Status
+
+Planned - not started
+
+### Objective
+
+Evolve the assistant from read-only search into an auditable operational copilot while preserving fixed tools, application-enforced authorization, session-only conversation history, and the no-document-content boundary.
+
+### Source Documents
+
+- `docs/prf-ai-chatbot.md`
+- `docs/prf-ai-chatbot-enhancement-roadmap.md`
+- `docs/open-questions-and-challenges.md`
+- `docs/openapi.yaml`
+
+### Approved Planning Order
+
+1. Phase 13A: evidence, follow-up actions, structured session context, and ambiguity resolution
+2. Phase 13B: analytics, workflow intelligence, attachment metadata intelligence, and on-demand briefing
+3. Phase 13C: charts, exports, local saved questions, role-aware presentation, and optional voice input
+4. Phase 13D: scheduled briefing, durable saved queries, governed sharing, and notification subscriptions after foundation approval
+5. Future governed expansion: document understanding and safe write-action drafts remain outside the immediate scope
+
+### Completion Gate
+
+No Phase 13 item is considered active or complete until it has its own checklist, applicable OpenAPI updates, business-definition decisions, and recorded live verification evidence.
 
 ## Completion Rule
 

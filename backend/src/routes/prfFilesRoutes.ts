@@ -11,6 +11,7 @@ import * as fsSync from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
 import { getPool } from '../config/database';
+import { resolveStoredFilePath } from '../services/prfChatService';
 
 const router = express.Router();
 
@@ -410,6 +411,33 @@ router.get('/file/:fileId', async (req, res) => {
       success: false,
       message: 'Failed to fetch file'
     });
+  }
+});
+
+/**
+ * GET /api/prf-files/file/:fileId/content
+ * Authenticated preview or download for a stored PRF attachment.
+ */
+router.get('/file/:fileId/content', authenticateToken, async (req, res) => {
+  try {
+    const fileId = parseInt(req.params.fileId, 10);
+    if (Number.isNaN(fileId)) return res.status(400).json({ success: false, message: 'Invalid file ID' });
+    const file = await PRFFilesModel.getById(fileId);
+    if (!file) return res.status(404).json({ success: false, message: 'File not found' });
+    const resolvedPath = resolveStoredFilePath(file.SharedPath || file.FilePath);
+    if (!resolvedPath) return res.status(404).json({ success: false, message: 'Stored file is unavailable' });
+    const disposition = req.query.disposition === 'attachment' ? 'attachment' : 'inline';
+    const stat = await fs.stat(resolvedPath);
+    const safeName = file.OriginalFileName.replace(/[^\x20-\x7E]/g, '_').replace(/[\r\n"\\]/g, '_');
+    const encodedName = encodeURIComponent(file.OriginalFileName).replace(/'/g, '%27');
+    res.setHeader('Content-Type', file.MimeType || 'application/octet-stream');
+    res.setHeader('Content-Length', String(stat.size));
+    res.setHeader('Content-Disposition', `${disposition}; filename="${safeName}"; filename*=UTF-8''${encodedName}`);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    return fsSync.createReadStream(resolvedPath).pipe(res);
+  } catch (error) {
+    console.error('Error serving PRF file:', error);
+    return res.status(500).json({ success: false, message: 'Failed to serve file' });
   }
 });
 

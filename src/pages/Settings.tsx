@@ -261,6 +261,7 @@ const Settings: React.FC = () => {
     lastRunExitCode: null
   });
   const [showApiKey, setShowApiKey] = useState(false);
+  const [isRevealingApiKey, setIsRevealingApiKey] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isTestingFolder, setIsTestingFolder] = useState(false);
@@ -998,7 +999,7 @@ const Settings: React.FC = () => {
         method: 'POST',
         headers: authService.getAuthHeaders(),
         body: JSON.stringify({ 
-          apiKey: currentApiKey,
+          apiKey: currentApiKey === '***masked***' ? undefined : currentApiKey,
           provider: ocrSettings.provider
         }),
       });
@@ -1029,11 +1030,45 @@ const Settings: React.FC = () => {
   };
 
   const handleProviderChange = (value: 'gemini' | 'openai') => {
+    setShowApiKey(false);
     setOcrSettings(prev => ({ 
       ...prev, 
       provider: value,
       model: value === 'openai' ? 'gpt-4o-mini' : 'gemini-1.5-flash'
     }));
+  };
+
+  const toggleApiKeyVisibility = async () => {
+    if (showApiKey) {
+      setShowApiKey(false);
+      setOcrSettings(prev => ({
+        ...prev,
+        [prev.provider === 'openai' ? 'openaiApiKey' : 'geminiApiKey']: '***masked***'
+      }));
+      return;
+    }
+    setIsRevealingApiKey(true);
+    try {
+      const response = await fetch(`/api/settings/ocr/key?provider=${encodeURIComponent(ocrSettings.provider)}`, {
+        headers: authService.getAuthHeaders(),
+        cache: 'no-store'
+      });
+      const result = await response.json() as { apiKey?: string; error?: string };
+      if (!response.ok) throw new Error(result.error || 'Failed to reveal API key');
+      setOcrSettings(prev => ({
+        ...prev,
+        [prev.provider === 'openai' ? 'openaiApiKey' : 'geminiApiKey']: result.apiKey || ''
+      }));
+      setShowApiKey(true);
+    } catch (error) {
+      toast({
+        title: 'Unable to Reveal Key',
+        description: error instanceof Error ? error.message : 'Failed to reveal API key',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsRevealingApiKey(false);
+    }
   };
 
   const handleGeminiApiKeyChange = (value: string) => {
@@ -1358,7 +1393,8 @@ const Settings: React.FC = () => {
                         variant="ghost"
                         size="sm"
                         className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={() => setShowApiKey(!showApiKey)}
+                        onClick={() => void toggleApiKeyVisibility()}
+                        disabled={isRevealingApiKey}
                       >
                         {showApiKey ? (
                           <EyeOff className="h-4 w-4" />
@@ -1408,7 +1444,8 @@ const Settings: React.FC = () => {
                             variant="ghost"
                             size="sm"
                             className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                            onClick={() => setShowApiKey(!showApiKey)}
+                            onClick={() => void toggleApiKeyVisibility()}
+                            disabled={isRevealingApiKey}
                           >
                             {showApiKey ? (
                               <EyeOff className="h-4 w-4" />

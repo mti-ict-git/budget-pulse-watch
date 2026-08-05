@@ -530,7 +530,7 @@ async function saveSettings(settings: AppSettings): Promise<void> {
 }
 
 // GET /api/settings/ocr - Get OCR settings
-router.get('/ocr', async (req: Request, res: Response) => {
+router.get('/ocr', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const settings = await loadSettings();
     
@@ -549,7 +549,7 @@ router.get('/ocr', async (req: Request, res: Response) => {
 });
 
 // POST /api/settings/ocr - Save OCR settings
-router.post('/ocr', async (req: Request, res: Response) => {
+router.post('/ocr', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { provider, geminiApiKey, openaiApiKey, enabled, model } = req.body;
     
@@ -573,13 +573,13 @@ router.post('/ocr', async (req: Request, res: Response) => {
     currentSettings.ocr = {
       enabled,
       provider: provider || currentSettings.ocr.provider || 'gemini',
-      geminiApiKey: geminiApiKey || currentSettings.ocr.geminiApiKey || '',
-      openaiApiKey: openaiApiKey || currentSettings.ocr.openaiApiKey || '',
+      geminiApiKey: geminiApiKey && geminiApiKey !== '***masked***' ? geminiApiKey : currentSettings.ocr.geminiApiKey || '',
+      openaiApiKey: openaiApiKey && openaiApiKey !== '***masked***' ? openaiApiKey : currentSettings.ocr.openaiApiKey || '',
       model: model || currentSettings.ocr.model || (provider === 'openai' ? 'gpt-4o-mini' : 'gemini-1.5-flash')
     };
     await saveSettings(currentSettings);
     
-    return res.json({ 
+    return res.json({
       message: 'OCR settings saved successfully',
       enabled: currentSettings.ocr.enabled
     });
@@ -590,17 +590,10 @@ router.post('/ocr', async (req: Request, res: Response) => {
 });
 
 // POST /api/settings/ocr/test - Test OCR API key
-router.post('/ocr/test', async (req: Request, res: Response) => {
+router.post('/ocr/test', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { apiKey, provider } = req.body;
     
-    if (!apiKey || typeof apiKey !== 'string') {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'API key is required' 
-      });
-    }
-
     if (provider && !['gemini', 'openai'].includes(provider)) {
       return res.status(400).json({ 
         success: false, 
@@ -609,8 +602,12 @@ router.post('/ocr/test', async (req: Request, res: Response) => {
     }
 
     // Import OCR service for testing
+    if (apiKey !== undefined && typeof apiKey !== 'string') {
+      return res.status(400).json({ success: false, message: 'API key must be a string' });
+    }
+    const explicitKey = typeof apiKey === 'string' && apiKey !== '***masked***' ? apiKey : undefined;
     const { ocrService } = await import('../services/ocrService');
-    const testResult = await ocrService.testConnection(apiKey, provider || 'gemini');
+    const testResult = await ocrService.testConnection(explicitKey, provider || 'gemini');
     
     return res.json(testResult);
   } catch (error) {
@@ -622,21 +619,26 @@ router.post('/ocr/test', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/settings/ocr/key - Get actual API key (for internal use)
-router.get('/ocr/key', async (req: Request, res: Response) => {
+// GET /api/settings/ocr/key - Reveal a decrypted API key to an authenticated admin.
+router.get('/ocr/key', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const settings = await loadSettings();
-    const provider = settings.ocr.provider || 'gemini';
+    const requestedProvider = typeof req.query.provider === 'string' ? req.query.provider : settings.ocr.provider;
+    if (!['gemini', 'openai'].includes(requestedProvider)) {
+      return res.status(400).json({ error: 'provider must be either "gemini" or "openai"' });
+    }
+    const provider = requestedProvider as 'gemini' | 'openai';
     const apiKey = provider === 'openai' ? settings.ocr.openaiApiKey : settings.ocr.geminiApiKey;
-    
-    res.json({ 
+    res.setHeader('Cache-Control', 'no-store, private');
+    res.setHeader('Pragma', 'no-cache');
+    return res.json({
       apiKey: apiKey || '',
       provider: provider,
       enabled: settings.ocr.enabled
     });
   } catch (error) {
     console.error('Failed to load OCR API key:', error);
-    res.status(500).json({ error: 'Failed to load API key' });
+    return res.status(500).json({ error: 'Failed to load API key' });
   }
 });
 

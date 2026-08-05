@@ -16,6 +16,7 @@ Main functional areas:
 - Reporting and dashboard metrics
 - Document upload and shared-folder storage
 - OCR-assisted PRF extraction
+- Session-only, read-only OpenAI chatbot over structured PRF data and attachment metadata
 - OneDrive Excel synchronization
 - Pronto synchronization
 - User, LDAP, API key, and notification management
@@ -127,6 +128,14 @@ The default Docker runtime also includes a `pronto_sync` service alongside `fron
 
 - Cloud sync updates shared Excel content in OneDrive
 - Pronto sync runs in a dedicated worker and has its own operational configuration and safeguards
+
+### 8. PRF AI Chatbot
+
+- Authenticated users can ask questions across all PRFs
+- The backend exposes only fixed parameterized read-only tools to OpenAI
+- Attachment contents are excluded; the assistant returns metadata and authenticated preview/download actions
+- Conversation history remains in browser `sessionStorage` and OpenAI requests use `store: false`
+- Enhancement planning is maintained in `docs/prf-ai-chatbot-enhancement-roadmap.md`; immediate work stays read-only and prioritizes evidence, context control, ambiguity resolution, analytics, and workflow intelligence
 
 ## Main Backend Domains
 

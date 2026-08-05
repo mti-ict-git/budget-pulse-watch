@@ -172,6 +172,7 @@ class AuthService {
   clearAuthData(): void {
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
+    sessionStorage.removeItem('prf-chat-messages');
   }
 
   /**

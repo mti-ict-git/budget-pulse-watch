@@ -25,6 +25,17 @@ This document records unresolved business and implementation questions that must
 - Apply is transactional and writes a dedicated immutable audit snapshot
 - If no OCR Source exists, Admin/DocCon may select another stored PDF or supported image; the preview identifies it as an alternative source
 
+### PRF AI Chatbot
+
+- All authenticated users may query all PRFs; the initial release does not apply per-user PRF visibility filters
+- The chatbot is read-only and cannot mutate PRF, item, approval, budget, or attachment data
+- OpenAI is the only chatbot provider; OCR may continue using either OpenAI or Gemini independently
+- Attachment contents are not sent to or read by the model; only stored metadata is queryable
+- Attachment answers include authenticated preview/download actions when the stored file is available
+- Chat history is stored only in browser `sessionStorage`, removed on logout or tab close, and never persisted in SQL Server
+- OpenAI API requests use `store: false`
+- Arbitrary model-generated SQL is prohibited; the assistant may use only fixed, parameterized, bounded read-only tools
+
 ### Historical Visibility Model
 
 - Prior-year visibility is considered sufficient through `FiscalYear` filtering on live tables for the current product phase
@@ -47,6 +58,17 @@ This document records unresolved business and implementation questions that must
 
 ## Active Questions
 
+### PRF Assistant Enhancements
+
+- Which definition should be the default for `bought`: item has PO, PRF approved, or item picked up?
+- Which aging thresholds and severity levels should apply to each PRF status?
+- Should saved questions remain browser-local or become cross-device user records?
+- Which roles may create notification subscriptions, and which event types are allowed?
+- Is browser-based voice input acceptable on the supported corporate browsers?
+- What retention and approval rules would apply to generated PDF reports or shareable result links?
+- Document understanding remains blocked until document privacy, indexing, retention, deletion, and citation rules are approved
+- Safe action drafts remain blocked until permission, confirmation, audit, idempotency, and rollback rules are approved
+
 ### Scope Expansion
 
 - Should mandatory COA coverage apply only to `HR / IT`, or become a reusable rule for other departments later?
@@ -56,6 +78,8 @@ This document records unresolved business and implementation questions that must
 - Do not hard delete historical budget data in normal application workflow
 - Prefer year-based visibility plus protected historical retention first
 - Keep archive as a governance model on live tables until there is a justified need for physical archival
+- Implement PRF Assistant Phase 13A first because it improves trust and context control without new durable storage or write permissions
+- Keep document-content retrieval and PRF mutations outside the immediate chatbot scope
 
 ## Challenge Notes
 
