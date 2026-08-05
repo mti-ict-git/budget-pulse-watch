@@ -1,5 +1,5 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
-import { Bot, Download, ExternalLink, FileText, Loader2, Maximize2, MessageCircle, Minimize2, RotateCcw, Send } from 'lucide-react';
+import { Bot, ChevronDown, Download, ExternalLink, FileText, Loader2, Maximize2, MessageCircle, Minimize2, RotateCcw, Send, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useNavigate } from 'react-router-dom';
@@ -8,10 +8,11 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
-import { ChatMessage, ChatReference, openAuthenticatedFile, sendChatMessage } from '@/services/chatService';
+import { ChatContext, ChatMessage, ChatReference, openAuthenticatedFile, sendChatMessage } from '@/services/chatService';
 import { cn } from '@/lib/utils';
 
 const STORAGE_KEY = 'prf-chat-messages';
+const CONTEXT_STORAGE_KEY = 'prf-chat-context';
 const starter: ChatMessage[] = [{
   id: 'welcome', role: 'assistant',
   content: 'Ask me about any PRF, its items, status, totals, or attachment metadata. I can only read data and will never modify a PRF.'
@@ -24,6 +25,13 @@ function loadMessages(): ChatMessage[] {
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed as ChatMessage[] : starter;
   } catch { return starter; }
+}
+
+function loadContext(): ChatContext {
+  try {
+    const raw = sessionStorage.getItem(CONTEXT_STORAGE_KEY);
+    return raw ? JSON.parse(raw) as ChatContext : {};
+  } catch { return {}; }
 }
 
 function isPrfInMarkdownTable(content: string, prfNo: string): boolean {
@@ -99,22 +107,25 @@ export function PRFChat() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(loadMessages);
+  const [context, setContext] = useState<ChatContext>(loadContext);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
   const [fullWindow, setFullWindow] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages)); }, [messages]);
+  useEffect(() => { sessionStorage.setItem(CONTEXT_STORAGE_KEY, JSON.stringify(context)); }, [context]);
   useEffect(() => { if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, open, loading]);
 
   const reset = () => {
     setMessages(starter);
+    setContext({});
     sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(CONTEXT_STORAGE_KEY);
   };
 
-  const submit = async (event?: FormEvent) => {
-    event?.preventDefault();
-    const content = draft.trim();
+  const submitMessage = async (contentOverride?: string, contextOverride?: ChatContext) => {
+    const content = (contentOverride ?? draft).trim();
     if (!content || loading) return;
     const userMessage: ChatMessage = { id: crypto.randomUUID(), role: 'user', content };
     const next = [...messages, userMessage];
@@ -122,9 +133,13 @@ export function PRFChat() {
     setDraft('');
     setLoading(true);
     try {
-      const response = await sendChatMessage(next);
+      const activeContext = contextOverride ?? context;
+      const response = await sendChatMessage(next, activeContext);
+      if (!response) throw new Error('PRF Assistant returned an empty response');
+      setContext(response.context);
       setMessages((current) => [...current, {
-        id: crypto.randomUUID(), role: 'assistant', content: response!.answer, references: response!.references
+        id: crypto.randomUUID(), role: 'assistant', content: response.answer, references: response.references,
+        evidence: response.evidence, followUpActions: response.followUpActions, clarification: response.clarification
       }]);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'PRF Assistant failed to answer';
@@ -136,7 +151,7 @@ export function PRFChat() {
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      void submit();
+      void submitMessage();
     }
   };
 
@@ -151,6 +166,23 @@ export function PRFChat() {
     navigate(`/prf?search=${encodeURIComponent(prfNo)}`);
     setOpen(false);
   };
+
+  const removeContext = (key: keyof ChatContext) => {
+    setContext((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const contextChips: Array<{ key: keyof ChatContext; label: string }> = [];
+  if (context.activePrf) contextChips.push({ key: 'activePrf', label: `PRF ${context.activePrf.prfNo}` });
+  if (context.dateFrom || context.dateTo) contextChips.push({ key: 'dateFrom', label: `${context.dateFrom || '…'} — ${context.dateTo || '…'}` });
+  if (context.department) contextChips.push({ key: 'department', label: context.department });
+  if (context.purchaseDefinition) {
+    const labels = { with_po: 'Purchased = has PO', all_requested: 'Purchased = requested', picked_up: 'Purchased = picked up' };
+    contextChips.push({ key: 'purchaseDefinition', label: labels[context.purchaseDefinition] });
+  }
 
   return (
     <>
@@ -189,6 +221,22 @@ export function PRFChat() {
                 <Button variant="ghost" size="icon" onClick={reset} title="Clear conversation" aria-label="Clear conversation"><RotateCcw /></Button>
               </div>
             </div>
+            {contextChips.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5 text-left">
+                {contextChips.map((chip) => (
+                  <button
+                    key={`${chip.key}-${chip.label}`} type="button" onClick={() => {
+                      removeContext(chip.key);
+                      if (chip.key === 'dateFrom') removeContext('dateTo');
+                    }}
+                    className="inline-flex items-center gap-1 rounded-full border bg-background px-2.5 py-1 text-xs text-foreground hover:bg-muted"
+                    title={`Remove context: ${chip.label}`}
+                  >
+                    {chip.label}<X className="h-3 w-3" />
+                  </button>
+                ))}
+              </div>
+            )}
           </SheetHeader>
 
           <ScrollArea className="min-h-0 flex-1 px-5 py-4">
@@ -228,6 +276,57 @@ export function PRFChat() {
                       ))}
                     </div>
                   )}
+                  {message.clarification && (
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {message.clarification.options.map((option) => (
+                        <button
+                          type="button" key={option.id}
+                          onClick={() => {
+                            const nextContext = { ...context, ...option.contextPatch };
+                            setContext(nextContext);
+                            void submitMessage(option.prompt, nextContext);
+                          }}
+                          disabled={loading}
+                          className="rounded-lg border bg-background p-3 text-left text-sm transition-colors hover:border-primary hover:bg-primary/5 disabled:opacity-50"
+                        >
+                          <span className="block font-medium">{option.label}</span>
+                          <span className="mt-1 block text-xs text-muted-foreground">{option.description}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {message.evidence && message.evidence.length > 0 && (
+                    <details className="group mt-2 rounded-lg border bg-background text-sm">
+                      <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 font-medium">
+                        How this was calculated
+                        <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+                      </summary>
+                      <div className="space-y-3 border-t px-3 py-3">
+                        {message.evidence.map((evidence, index) => (
+                          <div key={`${evidence.tool}-${index}`}>
+                            <p className="font-medium">{evidence.title}</p>
+                            <dl className="mt-1 grid grid-cols-[minmax(100px,auto)_1fr] gap-x-3 gap-y-1 text-xs">
+                              {evidence.details.map((detail) => (
+                                <div key={`${evidence.tool}-${detail.label}`} className="contents">
+                                  <dt className="text-muted-foreground">{detail.label}</dt>
+                                  <dd className="break-words">{detail.value}</dd>
+                                </div>
+                              ))}
+                            </dl>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                  {message.followUpActions && message.followUpActions.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {message.followUpActions.map((action) => (
+                        <Button key={action.id} type="button" variant="outline" size="sm" onClick={() => void submitMessage(action.prompt)} disabled={loading}>
+                          {action.label}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )})}
               {loading && <div className="mr-6 flex items-center gap-2 rounded-2xl bg-muted px-4 py-3 text-sm text-muted-foreground"><Loader2 className="animate-spin" /> Checking PRF data…</div>}
@@ -235,7 +334,7 @@ export function PRFChat() {
             </div>
           </ScrollArea>
 
-          <form onSubmit={(event) => void submit(event)} className="border-t bg-background p-4">
+          <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submitMessage(); }} className="border-t bg-background p-4">
             <div className="flex items-end gap-2">
               <Textarea
                 value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleKeyDown}

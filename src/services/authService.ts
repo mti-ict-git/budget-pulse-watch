@@ -173,6 +173,7 @@ class AuthService {
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
     sessionStorage.removeItem('prf-chat-messages');
+    sessionStorage.removeItem('prf-chat-context');
   }
 
   /**

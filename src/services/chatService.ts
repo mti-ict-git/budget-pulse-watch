@@ -12,11 +12,45 @@ export interface ChatReference {
   downloadUrl?: string;
 }
 
+export interface ChatContext {
+  activePrf?: { prfId: number; prfNo: string; label: string };
+  dateFrom?: string;
+  dateTo?: string;
+  department?: string;
+  purchaseDefinition?: 'with_po' | 'all_requested' | 'picked_up';
+}
+
+export interface ChatEvidence {
+  tool: string;
+  title: string;
+  details: Array<{ label: string; value: string | number }>;
+}
+
+export interface ChatFollowUpAction {
+  id: string;
+  label: string;
+  prompt: string;
+}
+
+export interface ChatClarification {
+  question: string;
+  options: Array<{
+    id: string;
+    label: string;
+    description: string;
+    prompt: string;
+    contextPatch?: Partial<ChatContext>;
+  }>;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   references?: ChatReference[];
+  evidence?: ChatEvidence[];
+  followUpActions?: ChatFollowUpAction[];
+  clarification?: ChatClarification;
 }
 
 interface ChatResponse {
@@ -26,15 +60,19 @@ interface ChatResponse {
     answer: string;
     references: ChatReference[];
     model: string;
+    evidence: ChatEvidence[];
+    followUpActions: ChatFollowUpAction[];
+    context: ChatContext;
+    clarification?: ChatClarification;
   };
 }
 
-export async function sendChatMessage(messages: ChatMessage[]): Promise<ChatResponse['data']> {
+export async function sendChatMessage(messages: ChatMessage[], context: ChatContext): Promise<ChatResponse['data']> {
   const token = authService.getToken();
   const response = await fetch('/api/chat/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ messages: messages.slice(-20).map(({ role, content }) => ({ role, content })) })
+    body: JSON.stringify({ messages: messages.slice(-20).map(({ role, content }) => ({ role, content })), context })
   });
   const payload = await response.json() as ChatResponse;
   if (!response.ok || !payload.success || !payload.data) throw new Error(payload.message || 'Failed to contact PRF Assistant');

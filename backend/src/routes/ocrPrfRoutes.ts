@@ -5,6 +5,7 @@ import { PRFModel } from '../models/PRF';
 import { CreatePRFRequest, CreatePRFItemRequest } from '../models/types';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
+import { storedFileCandidates } from '../services/storagePathResolver';
 import fs from 'fs/promises';
 import { getSharedStorageService } from '../services/sharedStorageService';
 import type { FileStorageResult, SharedStorageConfig } from '../services/sharedStorageService';
@@ -145,9 +146,7 @@ const buildRescanProposals = (
 };
 
 const readStoredPRFFile = async (file: PRFFile): Promise<Buffer> => {
-  const candidates = [file.FilePath, file.SharedPath].filter(
-    (value): value is string => typeof value === 'string' && value.trim().length > 0
-  );
+  const candidates = storedFileCandidates([file.SharedPath, file.FilePath], { fileName: file.OriginalFileName });
   let lastError: unknown;
   for (const candidate of candidates) {
     try {

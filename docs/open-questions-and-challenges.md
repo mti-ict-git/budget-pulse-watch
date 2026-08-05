@@ -35,6 +35,16 @@ This document records unresolved business and implementation questions that must
 - Chat history is stored only in browser `sessionStorage`, removed on logout or tab close, and never persisted in SQL Server
 - OpenAI API requests use `store: false`
 - Arbitrary model-generated SQL is prohibited; the assistant may use only fixed, parameterized, bounded read-only tools
+- Materially ambiguous terms are resolved with explicit UI choices before querying; selected definitions remain visible as removable session context
+- Phase 13A supports three purchase definitions: active item with PO, non-cancelled requested item, or item with Picked Up status
+- Calculation evidence and follow-up actions are structured backend data rather than model-formatted commands
+
+### PRF Attachment Storage Compatibility
+
+- Preview, download, folder scan/sync, and AI rescan must use one shared path resolver
+- The resolver supports direct `<root>/<PRFNo>` folders, the legacy company-nested folder, legacy Windows UNC metadata, and forward-slash CIFS metadata
+- PRF 49099 is the production compatibility reference for an attachment that can already be previewed
+- A zero-file scan remains ambiguous between an empty/missing folder and an access error; a later contract revision should expose a structured scan status instead of silently collapsing all filesystem failures to zero
 
 ### Historical Visibility Model
 

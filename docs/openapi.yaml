@@ -82,9 +82,60 @@ components:
         fileName: { type: string }
         previewUrl: { type: string }
         downloadUrl: { type: string }
+    ChatContext:
+      type: object
+      properties:
+        activePrf:
+          type: object
+          properties:
+            prfId: { type: integer }
+            prfNo: { type: string }
+            label: { type: string }
+        dateFrom: { type: string, format: date }
+        dateTo: { type: string, format: date }
+        department: { type: string }
+        purchaseDefinition: { type: string, enum: [with_po, all_requested, picked_up] }
+    ChatEvidence:
+      type: object
+      required: [tool, title, details]
+      properties:
+        tool: { type: string }
+        title: { type: string }
+        details:
+          type: array
+          items:
+            type: object
+            required: [label, value]
+            properties:
+              label: { type: string }
+              value: {}
+    ChatFollowUpAction:
+      type: object
+      required: [id, label, prompt]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        prompt: { type: string }
+    ChatClarification:
+      type: object
+      required: [question, options]
+      properties:
+        question: { type: string }
+        options:
+          type: array
+          items:
+            type: object
+            required: [id, label, description, prompt]
+            properties:
+              id: { type: string }
+              label: { type: string }
+              description: { type: string }
+              prompt: { type: string }
+              contextPatch:
+                $ref: '#/components/schemas/ChatContext'
     ChatAnswer:
       type: object
-      required: [answer, references, model]
+      required: [answer, references, model, evidence, followUpActions, context]
       properties:
         answer: { type: string }
         references:
@@ -92,6 +143,18 @@ components:
           items:
             $ref: '#/components/schemas/ChatReference'
         model: { type: string }
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatEvidence'
+        followUpActions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatFollowUpAction'
+        context:
+          $ref: '#/components/schemas/ChatContext'
+        clarification:
+          $ref: '#/components/schemas/ChatClarification'
     User:
       type: object
       properties:
@@ -1111,7 +1174,7 @@ paths:
   /api/chat/messages:
     post:
       summary: Ask a read-only question about all PRFs
-      description: Uses fixed read-only tools over PRF/item data and attachment metadata. Attachment contents are not read, chat is not persisted by the backend, and OpenAI storage is disabled.
+      description: Uses fixed read-only tools over PRF/item data and attachment metadata. Returns structured evidence, allow-listed follow-up actions, session context, or clarification choices for ambiguous business terms. Attachment contents are not read, chat/context is not persisted by the backend, and OpenAI storage is disabled.
       tags: [Chat]
       security:
         - bearerAuth: []
@@ -1131,6 +1194,8 @@ paths:
                   maxItems: 20
                   items:
                     $ref: '#/components/schemas/ChatMessage'
+                context:
+                  $ref: '#/components/schemas/ChatContext'
       responses:
         '200':
           description: Assistant answer and application references
@@ -1289,6 +1354,7 @@ paths:
   /api/prf-files/file/{fileId}/content:
     get:
       summary: Preview or download a stored PRF attachment
+      description: Resolves legacy and current shared-storage layouts through the same compatibility rules used by PRF folder scan/sync and AI rescan.
       tags: [PRF Files]
       security:
         - bearerAuth: []
@@ -1345,6 +1411,7 @@ paths:
   /api/prf-documents/scan-folder/{prfNo}:
     get:
       summary: Scan PRF shared folder
+      description: Resolves both direct PRF folders and legacy company-nested/CIFS layouts before recursively scanning the selected folder.
       tags: [PRF Documents]
       parameters:
         - in: path
@@ -1366,6 +1433,7 @@ paths:
   /api/prf-documents/sync-folder/{prfNo}:
     post:
       summary: Sync PRF folder contents into database
+      description: Uses the same shared-storage path resolution as scan, attachment preview/download, and AI rescan.
       tags: [PRF Documents]
       security:
         - bearerAuth: []

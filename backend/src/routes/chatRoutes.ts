@@ -1,8 +1,27 @@
 import express, { Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
-import { answerPrfQuestion, ChatMessageInput } from '../services/prfChatService';
+import { answerPrfQuestion, ChatContext, ChatMessageInput } from '../services/prfChatService';
 
 const router = express.Router();
+
+function parseContext(value: unknown): ChatContext {
+  if (!value || typeof value !== 'object') return {};
+  const raw = value as Record<string, unknown>;
+  const context: ChatContext = {};
+  if (typeof raw.dateFrom === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.dateFrom)) context.dateFrom = raw.dateFrom;
+  if (typeof raw.dateTo === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.dateTo)) context.dateTo = raw.dateTo;
+  if (typeof raw.department === 'string' && raw.department.trim().length <= 100) context.department = raw.department.trim();
+  if (['with_po', 'all_requested', 'picked_up'].includes(String(raw.purchaseDefinition))) {
+    context.purchaseDefinition = raw.purchaseDefinition as ChatContext['purchaseDefinition'];
+  }
+  if (raw.activePrf && typeof raw.activePrf === 'object') {
+    const prf = raw.activePrf as Record<string, unknown>;
+    if (typeof prf.prfId === 'number' && typeof prf.prfNo === 'string' && typeof prf.label === 'string') {
+      context.activePrf = { prfId: prf.prfId, prfNo: prf.prfNo.slice(0, 50), label: prf.label.slice(0, 250) };
+    }
+  }
+  return context;
+}
 
 router.post('/messages', authenticateToken, async (req: Request, res: Response) => {
   try {
@@ -20,7 +39,7 @@ router.post('/messages', authenticateToken, async (req: Request, res: Response) 
     }
     const messages = rawMessages as ChatMessageInput[];
     const identity = `${req.authType || 'api'}:${req.user?.Username || req.user?.UserID || 'unknown'}`;
-    const data = await answerPrfQuestion(messages, identity);
+    const data = await answerPrfQuestion(messages, identity, parseContext(req.body?.context));
     return res.json({ success: true, data });
   } catch (error) {
     console.error('[PRF Chat] Failed to answer question:', error);

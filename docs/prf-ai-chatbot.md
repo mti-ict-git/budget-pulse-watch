@@ -60,12 +60,24 @@ Assistant Markdown is rendered with raw HTML disabled. Tables scroll horizontall
 
 The UI explicitly communicates that the assistant is read-only, sees all PRFs, does not read attachments, and keeps conversation history for the browser session only.
 
+## Trust And Conversation Control
+
+Phase 13A adds four structured controls:
+
+- `How this was calculated` exposes the tool name, filters, date/time-zone basis, business definition, limits, and result counts supplied by backend tools.
+- Follow-up chips are allow-listed backend actions containing a label and a safe prompt; arbitrary model-generated commands are not executable.
+- Visible context chips track active PRF, period, department, and purchase definition in `sessionStorage`. Users can remove any context chip, and logout clears all context.
+- The ambiguity resolver runs before OpenAI for materially different meanings of `bought/spending`, `completed`, `pending`, and `value`. The selected meaning is shown and can become session context.
+
+Ambiguity choices never mutate data. A clarification response can be produced without an OpenAI call, and the actual query runs only after the user selects a definition.
+
 ## Operational Configuration
 
 - Configure an OpenAI API key in Settings or set `OPENAI_API_KEY` on the backend.
 - In Settings, only an authenticated administrator can reveal the decrypted key with the eye control; reveal responses are marked `no-store` and hiding the key removes plaintext from UI state.
 - Optionally set `CHATBOT_OPENAI_MODEL` to an OpenAI Responses API model that supports function calling.
 - The backend must be able to resolve the stored `PRFFiles.FilePath` or `SharedPath` for preview/download.
+- Attachment preview/download and AI rescan use the same compatibility resolver as PRF folder scan/sync. Supported layouts include direct PRF folders, the legacy company-folder layout, Windows UNC paths, and forward-slash CIFS paths.
 - Monitor OpenAI latency, rate-limit failures, and token cost before expanding access or result limits.
 
 ## Deferred Scope

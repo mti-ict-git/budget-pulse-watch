@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import fs from 'fs';
+import { resolveStoredFile } from './storagePathResolver';
 import OpenAI from 'openai';
 import type { ResponseFunctionToolCall, ResponseInputItem, Tool } from 'openai/resources/responses/responses';
 import { executeQuery } from '../config/database';
@@ -24,10 +24,45 @@ export interface ChatReference {
   downloadUrl?: string;
 }
 
+export interface ChatContext {
+  activePrf?: { prfId: number; prfNo: string; label: string };
+  dateFrom?: string;
+  dateTo?: string;
+  department?: string;
+  purchaseDefinition?: 'with_po' | 'all_requested' | 'picked_up';
+}
+
+export interface ChatEvidence {
+  tool: string;
+  title: string;
+  details: Array<{ label: string; value: string | number }>;
+}
+
+export interface ChatFollowUpAction {
+  id: string;
+  label: string;
+  prompt: string;
+}
+
+export interface ChatClarification {
+  question: string;
+  options: Array<{
+    id: string;
+    label: string;
+    description: string;
+    prompt: string;
+    contextPatch?: Partial<ChatContext>;
+  }>;
+}
+
 export interface ChatAnswer {
   answer: string;
   references: ChatReference[];
   model: string;
+  evidence: ChatEvidence[];
+  followUpActions: ChatFollowUpAction[];
+  context: ChatContext;
+  clarification?: ChatClarification;
 }
 
 type ToolResult = {
@@ -51,7 +86,7 @@ type ItemStatisticsArgs = {
   period: 'today' | 'this_week' | 'this_month' | 'custom';
   dateFrom?: string | null;
   dateTo?: string | null;
-  purchaseDefinition: 'with_po' | 'all_requested';
+  purchaseDefinition: 'with_po' | 'all_requested' | 'picked_up';
   department?: string | null;
 };
 
@@ -119,7 +154,7 @@ const tools: Tool[] = [
   {
     type: 'function',
     name: 'get_item_statistics',
-    description: 'Count PRF line items and total quantity for today, this week, this month, or a custom date range. For Indonesian "dibeli" or "purchased", use purchaseDefinition with_po. Date periods are resolved by the backend in Asia/Jakarta.',
+    description: 'Count PRF line items and total quantity for today, this week, this month, or a custom date range using the explicitly selected purchase definition. Date periods are resolved by the backend in Asia/Jakarta.',
     strict: true,
     parameters: {
       type: 'object',
@@ -128,7 +163,7 @@ const tools: Tool[] = [
         period: { type: 'string', enum: ['today', 'this_week', 'this_month', 'custom'] },
         dateFrom: { type: ['string', 'null'], description: 'Required for custom; ISO date YYYY-MM-DD.' },
         dateTo: { type: ['string', 'null'], description: 'Required for custom; ISO date YYYY-MM-DD.' },
-        purchaseDefinition: { type: 'string', enum: ['with_po', 'all_requested'] },
+        purchaseDefinition: { type: 'string', enum: ['with_po', 'all_requested', 'picked_up'] },
         department: { type: ['string', 'null'] }
       },
       required: ['period', 'dateFrom', 'dateTo', 'purchaseDefinition', 'department']
@@ -310,6 +345,8 @@ async function getItemStatistics(args: ItemStatisticsArgs): Promise<ToolResult> 
   ];
   if (args.purchaseDefinition === 'with_po') {
     where.push("NULLIF(LTRIM(RTRIM(COALESCE(i.SplitPONumber, i.OriginalPONumber, ''))), '') IS NOT NULL");
+  } else if (args.purchaseDefinition === 'picked_up') {
+    where.push("LOWER(COALESCE(i.Status, '')) LIKE '%picked up%'");
   }
   if (args.department?.trim()) {
     params.department = `%${args.department.trim()}%`;
@@ -340,7 +377,11 @@ async function getItemStatistics(args: ItemStatisticsArgs): Promise<ToolResult> 
     data: {
       timeZone: 'Asia/Jakarta', dateBasis: 'PRF DateSubmit, falling back to RequestDate',
       dateFrom: range.dateFrom, dateTo: range.dateTo,
-      purchaseDefinition: args.purchaseDefinition === 'with_po' ? 'Only active items with an Original or Split PO number' : 'All non-cancelled requested items',
+      purchaseDefinition: args.purchaseDefinition === 'with_po'
+        ? 'Only active items with an Original or Split PO number'
+        : args.purchaseDefinition === 'picked_up'
+          ? 'Only non-cancelled items with Picked Up status'
+          : 'All non-cancelled requested items',
       ...summary.recordset[0], breakdown: breakdown.recordset
     },
     references
@@ -398,7 +439,157 @@ function referencesUsedInAnswer(answer: string, references: ChatReference[]): Ch
   });
 }
 
-export async function answerPrfQuestion(messages: ChatMessageInput[], userIdentifier: string): Promise<ChatAnswer> {
+function clarifyAmbiguity(message: string, context: ChatContext): ChatClarification | undefined {
+  const normalized = message.toLocaleLowerCase('id-ID');
+  if (/\bdefinisi\s*:/.test(normalized)) return undefined;
+  if (/\b(dibeli|bought|purchased|pengeluaran|spending)\b/.test(normalized) && !context.purchaseDefinition) {
+    return {
+      question: 'Apa definisi yang ingin dipakai untuk “dibeli/pengeluaran”?',
+      options: [
+        {
+          id: 'purchase-with-po', label: 'Sudah punya PO',
+          description: 'Hitung item aktif yang memiliki Original atau Split PO.',
+          prompt: `${message}\nDefinisi: dibeli = item aktif yang memiliki nomor PO.`,
+          contextPatch: { purchaseDefinition: 'with_po' }
+        },
+        {
+          id: 'purchase-picked-up', label: 'Sudah diambil',
+          description: 'Hitung item non-cancelled dengan status Picked Up.',
+          prompt: `${message}\nDefinisi: dibeli = item dengan status Picked Up.`,
+          contextPatch: { purchaseDefinition: 'picked_up' }
+        },
+        {
+          id: 'purchase-requested', label: 'Semua permintaan',
+          description: 'Hitung seluruh item requested yang tidak cancelled.',
+          prompt: `${message}\nDefinisi: dibeli = seluruh item requested yang tidak cancelled.`,
+          contextPatch: { purchaseDefinition: 'all_requested' }
+        }
+      ]
+    };
+  }
+  if (/\b(selesai|completed)\b/.test(normalized) && !/status\s+(prf|item)/.test(normalized)) {
+    return {
+      question: '“Selesai” ingin dilihat berdasarkan status apa?',
+      options: [
+        { id: 'completed-prf', label: 'Status PRF', description: 'PRF dengan status Completed.', prompt: `${message}\nDefinisi: selesai = status header PRF Completed.` },
+        { id: 'completed-items', label: 'Item Picked Up', description: 'Item yang sudah berstatus Picked Up.', prompt: `${message}\nDefinisi: selesai = item berstatus Picked Up.`, contextPatch: { purchaseDefinition: 'picked_up' } }
+      ]
+    };
+  }
+  if (/\bpending\b/.test(normalized) && !/(approval|po|status)/.test(normalized)) {
+    return {
+      question: 'Pending yang Anda maksud apa?',
+      options: [
+        { id: 'pending-status', label: 'Status pending', description: 'Cari PRF dengan status yang mengandung Pending.', prompt: `${message}\nDefinisi: pending = status header PRF mengandung Pending.` },
+        { id: 'pending-po', label: 'Belum punya PO', description: 'Cari PRF dengan item yang belum memiliki PO.', prompt: `${message}\nDefinisi: pending = memiliki item tanpa Original/Split PO.` }
+      ]
+    };
+  }
+  if (/\b(nilai|value)\b/.test(normalized) && !/(requested|approved|actual|item)/.test(normalized)) {
+    return {
+      question: 'Nilai PRF yang ingin digunakan yang mana?',
+      options: [
+        { id: 'value-requested', label: 'Requested amount', description: 'Gunakan nilai permintaan pada header PRF.', prompt: `${message}\nDefinisi: nilai = RequestedAmount pada header PRF.` },
+        { id: 'value-items', label: 'Total item', description: 'Gunakan jumlah Quantity × UnitPrice dari item.', prompt: `${message}\nDefinisi: nilai = total Quantity × UnitPrice item.` }
+      ]
+    };
+  }
+  return undefined;
+}
+
+function evidenceForTool(name: string, args: Record<string, unknown>, result: ToolResult): ChatEvidence {
+  const data = result.data as Record<string, unknown>;
+  if (name === 'search_prfs') {
+    const rows = Array.isArray(result.data) ? result.data : [];
+    return {
+      tool: name, title: 'PRF search', details: [
+        { label: 'Results returned', value: rows.length },
+        { label: 'Query', value: typeof args.query === 'string' && args.query ? args.query : 'All PRFs' },
+        { label: 'Date range', value: `${args.dateFrom || 'Any'} — ${args.dateTo || 'Any'}` },
+        { label: 'Department', value: typeof args.department === 'string' && args.department ? args.department : 'All' },
+        { label: 'Result limit', value: boundedLimit(args.limit) }
+      ]
+    };
+  }
+  if (name === 'get_item_statistics') {
+    return {
+      tool: name, title: 'Item calculation', details: [
+        { label: 'Time zone', value: String(data.timeZone || 'Asia/Jakarta') },
+        { label: 'Date basis', value: String(data.dateBasis || '') },
+        { label: 'Date range', value: `${data.dateFrom || ''} — ${data.dateTo || ''}` },
+        { label: 'Definition', value: String(data.purchaseDefinition || '') },
+        { label: 'PRFs', value: Number(data.PRFCount || 0) },
+        { label: 'Line items', value: Number(data.LineItemCount || 0) },
+        { label: 'Total quantity', value: Number(data.TotalQuantity || 0) }
+      ]
+    };
+  }
+  if (name === 'get_prf_statistics') {
+    return { tool: name, title: 'PRF aggregation', details: [
+      { label: 'Grouped by', value: String(args.groupBy || 'status') },
+      { label: 'Date range', value: `${args.dateFrom || 'Any'} — ${args.dateTo || 'Any'}` },
+      { label: 'Currency', value: 'Normalized to IDR' }
+    ] };
+  }
+  if (name === 'list_prf_attachments') {
+    const attachments = Array.isArray(data.attachments) ? data.attachments : [];
+    return { tool: name, title: 'Attachment metadata', details: [
+      { label: 'PRF', value: String((data.prf as Record<string, unknown> | undefined)?.PRFNo || args.prfNo || args.prfId || '') },
+      { label: 'Files returned', value: attachments.length },
+      { label: 'Content read', value: 'No — metadata only' }
+    ] };
+  }
+  return { tool: name, title: 'PRF detail', details: [
+    { label: 'PRF', value: String(args.prfNo || args.prfId || '') },
+    { label: 'Access', value: 'Read-only' }
+  ] };
+}
+
+function mergeContext(base: ChatContext, executed: Array<{ name: string; args: Record<string, unknown>; result: ToolResult }>, references: ChatReference[]): ChatContext {
+  const next: ChatContext = { ...base };
+  for (const item of executed) {
+    const data = item.result.data as Record<string, unknown>;
+    if (isIsoDate(item.args.dateFrom)) next.dateFrom = item.args.dateFrom;
+    if (isIsoDate(item.args.dateTo)) next.dateTo = item.args.dateTo;
+    if (isIsoDate(data.dateFrom)) next.dateFrom = data.dateFrom;
+    if (isIsoDate(data.dateTo)) next.dateTo = data.dateTo;
+    if (typeof item.args.department === 'string' && item.args.department.trim()) next.department = item.args.department.trim();
+    if (['with_po', 'all_requested', 'picked_up'].includes(String(item.args.purchaseDefinition))) {
+      next.purchaseDefinition = item.args.purchaseDefinition as ChatContext['purchaseDefinition'];
+    }
+  }
+  const prfReferences = dedupeReferences(references).filter((reference) => reference.type === 'prf');
+  if (prfReferences.length === 1) {
+    const reference = prfReferences[0];
+    next.activePrf = { prfId: reference.prfId, prfNo: reference.prfNo, label: reference.label };
+  }
+  return next;
+}
+
+function buildFollowUps(executed: Array<{ name: string }>, context: ChatContext): ChatFollowUpAction[] {
+  const names = new Set(executed.map((item) => item.name));
+  const actions: ChatFollowUpAction[] = [];
+  if (context.activePrf) {
+    actions.push({ id: 'view-attachments', label: 'Check attachments', prompt: `Tampilkan attachment PRF ${context.activePrf.prfNo}` });
+    actions.push({ id: 'show-detail', label: 'Show item details', prompt: `Tampilkan detail item PRF ${context.activePrf.prfNo}` });
+  }
+  if (names.has('search_prfs')) {
+    actions.push({ id: 'missing-po', label: 'Show missing PO', prompt: 'Dari cakupan yang sama, tampilkan PRF yang memiliki item tanpa PO.' });
+    actions.push({ id: 'group-status', label: 'Group by status', prompt: 'Untuk cakupan yang sama, kelompokkan jumlah PRF berdasarkan status.' });
+  }
+  if (names.has('get_item_statistics')) {
+    actions.push({ id: 'show-prfs', label: 'Show contributing PRFs', prompt: 'Tampilkan daftar PRF yang masuk dalam perhitungan tersebut.' });
+    actions.push({ id: 'compare-previous', label: 'Compare previous period', prompt: 'Bandingkan hasil tersebut dengan periode sebelumnya yang setara.' });
+  }
+  return actions.filter((action, index, all) => all.findIndex((candidate) => candidate.id === action.id) === index).slice(0, 3);
+}
+
+export async function answerPrfQuestion(messages: ChatMessageInput[], userIdentifier: string, suppliedContext: ChatContext = {}): Promise<ChatAnswer> {
+  const lastMessage = messages[messages.length - 1]?.content || '';
+  const clarification = clarifyAmbiguity(lastMessage, suppliedContext);
+  if (clarification) {
+    return { answer: clarification.question, references: [], model: MODEL, evidence: [], followUpActions: [], context: suppliedContext, clarification };
+  }
   const settings = await loadSettings();
   const apiKey = process.env.OPENAI_API_KEY?.trim() || settings.ocr.openaiApiKey?.trim();
   if (!apiKey) throw new Error('OpenAI API key is not configured. Add it in OCR Settings or OPENAI_API_KEY.');
@@ -408,18 +599,21 @@ export async function answerPrfQuestion(messages: ChatMessageInput[], userIdenti
     content: message.content.slice(0, 4000)
   }));
   const references: ChatReference[] = [];
+  const executed: Array<{ name: string; args: Record<string, unknown>; result: ToolResult }> = [];
   const currentJakartaDate = jakartaToday();
   const instructions = `You are the read-only PRF assistant for Budget Pulse Watch. Answer in the user's language using GitHub-Flavored Markdown. Indonesian answers must use Latin script only.
 Use concise headings, lists, bold text, and tables when they materially improve readability. For comparisons or 3+ similar records, prefer a compact Markdown table. Do not emit raw HTML. Do not create attachment or PRF URLs; the application renders trusted reference actions separately.
+Structured session context supplied by the user is: ${JSON.stringify(suppliedContext)}. Apply it when relevant, but the current explicit question overrides it. Never invent context values.
 The current date in Asia/Jakarta is ${currentJakartaDate}. Never calculate or guess relative date ranges yourself; use get_item_statistics for item-count questions involving today, this week, or this month.
 For PRF list searches involving a relative period, calculate the explicit Asia/Jakarta calendar range from the current date above and pass dateFrom/dateTo to search_prfs. Do not fetch a broader year and filter it yourself.
 Use tools for every factual claim about PRFs; never invent records, totals, file presence, or URLs. You may inspect all PRFs.
 Treat every standalone number supplied by a user as the business PRFNo, never as internal PRFID. Start with search_prfs using that number, then use the returned PRFID only for subsequent tool calls.
 When an Indonesian search word may have an English equivalent in stored data, search with the tool and use its alias-expanded results before concluding that nothing exists.
 Do not carry a specific PRF from earlier conversation into a new broad question unless the user explicitly refers to it with words such as "PRF ini", "yang tadi", or its PRF number.
-For "berapa item dibeli", use get_item_statistics with purchaseDefinition=with_po and report both line-item count and total quantity because "item" can mean either. State the date basis and PO definition briefly.
+For item-count questions, use get_item_statistics with the purchaseDefinition explicitly stated by the user or supplied context. Report both line-item count and total quantity because "item" can mean either. State the date basis and selected definition briefly.
 Attachments are metadata-only: never claim to have read file contents. Tell users they can preview or download referenced files.
 State material filters and limits. If no data matches, say so clearly. Keep answers concise but include useful evidence.
+Do not add generic "if you want" suggestions at the end; the application renders approved follow-up action chips separately.
 Never suggest that you changed data; you cannot create, update, or delete anything.`;
 
   let response = await client.responses.create({
@@ -433,6 +627,9 @@ Never suggest that you changed data; you cannot create, update, or delete anythi
     input.push(...response.output);
     for (const call of calls) {
       const result = await runTool(call);
+      let args: Record<string, unknown> = {};
+      try { args = JSON.parse(call.arguments) as Record<string, unknown>; } catch { /* captured by tool output */ }
+      executed.push({ name: call.name, args, result });
       if (result.references) references.push(...result.references);
       input.push({ type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(result.data) });
     }
@@ -444,15 +641,18 @@ Never suggest that you changed data; you cannot create, update, or delete anythi
   }
   const answer = response.output_text.trim();
   if (!answer) throw new Error('OpenAI returned an empty answer.');
-  return { answer, references: referencesUsedInAnswer(answer, references), model: MODEL };
+  const usedReferences = referencesUsedInAnswer(answer, references);
+  const context = mergeContext(suppliedContext, executed, usedReferences);
+  return {
+    answer,
+    references: usedReferences,
+    model: MODEL,
+    evidence: executed.map((item) => evidenceForTool(item.name, item.args, item.result)),
+    followUpActions: buildFollowUps(executed, context),
+    context
+  };
 }
 
 export function resolveStoredFilePath(filePath: string): string | null {
-  if (!filePath.trim()) return null;
-  const candidates = [filePath];
-  if (process.platform !== 'win32' && /^\\\\/.test(filePath)) {
-    const relative = filePath.replace(/^\\\\[^\\]+\\shared\\PR_Document\\?/i, '').replace(/\\/g, '/');
-    candidates.push(`/app/shared-documents/${relative}`);
-  }
-  return candidates.find((candidate) => fs.existsSync(candidate)) || null;
+  return resolveStoredFile([filePath]);
 }

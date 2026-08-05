@@ -5,6 +5,7 @@ import { Request, Response } from 'express';
 import { getPool } from '../config/database';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
 import { ensureNetworkShareAccess, getNetworkAuthConfig, isRunningInDocker } from '../utils/networkAuth';
+import { prfFolderCandidates, resolvePRFFolder, resolveStoredFile } from '../services/storagePathResolver';
 
 const router = express.Router();
 
@@ -144,11 +145,8 @@ function getMimeType(fileName: string): string {
 
 // Scan a specific PRF folder for documents
 async function scanPRFFolder(prfNo: string, sharedFolderPath: string): Promise<FolderScanResult> {
-  // Only convert to Docker path if it's not already a Docker mount point
-  const dockerPath = sharedFolderPath.startsWith('/app/') || sharedFolderPath.startsWith('/mnt/') 
-    ? sharedFolderPath 
-    : convertToDockerPath(sharedFolderPath);
-  const folderPath = path.join(dockerPath, prfNo);
+  const folderCandidates = prfFolderCandidates(prfNo, sharedFolderPath);
+  const folderPath = resolvePRFFolder(prfNo, sharedFolderPath) || folderCandidates[0] || path.join(sharedFolderPath, prfNo);
   const result: FolderScanResult = {
     prfNo,
     folderPath,
@@ -197,7 +195,7 @@ async function scanPRFFolder(prfNo: string, sharedFolderPath: string): Promise<F
     
     await scanDirectory(folderPath);
   } catch (error) {
-    console.error(`Error scanning folder ${folderPath}:`, error);
+    console.error(`Error scanning folder ${folderPath}. Candidates: ${folderCandidates.join(', ')}`, error);
     // Folder doesn't exist or access denied - return empty result
   }
   
@@ -393,20 +391,16 @@ router.get('/download/:fileId', async (req: Request, res: Response) => {
     }
     
     const file = result.recordset[0];
-    const filePath = file.SharedPath || file.FilePath;
-    
-    if (!filePath) {
+    const actualFilePath = resolveStoredFile([file.SharedPath, file.FilePath], { fileName: file.OriginalFileName });
+
+    if (!actualFilePath) {
       return res.status(404).json({
         success: false,
-        message: 'File path not available'
+        message: 'File not found on disk'
       });
     }
     
     try {
-      // Convert to Docker path if running in container and not already a Docker mount point
-      const actualFilePath = filePath.startsWith('/app/') || filePath.startsWith('/mnt/')
-        ? filePath
-        : convertToDockerPath(filePath);
       console.log(`📥 [PRFDocuments] Downloading file: ${actualFilePath}`);
       
       // Check if file exists
@@ -462,20 +456,16 @@ router.get('/view/:fileId', async (req: Request, res: Response) => {
     }
     
     const file = result.recordset[0];
-    const filePath = file.SharedPath || file.FilePath;
-    
-    if (!filePath) {
+    const actualFilePath = resolveStoredFile([file.SharedPath, file.FilePath], { fileName: file.OriginalFileName });
+
+    if (!actualFilePath) {
       return res.status(404).json({
         success: false,
-        message: 'File path not available'
+        message: 'File not found on disk'
       });
     }
     
     try {
-      // Convert to Docker path if running in container and not already a Docker mount point
-      const actualFilePath = filePath.startsWith('/app/') || filePath.startsWith('/mnt/')
-        ? filePath
-        : convertToDockerPath(filePath);
       console.log(`📄 [PRFDocuments] Accessing file: ${actualFilePath}`);
       
       // Check if file exists

@@ -60,7 +60,9 @@ export class SharedStorageService {
     let relativePath = windowsPath
       .replace(/^\\\\[^\\]+\\shared\\PR_Document\\?/, '') // Remove \\server\shared\PR_Document\
       .replace(/^\\\\[^\\]+\\shared\\?/, '') // Fallback: Remove \\server\shared\
-      .replace(/\\/g, '/'); // Convert backslashes to forward slashes
+      .replace(/\\/g, '/') // Convert backslashes to forward slashes
+      .replace(/^\/\/[^/]+\/(?:shared\/)?PR_Document\/?/i, '')
+      .replace(/^\/\/[^/]+\/[^/]+\/?/i, '');
     
     // If the path starts with "PT Merdeka Tsingshan Indonesia", we're good
     // Otherwise, we might need to add it

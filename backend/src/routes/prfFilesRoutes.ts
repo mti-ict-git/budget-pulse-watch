@@ -11,7 +11,7 @@ import * as fsSync from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
 import { getPool } from '../config/database';
-import { resolveStoredFilePath } from '../services/prfChatService';
+import { resolveStoredFile } from '../services/storagePathResolver';
 
 const router = express.Router();
 
@@ -424,7 +424,14 @@ router.get('/file/:fileId/content', authenticateToken, async (req, res) => {
     if (Number.isNaN(fileId)) return res.status(400).json({ success: false, message: 'Invalid file ID' });
     const file = await PRFFilesModel.getById(fileId);
     if (!file) return res.status(404).json({ success: false, message: 'File not found' });
-    const resolvedPath = resolveStoredFilePath(file.SharedPath || file.FilePath);
+    const prfResult = await getPool().request()
+      .input('prfId', file.PRFID)
+      .query('SELECT PRFNo FROM PRF WHERE PRFID = @prfId');
+    const prfNo = prfResult.recordset[0]?.PRFNo ? String(prfResult.recordset[0].PRFNo).trim() : undefined;
+    const resolvedPath = resolveStoredFile([file.SharedPath, file.FilePath], {
+      prfNo,
+      fileName: file.OriginalFileName
+    });
     if (!resolvedPath) return res.status(404).json({ success: false, message: 'Stored file is unavailable' });
     const disposition = req.query.disposition === 'attachment' ? 'attachment' : 'inline';
     const stat = await fs.stat(resolvedPath);

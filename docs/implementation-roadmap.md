@@ -6,8 +6,8 @@ This roadmap restores the formal phase tracker required by `AGENTS.md` and defin
 
 ## Status Summary
 
-- Roadmap status: Completed
-- Active phase: `Phase 12 - PRF AI Chatbot`
+- Roadmap status: In Progress
+- Active phase: `Phase 13A - Trust And Conversation Control`
 - Last updated: `2026-08-05`
 
 ## Historical Delivery Context
@@ -347,7 +347,7 @@ Allow an authorized user to reread a stored OCR Source, review item-level differ
 
 ### Status
 
-In Progress
+Completed
 
 ### Objective
 
@@ -375,7 +375,7 @@ Allow any authenticated user to ask read-only natural-language questions about a
 - [x] Add user-controlled full-window chat mode
 - [x] Secure OCR key reveal behind admin authentication and no-store responses
 - [x] Update `docs/openapi.yaml`, README, onboarding, and open questions
-- [ ] Complete build, typecheck, lint, and targeted runtime verification
+- [x] Complete build, typecheck, lint, and targeted runtime verification
 
 ### Output
 
@@ -400,6 +400,7 @@ Allow any authenticated user to ask read-only natural-language questions about a
 - Markdown/full-window frontend production build passed with 2,060 modules transformed; root typecheck, targeted ESLint, backend build, and `git diff --check` passed
 - Monthly-list reference verification passed against live SQL/OpenAI: `tampilkan seluruh list PRF dalam bulan ini` returned only PRFs `49642` and `49656`; their View PRF actions are embedded in the Markdown table and unrelated intermediate references are filtered in both backend and frontend
 - Production dependency audit reports 12 existing findings (11 high, 1 moderate), including an unpatched `xlsx` advisory; no automatic audit fix was applied because it would broaden dependency changes beyond this feature
+- Browser UAT accepted by the product owner on `2026-08-05`
 
 ## Planned Phase 13 - PRF Assistant Enhancements
 
@@ -429,6 +430,56 @@ Evolve the assistant from read-only search into an auditable operational copilot
 ### Completion Gate
 
 No Phase 13 item is considered active or complete until it has its own checklist, applicable OpenAPI updates, business-definition decisions, and recorded live verification evidence.
+
+## Phase 13A - Trust And Conversation Control
+
+### Status
+
+In Progress
+
+### Objective
+
+Make assistant answers auditable and conversationally safe by exposing calculation evidence, limiting follow-up actions to application-approved choices, making session context visible/removable, and resolving materially ambiguous business terms before querying.
+
+### Source Documents
+
+- `docs/prf-ai-chatbot.md`
+- `docs/prf-ai-chatbot-enhancement-roadmap.md`
+- `docs/open-questions-and-challenges.md`
+- `docs/openapi.yaml`
+
+### Checklist
+
+- [x] Return structured calculation evidence from read-only tools
+- [x] Return allow-listed follow-up actions rather than unsupported prose suggestions
+- [x] Add visible/removable PRF, period, department, and purchase-definition context chips
+- [x] Add ambiguity choices for materially different interpretations of `bought`, `completed`, `pending`, `value`, and `spending`
+- [x] Keep all Phase 13A state in browser `sessionStorage`
+- [x] Update `docs/openapi.yaml` for request and response contract changes
+- [x] Complete typecheck, build, lint, and live SQL/OpenAI verification
+- [x] Unify legacy/current attachment path resolution for preview, download, folder scan/sync, and AI rescan
+- [ ] Complete targeted browser UAT for clarification choices, evidence disclosure, follow-up actions, and context removal
+
+### Output
+
+- Auditable assistant responses with filters, definitions, date basis, time zone, and result counts
+- Safe one-click follow-up prompts
+- User-controlled structured session context
+- Clarification before executing ambiguous business queries
+
+### Challenge / Verification
+
+- Backend TypeScript build passed: `npm --prefix backend run build`
+- Root TypeScript check passed: `npx tsc --noEmit`
+- Frontend production build passed: `npm run build` (2,060 modules transformed; existing bundle-size warning remains)
+- Full ESLint completed with zero errors and nine pre-existing Fast Refresh warnings
+- `docs/openapi.yaml` parsed successfully and `git diff --check` passed
+- Deterministic ambiguity checks returned the approved choices for completed PRFs/items, pending status/missing PO, and requested/item value
+- Live resolved-query verification for `bought this week` returned two line items across PRFs 49656 and 49642, with structured evidence and allow-listed follow-up actions
+- Attachment path compatibility tests passed for direct PRF folders (reference pattern PRF 49099), company-nested folders, legacy UNC paths, and forward-slash deployment paths
+- Backend TypeScript build passed after preview, scan/sync, download, and AI-rescan were moved to the shared storage resolver
+- `docs/openapi.yaml` was reviewed and its attachment/scan descriptions were synchronized; route shapes and response schemas did not change
+- Targeted browser UAT remains pending; Phase 13A stays `In Progress` until accepted
 
 ## Completion Rule
 
