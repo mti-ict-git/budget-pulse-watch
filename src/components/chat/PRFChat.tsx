@@ -1,5 +1,5 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
-import { Bot, ChevronDown, Download, ExternalLink, FileText, Loader2, Maximize2, MessageCircle, Minimize2, RotateCcw, Send, X } from 'lucide-react';
+import { ChevronDown, Download, ExternalLink, FileText, Loader2, Maximize2, Minimize2, RotateCcw, Send, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useNavigate } from 'react-router-dom';
@@ -233,10 +233,16 @@ export function PRFChat() {
   return (
     <>
       <Button
-        size="icon" onClick={() => setOpen(true)} aria-label="Open PRF Assistant"
-        className="fixed bottom-6 right-6 z-40 h-14 w-14 rounded-full shadow-xl"
+        variant="ghost" size="icon" onClick={() => setOpen(true)} aria-label="Open PRF Assistant"
+        className="group fixed bottom-4 right-4 z-40 h-24 w-24 overflow-visible rounded-none bg-transparent p-0 shadow-none hover:bg-transparent focus-visible:bg-transparent"
       >
-        <MessageCircle className="h-6 w-6" />
+        <span className="pointer-events-none absolute inset-1 rounded-[45%] bg-cyan-300/45 blur-2xl motion-safe:animate-pulse" aria-hidden="true" />
+        <span className="pointer-events-none absolute inset-4 rounded-[45%] bg-cyan-300/65 blur-lg motion-safe:animate-pulse" aria-hidden="true" />
+        <img
+          src="/prf-assistant-transparent.png" alt=""
+          className="relative h-full w-full object-contain [filter:drop-shadow(0_0_4px_rgba(165,243,252,1))_drop-shadow(0_0_12px_rgba(34,211,238,0.9))_drop-shadow(0_0_24px_rgba(34,211,238,0.55))] transition-transform duration-200 group-hover:scale-110 group-hover:[filter:drop-shadow(0_0_6px_rgba(207,250,254,1))_drop-shadow(0_0_16px_rgba(34,211,238,1))_drop-shadow(0_0_30px_rgba(34,211,238,0.75))]"
+          aria-hidden="true"
+        />
       </Button>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
@@ -250,7 +256,10 @@ export function PRFChat() {
           <SheetHeader className="border-b px-5 py-4 pr-12">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 text-left">
-                <span className="rounded-full bg-primary/10 p-2"><Bot className="h-5 w-5 text-primary" /></span>
+                <span className="relative flex h-12 w-12 shrink-0 items-center justify-center">
+                  <span className="absolute inset-2 rounded-full bg-cyan-400/25 blur-md" aria-hidden="true" />
+                  <img src="/prf-assistant-transparent.png" alt="" className="relative h-full w-full object-contain drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]" aria-hidden="true" />
+                </span>
                 <div>
                   <SheetTitle>PRF Assistant</SheetTitle>
                   <SheetDescription>Read-only · all PRFs · session only</SheetDescription>
