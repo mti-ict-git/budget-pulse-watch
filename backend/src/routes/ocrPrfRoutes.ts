@@ -259,7 +259,7 @@ router.post('/create-from-document', authenticateToken, requireContentManager, u
       // Prepare PRF data for creation
       const prfData: CreatePRFRequest = {
         PRFNo: extractedData.prfNo || `OCR-${uploadId.substring(0, 8)}`,
-        Title: extractedData.projectDescription || 'OCR Generated PRF',
+        Title: extractedData.semanticTitle || extractedData.projectDescription || 'OCR Generated PRF',
         Description: extractedData.projectDescription || '',
         Department: extractedData.department || req.user.Department || 'Unknown',
         COAID: 1, // Default COA ID
@@ -271,6 +271,7 @@ router.post('/create-from-document', authenticateToken, requireContentManager, u
         DateSubmit: extractedData.dateRaised ? new Date(extractedData.dateRaised) : new Date(),
         SubmitBy: userDisplayName, // Always use authenticated user, not OCR extracted data
         SumDescriptionRequested: extractedData.projectDescription || '',
+        ProjectArea: extractedData.projectArea || '',
         PurchaseCostCode: prfCostCode,
         RequiredFor: extractedData.requestFor || extractedData.projectId || '',
         BudgetYear: new Date().getFullYear()
@@ -624,8 +625,10 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
       const headerRequest = new sql.Request(transaction);
       await headerRequest
         .input('PRFID', sql.Int, prfId)
-        .input('Title', sql.NVarChar(200), extractedData.projectDescription || prf.Title)
+        .input('Title', sql.NVarChar(200), extractedData.semanticTitle || extractedData.projectDescription || prf.Title)
         .input('Description', sql.NVarChar(sql.MAX), extractedData.projectDescription || prf.Description || '')
+        .input('SumDescriptionRequested', sql.NVarChar(1000), extractedData.projectDescription || prf.SumDescriptionRequested || '')
+        .input('ProjectArea', sql.NVarChar(100), extractedData.projectArea || prf.ProjectArea || '')
         .input('Department', sql.NVarChar(100), extractedData.department || prf.Department)
         .input('RequestedAmount', sql.Decimal(18, 2), requestedAmount)
         .input('VendorName', sql.NVarChar(200), extractedData.proposedSupplier || prf.VendorName || '')
@@ -634,6 +637,8 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
           UPDATE dbo.PRF
           SET Title = @Title,
               Description = @Description,
+              SumDescriptionRequested = @SumDescriptionRequested,
+              ProjectArea = @ProjectArea,
               Department = @Department,
               RequestedAmount = @RequestedAmount,
               VendorName = @VendorName,

@@ -31,6 +31,12 @@ export interface ExtractedPRFData {
     isStruckThrough?: boolean;
   }>;
   projectDescription?: string;
+  /** Literal value printed in the combined "Project Description/Area" field. */
+  rawProjectDescription?: string;
+  /** Short project/area label, for example AIM. */
+  projectArea?: string;
+  /** Deterministic title proposed from active line items. */
+  semanticTitle?: string;
   projectId?: string;
   referenceDrawingNumber?: string;
   generalLedgerCode?: string;
@@ -42,6 +48,50 @@ export interface ExtractedPRFData {
   confidence?: number;
   requestFor?: string; // Auto-extracted from item descriptions
 }
+
+const cleanSemanticText = (value?: string): string => (value || '').replace(/\s+/g, ' ').trim();
+
+const isAreaOnlyLabel = (value: string): boolean => {
+  const normalized = cleanSemanticText(value);
+  return /^(?:N\/?A|NONE|GENERAL|PROJECT)$/i.test(normalized)
+    || /^[A-Z]{2,10}$/.test(normalized);
+};
+
+export const normalizeOCRHeader = (data: ExtractedPRFData): ExtractedPRFData => {
+  const raw = cleanSemanticText(data.rawProjectDescription || data.projectDescription);
+  const activeDescriptions = (data.items || [])
+    .filter((item) => item.status !== 'Cancelled' && item.isStruckThrough !== true)
+    .map((item) => cleanSemanticText(item.description || item.partNumber))
+    .filter(Boolean);
+  const uniqueDescriptions = Array.from(new Set(activeDescriptions));
+  const requestFor = cleanSemanticText(data.requestFor);
+  const area = cleanSemanticText(data.projectArea) || (raw && isAreaOnlyLabel(raw) ? raw : '');
+  const explicitSemanticDescription = raw && !isAreaOnlyLabel(raw) ? raw : '';
+  const itemSummary = uniqueDescriptions.length === 1
+    ? uniqueDescriptions[0]
+    : uniqueDescriptions.length > 1
+      ? `${uniqueDescriptions.length} items: ${uniqueDescriptions.slice(0, 3).join('; ')}${uniqueDescriptions.length > 3 ? '; and others' : ''}`
+      : '';
+  const baseDescription = itemSummary || explicitSemanticDescription;
+  const semanticDescription = baseDescription && requestFor
+    && !baseDescription.toLowerCase().includes(requestFor.toLowerCase())
+    ? `${baseDescription} — for ${requestFor}`
+    : baseDescription || requestFor;
+  const titleBase = uniqueDescriptions.length === 1
+    ? uniqueDescriptions[0]
+    : uniqueDescriptions.length > 1
+      ? `Purchase of ${uniqueDescriptions.length} items`
+      : semanticDescription || 'OCR Generated PRF';
+
+  return {
+    ...data,
+    rawProjectDescription: raw || undefined,
+    projectArea: area || undefined,
+    projectDescription: semanticDescription.slice(0, 1000) || undefined,
+    semanticTitle: titleBase.slice(0, 200),
+    requestFor: requestFor || undefined
+  };
+};
 
 const resolveBrowserExecutablePath = (): string | undefined => {
   const candidates = [
@@ -390,6 +440,8 @@ export class OCRService {
     merged.department = takeFirst((d) => d.department);
     merged.proposedSupplier = takeFirst((d) => d.proposedSupplier);
     merged.projectDescription = takeFirst((d) => d.projectDescription);
+    merged.rawProjectDescription = takeFirst((d) => d.rawProjectDescription);
+    merged.projectArea = takeFirst((d) => d.projectArea);
     merged.projectId = takeFirst((d) => d.projectId);
     merged.referenceDrawingNumber = takeFirst((d) => d.referenceDrawingNumber);
     merged.generalLedgerCode = takeFirst((d) => d.generalLedgerCode);
@@ -503,7 +555,8 @@ Return ONLY a valid JSON object with this structure:
       "isStruckThrough": boolean
     }
   ],
-  "projectDescription": "string or null",
+  "projectDescription": "literal text from Project Description/Area, or null",
+  "projectArea": "short project/area label such as AIM, or null",
   "projectId": "string or null",
   "referenceDrawingNumber": "string or null",
   "generalLedgerCode": "string or null",
@@ -517,6 +570,8 @@ Return ONLY a valid JSON object with this structure:
 }
 
 CRITICAL:
+- Keep a short area/category label such as AIM in projectArea. Do not use it as the semantic PRF description.
+- requestFor is the contextual purpose/beneficiary line near or below an item (for example "Handphone Asset for Wu Aizhong"). Do not replace it with projectArea.
 - For Cost Code / General Ledger Code / Project #, extract from the rightmost column of the items table. Valid examples: AMITOMTI9.6250, 12710806.6250, MTIRMRAD496328. Do not return amounts.
 - A single vertically merged cost-code cell may apply to many or all item rows. Repeat that shared code in purchaseCostCode for every covered item.
 - Inspect every item row for visual cancellation marks. A line struck through or clearly crossed out is status "Cancelled", isStruckThrough true, with statusReason describing the visible mark. Otherwise use status "Active".
@@ -594,7 +649,7 @@ Please extract:
    - Cost Code/General Ledger Code (CRITICAL: Extract the specific cost code for THIS item from the rightmost column. Each item may have a different cost code. Look for alphanumeric codes like 'MTIRMRAD496328' in the 'General Ledger Code/Project #' column for each individual item row)
    - Item Status (use "Cancelled" only when the row is visibly struck through/crossed out; otherwise "Active")
    - Status Reason (briefly describe the visible cancellation mark)
-9. Project Description/Area (if not explicitly provided, generate a concise description based on the item descriptions)
+9. Project Description/Area: put a short area/category label (for example AIM) in projectArea; put literal descriptive prose in projectDescription
 10. Project ID
 11. Reference Drawing Number
 12. Cost Code/General Ledger Code (CRITICAL: Extract cost codes from the rightmost column of the items table. Cost codes can be alphanumeric (e.g., 'MTIRMRAD496328') or numeric (e.g., '12710806.6250'). DO NOT use total amounts, subtotals, or summary values from the bottom of the form)
@@ -612,7 +667,7 @@ Please extract:
 18. Request For (extract from item descriptions any text that starts with 'FOR' or 'For'. But if For pattern not found, you have to make conclution from the item description).
 
 IMPORTANT INSTRUCTIONS:
-- If Project Description/Area is not explicitly filled in the form, automatically generate a brief, professional description based on the item descriptions
+- Never copy a short area/category label such as AIM into projectDescription; return it as projectArea
 - Look for 'FOR' or 'For' text in item descriptions and extract it as 'Request For' information
 - The generated project description should summarize what the items are for in 1-2 sentences
 - CRITICAL: For Cost Code/General Ledger Code, extract codes from the rightmost column of the items table. Cost codes can be alphanumeric (e.g., 'MTIRMRAD496328') or numeric (e.g., '12710806.6250'). DO NOT use total amounts, subtotals, or summary values from the bottom of the form
@@ -645,7 +700,8 @@ Return ONLY a valid JSON object with this structure:
       "budgetYear": number // Budget year for this item
     }
   ],
-  "projectDescription": "string", // Auto-generate if not explicitly provided
+  "projectDescription": "string", // literal descriptive text, never a short area label
+  "projectArea": "string", // short area/category label such as AIM
   "projectId": "string",
   "referenceDrawingNumber": "string", // This represents the cost code
   "requestFor": "string", // Extract 'FOR' text from item descriptions
@@ -722,7 +778,7 @@ Please extract:
      - If each row has its own code, extract each row's code into purchaseCostCode
    - Item Status: "Cancelled" only when that item row is visibly struck through/crossed out; otherwise "Active"
    - Status Reason: briefly identify the visible mark, and set isStruckThrough true for a struck/crossed row
-9. Project Description/Area (if not explicitly provided, generate a concise description based on the item descriptions)
+9. Project Description/Area: put a short area/category label (for example AIM) in projectArea; put literal descriptive prose in projectDescription
 10. Project ID
 11. Reference Drawing Number
 12. Cost Code/General Ledger Code (CRITICAL: Extract cost codes from the rightmost column of the items table. Cost codes can be alphanumeric (e.g., 'MTIRMRAD496328') or numeric (e.g., '12710806.6250'). DO NOT use total amounts, subtotals, or summary values from the bottom of the form)
@@ -740,7 +796,7 @@ Please extract:
 18. Request For (extract from item descriptions any text that starts with 'FOR' or 'For'. But if For pattern not found, you have to make conclution from the item description).
 
 IMPORTANT INSTRUCTIONS:
-- If Project Description/Area is not explicitly filled in the form, automatically generate a brief, professional description based on the item descriptions
+- Never copy a short area/category label such as AIM into projectDescription; return it as projectArea
 - Look for 'FOR' or 'For' text in item descriptions and extract it as 'Request For' information
 - The generated project description should summarize what the items are for in 1-2 sentences
 - CRITICAL: For Cost Code/General Ledger Code, extract codes from the rightmost column of the items table. This may be a single code for all rows or unique per row. Always output per-row in items[].purchaseCostCode.
@@ -771,7 +827,8 @@ Return ONLY a valid JSON object with this structure:
       "isStruckThrough": boolean
     }
   ],
-  "projectDescription": "string", // Auto-generate if not explicitly provided
+  "projectDescription": "string", // literal descriptive prose, not a short area label
+  "projectArea": "string", // short area/category label such as AIM
   "projectId": "string",
   "referenceDrawingNumber": "string",
   "generalLedgerCode": "string", // if there is a single shared code for all items, set it here too
@@ -1083,7 +1140,7 @@ For requestFor: look for text starting with 'FOR' or 'For' in item descriptions 
       }));
     }
 
-    return cleaned;
+    return normalizeOCRHeader(cleaned);
   }
 
   private cleanDate(dateStr: string): string {

@@ -138,3 +138,10 @@ This document records unresolved business and implementation questions that must
 - Phase 7 locks the new-year readiness baseline around virtual placeholders, explicit carry-forward, and admin-only approval
 - What remains open is scope expansion beyond `HR / IT`
 - Any future backend change in this area requires explicit `docs/openapi.yaml` review
+
+# Resolved: OCR Project Area versus semantic description (Phase 11)
+
+- Decision: the literal `Project Description/Area` value is preserved separately as `ProjectArea`.
+- `Title`, `Description`, and `SumDescriptionRequested` are normalized from active item descriptions and `RequiredFor`; a short area label such as `AIM` must not replace the semantic description.
+- The same extraction semantics apply to image, single-PDF, and rendered PDF-page OCR paths.
+- Existing PRFs are corrected through rescan preview and explicit header approval; no blind bulk overwrite is allowed.

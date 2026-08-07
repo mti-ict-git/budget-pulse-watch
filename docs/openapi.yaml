@@ -315,6 +315,7 @@ components:
         DateSubmit: { type: string, format: date-time }
         SubmitBy: { type: string }
         SumDescriptionRequested: { type: string }
+        ProjectArea: { type: string, description: Literal project or area label extracted from the PRF form, such as AIM }
         PurchaseCostCode: { type: string }
         RequiredFor: { type: string }
         BudgetYear: { type: integer }

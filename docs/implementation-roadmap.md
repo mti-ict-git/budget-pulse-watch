@@ -318,6 +318,10 @@ Allow an authorized user to reread a stored OCR Source, review item-level differ
 - [x] Detect visibly struck-through item rows as selectable `Cancelled` proposals
 - [x] Propagate a shared merged-cell cost code to every covered item
 - [x] Reconcile printed, extracted, cancelled, and active totals in preview
+- [x] Separate the literal Project Description/Area value from the semantic PRF description
+- [x] Normalize Title, Description, summary, and Required For deterministically from active item rows
+- [x] Show raw OCR header values beside normalized proposals before optional header apply
+- [x] Keep single-document and per-page OCR prompts semantically equivalent
 - [x] Update `docs/openapi.yaml` and policy documentation
 - [ ] Complete build/typecheck and end-to-end rescan verification
 
@@ -326,6 +330,7 @@ Allow an authorized user to reread a stored OCR Source, review item-level differ
 - Existing PRFs can be repaired from their original source document
 - Missing item cost codes can be reviewed and applied without recreating the PRF
 - Unmatched existing items remain intact unless handled manually outside the rescan workflow
+- Short area labels such as `AIM` are preserved as `ProjectArea` and are not reused as the user-facing description
 
 ### Challenge / Verification
 
@@ -342,6 +347,10 @@ Allow an authorized user to reread a stored OCR Source, review item-level differ
 - Backend typecheck, targeted rescan UI lint, and production build were rerun successfully after item-status detection and total reconciliation were added
 - Full frontend TypeScript check remains blocked by three pre-existing errors in `BudgetOverview.tsx` and `Dashboard.tsx`; no rescan-file TypeScript errors were reported
 - Preview/apply end-to-end verification remains pending because the local frontend/backend processes were not running
+- Semantic normalization challenge passed for PRF-like input with raw area `AIM`: `ProjectArea` remained `AIM`, the title used the active handset item, and the description included both the handset and beneficiary context
+- Backend TypeScript build, targeted rescan UI ESLint, frontend production build (2,060 modules), and `git diff --check` passed after the semantic-header correction
+- Migration `025_add_prf_project_area.sql` was applied successfully; live verification confirmed `PRF.ProjectArea` is `NVARCHAR(100)`, `vw_PRFSummary` exposes it, and `SchemaMigrations` records the migration
+- Live create/rescan UAT remains pending before Phase 11 can close
 
 ## Phase 12 - PRF AI Chatbot
 

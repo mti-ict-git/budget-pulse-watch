@@ -157,6 +157,7 @@ CREATE TABLE PRF (
     DateSubmit DATETIME2 NULL, -- Submit date from Excel
     SubmitBy NVARCHAR(200) NULL, -- Submitter name from Excel
     SumDescriptionRequested NVARCHAR(1000) NULL, -- Summary description from Excel
+    ProjectArea NVARCHAR(100) NULL, -- Literal OCR Project Description/Area label (for example AIM)
     PurchaseCostCode NVARCHAR(50) NULL, -- Cost code from Excel
     RequiredFor NVARCHAR(500) NULL, -- Required for field from Excel
     BudgetYear INT NULL, -- Budget year from Excel
@@ -285,6 +286,7 @@ SELECT
     p.DateSubmit,
     p.SubmitBy,
     p.SumDescriptionRequested,
+    p.ProjectArea,
     p.PurchaseCostCode,
     p.RequiredFor,
     p.BudgetYear,

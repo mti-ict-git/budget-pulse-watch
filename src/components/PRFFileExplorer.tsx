@@ -96,6 +96,10 @@ interface RescanPreview {
   extractedData: {
     prfNo?: string;
     projectDescription?: string;
+    rawProjectDescription?: string;
+    projectArea?: string;
+    semanticTitle?: string;
+    requestFor?: string;
     department?: string;
     totalAmount?: number;
     confidence?: number;
@@ -596,6 +600,14 @@ const PRFFileExplorer: React.FC<PRFFileExplorerProps> = ({ prfId, prfNo, readonl
                 <div><span className="text-muted-foreground">Department</span><p className="font-medium">{rescanPreview.extractedData.department || '-'}</p></div>
                 <div><span className="text-muted-foreground">Amount</span><p className="font-medium">{Number(rescanPreview.extractedData.totalAmount || 0).toLocaleString('id-ID')}</p></div>
                 <div><span className="text-muted-foreground">Confidence</span><p className="font-medium">{Math.round(Number(rescanPreview.extractedData.confidence || 0) * 100)}%</p></div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2 rounded-lg border p-4 text-sm">
+                <div><span className="text-muted-foreground">Raw Project Description/Area</span><p className="font-medium">{rescanPreview.extractedData.rawProjectDescription || '-'}</p></div>
+                <div><span className="text-muted-foreground">Project Area</span><p className="font-medium">{rescanPreview.extractedData.projectArea || '-'}</p></div>
+                <div><span className="text-muted-foreground">Proposed Title</span><p className="font-medium">{rescanPreview.extractedData.semanticTitle || '-'}</p></div>
+                <div><span className="text-muted-foreground">Required For</span><p className="font-medium">{rescanPreview.extractedData.requestFor || '-'}</p></div>
+                <div className="md:col-span-2"><span className="text-muted-foreground">Proposed Description</span><p className="font-medium">{rescanPreview.extractedData.projectDescription || '-'}</p></div>
               </div>
 
               {rescanPreview.warnings.length > 0 && (

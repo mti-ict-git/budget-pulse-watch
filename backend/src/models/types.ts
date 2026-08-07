@@ -84,6 +84,7 @@ export interface UpdatePRFParams {
   DateSubmit?: Date;
   SubmitBy?: string;
   SumDescriptionRequested?: string;
+  ProjectArea?: string;
   PurchaseCostCode?: string;
   RequiredFor?: string;
   BudgetYear?: number;
@@ -427,6 +428,7 @@ export interface PRF {
   DateSubmit?: Date;                    // Excel: "Date Submit"
   SubmitBy?: string;                    // Excel: "Submit By"
   SumDescriptionRequested?: string;     // Excel: "Sum Description Requested"
+  ProjectArea?: string;                 // OCR: literal Project Description/Area label
   PurchaseCostCode?: string;            // Excel: "Purchase Cost Code"
   RequiredFor?: string;                 // Excel: "Required for"
   BudgetYear?: number;                  // Excel: "Budget"
@@ -453,6 +455,7 @@ export interface CreatePRFRequest {
   DateSubmit?: Date;
   SubmitBy?: string;
   SumDescriptionRequested?: string;
+  ProjectArea?: string;
   PurchaseCostCode?: string;
   RequiredFor?: string;
   BudgetYear?: number;
@@ -484,6 +487,7 @@ export interface UpdatePRFRequest {
   DateSubmit?: Date;
   SubmitBy?: string;
   SumDescriptionRequested?: string;
+  ProjectArea?: string;
   PurchaseCostCode?: string;
   RequiredFor?: string;
   BudgetYear?: number;

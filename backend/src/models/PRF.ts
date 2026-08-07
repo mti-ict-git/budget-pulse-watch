@@ -22,14 +22,14 @@ export class PRFModel {
         PRFNo, Title, Description, RequestorID, Department, COAID, 
         RequestedAmount, Priority, RequiredDate, Justification, 
         VendorName, VendorContact, Notes, DateSubmit, SubmitBy, 
-        SumDescriptionRequested, PurchaseCostCode, RequiredFor, BudgetYear, CurrencyCode, ExchangeRateToIDR
+        SumDescriptionRequested, ProjectArea, PurchaseCostCode, RequiredFor, BudgetYear, CurrencyCode, ExchangeRateToIDR
       )
       OUTPUT INSERTED.*
       VALUES (
         @PRFNo, @Title, @Description, @RequestorID, @Department, @COAID,
         @RequestedAmount, @Priority, @RequiredDate, @Justification,
         @VendorName, @VendorContact, @Notes, @DateSubmit, @SubmitBy,
-        @SumDescriptionRequested, @PurchaseCostCode, @RequiredFor, @BudgetYear, @CurrencyCode, @ExchangeRateToIDR
+        @SumDescriptionRequested, @ProjectArea, @PurchaseCostCode, @RequiredFor, @BudgetYear, @CurrencyCode, @ExchangeRateToIDR
       )
     `;
     
@@ -50,6 +50,7 @@ export class PRFModel {
       DateSubmit: prfData.DateSubmit || null,
       SubmitBy: prfData.SubmitBy || null,
       SumDescriptionRequested: prfData.SumDescriptionRequested || null,
+      ProjectArea: prfData.ProjectArea || null,
       PurchaseCostCode: prfData.PurchaseCostCode || null,
       RequiredFor: prfData.RequiredFor || null,
       BudgetYear: prfData.BudgetYear || null,
@@ -201,6 +202,10 @@ export class PRFModel {
     if (updateData.SumDescriptionRequested !== undefined) {
       setClause.push('SumDescriptionRequested = @SumDescriptionRequested');
       params.SumDescriptionRequested = updateData.SumDescriptionRequested;
+    }
+    if (updateData.ProjectArea !== undefined) {
+      setClause.push('ProjectArea = @ProjectArea');
+      params.ProjectArea = updateData.ProjectArea;
     }
     if (updateData.PurchaseCostCode !== undefined) {
       setClause.push('PurchaseCostCode = @PurchaseCostCode');

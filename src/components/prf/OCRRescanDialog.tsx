@@ -34,6 +34,11 @@ interface RescanProposal {
 interface RescanPreview {
   extractedData: {
     prfNo?: string;
+    rawProjectDescription?: string;
+    projectArea?: string;
+    projectDescription?: string;
+    semanticTitle?: string;
+    requestFor?: string;
     department?: string;
     totalAmount?: number;
     confidence?: number;
@@ -172,6 +177,14 @@ export function OCRRescanDialog({ open, onOpenChange, prfId, prfNo, file, onAppl
               <div><span className="text-muted-foreground">Department</span><p className="font-medium">{preview.extractedData.department || '-'}</p></div>
               <div><span className="text-muted-foreground">Amount</span><p className="font-medium">{Number(preview.extractedData.totalAmount || 0).toLocaleString('id-ID')}</p></div>
               <div><span className="text-muted-foreground">Confidence</span><p className="font-medium">{Math.round(Number(preview.extractedData.confidence || 0) * 100)}%</p></div>
+            </div>
+
+            <div className="grid gap-3 rounded-lg border p-4 text-sm md:grid-cols-2">
+              <div><span className="text-muted-foreground">Raw Project Description/Area</span><p className="font-medium">{preview.extractedData.rawProjectDescription || '-'}</p></div>
+              <div><span className="text-muted-foreground">Project Area</span><p className="font-medium">{preview.extractedData.projectArea || '-'}</p></div>
+              <div><span className="text-muted-foreground">Proposed Title</span><p className="font-medium">{preview.extractedData.semanticTitle || '-'}</p></div>
+              <div><span className="text-muted-foreground">Required For</span><p className="font-medium">{preview.extractedData.requestFor || '-'}</p></div>
+              <div className="md:col-span-2"><span className="text-muted-foreground">Proposed Description</span><p className="font-medium">{preview.extractedData.projectDescription || '-'}</p></div>
             </div>
 
             <div className="grid gap-3 rounded-lg border p-4 text-sm md:grid-cols-4">
