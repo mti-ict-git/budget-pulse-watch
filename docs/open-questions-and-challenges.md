@@ -145,3 +145,5 @@ This document records unresolved business and implementation questions that must
 - `Title`, `Description`, and `SumDescriptionRequested` are normalized from active item descriptions and `RequiredFor`; a short area label such as `AIM` must not replace the semantic description.
 - The same extraction semantics apply to image, single-PDF, and rendered PDF-page OCR paths.
 - Existing PRFs are corrected through rescan preview and explicit header approval; no blind bulk overwrite is allowed.
+- Unmatched existing items default to Keep and may be explicitly marked Cancelled during rescan; hard deletion remains outside the OCR workflow.
+- Semantic descriptions should express procurement purpose (quantity/category/beneficiary) and must not merely duplicate a long item specification.

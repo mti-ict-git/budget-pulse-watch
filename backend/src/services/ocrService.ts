@@ -37,6 +37,8 @@ export interface ExtractedPRFData {
   projectArea?: string;
   /** Deterministic title proposed from active line items. */
   semanticTitle?: string;
+  /** Contextual procurement summary inferred by the model from items and purpose. */
+  semanticDescription?: string;
   projectId?: string;
   referenceDrawingNumber?: string;
   generalLedgerCode?: string;
@@ -65,23 +67,27 @@ export const normalizeOCRHeader = (data: ExtractedPRFData): ExtractedPRFData => 
     .filter(Boolean);
   const uniqueDescriptions = Array.from(new Set(activeDescriptions));
   const requestFor = cleanSemanticText(data.requestFor);
+  const cleanPurpose = requestFor.replace(/^PRF\s+For\s+/i, '').trim();
+  const modelSemanticDescription = cleanSemanticText(data.semanticDescription);
+  const modelSemanticTitle = cleanSemanticText(data.semanticTitle);
   const area = cleanSemanticText(data.projectArea) || (raw && isAreaOnlyLabel(raw) ? raw : '');
   const explicitSemanticDescription = raw && !isAreaOnlyLabel(raw) ? raw : '';
   const itemSummary = uniqueDescriptions.length === 1
-    ? uniqueDescriptions[0]
+    ? `${Number(data.items?.find((item) => item.status !== 'Cancelled')?.quantity || 1)} × ${uniqueDescriptions[0]}`
     : uniqueDescriptions.length > 1
       ? `${uniqueDescriptions.length} items: ${uniqueDescriptions.slice(0, 3).join('; ')}${uniqueDescriptions.length > 3 ? '; and others' : ''}`
       : '';
-  const baseDescription = itemSummary || explicitSemanticDescription;
-  const semanticDescription = baseDescription && requestFor
-    && !baseDescription.toLowerCase().includes(requestFor.toLowerCase())
-    ? `${baseDescription} — for ${requestFor}`
-    : baseDescription || requestFor;
-  const titleBase = uniqueDescriptions.length === 1
-    ? uniqueDescriptions[0]
+  const baseDescription = modelSemanticDescription || explicitSemanticDescription || itemSummary;
+  const semanticDescription = baseDescription && cleanPurpose
+    && !baseDescription.toLowerCase().includes(cleanPurpose.toLowerCase())
+    ? `${baseDescription} — for ${cleanPurpose}`
+    : baseDescription || cleanPurpose;
+  const titleBase = modelSemanticTitle
+    || (cleanPurpose ? cleanPurpose : uniqueDescriptions.length === 1
+      ? uniqueDescriptions[0]
     : uniqueDescriptions.length > 1
       ? `Purchase of ${uniqueDescriptions.length} items`
-      : semanticDescription || 'OCR Generated PRF';
+      : semanticDescription || 'OCR Generated PRF');
 
   return {
     ...data,
@@ -89,6 +95,7 @@ export const normalizeOCRHeader = (data: ExtractedPRFData): ExtractedPRFData => 
     projectArea: area || undefined,
     projectDescription: semanticDescription.slice(0, 1000) || undefined,
     semanticTitle: titleBase.slice(0, 200),
+    semanticDescription: semanticDescription.slice(0, 1000) || undefined,
     requestFor: requestFor || undefined
   };
 };
@@ -442,6 +449,8 @@ export class OCRService {
     merged.projectDescription = takeFirst((d) => d.projectDescription);
     merged.rawProjectDescription = takeFirst((d) => d.rawProjectDescription);
     merged.projectArea = takeFirst((d) => d.projectArea);
+    merged.semanticTitle = takeFirst((d) => d.semanticTitle);
+    merged.semanticDescription = takeFirst((d) => d.semanticDescription);
     merged.projectId = takeFirst((d) => d.projectId);
     merged.referenceDrawingNumber = takeFirst((d) => d.referenceDrawingNumber);
     merged.generalLedgerCode = takeFirst((d) => d.generalLedgerCode);
@@ -555,8 +564,11 @@ Return ONLY a valid JSON object with this structure:
       "isStruckThrough": boolean
     }
   ],
-  "projectDescription": "literal text from Project Description/Area, or null",
+  "rawProjectDescription": "exact literal text printed after Project Description/Area, or null",
+  "projectDescription": "descriptive prose printed in that field, or null; never invent it",
   "projectArea": "short project/area label such as AIM, or null",
+  "semanticTitle": "short contextual procurement title, not a copied specification",
+  "semanticDescription": "one concise contextual sentence explaining what is procured, quantity, and purpose",
   "projectId": "string or null",
   "referenceDrawingNumber": "string or null",
   "generalLedgerCode": "string or null",
@@ -572,6 +584,8 @@ Return ONLY a valid JSON object with this structure:
 CRITICAL:
 - Keep a short area/category label such as AIM in projectArea. Do not use it as the semantic PRF description.
 - requestFor is the contextual purpose/beneficiary line near or below an item (for example "Handphone Asset for Wu Aizhong"). Do not replace it with projectArea.
+- Preserve the exact printed Project Description/Area value in rawProjectDescription. Do not generate text for that field.
+- semanticTitle and semanticDescription must summarize intent. Example: "Procurement of 20 Lenovo laptops for new hires at PT MTI", not a verbatim hardware specification.
 - For Cost Code / General Ledger Code / Project #, extract from the rightmost column of the items table. Valid examples: AMITOMTI9.6250, 12710806.6250, MTIRMRAD496328. Do not return amounts.
 - A single vertically merged cost-code cell may apply to many or all item rows. Repeat that shared code in purchaseCostCode for every covered item.
 - Inspect every item row for visual cancellation marks. A line struck through or clearly crossed out is status "Cancelled", isStruckThrough true, with statusReason describing the visible mark. Otherwise use status "Active".
@@ -669,7 +683,7 @@ Please extract:
 IMPORTANT INSTRUCTIONS:
 - Never copy a short area/category label such as AIM into projectDescription; return it as projectArea
 - Look for 'FOR' or 'For' text in item descriptions and extract it as 'Request For' information
-- The generated project description should summarize what the items are for in 1-2 sentences
+- Generate semanticTitle and semanticDescription from quantity, item category, and requestFor; do not copy the full technical specification
 - CRITICAL: For Cost Code/General Ledger Code, extract codes from the rightmost column of the items table. Cost codes can be alphanumeric (e.g., 'MTIRMRAD496328') or numeric (e.g., '12710806.6250'). DO NOT use total amounts, subtotals, or summary values from the bottom of the form
 - Cost codes can be alphanumeric strings or numeric values that appear in individual item rows, not summary totals
 - A vertically merged cost-code cell applies to every item row it spans; repeat the shared code on each item
@@ -700,8 +714,11 @@ Return ONLY a valid JSON object with this structure:
       "budgetYear": number // Budget year for this item
     }
   ],
+  "rawProjectDescription": "string", // exact literal form value
   "projectDescription": "string", // literal descriptive text, never a short area label
   "projectArea": "string", // short area/category label such as AIM
+  "semanticTitle": "string", // concise purpose-led title
+  "semanticDescription": "string", // contextual summary, not copied item specifications
   "projectId": "string",
   "referenceDrawingNumber": "string", // This represents the cost code
   "requestFor": "string", // Extract 'FOR' text from item descriptions
@@ -798,7 +815,7 @@ Please extract:
 IMPORTANT INSTRUCTIONS:
 - Never copy a short area/category label such as AIM into projectDescription; return it as projectArea
 - Look for 'FOR' or 'For' text in item descriptions and extract it as 'Request For' information
-- The generated project description should summarize what the items are for in 1-2 sentences
+- Generate semanticTitle and semanticDescription from quantity, item category, and requestFor; do not copy the full technical specification
 - CRITICAL: For Cost Code/General Ledger Code, extract codes from the rightmost column of the items table. This may be a single code for all rows or unique per row. Always output per-row in items[].purchaseCostCode.
 - Valid code formats include alphanumeric codes and mixed codes with dot suffix like "AMITOMTI9.6250" as well as numeric codes like "12710806.6250". Do not output currency amounts.
 - A vertically merged rightmost cell applies to all rows it spans. Repeat its code for every covered item.
@@ -827,8 +844,11 @@ Return ONLY a valid JSON object with this structure:
       "isStruckThrough": boolean
     }
   ],
+  "rawProjectDescription": "string", // exact literal form value
   "projectDescription": "string", // literal descriptive prose, not a short area label
   "projectArea": "string", // short area/category label such as AIM
+  "semanticTitle": "string", // concise purpose-led title
+  "semanticDescription": "string", // contextual summary, not copied item specifications
   "projectId": "string",
   "referenceDrawingNumber": "string",
   "generalLedgerCode": "string", // if there is a single shared code for all items, set it here too
@@ -844,7 +864,8 @@ Return ONLY a valid JSON object with this structure:
 If a field is not found or unclear, use null for that field.
 For dates, try to convert to YYYY-MM-DD format if possible, otherwise keep original format.
 For amounts, extract only the numeric value without currency symbols.
-For projectDescription: if not explicitly provided in the form, generate a brief description based on item descriptions.
+For rawProjectDescription and projectDescription: preserve only literal form text; never generate it.
+For semanticTitle and semanticDescription: infer a concise procurement purpose from quantity, item category, and requestFor without copying the full specification.
 For requestFor: look for text starting with 'FOR' or 'For' in item descriptions and extract it.`;
 
       // Determine content type based on file type
@@ -941,6 +962,22 @@ For requestFor: look for text starting with 'FOR' or 'For' in item descriptions 
     
     if (data.projectDescription && typeof data.projectDescription === 'string') {
       cleaned.projectDescription = data.projectDescription.trim();
+    }
+
+    if (data.rawProjectDescription && typeof data.rawProjectDescription === 'string') {
+      cleaned.rawProjectDescription = data.rawProjectDescription.trim();
+    }
+
+    if (data.projectArea && typeof data.projectArea === 'string') {
+      cleaned.projectArea = data.projectArea.trim();
+    }
+
+    if (data.semanticTitle && typeof data.semanticTitle === 'string') {
+      cleaned.semanticTitle = data.semanticTitle.trim();
+    }
+
+    if (data.semanticDescription && typeof data.semanticDescription === 'string') {
+      cleaned.semanticDescription = data.semanticDescription.trim();
     }
     
     if (data.projectId && typeof data.projectId === 'string') {

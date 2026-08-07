@@ -322,6 +322,8 @@ Allow an authorized user to reread a stored OCR Source, review item-level differ
 - [x] Normalize Title, Description, summary, and Required For deterministically from active item rows
 - [x] Show raw OCR header values beside normalized proposals before optional header apply
 - [x] Keep single-document and per-page OCR prompts semantically equivalent
+- [ ] Expose every unmatched existing item with an explicit Keep or Mark Cancelled reconciliation choice
+- [ ] Generate contextual semantic Title and Description separately from literal item specifications and Project Area
 - [x] Update `docs/openapi.yaml` and policy documentation
 - [ ] Complete build/typecheck and end-to-end rescan verification
 
@@ -331,6 +333,7 @@ Allow an authorized user to reread a stored OCR Source, review item-level differ
 - Missing item cost codes can be reviewed and applied without recreating the PRF
 - Unmatched existing items remain intact unless handled manually outside the rescan workflow
 - Short area labels such as `AIM` are preserved as `ProjectArea` and are not reused as the user-facing description
+- Unmatched historical items are never hard-deleted by rescan; an authorized user may explicitly mark them Cancelled with audit evidence
 
 ### Challenge / Verification
 
