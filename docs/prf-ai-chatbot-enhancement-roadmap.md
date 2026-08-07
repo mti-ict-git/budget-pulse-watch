@@ -189,6 +189,10 @@ Implementation begins with Budget Intelligence: CAPEX/OPEX summary, COA utilizat
 
 Workflow Intelligence is the second implementation slice and reports stale PRFs, missing PO, missing attachment metadata, missing/unknown cost code, and header/item amount mismatch as bounded read-only review signals.
 
+Attachment Metadata Intelligence is the third implementation slice. It reports missing metadata, duplicate-looking filenames, unsupported types, oversized files, and PRFs updated after their latest attachment while preserving the no-content-reading boundary.
+
+On-demand Daily Briefing is the fourth and final planned Phase 13B slice. It composes bounded same-day PRF, audit, PO-item, attachment, stale-workflow, and budget-attention signals without scheduling or durable briefing storage.
+
 ### Phase 13C - Presentation And Reuse
 
 Deliver after analytics stabilize:

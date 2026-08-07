@@ -82,6 +82,7 @@ type SearchArgs = {
   dateFrom?: string | null;
   dateTo?: string | null;
   limit?: number;
+  sortBy?: 'latest_request' | 'latest_update' | 'highest_prf_no';
 };
 
 type ItemStatisticsArgs = {
@@ -117,6 +118,23 @@ type WorkflowIssueArgs = {
   limit?: number | null;
 };
 
+type AttachmentIssueArgs = {
+  fiscalYear: number;
+  issueType: 'all' | 'missing' | 'duplicate' | 'unsupported' | 'oversized' | 'stale_after_update';
+  department?: string | null;
+  maxSizeMB?: number | null;
+  limit?: number | null;
+};
+
+type DailyBriefingArgs = {
+  briefingDate?: string | null;
+  fiscalYear: number;
+  department?: string | null;
+  expenseType?: 'CAPEX' | 'OPEX' | null;
+  ageDays?: number | null;
+  limit?: number | null;
+};
+
 const MODEL = process.env.CHATBOT_OPENAI_MODEL?.trim() || 'gpt-5.6-sol';
 const MAX_TOOL_ROUNDS = 4;
 const MAX_RESULTS = 25;
@@ -139,9 +157,10 @@ const tools: Tool[] = [
         missingPo: { type: ['boolean', 'null'], description: 'True to find PRFs with at least one item without original or split PO.' },
         dateFrom: { type: ['string', 'null'], description: 'Inclusive PRF DateSubmit/RequestDate lower bound in YYYY-MM-DD.' },
         dateTo: { type: ['string', 'null'], description: 'Inclusive PRF DateSubmit/RequestDate upper bound in YYYY-MM-DD.' },
-        limit: { type: ['integer', 'null'], minimum: 1, maximum: MAX_RESULTS }
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: MAX_RESULTS },
+        sortBy: { type: 'string', enum: ['latest_request', 'latest_update', 'highest_prf_no'], description: 'latest_request = newest DateSubmit/RequestDate; latest_update = most recently changed record; highest_prf_no = largest numeric PRF number.' }
       },
-      required: ['query', 'status', 'department', 'year', 'hasAttachments', 'missingPo', 'dateFrom', 'dateTo', 'limit']
+      required: ['query', 'status', 'department', 'year', 'hasAttachments', 'missingPo', 'dateFrom', 'dateTo', 'limit', 'sortBy']
     }
   },
   {
@@ -263,6 +282,41 @@ const tools: Tool[] = [
       },
       required: ['fiscalYear', 'issueType', 'department', 'expenseType', 'ageDays', 'limit']
     }
+  },
+  {
+    type: 'function',
+    name: 'get_attachment_issues',
+    description: 'Inspect bounded attachment metadata issues without reading file contents: missing metadata, duplicate-looking exact filenames within a PRF, unsupported file types, oversized files, or PRFs updated after their latest attachment.',
+    strict: true,
+    parameters: {
+      type: 'object', additionalProperties: false,
+      properties: {
+        fiscalYear: { type: 'integer', minimum: 2020, maximum: 2100 },
+        issueType: { type: 'string', enum: ['all', 'missing', 'duplicate', 'unsupported', 'oversized', 'stale_after_update'] },
+        department: { type: ['string', 'null'] },
+        maxSizeMB: { type: ['number', 'null'], minimum: 1, maximum: 1024 },
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: MAX_RESULTS }
+      },
+      required: ['fiscalYear', 'issueType', 'department', 'maxSizeMB', 'limit']
+    }
+  },
+  {
+    type: 'function',
+    name: 'get_daily_briefing',
+    description: 'Build an on-demand read-only operational briefing for one explicit Asia/Jakarta date: new/updated PRFs, audited status changes, updated PO-bearing items, attachment uploads, stale PRFs, and budget attention.',
+    strict: true,
+    parameters: {
+      type: 'object', additionalProperties: false,
+      properties: {
+        briefingDate: { type: ['string', 'null'], description: 'ISO date YYYY-MM-DD; null means current Asia/Jakarta date.' },
+        fiscalYear: { type: 'integer', minimum: 2020, maximum: 2100 },
+        department: { type: ['string', 'null'] },
+        expenseType: { type: ['string', 'null'], enum: ['CAPEX', 'OPEX', null] },
+        ageDays: { type: ['integer', 'null'], minimum: 1, maximum: 3650 },
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: MAX_RESULTS }
+      },
+      required: ['briefingDate', 'fiscalYear', 'department', 'expenseType', 'ageDays', 'limit']
+    }
   }
 ];
 
@@ -274,10 +328,14 @@ function isIsoDate(value: unknown): value is string {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
-async function searchPrfs(args: SearchArgs): Promise<ToolResult> {
-  const params: Record<string, unknown> = { limit: boundedLimit(args.limit) };
+export async function searchPrfs(args: SearchArgs): Promise<ToolResult> {
+  const latestPhrase = typeof args.query === 'string' && /^\s*(?:prf\s+)?(?:terbaru|latest|newest)(?:\s+prf)?\s*$/i.test(args.query);
+  const sortBy = ['latest_request', 'latest_update', 'highest_prf_no'].includes(String(args.sortBy))
+    ? args.sortBy as NonNullable<SearchArgs['sortBy']>
+    : 'latest_request';
+  const params: Record<string, unknown> = { limit: boundedLimit(args.limit), sortBy };
   const where: string[] = ['1 = 1'];
-  if (args.query?.trim()) {
+  if (args.query?.trim() && !latestPhrase) {
     const rawQuery = args.query.trim();
     const normalized = rawQuery.toLocaleLowerCase('id-ID');
     const aliases = new Set<string>([rawQuery]);
@@ -322,16 +380,21 @@ async function searchPrfs(args: SearchArgs): Promise<ToolResult> {
 
   const result = await executeQuery<{
     PRFID: number; PRFNo: string; Title: string; Department: string; Status: string;
-    RequestedAmount: number; CurrencyCode: string; BudgetYear: number | null; RequestDate: Date;
+    RequestedAmount: number; CurrencyCode: string; BudgetYear: number | null; RequestDate: Date; EffectiveRequestDate: Date;
     ItemCount: number; AttachmentCount: number;
   }>(`
     SELECT TOP (@limit) p.PRFID, p.PRFNo, p.Title, p.Department, p.Status,
       p.RequestedAmount, p.CurrencyCode, p.BudgetYear, p.RequestDate,
+      COALESCE(p.DateSubmit, p.RequestDate, p.CreatedAt) AS EffectiveRequestDate,
       (SELECT COUNT(*) FROM PRFItems i WHERE i.PRFID = p.PRFID) AS ItemCount,
       (SELECT COUNT(*) FROM PRFFiles f WHERE f.PRFID = p.PRFID) AS AttachmentCount
     FROM PRF p
     WHERE ${where.join(' AND ')}
-    ORDER BY p.UpdatedAt DESC, p.PRFID DESC
+    ORDER BY
+      CASE WHEN @sortBy = 'latest_request' THEN COALESCE(p.DateSubmit, p.RequestDate, p.CreatedAt) END DESC,
+      CASE WHEN @sortBy = 'latest_update' THEN p.UpdatedAt END DESC,
+      CASE WHEN @sortBy = 'highest_prf_no' THEN TRY_CONVERT(BIGINT, p.PRFNo) END DESC,
+      p.PRFID DESC
   `, params);
   const references = result.recordset.map((row) => ({
     type: 'prf' as const, id: row.PRFID, prfId: row.PRFID, prfNo: row.PRFNo,
@@ -708,6 +771,205 @@ export async function getWorkflowIssues(args: WorkflowIssueArgs): Promise<ToolRe
   }, references };
 }
 
+const attachmentIssueCte = `
+  WITH FileFacts AS (
+    SELECT f.*,
+      COUNT(*) OVER (PARTITION BY f.PRFID, LOWER(LTRIM(RTRIM(f.OriginalFileName)))) AS DuplicateNameCount
+    FROM PRFFiles f
+  ),
+  LatestAttachment AS (
+    SELECT PRFID, COUNT(*) AS AttachmentCount, MAX(UploadDate) AS LatestAttachmentAt
+    FROM PRFFiles GROUP BY PRFID
+  ),
+  AttachmentScope AS (
+    SELECT p.PRFID, p.PRFNo, p.Title, p.Department, p.Status,
+      COALESCE(p.BudgetYear, YEAR(p.RequestDate)) AS FiscalYear,
+      p.UpdatedAt AS PRFUpdatedAt, la.AttachmentCount, la.LatestAttachmentAt,
+      f.FileID, f.OriginalFileName, f.FileSize, f.FileType, f.MimeType, f.UploadDate, f.IsOriginalDocument,
+      CASE WHEN f.FileID IS NULL THEN 1 ELSE 0 END AS IsMissing,
+      CASE WHEN COALESCE(f.DuplicateNameCount, 0) > 1 THEN 1 ELSE 0 END AS IsDuplicate,
+      CASE WHEN f.FileID IS NOT NULL AND LOWER(COALESCE(NULLIF(f.FileType, ''), 'unknown')) NOT IN
+        ('pdf','doc','docx','xls','xlsx','jpg','jpeg','png','gif','txt') THEN 1 ELSE 0 END AS IsUnsupported,
+      CASE WHEN COALESCE(f.FileSize, 0) > @maxSizeBytes THEN 1 ELSE 0 END AS IsOversized,
+      CASE WHEN la.LatestAttachmentAt IS NOT NULL AND p.UpdatedAt > la.LatestAttachmentAt
+        AND f.UploadDate = la.LatestAttachmentAt THEN 1 ELSE 0 END AS IsStaleAfterUpdate
+    FROM PRF p
+    LEFT JOIN LatestAttachment la ON la.PRFID = p.PRFID
+    LEFT JOIN FileFacts f ON f.PRFID = p.PRFID
+    WHERE LOWER(COALESCE(p.Status, '')) NOT LIKE '%cancel%'
+      AND COALESCE(p.BudgetYear, YEAR(p.RequestDate)) = @fiscalYear
+      AND (@department IS NULL OR p.Department LIKE @department)
+  ),
+  FilteredAttachmentIssues AS (
+    SELECT * FROM AttachmentScope WHERE
+      (@issueType = 'all' AND (IsMissing = 1 OR IsDuplicate = 1 OR IsUnsupported = 1 OR IsOversized = 1 OR IsStaleAfterUpdate = 1))
+      OR (@issueType = 'missing' AND IsMissing = 1)
+      OR (@issueType = 'duplicate' AND IsDuplicate = 1)
+      OR (@issueType = 'unsupported' AND IsUnsupported = 1)
+      OR (@issueType = 'oversized' AND IsOversized = 1)
+      OR (@issueType = 'stale_after_update' AND IsStaleAfterUpdate = 1)
+  )
+`;
+
+export async function getAttachmentIssues(args: AttachmentIssueArgs): Promise<ToolResult> {
+  const fiscalYear = Number.isInteger(args.fiscalYear) ? args.fiscalYear : Number(jakartaToday().slice(0, 4));
+  const maxSizeMB = typeof args.maxSizeMB === 'number' ? Math.max(1, Math.min(args.maxSizeMB, 1024)) : 25;
+  const issueTypes = ['all', 'missing', 'duplicate', 'unsupported', 'oversized', 'stale_after_update'];
+  const issueType = issueTypes.includes(args.issueType) ? args.issueType : 'all';
+  const params: Record<string, unknown> = {
+    fiscalYear, issueType, maxSizeBytes: Math.round(maxSizeMB * 1024 * 1024),
+    department: args.department?.trim() ? `%${args.department.trim()}%` : null,
+    limit: boundedLimit(args.limit)
+  };
+  const summary = await executeQuery<{
+    MatchingRows: number; MatchingPRFs: number; MissingPRFCount: number; DuplicateFileCount: number;
+    UnsupportedFileCount: number; OversizedFileCount: number; StalePRFCount: number;
+  }>(`${attachmentIssueCte}
+    SELECT COUNT(*) AS MatchingRows, COUNT(DISTINCT PRFID) AS MatchingPRFs,
+      COALESCE(SUM(IsMissing), 0) AS MissingPRFCount,
+      COALESCE(SUM(IsDuplicate), 0) AS DuplicateFileCount,
+      COALESCE(SUM(IsUnsupported), 0) AS UnsupportedFileCount,
+      COALESCE(SUM(IsOversized), 0) AS OversizedFileCount,
+      COALESCE(SUM(IsStaleAfterUpdate), 0) AS StalePRFCount
+    FROM FilteredAttachmentIssues`, params);
+  const rows = await executeQuery<{
+    PRFID: number; PRFNo: string; Title: string; Department: string; Status: string;
+    FileID: number | null; OriginalFileName: string | null; FileSize: number | null; FileType: string | null;
+    MimeType: string | null; UploadDate: Date | null; IsOriginalDocument: boolean | null;
+    IsMissing: number; IsDuplicate: number; IsUnsupported: number; IsOversized: number; IsStaleAfterUpdate: number;
+  }>(`${attachmentIssueCte}
+    SELECT TOP (@limit) * FROM FilteredAttachmentIssues
+    ORDER BY (IsMissing + IsDuplicate + IsUnsupported + IsOversized + IsStaleAfterUpdate) DESC,
+      COALESCE(UploadDate, PRFUpdatedAt) DESC, PRFID DESC`, params);
+  const references: ChatReference[] = [];
+  for (const row of rows.recordset) {
+    references.push({ type: 'prf', id: row.PRFID, prfId: row.PRFID, prfNo: row.PRFNo, label: `${row.PRFNo} — ${row.Title}` });
+    if (row.FileID && row.OriginalFileName) {
+      references.push({
+        type: 'file', id: row.FileID, prfId: row.PRFID, prfNo: row.PRFNo,
+        label: row.OriginalFileName, fileName: row.OriginalFileName, mimeType: row.MimeType || undefined,
+        previewUrl: `/api/prf-files/file/${row.FileID}/content?disposition=inline`,
+        downloadUrl: `/api/prf-files/file/${row.FileID}/content?disposition=attachment`
+      });
+    }
+  }
+  return { data: {
+    fiscalYear, issueType, department: args.department?.trim() || 'ALL', maxSizeMB,
+    resultLimit: boundedLimit(args.limit), contentRead: false,
+    definitions: {
+      missing: 'No PRFFiles metadata record; physical absence is not inferred',
+      duplicate: 'Normalized exact filename occurs more than once within the same PRF',
+      unsupported: 'FileType is outside the current upload allow-list',
+      oversized: `FileSize exceeds ${maxSizeMB} MB`,
+      staleAfterUpdate: 'PRF UpdatedAt is later than its latest attachment UploadDate'
+    },
+    ...summary.recordset[0], rows: rows.recordset
+  }, references };
+}
+
+type BriefingPrfRow = { PRFID: number; PRFNo: string; Title: string; Department: string; Status: string };
+
+export async function getDailyBriefing(args: DailyBriefingArgs): Promise<ToolResult> {
+  const briefingDate = isIsoDate(args.briefingDate) ? args.briefingDate : jakartaToday();
+  const fiscalYear = Number.isInteger(args.fiscalYear) ? args.fiscalYear : Number(briefingDate.slice(0, 4));
+  const ageDays = typeof args.ageDays === 'number' ? Math.max(1, Math.min(Math.floor(args.ageDays), 3650)) : 30;
+  const limit = boundedLimit(args.limit);
+  const department = args.department?.trim() || null;
+  const params: Record<string, unknown> = {
+    briefingDate, fiscalYear, limit, department: department ? `%${department}%` : null
+  };
+  const [newPrfs, updatedPrfs, statusChanges, poActivity, attachmentUploads, stale, budget] = await Promise.all([
+    executeQuery<BriefingPrfRow & { EffectiveRequestDate: Date }>(`
+      SELECT TOP (@limit) p.PRFID, p.PRFNo, p.Title, p.Department, p.Status,
+        COALESCE(p.DateSubmit, p.RequestDate, p.CreatedAt) AS EffectiveRequestDate
+      FROM PRF p WHERE LOWER(COALESCE(p.Status, '')) NOT LIKE '%cancel%'
+        AND CAST(COALESCE(p.DateSubmit, p.RequestDate, p.CreatedAt) AS date) = @briefingDate
+        AND COALESCE(p.BudgetYear, YEAR(p.RequestDate)) = @fiscalYear
+        AND (@department IS NULL OR p.Department LIKE @department)
+      ORDER BY EffectiveRequestDate DESC, p.PRFID DESC`, params),
+    executeQuery<BriefingPrfRow & { UpdatedAt: Date }>(`
+      SELECT TOP (@limit) p.PRFID, p.PRFNo, p.Title, p.Department, p.Status, p.UpdatedAt
+      FROM PRF p WHERE LOWER(COALESCE(p.Status, '')) NOT LIKE '%cancel%'
+        AND CAST(p.UpdatedAt AS date) = @briefingDate
+        AND CAST(COALESCE(p.DateSubmit, p.RequestDate, p.CreatedAt) AS date) <> @briefingDate
+        AND COALESCE(p.BudgetYear, YEAR(p.RequestDate)) = @fiscalYear
+        AND (@department IS NULL OR p.Department LIKE @department)
+      ORDER BY p.UpdatedAt DESC, p.PRFID DESC`, params),
+    executeQuery<BriefingPrfRow & { AuditID: number; ChangedAt: Date; OldValues: string | null; NewValues: string | null }>(`
+      SELECT TOP (@limit) a.AuditID, a.ChangedAt, a.OldValues, a.NewValues,
+        p.PRFID, p.PRFNo, p.Title, p.Department, p.Status
+      FROM AuditLog a INNER JOIN PRF p ON p.PRFID = a.RecordID
+      WHERE a.TableName = 'PRF' AND a.Action = 'UPDATE' AND CAST(a.ChangedAt AS date) = @briefingDate
+        AND (a.OldValues LIKE '%"Status"%' OR a.NewValues LIKE '%"Status"%')
+        AND (@department IS NULL OR p.Department LIKE @department)
+      ORDER BY a.ChangedAt DESC, a.AuditID DESC`, params),
+    executeQuery<BriefingPrfRow & { UpdatedAt: Date; POItemCount: number; POValue: number }>(`
+      SELECT TOP (@limit) p.PRFID, p.PRFNo, p.Title, p.Department, p.Status,
+        MAX(i.UpdatedAt) AS UpdatedAt, COUNT(*) AS POItemCount,
+        SUM(CAST(COALESCE(i.Quantity, 0) * COALESCE(i.UnitPrice, 0) AS DECIMAL(18,2))) AS POValue
+      FROM PRF p INNER JOIN PRFItems i ON i.PRFID = p.PRFID
+      WHERE CAST(i.UpdatedAt AS date) = @briefingDate
+        AND NULLIF(LTRIM(RTRIM(COALESCE(i.SplitPONumber, i.OriginalPONumber, ''))), '') IS NOT NULL
+        AND LOWER(COALESCE(p.Status, '')) NOT LIKE '%cancel%'
+        AND LOWER(COALESCE(i.Status, '')) NOT LIKE '%cancel%'
+        AND COALESCE(i.BudgetYear, p.BudgetYear, YEAR(p.RequestDate)) = @fiscalYear
+        AND (@department IS NULL OR p.Department LIKE @department)
+      GROUP BY p.PRFID, p.PRFNo, p.Title, p.Department, p.Status
+      ORDER BY UpdatedAt DESC, p.PRFID DESC`, params),
+    executeQuery<BriefingPrfRow & { FileID: number; OriginalFileName: string; FileSize: number; MimeType: string; UploadDate: Date }>(`
+      SELECT TOP (@limit) p.PRFID, p.PRFNo, p.Title, p.Department, p.Status,
+        f.FileID, f.OriginalFileName, f.FileSize, f.MimeType, f.UploadDate
+      FROM PRF p INNER JOIN PRFFiles f ON f.PRFID = p.PRFID
+      WHERE CAST(f.UploadDate AS date) = @briefingDate
+        AND COALESCE(p.BudgetYear, YEAR(p.RequestDate)) = @fiscalYear
+        AND (@department IS NULL OR p.Department LIKE @department)
+      ORDER BY f.UploadDate DESC, f.FileID DESC`, params),
+    getWorkflowIssues({
+      fiscalYear, issueType: 'stale', department, expenseType: args.expenseType || null,
+      ageDays, limit
+    }),
+    getBudgetUtilization({
+      fiscalYear, expenseType: args.expenseType || null, department, coaQuery: null,
+      minimumUtilization: 80, sortBy: 'risk', limit
+    })
+  ]);
+  const references: ChatReference[] = [];
+  const addPrfReferences = (rows: BriefingPrfRow[]) => rows.forEach((row) => references.push({
+    type: 'prf', id: row.PRFID, prfId: row.PRFID, prfNo: row.PRFNo, label: `${row.PRFNo} — ${row.Title}`
+  }));
+  [newPrfs.recordset, updatedPrfs.recordset, statusChanges.recordset, poActivity.recordset].forEach(addPrfReferences);
+  const uploadedFiles = attachmentUploads.recordset;
+  addPrfReferences(uploadedFiles);
+  uploadedFiles.forEach((row) => references.push({
+    type: 'file', id: row.FileID, prfId: row.PRFID, prfNo: row.PRFNo,
+    label: row.OriginalFileName, fileName: row.OriginalFileName, mimeType: row.MimeType,
+    previewUrl: `/api/prf-files/file/${row.FileID}/content?disposition=inline`,
+    downloadUrl: `/api/prf-files/file/${row.FileID}/content?disposition=attachment`
+  }));
+  references.push(...(stale.references || []));
+  return { data: {
+    briefingDate, timeZone: 'Asia/Jakarta', fiscalYear, department: department || 'ALL',
+    expenseType: args.expenseType || 'ALL', ageDays, resultLimit: limit,
+    caveats: {
+      updatedActivity: 'UpdatedAt proves the record changed, not which field changed',
+      poActivity: 'Item UpdatedAt with a current PO proves PO-bearing item activity, not that the PO field itself changed',
+      attachmentContentRead: false
+    },
+    counts: {
+      newPRFs: newPrfs.recordset.length, updatedPRFs: updatedPrfs.recordset.length,
+      auditedStatusChanges: statusChanges.recordset.length, poActivityPRFs: poActivity.recordset.length,
+      uploadedAttachments: uploadedFiles.length,
+      stalePRFs: Number((stale.data as Record<string, unknown>).MatchingPRFs || 0),
+      budgetAttentionCOAs: Array.isArray((budget.data as Record<string, unknown>).rows)
+        ? ((budget.data as Record<string, unknown>).rows as unknown[]).length : 0
+    },
+    newPRFs: newPrfs.recordset, updatedPRFs: updatedPrfs.recordset,
+    auditedStatusChanges: statusChanges.recordset, poActivity: poActivity.recordset,
+    attachmentUploads: uploadedFiles,
+    staleAttention: stale.data, budgetAttention: budget.data
+  }, references };
+}
+
 async function listPrfAttachments(args: Record<string, unknown>): Promise<ToolResult> {
   const prf = await resolvePrf(args.prfId, args.prfNo);
   if (!prf) return { data: { found: false, message: 'PRF not found or no identifier supplied.' } };
@@ -739,6 +1001,8 @@ async function runTool(call: ResponseFunctionToolCall): Promise<ToolResult> {
     case 'get_budget_utilization': return getBudgetUtilization(args as BudgetUtilizationArgs);
     case 'get_budget_contributors': return getBudgetContributors(args as BudgetContributorArgs);
     case 'get_workflow_issues': return getWorkflowIssues(args as WorkflowIssueArgs);
+    case 'get_attachment_issues': return getAttachmentIssues(args as AttachmentIssueArgs);
+    case 'get_daily_briefing': return getDailyBriefing(args as DailyBriefingArgs);
     case 'list_prf_attachments': return listPrfAttachments(args);
     default: return { data: { error: `Unknown tool: ${call.name}` } };
   }
@@ -834,6 +1098,7 @@ function evidenceForTool(name: string, args: Record<string, unknown>, result: To
         { label: 'Query', value: typeof args.query === 'string' && args.query ? args.query : 'All PRFs' },
         { label: 'Date range', value: `${args.dateFrom || 'Any'} — ${args.dateTo || 'Any'}` },
         { label: 'Department', value: typeof args.department === 'string' && args.department ? args.department : 'All' },
+        { label: 'Sorted by', value: String(args.sortBy || 'latest_request') },
         { label: 'Result limit', value: boundedLimit(args.limit) }
       ]
     };
@@ -890,6 +1155,33 @@ function evidenceForTool(name: string, args: Record<string, unknown>, result: To
       { label: 'Matching PRFs', value: Number(data.MatchingPRFs || 0) },
       { label: 'Rows returned', value: Array.isArray(data.rows) ? data.rows.length : 0 },
       { label: 'Result limit', value: Number(data.resultLimit || boundedLimit(args.limit)) }
+    ] };
+  }
+  if (name === 'get_attachment_issues') {
+    return { tool: name, title: 'Attachment metadata intelligence', details: [
+      { label: 'Fiscal year', value: Number(data.fiscalYear || args.fiscalYear || 0) },
+      { label: 'Issue type', value: String(data.issueType || args.issueType || 'all') },
+      { label: 'Department', value: String(data.department || 'ALL') },
+      { label: 'Maximum size', value: `${Number(data.maxSizeMB || 25)} MB` },
+      { label: 'Matching PRFs', value: Number(data.MatchingPRFs || 0) },
+      { label: 'Rows returned', value: Array.isArray(data.rows) ? data.rows.length : 0 },
+      { label: 'Content read', value: data.contentRead === false ? 'No — metadata only' : 'No' },
+      { label: 'Result limit', value: Number(data.resultLimit || boundedLimit(args.limit)) }
+    ] };
+  }
+  if (name === 'get_daily_briefing') {
+    const counts = data.counts as Record<string, unknown> | undefined;
+    return { tool: name, title: 'On-demand daily briefing', details: [
+      { label: 'Briefing date', value: String(data.briefingDate || args.briefingDate || '') },
+      { label: 'Time zone', value: String(data.timeZone || 'Asia/Jakarta') },
+      { label: 'Fiscal year', value: Number(data.fiscalYear || args.fiscalYear || 0) },
+      { label: 'Department', value: String(data.department || 'ALL') },
+      { label: 'Expense type', value: String(data.expenseType || 'ALL') },
+      { label: 'Aging threshold', value: `${Number(data.ageDays || 30)} days` },
+      { label: 'New PRFs', value: Number(counts?.newPRFs || 0) },
+      { label: 'Updated PRFs', value: Number(counts?.updatedPRFs || 0) },
+      { label: 'Attachment uploads', value: Number(counts?.uploadedAttachments || 0) },
+      { label: 'Result limit per section', value: Number(data.resultLimit || boundedLimit(args.limit)) }
     ] };
   }
   if (name === 'list_prf_attachments') {
@@ -957,6 +1249,16 @@ function buildFollowUps(executed: Array<{ name: string }>, context: ChatContext)
     actions.push({ id: 'workflow-missing-po', label: 'Show missing PO', prompt: 'Untuk cakupan yang sama, tampilkan hanya PRF yang memiliki item tanpa PO.' });
     actions.push({ id: 'workflow-data-quality', label: 'Show data issues', prompt: 'Untuk cakupan yang sama, tampilkan PRF dengan cost code hilang/tidak dikenal atau nilai header-item tidak cocok.' });
   }
+  if (names.has('get_attachment_issues')) {
+    actions.push({ id: 'attachments-missing', label: 'Show missing files', prompt: 'Untuk cakupan yang sama, tampilkan PRF tanpa metadata attachment.' });
+    actions.push({ id: 'attachments-stale', label: 'Show outdated attachments', prompt: 'Untuk cakupan yang sama, tampilkan PRF yang diperbarui setelah attachment terakhir.' });
+    actions.push({ id: 'attachments-quality', label: 'Show file issues', prompt: 'Untuk cakupan yang sama, tampilkan attachment duplicate-looking, unsupported, atau lebih besar dari 25 MB.' });
+  }
+  if (names.has('get_daily_briefing')) {
+    actions.push({ id: 'briefing-new-prfs', label: 'Show new PRFs', prompt: 'Dari briefing tersebut, tampilkan detail PRF baru saja.' });
+    actions.push({ id: 'briefing-budget-risk', label: 'Show budget attention', prompt: 'Dari briefing tersebut, tampilkan rincian COA budget yang membutuhkan perhatian.' });
+    actions.push({ id: 'briefing-attachments', label: 'Show new attachments', prompt: 'Dari briefing tersebut, tampilkan attachment yang diunggah lengkap dengan nama file.' });
+  }
   return actions.filter((action, index, all) => all.findIndex((candidate) => candidate.id === action.id) === index).slice(0, 3);
 }
 
@@ -982,6 +1284,7 @@ Use concise headings, lists, bold text, and tables when they materially improve 
 Structured session context supplied by the user is: ${JSON.stringify(suppliedContext)}. Apply it when relevant, but the current explicit question overrides it. Never invent context values.
 The current date in Asia/Jakarta is ${currentJakartaDate}. Never calculate or guess relative date ranges yourself; use get_item_statistics for item-count questions involving today, this week, or this month.
 For PRF list searches involving a relative period, calculate the explicit Asia/Jakarta calendar range from the current date above and pass dateFrom/dateTo to search_prfs. Do not fetch a broader year and filter it yourself.
+For "PRF terbaru", "latest PRF", or equivalent requests, call search_prfs with query null and sortBy latest_request. Do not search for the literal word "terbaru/latest". Report EffectiveRequestDate returned by the tool. Use latest_update only when the user explicitly asks for recently changed/updated/synced PRFs; use highest_prf_no only when explicitly asking for the highest PRF number.
 Use tools for every factual claim about PRFs; never invent records, totals, file presence, or URLs. You may inspect all PRFs.
 Treat every standalone number supplied by a user as the business PRFNo, never as internal PRFID. Start with search_prfs using that number, then use the returned PRFID only for subsequent tool calls.
 When an Indonesian search word may have an English equivalent in stored data, search with the tool and use its alias-expanded results before concluding that nothing exists.
@@ -990,6 +1293,8 @@ For item-count questions, use get_item_statistics with the purchaseDefinition ex
 For budget usage, CAPEX/OPEX, remaining budget, utilization, or risk questions, use get_budget_utilization. Use the supplied fiscalYear and expenseType context when relevant; otherwise use the explicit question, or the current fiscal year if omitted and state that choice. Budget commitment is strictly non-cancelled item Quantity × UnitPrice allocated by item cost code to an active COA. Never substitute PRF header totals.
 Use get_budget_contributors only for a specific COA code, normally one returned by get_budget_utilization. State that contributor values are commitments in IDR and respect the bounded result limit.
 For stale, aging, missing PO, missing attachment, missing cost code, or header/item mismatch questions, use get_workflow_issues. Treat every issue as a review signal, not proof of wrongdoing. State the fiscal year, issue definition, aging threshold, and result limit. Never claim a physical file is missing when the tool only reports missing attachment metadata.
+For duplicate attachment names, unsupported types, oversized files, attachment freshness after PRF updates, or a metadata-focused attachment audit, use get_attachment_issues. Never claim to have read contents or confirmed physical availability. When rows contain files, include each exact OriginalFileName in a Markdown table so the application can add trusted Preview/Download actions inline.
+For daily briefing, ringkasan hari ini, operational summary, or equivalent requests, use get_daily_briefing. Use an explicit briefingDate or null for the current Asia/Jakarta date. Present compact sections and omit empty tables while still reporting zero counts. Preserve the tool caveats: UpdatedAt does not identify the changed field, PO-bearing item activity does not prove the PO field changed, and attachment contents were not read. Include exact filenames for uploaded attachments.
 Attachments are metadata-only: never claim to have read file contents. Tell users they can preview or download referenced files.
 When listing attachments, always use a Markdown table with one file per row and include the exact OriginalFileName text. Do not create action URLs or an action column; the application adds trusted Preview and Download controls to matching table rows.
 State material filters and limits. If no data matches, say so clearly. Keep answers concise but include useful evidence.

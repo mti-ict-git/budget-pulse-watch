@@ -524,6 +524,31 @@ Add governed read-only operational intelligence to the assistant, beginning with
 - [ ] Complete live SQL/OpenAI verification from a network-authorized environment
 - [x] Complete targeted browser UAT for workflow issue summary and drill-down
 
+### Attachment Metadata Intelligence Checklist
+
+- [x] Add a bounded metadata-only attachment issue tool for missing files, duplicate-looking names, unsupported types, oversized files, and PRFs updated after their latest attachment
+- [x] Keep physical-file availability separate from database metadata presence
+- [x] Return exact filenames plus trusted Preview/Download and View PRF references
+- [x] Support fiscal-year, department, issue-type, maximum-size, and result-limit filters
+- [x] Return structured evidence and allow-listed follow-up actions
+- [x] Update `docs/openapi.yaml` and chatbot behavior documentation
+- [x] Complete typecheck, build, lint, and deterministic SQL-shape tests
+- [ ] Complete live SQL/OpenAI verification from a network-authorized environment
+- [ ] Complete targeted browser UAT for attachment issue summary and inline table actions
+
+### On-Demand Daily Briefing Checklist
+
+- [x] Add a bounded briefing tool using an explicit Asia/Jakarta calendar date
+- [x] Include new PRFs, recently updated PRFs, audited status changes, PO-bearing item activity, and attachment uploads
+- [x] Include stale PRF attention and CAPEX/OPEX budget-risk summaries using governed existing definitions
+- [x] Return exact filenames and trusted PRF/file references
+- [x] Support fiscal-year, department, CAPEX/OPEX, aging threshold, date, and result-limit filters
+- [x] Keep briefing on-demand and session-only with no scheduler or durable briefing records
+- [x] Update `docs/openapi.yaml` and chatbot behavior documentation
+- [x] Complete typecheck, build, lint, and deterministic tests
+- [ ] Complete live SQL/OpenAI verification from a network-authorized environment
+- [ ] Complete targeted browser UAT for daily briefing sections and drill-down actions
+
 ### Output
 
 - Read-only CAPEX/OPEX utilization and remaining-budget answers
@@ -549,6 +574,15 @@ Add governed read-only operational intelligence to the assistant, beginning with
 - Attachment references named in Markdown table rows now render trusted Preview/Download actions inline; only unmatched references use fallback cards
 - Backend reference filtering no longer renders unrelated attachment cards whose exact filenames were not used in the answer
 - `docs/openapi.yaml` was reviewed for the attachment-table refinement; no update was required because request and response contracts did not change
+- Attachment-intelligence deterministic challenge passed nine checks: bounded query, metadata-only operation, duplicate filenames, unsupported types, size threshold, PRF-update freshness, missing metadata, trusted file reference, and trusted PRF reference
+- Backend build, root TypeScript, frontend production build, full ESLint (zero errors; nine existing warnings), OpenAPI YAML parse, and `git diff --check` passed after the attachment-intelligence slice
+- Attachment-intelligence live SQL/OpenAI verification remains pending in a network-authorized environment
+- Corrected PRF recency semantics: newest request, latest update, and highest PRF number are explicit bounded sort modes; standalone `terbaru/latest/newest` is not used as a search keyword
+- PRF-recency deterministic challenge passed six checks: literal recency term removal, explicit sort mode, effective request-date ordering, separate update ordering, separate numeric PRF ordering, and bounded result limit
+- Backend/root TypeScript, frontend production build, full ESLint (zero errors; nine existing warnings), OpenAPI YAML parse, and `git diff --check` passed after the recency correction
+- Daily-briefing deterministic challenge passed nine checks: Jakarta date, explicit date, bounded sections, new PRFs, audited status changes, PO caveat, trusted attachment reference, stale attention, and budget attention
+- Backend/root TypeScript, frontend production build, full ESLint (zero errors; nine existing warnings), OpenAPI YAML parse, and `git diff --check` passed after the daily-briefing slice
+- Daily-briefing live SQL/OpenAI verification remains pending in a network-authorized environment
 
 ## Completion Rule
 

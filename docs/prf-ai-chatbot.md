@@ -44,6 +44,8 @@ All database access is implemented by parameterized application queries. Search 
 
 Relative periods such as `today`, `this week`, and `this month` are resolved deterministically by the backend rather than inferred by the model. Broad aggregate questions do not inherit a previously discussed PRF unless the user explicitly refers to it.
 
+`PRF terbaru` means the newest effective request date (`DateSubmit`, falling back to `RequestDate` and then `CreatedAt`). It is distinct from `terakhir diperbarui`, which sorts by `UpdatedAt`, and `nomor PRF tertinggi`, which sorts by the numeric PRF number. Literal words such as `terbaru` or `latest` are intent signals and are never applied as text-search keywords.
+
 Attachment metadata is treated as untrusted data. File names and descriptions are not instructions to the model. File content is served through an authenticated endpoint and is not sent to OpenAI.
 
 When an attachment answer contains a Markdown table, the frontend matches each exact file name to a trusted backend reference and inserts Preview/Download controls into that row. Only unmatched referenced files use separate fallback cards; file metadata not named in the answer is not rendered as an unrelated card.
@@ -86,6 +88,32 @@ The assistant may identify bounded operational/data-quality issues using structu
 - amount mismatch: absolute difference between header requested amount and item `Quantity * UnitPrice` total is greater than IDR 1 in the PRF transaction currency
 
 Issue tools do not modify statuses, attachments, cost codes, PO data, or amounts. Results are capped and provide trusted PRF references for user review.
+
+### Attachment Metadata Intelligence
+
+The assistant may inspect attachment metadata without opening document contents. Supported review signals are:
+
+- missing metadata: PRF has no `PRFFiles` record
+- duplicate-looking: multiple files in one PRF share the same normalized filename (case-insensitive and trimmed)
+- unsupported type: extension/MIME metadata falls outside the application upload allow-list
+- oversized: metadata file size exceeds the explicit threshold, defaulting to 25 MB
+- attachment stale after PRF update: PRF `UpdatedAt` is later than its latest attachment upload
+
+Metadata presence does not prove that a physical file remains readable. Preview/Download remains the authenticated physical-availability check. Results include exact filenames so the frontend can place trusted file actions inside Markdown table rows.
+
+### On-Demand Daily Briefing
+
+The assistant may assemble a briefing only when requested. The briefing uses one explicit `Asia/Jakarta` calendar date and includes bounded sections for:
+
+- PRFs whose effective request date falls on the briefing date
+- PRFs updated on the briefing date
+- audited PRF status changes recorded on the briefing date
+- non-cancelled items with a PO whose item record changed on the briefing date
+- attachments uploaded on the briefing date
+- stale active PRFs using the explicit aging threshold
+- budget COAs at or above the governed attention threshold
+
+Recently updated and PO-bearing item activity are operational signals, not claims about the exact field that changed unless the immutable audit log proves it. Briefings are not scheduled or stored and do not create notifications.
 
 ## Trust And Conversation Control
 

@@ -63,6 +63,29 @@ This document records unresolved business and implementation questions that must
 - Missing attachment currently means no database attachment metadata; physical file availability is a separate attachment-integrity check
 - The first slice reports issues only and does not create tickets, alerts, assignments, or mutations
 
+### Phase 13B Attachment Metadata Intelligence
+
+- Duplicate-looking files are matched only within the same PRF using normalized exact filenames; similar semantic content is not inferred
+- Initial supported extensions follow the current upload allow-list: PDF, Word, Excel, common image formats, and TXT
+- Oversized threshold defaults to 25 MB but remains an explicit bounded tool parameter
+- `PRF.UpdatedAt > latest PRFFiles.UploadDate` is a review signal that attachments may need refreshing, not proof that an attachment is obsolete
+- Physical existence/readability is not inferred from metadata and remains verified only through authenticated Preview/Download
+
+### PRF Recency Semantics
+
+- `PRF terbaru` is defined as newest effective request date: `DateSubmit`, then `RequestDate`, then `CreatedAt`
+- `terakhir diperbarui` is a separate intent ordered by `UpdatedAt`
+- `nomor PRF tertinggi` is a separate intent ordered by numeric `PRFNo`
+- Recency words are not text-search keywords; the backend defensively removes a standalone `terbaru/latest/newest` query
+
+### Phase 13B On-Demand Daily Briefing
+
+- Briefing date defaults to the current `Asia/Jakarta` date and is always shown in evidence
+- `UpdatedAt` and item activity indicate a record changed, but do not identify the changed field without a matching audit event
+- Status movement is reported only from `AuditLog`; absence of an audit event is not interpreted as no business change
+- Budget attention reuses the Phase 13B item-level utilization definition and an explicit 80% default threshold
+- The briefing remains on-demand/session-only; scheduled delivery and notification subscriptions stay in later governed phases
+
 ### Historical Visibility Model
 
 - Prior-year visibility is considered sufficient through `FiscalYear` filtering on live tables for the current product phase
