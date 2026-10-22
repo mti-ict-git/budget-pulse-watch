@@ -398,7 +398,7 @@
 .merdeka-prf .merdeka-table td:last-child button.text-destructive { color: var(--mdka-red-600); border-color: var(--mdka-red-100); background: var(--mdka-red-50); }
 .merdeka-prf .merdeka-table td button svg { width: 15px; height: 15px; stroke-width: 1.5; }
 .merdeka-prf-identity { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.merdeka-prf-number { display: flex; align-items: flex-start; flex-direction: column; gap: 3px; white-space: nowrap; font-weight: 500; }
+.merdeka-prf-number { display: flex; align-items: center; flex-direction: row; gap: 7px; white-space: nowrap; font-weight: 500; }
 .merdeka-prf-sync-actions { display: flex; align-items: center; gap: 5px; }
 .merdeka-prf .merdeka-table .merdeka-item-count { font-size: 10px; font-weight: 400; line-height: 1.3; padding: 2px 6px; border: 0; background: var(--mdka-gray-100); color: var(--mdka-gray-600); }
 .merdeka-prf .merdeka-table td > .rounded-full { font-size: 10px; padding: 3px 9px; }
@@ -485,3 +485,28 @@
 .merdeka-prf-split.has-panel:not(.show-all-columns) .merdeka-prf-description { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-height: 36px; }
 
 .merdeka-prf-split .merdeka-table-scroll::after, .merdeka-items-scroll::after { content: ""; display: block; height: 88px; pointer-events: none; }
+
+
+/* Expanded item workspace: one table owner, moved from panel into Radix modal. */
+.merdeka-items-heading-actions { display: flex; gap: 4px; align-items: center; }
+.merdeka-items-dialog { width: calc(100vw - 48px); max-width: 1480px; height: min(820px, calc(100dvh - 48px)); max-height: calc(100dvh - 48px); display: flex; padding: 0; gap: 0; overflow: hidden; border-radius: 8px; }
+.merdeka-items-dialog .merdeka-prf-items-panel { flex: 1; width: 100%; min-width: 0; max-width: none; border: 0; border-radius: 0; }
+.merdeka-items-dialog .merdeka-items-title-row { padding-right: 32px; min-height: 28px; }
+.merdeka-items-dialog .merdeka-items-table { min-width: 1120px; font-size: 12px; }
+.merdeka-items-dialog .merdeka-items-table th { font-size: 11px; }
+.merdeka-items-dialog .merdeka-items-table td:first-child { min-width: 250px; width: 30%; max-width: 440px; }
+.merdeka-items-dialog .merdeka-items-table td:nth-child(2), .merdeka-items-dialog .merdeka-items-table td:nth-child(3), .merdeka-items-dialog .merdeka-items-table td:nth-child(4) { min-width: 130px; overflow-wrap: anywhere; }
+.merdeka-items-dialog .merdeka-item-metadata { font-size: 11px; }
+.merdeka-items-dialog .merdeka-items-footer { padding-right: 16px; }
+.merdeka-items-dialog .merdeka-items-scroll::after { height: 16px; }
+@media (max-width: 575px) {
+  .merdeka-items-dialog { width: calc(100vw - 16px); height: calc(100dvh - 24px); max-height: calc(100dvh - 24px); }
+}
+
+/* Keep branding inside the 240/80px shell, including at browser zoom. */
+.merdeka-sidebar-logo { min-width: 0; max-width: calc(100% - 40px); flex-shrink: 1; object-position: left center; }
+.merdeka-sidebar > div:nth-of-type(2) > button { flex-shrink: 0; }
+.merdeka-sidebar[data-collapsed=true] .merdeka-sidebar-logo { max-width: 100%; object-position: center; }
+.merdeka-sidebar-watermark { bottom: 24px; }
+.merdeka-sidebar-watermark img { width: min(144px, 100%); max-height: 144px; }
+.merdeka-sidebar[data-collapsed=true] .merdeka-sidebar-watermark img { width: 40px; max-height: 40px; }

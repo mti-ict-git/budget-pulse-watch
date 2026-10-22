@@ -33,7 +33,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync, CloudDownload, Waypoints } from "lucide-react";
@@ -294,9 +293,11 @@ export default function PRFMonitoring() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activePRFId, setActivePRFId] = useState<string | null>(null);
   const [allItemsOpen, setAllItemsOpen] = useState(false);
+  const [itemsModalOpen, setItemsModalOpen] = useState(false);
   const [showAllColumns, setShowAllColumns] = useState(false);
   const listRegion = useRef<HTMLDivElement>(null);
   const lastItemTrigger = useRef<HTMLElement | null>(null);
+  const lastEditItemTrigger = useRef<HTMLElement | null>(null);
   const [isBulkSyncing, setIsBulkSyncing] = useState(false);
   const [selectedItemForModification, setSelectedItemForModification] = useState<SelectedItemForModification | null>(null);
   const [isModificationModalOpen, setIsModificationModalOpen] = useState(false);
@@ -311,9 +312,6 @@ export default function PRFMonitoring() {
   const [isSelectedSyncing, setIsSelectedSyncing] = useState<boolean>(false);
   const [isProntoSyncingId, setIsProntoSyncingId] = useState<string | null>(null);
   const [isProntoSelectedSyncing, setIsProntoSelectedSyncing] = useState<boolean>(false);
-  const [isOneDriveTesting, setIsOneDriveTesting] = useState<boolean>(false);
-  const [isOneDriveDialogOpen, setIsOneDriveDialogOpen] = useState<boolean>(false);
-  const [oneDriveTestOutput, setOneDriveTestOutput] = useState<string>("");
   const [availableSubmitYears, setAvailableSubmitYears] = useState<number[]>([]);
   const availableYearValues = useMemo(() => {
     const years = new Set<number>([currentYear, ...availableSubmitYears]);
@@ -698,13 +696,14 @@ export default function PRFMonitoring() {
   // Resolve the selected PRF from refreshed list data, never a stale record snapshot.
   const activePRF = activePRFId ? filteredData.find(prf => prf.id === activePRFId) : undefined;
   const panelPRFs = allItemsOpen ? filteredData.filter(prf => prf.items?.length) : activePRF ? [activePRF] : [];
-  const panelOpen = panelPRFs.length > 0;
+  const panelOpen = panelPRFs.length > 0 && !itemsModalOpen;
 
   useEffect(() => {
     if (!loading && !error && activePRFId && !prfData.some(prf => prf.id === activePRFId)) setActivePRFId(null);
   }, [prfData, activePRFId, loading, error]);
 
   const closeItemsPanel = () => {
+    setItemsModalOpen(false);
     setActivePRFId(null);
     setAllItemsOpen(false);
     requestAnimationFrame(() => {
@@ -861,6 +860,7 @@ export default function PRFMonitoring() {
 
   // Item modification handlers
   const handleItemModification = (item: PRFItem, prfStatus: string) => {
+    lastEditItemTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setSelectedItemForModification({ item, prfStatus });
     setIsModificationModalOpen(true);
   };
@@ -1126,52 +1126,9 @@ export default function PRFMonitoring() {
     }
   };
 
-  const handleTestOneDriveAccess = async () => {
-    if (!user) {
-      toast({ title: "Authentication Required", description: "Please log in to test OneDrive access", variant: "destructive" });
-      return;
-    }
-
-    setIsOneDriveTesting(true);
-    try {
-      const response = await fetch('/api/cloud-sync/test', {
-        method: 'GET',
-        headers: authService.getAuthHeaders(),
-      });
-
-      const body: unknown = await response.json();
-      const pretty = JSON.stringify(body, null, 2);
-      setOneDriveTestOutput(pretty);
-      setIsOneDriveDialogOpen(true);
-
-      if (response.ok) {
-        toast({ title: "OneDrive Test Completed", description: "Read-only access request finished" });
-      } else {
-        toast({ title: "OneDrive Test Failed", description: "Request returned an error", variant: "destructive" });
-      }
-    } catch (error) {
-      toast({ title: "OneDrive Test Failed", description: error instanceof Error ? error.message : 'Error testing OneDrive access', variant: "destructive" });
-    } finally {
-      setIsOneDriveTesting(false);
-    }
-  };
-
   return (
     <div className="merdeka-prf space-y-6">
       <nav className="merdeka-breadcrumb" aria-label="Breadcrumb"><a href="/">Dashboard</a><span aria-hidden="true">›</span><span aria-current="page">PRF Monitoring</span></nav>
-      <Dialog open={isOneDriveDialogOpen} onOpenChange={setIsOneDriveDialogOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>OneDrive Access Test</DialogTitle>
-            <DialogDescription>
-              Read-only output from GET /api/cloud-sync/test
-            </DialogDescription>
-          </DialogHeader>
-          <pre className="max-h-[60vh] overflow-auto rounded-md bg-muted p-4 text-xs">
-            {oneDriveTestOutput}
-          </pre>
-        </DialogContent>
-      </Dialog>
       <div className="merdeka-page-heading flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">PRF Monitoring</h1>
@@ -1216,20 +1173,6 @@ export default function PRFMonitoring() {
             )}
             Sync Selected via Pronto
           </Button>
-          {user?.role === 'admin' && (
-            <Button
-              variant="outline"
-              onClick={handleTestOneDriveAccess}
-              disabled={isOneDriveTesting}
-            >
-              {isOneDriveTesting ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Search className="h-4 w-4 mr-2" />
-              )}
-              Test OneDrive
-            </Button>
-          )}
           <ExcelImportDialog />
         </div>
       </div>
@@ -1573,14 +1516,23 @@ export default function PRFMonitoring() {
         </CardContent>
       </Card>
       {panelOpen && (
-        <PRFItemsPanel prfs={panelPRFs} allItems={allItemsOpen} loading={loading} error={error} onClose={closeItemsPanel} onRetry={fetchPRFData} onEdit={handleItemModification} statusBadge={getStatusBadge} formatCurrency={formatCurrency} getCOAName={getCOAName} />
+        <PRFItemsPanel onExpand={() => setItemsModalOpen(true)} prfs={panelPRFs} allItems={allItemsOpen} loading={loading} error={error} onClose={closeItemsPanel} onRetry={fetchPRFData} onEdit={handleItemModification} statusBadge={getStatusBadge} formatCurrency={formatCurrency} getCOAName={getCOAName} />
       )}
       </div>
 
 
+      <Dialog open={itemsModalOpen && panelPRFs.length > 0} onOpenChange={open => { if (!open) closeItemsPanel(); }}>
+        <DialogContent className="merdeka-detail merdeka-items-dialog" onCloseAutoFocus={event => { event.preventDefault(); }}>
+          <DialogTitle className="sr-only">{allItemsOpen ? 'All PRF items on this page' : `PRF ${panelPRFs[0]?.prfNo ?? ''} items`}</DialogTitle>
+          <DialogDescription className="sr-only">Detailed item table including part numbers, cost codes and purchase order splits.</DialogDescription>
+          {itemsModalOpen && panelPRFs.length > 0 && <PRFItemsPanel expanded prfs={panelPRFs} allItems={allItemsOpen} loading={loading} error={error} onClose={closeItemsPanel} onRetry={fetchPRFData} onEdit={handleItemModification} statusBadge={getStatusBadge} formatCurrency={formatCurrency} getCOAName={getCOAName} />}
+        </DialogContent>
+      </Dialog>
+
       {/* Item Modification Modal */}
       {selectedItemForModification && (
         <PRFItemModificationModal
+          onCloseAutoFocus={event => { event.preventDefault(); if (lastEditItemTrigger.current?.isConnected) lastEditItemTrigger.current.focus(); else listRegion.current?.focus(); }}
           isOpen={isModificationModalOpen}
           onClose={() => {
             setIsModificationModalOpen(false);

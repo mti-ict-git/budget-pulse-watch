@@ -1,0 +1,1 @@
+Canonical assets from merdeka-frontend/assets/frontend-template.zip, captured Merdeka Services login. Original ownership retained. tabler.pms.min.css is archived unchanged; the React login uses a scoped adapter of its login tokens, not the dashboard v2 theme. No Bootstrap JS is loaded.

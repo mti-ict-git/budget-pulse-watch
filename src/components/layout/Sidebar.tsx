@@ -70,8 +70,8 @@ export function Sidebar({ className, mobile = false, onNavigate }: SidebarProps)
       <div
         aria-hidden="true"
         className={cn(
-          "pointer-events-none absolute inset-x-0 z-0 flex justify-center",
-          isCollapsed ? "bottom-14 px-1" : "bottom-24 px-3"
+          "merdeka-sidebar-watermark pointer-events-none absolute inset-x-0 z-0 flex justify-center",
+          isCollapsed ? "px-1" : "px-3"
         )}
       >
         <img

@@ -43,7 +43,7 @@ No market expansion or translation is part of this work.
 Approved rollout now covers authenticated shell, `/prf`, PRF detail, Dashboard,
 Budget Overview and its create/edit dialogs, COA Management and Reports (Audit Log). Other page bodies and their workflows
 retain the existing design pending later rollout.
-Login remains an existing separate composition. Avoid marketing hero treatments,
+Login now follows the separate captured Merdeka login composition. Avoid marketing hero treatments,
 oversized controls, ornamental gradients, invented dashboard data, and mixed login/v2 themes.
 
 ## Runtime token ownership (Model B)
@@ -204,3 +204,39 @@ are compact. Desktop uses two columns from 1200px; narrower viewports stack the
 panes with independent scroll regions. Item edit actions remain pinned at the right
 edge. Existing portal dialogs remain Radix-owned. Login and other page layouts are
 outside this slice. No commit or push.
+
+
+## Login continuation (2026-10-22)
+
+The user requested Merdeka login fidelity. Login uses the source 7:5 photo/form
+split, 20px card radius, darkened BG_LOGIN photograph, three manually selected
+source photographs, MBM branding and a white form. No automatic carousel motion.
+Below 992px the photograph stacks above the form. Document scrolling keeps every
+field/action reachable on short screens; no fixed-height clipping.
+
+Login has a dedicated scoped adapter, src/styles/merdeka-login.css. Its login
+tokens mirror archived Tabler PMS (#206bc4 primary, #667382 secondary, #182433
+text, #dadfe5 border, #f6f8fb inputs, 4px controls). Canonical login assets/CSS
+are archived unchanged in public/merdeka/login with SHA256SUMS.json. The login
+vendor stylesheet is not loaded globally and v2 classes are not used on login;
+the existing local InterVariable font is reused. Do not mix login and v2 tokens.
+
+Only the existing credentials flow is rendered. No SSO, forgot-password endpoint,
+CAPTCHA or new identity/storage policy is inferred from the template. Input,
+Button, Label and Radix Dialog remain shared canonical primitives. The guide
+dialog is the named login variant, scoped even though rendered through a portal.
+
+## PRF items modal continuation (2026-10-22)
+
+Item count sits inline beside the PRF number to reduce row height. The item panel
+has an Expand items to modal action. A single item workspace moves into a wide
+Radix Dialog; the side panel unmounts and list returns to full width. Closing the
+modal clears selection and restores the initiating list trigger. The modal uses
+the shared Merdeka detail theme and viewport-bound geometry, with table-owned
+scroll and sticky edit actions. Desktop shows dedicated part number, cost code,
+original/split PO columns; all other item metadata/specifications are expanded.
+Absent values show an em dash, not inferred data. Legacy descriptions matching
+Part: value supply the part column only when ItemCode is absent. No data is saved
+by this presentation fallback. Narrow screens keep the wide table in its scroller.
+
+Sidebar refinement: header brand scales down only when space requires it; collapse control remains fixed. Watermark is bounded and anchored 24px above the bottom. Canonical assets are unchanged.

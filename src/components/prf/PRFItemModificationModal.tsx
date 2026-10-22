@@ -42,6 +42,7 @@ interface PRFItem {
 interface PRFItemModificationModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onCloseAutoFocus?: (event: Event) => void;
   item: PRFItem;
   prfStatus: string;
   onUpdate: (itemId: number, updateData: Partial<PRFItem>) => Promise<void>;
@@ -50,6 +51,7 @@ interface PRFItemModificationModalProps {
 export const PRFItemModificationModal: React.FC<PRFItemModificationModalProps> = ({
   isOpen,
   onClose,
+  onCloseAutoFocus,
   item,
   prfStatus,
   onUpdate,
@@ -245,7 +247,7 @@ export const PRFItemModificationModal: React.FC<PRFItemModificationModalProps> =
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl" onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />

@@ -1,5 +1,5 @@
 import { Fragment, useEffect, type ReactNode } from 'react';
-import { Edit, RefreshCw, X } from 'lucide-react';
+import { Edit, Maximize2, RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { PRFItem } from '@/types/prfItem';
 
@@ -13,6 +13,8 @@ interface PanelPRF {
 }
 
 interface Props {
+  expanded?: boolean;
+  onExpand?: () => void;
   prfs: PanelPRF[];
   allItems: boolean;
   loading: boolean;
@@ -35,25 +37,26 @@ function Specifications({ value }: { value: string }) {
   return <p>{value}</p>;
 }
 
-export function PRFItemsPanel({ prfs, allItems, loading, error, onClose, onRetry, onEdit, statusBadge, formatCurrency, getCOAName }: Props) {
+export function PRFItemsPanel({ expanded = false, onExpand, prfs, allItems, loading, error, onClose, onRetry, onEdit, statusBadge, formatCurrency, getCOAName }: Props) {
   const count = prfs.reduce((total, prf) => total + (prf.items?.length ?? 0), 0);
   const first = prfs[0];
+  const Metadata = expanded ? 'div' : 'details';
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented || document.querySelector('[role="dialog"], [role="alertdialog"], [role="listbox"], [role="menu"]')) return;
+      if (expanded || event.key !== 'Escape' || event.defaultPrevented || document.querySelector('[role="dialog"], [role="alertdialog"], [role="listbox"], [role="menu"]')) return;
       if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable=true]')) return;
       event.preventDefault();
       onClose();
     };
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [onClose]);
+  }, [onClose, expanded]);
 
   return (
     <aside id="prf-items-panel" className="merdeka-prf-items-panel" aria-label="PRF item panel" aria-busy={loading}>
       <header className="merdeka-items-heading">
-        <div className="merdeka-items-title-row"><h2>{allItems ? 'All items on this page' : `PRF ${first.prfNo}`}</h2><Button variant="ghost" size="sm" aria-label="Close item panel" onClick={onClose}><X className="h-4 w-4" /></Button></div>
+        <div className="merdeka-items-title-row"><h2>{allItems ? 'All items on this page' : `PRF ${first.prfNo}`}</h2>{!expanded && <div className="merdeka-items-heading-actions"><Button variant="ghost" size="sm" aria-label="Expand items to modal" title="Expand items to modal" onClick={onExpand}><Maximize2 className="h-4 w-4" /></Button><Button variant="ghost" size="sm" aria-label="Close item panel" onClick={onClose}><X className="h-4 w-4" /></Button></div>}</div>
         <p>{allItems ? `${prfs.length} PRFs · ${count} items` : first.description}</p>
         <div className="merdeka-items-summary"><div><span>Requested amount</span><strong>{formatCurrency(prfs.reduce((total, prf) => total + prf.amount, 0))}</strong></div><div><span>{allItems ? 'Items' : 'Status'}</span><div>{allItems ? count : statusBadge(first.progress)}</div></div></div>
         <span role="status" className="sr-only">{allItems ? 'All items on this page' : `Items for PRF ${first.prfNo}`}, {count} items</span>
@@ -61,27 +64,28 @@ export function PRFItemsPanel({ prfs, allItems, loading, error, onClose, onRetry
       {error ? <div className="merdeka-data-error" role="alert">Unable to refresh items: {error}<Button variant="outline" size="sm" onClick={onRetry}>Retry</Button></div> : loading ? <div className="merdeka-items-loading" role="status"><RefreshCw className="h-4 w-4 animate-spin" />Refreshing items...</div> : (
         <div className="merdeka-items-scroll" role="region" aria-label="PRF items table" tabIndex={0}>
           <table className="merdeka-items-table">
-            <thead><tr><th>Item / Part No</th><th>Qty</th><th>Unit price</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>{expanded ? 'Item / Description' : 'Item / Part No'}</th>{expanded && <><th>Part number</th><th>Cost code</th><th>Original / Split PO</th></>}<th>Qty</th><th>Unit price</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>{prfs.map(prf => <Fragment key={prf.id}>
-              {allItems && <tr className="merdeka-items-group"><th colSpan={6}>{prf.prfNo} <span>{prf.description}</span></th></tr>}
+              {allItems && <tr className="merdeka-items-group"><th colSpan={expanded ? 9 : 6}>{prf.prfNo} <span>{prf.description}</span></th></tr>}
               {prf.items?.map((item, index) => {
                 const description = item.Description?.trim();
                 const name = item.ItemName?.trim() || 'Unnamed item';
-                const code = item.ItemCode?.trim();
+                const code = item.ItemCode?.trim() || description?.match(/^part:\s*(.+)$/i)?.[1]?.trim();
                 const showDescription = description && description.toLowerCase() !== name.toLowerCase() && description.toLowerCase() !== `part: ${code ?? ''}`.toLowerCase();
                 const hasDetails = showDescription || item.Specifications || item.Notes || item.PickedUpBy || item.OriginalPONumber || item.SplitPONumber || item.COAID || item.BudgetYear;
                 return <tr key={item.PRFItemID ?? item.ItemID ?? `${prf.id}-${index}`}>
-                  <td><div className="merdeka-items-name">{name}</div>{code && <div className="merdeka-items-meta">Part: {code}</div>}{item.PurchaseCostCode && <div className="merdeka-items-meta">Cost: {item.PurchaseCostCode}</div>}
-                    {hasDetails && <details className="merdeka-item-metadata"><summary>More details</summary>
+                  <td><div className="merdeka-items-name">{name}</div>{!expanded && code && <div className="merdeka-items-meta">Part: {code}</div>}{!expanded && item.PurchaseCostCode && <div className="merdeka-items-meta">Cost: {item.PurchaseCostCode}</div>}
+                    {hasDetails && <Metadata className="merdeka-item-metadata">{!expanded && <summary>More details</summary>}
                       {showDescription && <p>{description}</p>}
-                      {(item.OriginalPONumber || item.SplitPONumber) && <p>PO: {item.OriginalPONumber}{item.SplitPONumber && ` → ${item.SplitPONumber} (Split)`}</p>}
+                      {!expanded && (item.OriginalPONumber || item.SplitPONumber) && <p>PO: {item.OriginalPONumber}{item.SplitPONumber && ` → ${item.SplitPONumber} (Split)`}</p>}
                       {!!item.COAID && <p>COA: {getCOAName(item.COAID)} (ID: {item.COAID})</p>}
                       {!!item.BudgetYear && <p>Budget year: {item.BudgetYear}</p>}
-                      {item.Specifications && <details><summary>Specifications</summary><Specifications value={item.Specifications} /></details>}
+                      {item.Specifications && (expanded ? <div><strong>Specifications</strong><Specifications value={item.Specifications} /></div> : <details><summary>Specifications</summary><Specifications value={item.Specifications} /></details>)}
                       {item.PickedUpBy && <p>Picked up by: {item.PickedUpBy}{item.PickedUpDate && ` on ${new Date(item.PickedUpDate).toLocaleDateString()}`}</p>}
                       {item.Notes && <p>Note: {item.Notes}</p>}
-                    </details>}
+                    </Metadata>}
                   </td>
+                  {expanded && <><td>{code || '—'}</td><td>{item.PurchaseCostCode || '—'}</td><td><div>{item.OriginalPONumber || '—'}</div><div className="merdeka-items-meta">Split: {item.SplitPONumber || '—'}</div></td></>}
                   <td className="merdeka-item-number">{item.Quantity}</td><td className="merdeka-item-number">{formatCurrency(item.UnitPrice)}</td><td className="merdeka-item-number">{formatCurrency(item.TotalPrice ?? item.UnitPrice * item.Quantity)}</td><td>{statusBadge(prf.progress)}</td><td><Button size="sm" variant="outline" aria-label={`Edit item ${name}`} onClick={() => onEdit(item, prf.progress)}><Edit className="h-3 w-3" /></Button></td>
                 </tr>;
               })}

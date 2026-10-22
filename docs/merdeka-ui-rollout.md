@@ -315,3 +315,75 @@ Frontend/backend health, exact image revisions, public TLS/assets, unchanged run
 configuration/mounts and retained Pronto worker passed. Production browser rendered
 sign-in; authenticated production business/OCR apply remains user UAT. See
 [deployment evidence](deployment-and-environment.md#verified-release-outcome--2026-10-22).
+
+
+## Login Merdeka continuation (2026-10-22)
+
+Implemented the captured login split composition, canonical source photo assets,
+MBM logo, dedicated PMS token adapter, compact credentials form and access guide.
+Existing login service/redirect/session behavior retained. SSO/reset endpoints are
+not available in the application and were not copied from the static source.
+
+Verification: TypeScript noEmit and changed-file ESLint passed; production Vite
+build passed with the existing large-chunk warning. IAB at isolated origin 8098
+tested blank submit/first-field focus, password show/hide, invalid credentials,
+busy/disabled state, Enter submit, synthetic success redirect to Dashboard and
+sign out. Guide opens, Escape closes and restores focus. 390px viewport has no
+horizontal document overflow; all source images/logo loaded. Source primary button
+computed #206bc4 / 4px radius. Desktop and phone screenshots saved in the local
+QA evidence directory. Real user PRF session on 8096 was preserved. Success/error
+responses were synthetic through localhost 8099/8095; no real credential login or
+business mutation was performed. Existing actual auth service was not modified.
+
+docs/openapi.yaml reviewed; no backend/API change. No Git commit/push or production
+activation is part of this login change. Phase 13B remains In Progress.
+
+Static audit: 51 findings (13 unresolved, 38 violations). The Login.tsx
+'actionless button' finding is a static false positive for DialogTrigger asChild:
+Radix owns the action, and opening/Escape/focus restoration were verified in IAB.
+Other findings remain in existing flows/vendor adapter. No whole-product strict
+compliance is claimed. Final preview at http://127.0.0.1:8098/login was switched
+back to the real backend on 3001 after synthetic QA, reloaded unauthenticated and
+left available for user testing. Temporary login fixture was stopped.
+
+## PRF inline count and expanded item modal (2026-10-22)
+
+Implemented user browser feedback: count inline beside PRF number; Expand control
+moves the selected/current-page workspace into a wide modal and removes the side
+panel. Dedicated part/cost/original-split PO columns and expanded metadata preserve
+all existing item details; legacy Part: descriptions provide a display-only fallback.
+Shared modification dialog gains an optional focus-return hook, with unchanged
+update service. No business mutation, currency/status or permissions changes.
+
+IAB on 8096 against the real backend: selected PRF 54123 (28 items), expanded,
+confirmed one table and no inline panel, verified legacy part 6453-03-334256 in its
+column, opened item modification then Escape without submitting. Parent modal
+remains and focus returns to the edit button. Closing parent clears item view and
+returns focus to View items for 54123. At 390x844 the document has no horizontal
+overflow; modal x=8/y=12 with viewport-bound height, wide table scrolls internally.
+Screenshots: prf-expanded-items.png and prf-expanded-items-mobile.png in local QA.
+TypeScript noEmit and lint for all three touched TSX files pass. Vite build passes
+with the existing chunk warning. Scoped strict audit of src/pages and
+src/components/prf: 36 existing/heuristic findings (11 unresolved, 25 violations);
+no new PRFItemsPanel finding. Existing modification form native-date/validation
+findings remain outside this presentation slice; no full-product compliance claim.
+
+DESIGN.md, UX-CONTRACT.md and roadmap updated. docs/openapi.yaml reviewed, unchanged
+because no backend/API contract changed. Phase 13B remains In Progress. No commit,
+push or deployment for this change.
+
+## Sidebar fit and PRF diagnostic cleanup (2026-10-22)
+
+User-requested refinement: header logo can shrink within available width while
+preserving its aspect ratio; collapse button cannot shrink. Expanded/collapsed
+branding remains 164x45 / 32x32 in the 240/80px shell. Decorative watermark is
+centered 24px from the bottom and bounded to the sidebar, retaining .06 opacity.
+Removed Test OneDrive button, diagnostic dialog, local state and request handler
+from PRF Monitoring. Backend diagnostic route and all cloud/Pronto sync actions
+are unchanged. No OpenAPI change is required; this is frontend cleanup only.
+
+Verification: TypeScript noEmit and lint on PRFMonitoring/Sidebar passed. IAB real
+backend confirmed no diagnostic button, loaded 164px logo in 240px expanded shell,
+32px symbol in 80px collapsed shell, and successful expand/collapse. Expanded state
+restored. Screenshot prf-sidebar-toolbar.png in local QA. No data mutation, commit,
+push or deploy. Phase 13B remains In Progress.

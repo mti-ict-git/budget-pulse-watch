@@ -746,3 +746,36 @@ Evidence and limitations: docs/merdeka-ui-rollout.md and
 artifacts/merdeka-ui/prf-split-verification.json. Strict audit legacy findings remain
 documented. No new API or backend changes; no mutation policy/currency change.
 User will test live mutations before Git push. No commit or push was performed.
+
+
+## Merdeka UI workstream — login (2026-10-22)
+
+Status: implemented and locally verified; Phase 13B remains In Progress.
+Sources: user request, skill login source, DESIGN.md, UX-CONTRACT.md and
+docs/openapi.yaml credentials contract.
+
+- [x] Source login composition/assets and dedicated scoped PMS token adapter
+- [x] Existing credentials service, redirect and session behavior retained
+- [x] Required validation, busy guard, password toggle and Radix access guide
+- [x] IAB desktop/390px, invalid/loading/synthetic-success, keyboard and dialog QA
+- [x] TypeScript, changed-file lint and production build passed
+
+Output/evidence and limits: docs/merdeka-ui-rollout.md, local QA screenshots and
+static audit. No new backend contract, real login mutation or production release.
+
+## Merdeka UI workstream — expanded PRF items (2026-10-22)
+
+Status: implemented and locally verified. Phase 13B remains In Progress.
+Objective/sources: user browser comments, DESIGN.md, UX-CONTRACT.md and existing
+PRF item/API response and modification contracts.
+
+- [x] Inline item count next to PRF number
+- [x] Single workspace moved to wide Radix modal, inline panel closed automatically
+- [x] Direct part/cost/PO split columns and expanded metadata, legacy part fallback
+- [x] Existing edit handler retained; nested Escape/focus and phone overflow verified
+- [x] TypeScript/lint/build and scoped static audit recorded
+
+Output/challenge evidence and limits: docs/merdeka-ui-rollout.md. Real-backend UI
+reads and open/cancel only; no business writes, Git publish or deployment.
+
+Merdeka UI follow-up (2026-10-22): [x] sidebar logo/watermark fit and removal of PRF Test OneDrive diagnostics. TypeScript/lint and IAB expanded/collapsed checks passed; evidence in docs/merdeka-ui-rollout.md. Phase 13B remains In Progress; no backend/API change.

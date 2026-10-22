@@ -164,3 +164,38 @@ are compact. Desktop uses two columns from 1200px; narrower viewports stack the
 panes with independent scroll regions. Item edit actions remain pinned at the right
 edge. Existing portal dialogs remain Radix-owned. Login and other page layouts are
 outside this slice. No commit or push.
+
+
+## Login variant (2026-10-22)
+
+Business source: docs/openapi.yaml /api/auth/login; existing AuthContext and
+authService own credentials, token handling and redirect to /. No auth contract
+changes. Input/Button/Label own field/button semantics; Radix Dialog owns guide
+focus trap, Escape, close and trigger restoration. Login-only visual adapter owns
+source PMS styling; no dashboard token migration.
+
+The form uses noValidate, app-owned required-field feedback, first-invalid focus,
+associated labels and aria-invalid/describedby. Username remains text (LDAP names
+are valid); current-password and username autocomplete/paste remain supported.
+Password is masked by default with a labeled toggle. During submit, a synchronous
+ref guard and disabled fields/button prevent duplicate requests; button dimensions
+stay stable. Inline server errors preserve entered values, as in the prior flow;
+messages clear on correction. Passwords are not logged by Login or persisted by
+this component. Existing service-level storage is unchanged. Guide gives existing
+LDAP/local access and administrator help, with no invented SSO/reset actions.
+
+Photograph buttons are manual, keyboard accessible and expose pressed state;
+decorative images have empty alt. Brand has meaningful alt. Light is the explicit
+source theme; reduced motion and visible focus are retained. No production login
+or business mutation is part of visual QA.
+
+## Expanded PRF items (2026-10-22)
+
+Canonical owner: shared PRFItemsPanel renders both nonmodal panel and expanded
+modal variant. Radix Dialog owns focus trap, backdrop and Escape; only one item
+table is mounted at a time. Expanding closes the inline detail panel. Closing
+expanded view clears item selection and restores the list item trigger. Item edit
+continues through the existing modification dialog and update handler. Its optional
+onCloseAutoFocus hook restores the edit trigger in the expanded dialog; nested
+Escape closes the topmost dialog. No approval, mutation, currency, status, API or
+permission rules change. Data source remains docs/openapi.yaml PRF/items responses.
