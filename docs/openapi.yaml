@@ -340,7 +340,7 @@ paths:
   /api/ocr-prf/rescan/{prfId}/file/{fileId}/preview:
     post:
       summary: Preview AI rescan for an existing PRF
-      description: Reads a stored OCR Source or explicitly selected alternative PDF/image and returns item-level update/add proposals without changing PRF data. Shared merged-cell cost codes are repeated per item, visible strikethroughs are returned as selectable Cancelled proposals, and printed/extracted/cancelled/active totals are reconciled.
+      description: Reads a stored OCR Source or explicitly selected alternative PDF/image and returns item-level update/add proposals without changing PRF data. Matching uses item code and then item name plus quantity; position is never used as an automatic fallback. Shared merged-cell cost codes are repeated per item, visible strikethroughs are returned as selectable Cancelled proposals, printed/extracted/cancelled/active totals are reconciled, unmatched existing items are returned for explicit Keep Existing or Mark Cancelled decisions, and the response includes a short-lived server-signed preview token that must be echoed back on apply.
       tags: [OCR]
       security:
         - bearerAuth: []
@@ -366,7 +366,7 @@ paths:
   /api/ocr-prf/rescan/{prfId}/file/{fileId}/apply:
     post:
       summary: Apply approved AI rescan proposals
-      description: Atomically applies selected proposals from an OCR Source or alternative PDF/image, preserves unmatched items and active workflow statuses, applies selected visual-cancellation proposals as item-level overrides, uses the active-item total for an approved header update when cancellations exist, and records the exact source FileID in an audit snapshot.
+      description: Atomically applies explicit per-item decisions from an OCR Source or alternative PDF/image, preserves active workflow statuses, applies selected visual-cancellation proposals as item-level overrides, supports explicit Keep Existing or Mark Cancelled decisions for unmatched existing items, uses the active-item total for an approved header update when cancellations exist, and records the exact source FileID in an audit snapshot. The apply step uses the server-signed preview token as the authoritative OCR snapshot and does not trust client-edited extracted data.
       tags: [OCR]
       security:
         - bearerAuth: []
@@ -385,14 +385,35 @@ paths:
           application/json:
             schema:
               type: object
-              required: [extractedData, selectedIndexes]
+              required: [previewToken, proposalDecisions]
               properties:
-                extractedData:
-                  type: object
-                  additionalProperties: true
-                selectedIndexes:
+                previewToken:
+                  type: string
+                  description: Short-lived server-signed token returned by the matching preview call. Binds the apply request to the exact OCR snapshot, PRF, file, and user that produced the preview.
+                proposalDecisions:
                   type: array
-                  items: { type: integer }
+                  description: Per scanned proposal decision. `update` and `add` apply OCR changes; `keep` and `ignore` skip that scanned proposal.
+                  items:
+                    type: object
+                    required: [index, action]
+                    properties:
+                      index:
+                        type: integer
+                      action:
+                        type: string
+                        enum: [update, keep, add, ignore]
+                preservedItemDecisions:
+                  type: array
+                  description: Decisions for existing PRF items that were not matched by OCR. `keep` preserves the row; `cancel` sets item status to `Cancelled` with `StatusOverridden = true`.
+                  items:
+                    type: object
+                    required: [prfItemId, action]
+                    properties:
+                      prfItemId:
+                        type: integer
+                      action:
+                        type: string
+                        enum: [keep, cancel]
                 updateHeader:
                   type: boolean
                   default: false
@@ -400,7 +421,7 @@ paths:
         '200':
           description: Selected changes applied and audited
         '400':
-          description: Invalid approval payload
+          description: Invalid approval payload or expired/invalid preview token
         '404':
           description: PRF or selected source document not found
 

@@ -36,8 +36,8 @@ export function UtilizationChart({ title, data, expenseType, className }: Utiliz
 
   if (sortedData.length === 0) {
     return (
-      <Card className={className}>
-        <CardHeader>
+      <Card className={`merdeka-utilization-card ${className || ''}`}>
+        <CardHeader className="merdeka-overview-card-header">
           <CardTitle className="text-lg font-semibold">{title}</CardTitle>
         </CardHeader>
         <CardContent>
@@ -50,8 +50,8 @@ export function UtilizationChart({ title, data, expenseType, className }: Utiliz
   }
 
   return (
-    <Card className={`${className} flex flex-col`}>
-      <CardHeader className="pb-3">
+    <Card className={`merdeka-utilization-card ${className || ''} flex flex-col`}>
+      <CardHeader className="merdeka-overview-card-header pb-3">
         <CardTitle className="text-lg font-semibold">{title}</CardTitle>
         <p className="text-sm text-muted-foreground">
           Budget utilization by budget line / COA name (spent vs allocated)
@@ -60,7 +60,7 @@ export function UtilizationChart({ title, data, expenseType, className }: Utiliz
       </CardHeader>
       <CardContent className="space-y-4 flex-1 overflow-y-auto">
         {sortedData.map((item, index) => (
-          <div key={`${item.category}-${index}`} className="space-y-2 p-3 border rounded-lg bg-card/50">
+          <div key={`${item.category}-${index}`} className="merdeka-utilization-row space-y-2 p-3 border rounded-lg bg-card/50">
             <div className="flex justify-between items-start gap-3">
               <div className="flex-1 min-w-0">
                 <h4 className="font-medium text-sm truncate" title={item.category}>
@@ -77,7 +77,8 @@ export function UtilizationChart({ title, data, expenseType, className }: Utiliz
             </div>
             <div className="relative">
               <Progress 
-                value={Math.min(item.utilizationPercentage, 100)} 
+                aria-label={`${item.category} utilization ${item.utilizationPercentage.toFixed(1)} percent`}
+                value={Math.max(0, Math.min(item.utilizationPercentage, 100))}
                 className="h-3"
               />
               <div 

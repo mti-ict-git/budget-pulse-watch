@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -49,35 +49,8 @@ import { budgetService, type ChartOfAccount } from "@/services/budgetService";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "react-router-dom";
 
-// PRF Item interface
-interface PRFItem {
-  PRFItemID: number;
-  ItemID?: number; // Legacy field for compatibility
-  PRFID: number;
-  ItemName: string;
-  Description: string;
-  ItemCode?: string | null;
-  Quantity: number;
-  UnitPrice: number;
-  TotalPrice: number;
-  Specifications?: string;
-  Status?: string;
-  PickedUpBy?: string;
-  PickedUpByUserID?: number;
-  PickedUpDate?: Date;
-  Notes?: string;
-  UpdatedAt?: Date;
-  UpdatedBy?: number;
-  CreatedAt: Date;
-  StatusOverridden?: boolean; // Indicates if item status was manually overridden vs following PRF status
-  OriginalPONumber?: string | null;
-  SplitPONumber?: string | null;
-  
-  // Cost code fields - enables multiple cost codes per PRF through item-level assignment
-  PurchaseCostCode?: string;
-  COAID?: number;
-  BudgetYear?: number;
-}
+import type { PRFItem } from '@/types/prfItem';
+import { PRFItemsPanel } from '@/components/prf/PRFItemsPanel';
 
 // PRF data interface
 interface PRFData {
@@ -305,6 +278,9 @@ export default function PRFMonitoring() {
   const location = useLocation();
   const currentYear = new Date().getFullYear();
   const [searchTerm, setSearchTerm] = useState("");
+  const [committedSearchTerm, setCommittedSearchTerm] = useState("");
+  const activeListRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => activeListRequest.current?.abort(), []);
   const [statusFilter, setStatusFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState(currentYear.toString());
   const [departmentFilter, setDepartmentFilter] = useState("all");
@@ -315,7 +291,12 @@ export default function PRFMonitoring() {
   const [error, setError] = useState<string | null>(null);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [availableStatusValues, setAvailableStatusValues] = useState<string[]>([]);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [activePRFId, setActivePRFId] = useState<string | null>(null);
+  const [allItemsOpen, setAllItemsOpen] = useState(false);
+  const [showAllColumns, setShowAllColumns] = useState(false);
+  const listRegion = useRef<HTMLDivElement>(null);
+  const lastItemTrigger = useRef<HTMLElement | null>(null);
   const [isBulkSyncing, setIsBulkSyncing] = useState(false);
   const [selectedItemForModification, setSelectedItemForModification] = useState<SelectedItemForModification | null>(null);
   const [isModificationModalOpen, setIsModificationModalOpen] = useState(false);
@@ -347,13 +328,16 @@ export default function PRFMonitoring() {
 
   // Fetch PRF data from API
   const fetchPRFData = useCallback(async () => {
+    activeListRequest.current?.abort();
+    const controller = new AbortController();
+    activeListRequest.current = controller;
     try {
       setLoading(true);
       setError(null);
       
       const listTokens = Array.from(
         new Set(
-          searchTerm
+          committedSearchTerm
             .split(/[\s,]+/g)
             .map((v) => v.trim())
             .filter((v) => v.length > 0)
@@ -364,7 +348,7 @@ export default function PRFMonitoring() {
       const queryParams = new URLSearchParams({
         page: pagination.page.toString(),
         limit: pagination.limit.toString(),
-        ...(searchTerm && !isListSearch && { search: searchTerm }),
+        ...(committedSearchTerm && !isListSearch && { search: committedSearchTerm }),
         ...(isListSearch && { searchList: listTokens.join(',') }),
         ...(statusFilter !== 'all' && { status: statusFilter }),
         ...(departmentFilter !== 'all' && { department: departmentFilter }),
@@ -373,7 +357,7 @@ export default function PRFMonitoring() {
         ...(splitPoFilter !== 'all' && { hasSplitPo: 'true' })
       });
 
-      const response = await fetch(`/api/prfs/with-items?${queryParams}`);
+      const response = await fetch(`/api/prfs/with-items?${queryParams}`, { signal: controller.signal });
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -425,9 +409,9 @@ export default function PRFMonitoring() {
       setError(err instanceof Error ? err.message : 'Failed to fetch PRF data');
       setPrfData([]); // Set empty array on error
     } finally {
-      setLoading(false);
+      if (activeListRequest.current === controller) setLoading(false);
     }
-  }, [pagination.page, pagination.limit, searchTerm, statusFilter, departmentFilter, priorityFilter, yearFilter, splitPoFilter]);
+  }, [pagination.page, pagination.limit, committedSearchTerm, statusFilter, departmentFilter, priorityFilter, yearFilter, splitPoFilter]);
 
   // Fetch available status values from API
   const fetchStatusValues = async () => {
@@ -692,53 +676,55 @@ export default function PRFMonitoring() {
     }
   }, [location.search]);
 
-  // Fetch data on component mount and when filters change
+  // List requests follow committed search/filter/page state. Older responses are aborted.
   useEffect(() => {
     fetchPRFData();
-    setSelectedItems(new Set()); // Clear selections when data changes
-  }, [pagination.page, pagination.limit, statusFilter, departmentFilter, priorityFilter, yearFilter, fetchPRFData]);
+    setSelectedItems(new Set());
+  }, [fetchPRFData]);
 
-  // Debounced search effect
+  // Reset paging only when search changes, never after a page-navigation click.
   useEffect(() => {
+    if (searchTerm === committedSearchTerm) return;
     const timeoutId = setTimeout(() => {
-      if (pagination.page === 1) {
-        fetchPRFData();
-      } else {
-        setPagination(prev => ({ ...prev, page: 1 }));
-      }
+      setCommittedSearchTerm(searchTerm);
+      setPagination(prev => ({ ...prev, page: 1 }));
     }, 500);
-
     return () => clearTimeout(timeoutId);
-  }, [searchTerm, fetchPRFData, pagination.page]);
+  }, [searchTerm, committedSearchTerm]);
 
   // Since filtering is now done on the backend, we use prfData directly
   const filteredData = prfData;
 
-  // Toggle row expansion
-  const toggleRowExpansion = (prfId: string) => {
-    setExpandedRows(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(prfId)) {
-        newSet.delete(prfId);
-      } else {
-        newSet.add(prfId);
-      }
-      return newSet;
+  // Resolve the selected PRF from refreshed list data, never a stale record snapshot.
+  const activePRF = activePRFId ? filteredData.find(prf => prf.id === activePRFId) : undefined;
+  const panelPRFs = allItemsOpen ? filteredData.filter(prf => prf.items?.length) : activePRF ? [activePRF] : [];
+  const panelOpen = panelPRFs.length > 0;
+
+  useEffect(() => {
+    if (!loading && !error && activePRFId && !prfData.some(prf => prf.id === activePRFId)) setActivePRFId(null);
+  }, [prfData, activePRFId, loading, error]);
+
+  const closeItemsPanel = () => {
+    setActivePRFId(null);
+    setAllItemsOpen(false);
+    requestAnimationFrame(() => {
+      if (lastItemTrigger.current?.isConnected) lastItemTrigger.current.focus();
+      else listRegion.current?.focus();
     });
   };
 
-  // Expand all rows that have items
-  const expandAllRows = () => {
-    const expandableRows = filteredData
-      .filter(prf => prf.items && prf.items.length > 0)
-      .map(prf => prf.id);
-    setExpandedRows(new Set(expandableRows));
+  const toggleRowExpansion = (prfId: string, trigger?: HTMLElement) => {
+    lastItemTrigger.current = trigger ?? null;
+    setAllItemsOpen(false);
+    setActivePRFId(prfId);
   };
 
-  // Collapse all rows
-  const collapseAllRows = () => {
-    setExpandedRows(new Set());
+  const expandAllRows = () => {
+    lastItemTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setAllItemsOpen(true);
+    setActivePRFId(null);
   };
+  const collapseAllRows = closeItemsPanel;
 
   // Bulk action handlers
   const handleSelectAll = (checked: boolean) => {
@@ -1171,7 +1157,8 @@ export default function PRFMonitoring() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="merdeka-prf space-y-6">
+      <nav className="merdeka-breadcrumb" aria-label="Breadcrumb"><a href="/">Dashboard</a><span aria-hidden="true">›</span><span aria-current="page">PRF Monitoring</span></nav>
       <Dialog open={isOneDriveDialogOpen} onOpenChange={setIsOneDriveDialogOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
@@ -1185,11 +1172,11 @@ export default function PRFMonitoring() {
           </pre>
         </DialogContent>
       </Dialog>
-      <div className="flex items-center justify-between">
+      <div className="merdeka-page-heading flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">PRF Monitoring</h1>
           <p className="text-muted-foreground">
-            Track and manage Purchase Request Forms with enhanced Excel field support
+            Track and manage purchase request forms
           </p>
         </div>
         <div className="flex flex-wrap gap-2 justify-end">
@@ -1247,29 +1234,33 @@ export default function PRFMonitoring() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filters
+      <Card className="merdeka-filter-card mdka-v-card" data-state={filtersOpen ? 'open' : 'closed'}>
+        <CardHeader className="merdeka-card-header merdeka-filter-heading">
+          <CardTitle>
+            <button type="button" className="merdeka-filter-toggle" aria-expanded={filtersOpen} aria-controls="prf-filter-fields" onClick={() => setFiltersOpen(open => !open)}>
+              <span className="flex items-center gap-2"><Filter className="h-4 w-4" />Filters<span className="merdeka-filter-active">{[Boolean(searchTerm.trim()), statusFilter !== 'all', priorityFilter !== 'all', departmentFilter !== 'all', yearFilter !== 'all', splitPoFilter !== 'all'].filter(Boolean).length} active</span></span>
+              <span className="merdeka-filter-toggle-hint" aria-hidden="true">{filtersOpen ? 'Hide filters' : 'Show filters'}<ChevronDown className={filtersOpen ? 'h-4 w-4 rotate-180' : 'h-4 w-4'} /></span>
+            </button>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent id="prf-filter-fields" hidden={!filtersOpen}>
           <div className="flex flex-col gap-4">
-            <div className="flex flex-row gap-4">
+            <div className="merdeka-filter-grid">
               <div className="flex-1">
-                <div className="relative">
+                <div className="merdeka-search relative">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by PRF No, description, submit by, or required for..."
+                    aria-label="Search purchase requests"
+                    placeholder="PRF number, description, requester..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-8"
+                    className="pl-8 pr-8"
                   />
+                  {searchTerm && <button type="button" className="merdeka-search-clear" aria-label="Clear search" onClick={() => setSearchTerm("")}>×</button>}
                 </div>
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px]">
+              <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setPagination(prev => ({ ...prev, page: 1 })); }}>
+                <SelectTrigger aria-label="Filter by status" className="w-[180px]">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1281,8 +1272,8 @@ export default function PRFMonitoring() {
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                <SelectTrigger className="w-[140px]">
+              <Select value={priorityFilter} onValueChange={(value) => { setPriorityFilter(value); setPagination(prev => ({ ...prev, page: 1 })); }}>
+                <SelectTrigger aria-label="Filter by priority" className="w-[140px]">
                   <SelectValue placeholder="Priority" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1293,8 +1284,8 @@ export default function PRFMonitoring() {
                   <SelectItem value="Critical">Critical</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                <SelectTrigger className="w-[140px]">
+              <Select value={departmentFilter} onValueChange={(value) => { setDepartmentFilter(value); setPagination(prev => ({ ...prev, page: 1 })); }}>
+                <SelectTrigger aria-label="Filter by department" className="w-[140px]">
                   <SelectValue placeholder="Department" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1305,8 +1296,8 @@ export default function PRFMonitoring() {
                   <SelectItem value="Operations">Operations</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={yearFilter} onValueChange={setYearFilter}>
-                <SelectTrigger className="w-[120px]">
+              <Select value={yearFilter} onValueChange={(value) => { setYearFilter(value); setPagination(prev => ({ ...prev, page: 1 })); }}>
+                <SelectTrigger aria-label="Filter by year" className="w-[120px]">
                   <SelectValue placeholder="Year" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1321,10 +1312,10 @@ export default function PRFMonitoring() {
               <Select
                 value={splitPoFilter}
                 onValueChange={(value) => {
-                  if (value === "all" || value === "split") setSplitPoFilter(value);
+                  if (value === "all" || value === "split") { setSplitPoFilter(value); setPagination(prev => ({ ...prev, page: 1 })); }
                 }}
               >
-                <SelectTrigger className="w-[160px]">
+                <SelectTrigger aria-label="Filter by split PO" className="w-[160px]">
                   <SelectValue placeholder="Split PO" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1337,8 +1328,9 @@ export default function PRFMonitoring() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
+      <div className={`merdeka-prf-split ${panelOpen ? 'has-panel' : ''} ${showAllColumns ? 'show-all-columns' : ''}`}>
+      <Card className="merdeka-list-card mdka-v-card">
+        <CardHeader className="merdeka-card-header">
           <div className="flex items-center justify-between">
             <CardTitle>
               PRF List ({pagination.total} items)
@@ -1348,11 +1340,14 @@ export default function PRFMonitoring() {
               )}
             </CardTitle>
             <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={expandAllRows} disabled={loading || !filteredData.some(prf => prf.items?.length)}><Expand className="h-4 w-4 mr-1" />Show all items</Button>
+              <Button variant="outline" size="sm" onClick={collapseAllRows} disabled={!panelOpen}><Minimize className="h-4 w-4 mr-1" />Close items</Button>
+              {panelOpen && <Button variant="outline" size="sm" aria-pressed={showAllColumns} onClick={() => setShowAllColumns(value => !value)}>{showAllColumns ? 'Compact columns' : 'All columns'}</Button>}
               {/* Page Size Selector */}
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Show:</span>
                 <Select value={pagination.limit.toString()} onValueChange={handlePageSizeChange}>
-                  <SelectTrigger className="w-20">
+                  <SelectTrigger aria-label="Rows per page" className="w-20">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1405,39 +1400,14 @@ export default function PRFMonitoring() {
             </div>
           ) : (
             <div>
-              {/* Expand/Collapse All Controls */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={expandAllRows}
-                    disabled={loading || filteredData.filter(prf => prf.items && prf.items.length > 0).length === 0}
-                  >
-                    <Expand className="h-4 w-4 mr-1" />
-                    Expand All
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={collapseAllRows}
-                    disabled={loading || expandedRows.size === 0}
-                  >
-                    <Minimize className="h-4 w-4 mr-1" />
-                    Collapse All
-                  </Button>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {filteredData.filter(prf => prf.items && prf.items.length > 0).length} expandable rows
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <Table className="min-w-full">
+              <div ref={listRegion} className="merdeka-table-scroll" aria-busy={loading} role="region" aria-label="Purchase requests table" tabIndex={0}>
+                <Table className="merdeka-table min-w-full">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12 sticky left-0 bg-background z-10">
                         <input
                           type="checkbox"
+                          aria-label="Select all purchase requests on this page"
                           checked={selectedItems.size === filteredData.length && filteredData.length > 0}
                           onChange={(e) => handleSelectAll(e.target.checked)}
                           className="rounded border-gray-300"
@@ -1478,13 +1448,16 @@ export default function PRFMonitoring() {
                   ) : (
                     filteredData.map((prf) => (
                       <React.Fragment key={prf.id}>
-                        <TableRow 
+                        <TableRow
+                          data-state={selectedItems.has(prf.id) ? 'selected' : undefined}
+                          data-active={activePRFId === prf.id || allItemsOpen ? 'true' : undefined}
                           className={`${prf.items && prf.items.length > 0 ? 'cursor-pointer hover:bg-gray-50' : ''}`}
-                          onClick={() => prf.items && prf.items.length > 0 && toggleRowExpansion(prf.id)}
+                          onClick={(event) => prf.items && prf.items.length > 0 && toggleRowExpansion(prf.id, event.currentTarget.querySelector<HTMLButtonElement>('[data-item-trigger]') ?? undefined)}
                         >
                           <TableCell className="sticky left-0 bg-background z-10" onClick={(e) => e.stopPropagation()}>
                             <input
                               type="checkbox"
+                              aria-label={`Select ${prf.prfNo}`}
                               checked={selectedItems.has(prf.id)}
                               onChange={(e) => handleSelectItem(prf.id, e.target.checked)}
                               className="rounded border-gray-300"
@@ -1492,56 +1465,55 @@ export default function PRFMonitoring() {
                           </TableCell>
                           <TableCell className="sticky left-12 bg-background z-10">
                             {prf.items && prf.items.length > 0 && (
-                              <div className="flex items-center justify-center">
-                                {expandedRows.has(prf.id) ? (
-                                  <ChevronDown className="h-4 w-4 text-gray-500" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4 text-gray-500" />
-                                )}
-                              </div>
+                              <button type="button" data-item-trigger className="merdeka-row-expand" aria-label={`View items for ${prf.prfNo}`} aria-expanded={panelOpen && (activePRFId === prf.id || allItemsOpen)} aria-controls="prf-items-panel" onClick={(event) => { event.stopPropagation(); toggleRowExpansion(prf.id, event.currentTarget); }}>
+                                <ChevronRight className="h-4 w-4 text-gray-500" />
+                              </button>
                             )}
                           </TableCell>
                           <TableCell className="font-medium sticky left-20 bg-background z-10">
-                            <div className="flex items-center gap-2">
-                              <span className="whitespace-nowrap">{prf.prfNo}</span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-2"
-                                onClick={(e) => { e.stopPropagation(); handleSyncPRF(prf.prfNo); }}
-                                disabled={syncingId === prf.prfNo || !(user?.role === 'admin' || user?.role === 'doccon')}
-                                aria-label="Sync this PRF from Cloud"
-                              >
-                                {syncingId === prf.prfNo ? (
-                                  <RefreshCw className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <CloudDownload className="h-4 w-4" />
+                            <div className="merdeka-prf-identity">
+                              <div className="merdeka-prf-number"><span>{prf.prfNo}</span>
+                                {prf.items && prf.items.length > 0 && (
+                                  <Badge variant="secondary" className="merdeka-item-count whitespace-nowrap">
+                                    {prf.items.length} {prf.items.length === 1 ? 'item' : 'items'}
+                                  </Badge>
                                 )}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-2"
-                                onClick={(e) => { e.stopPropagation(); handleProntoSyncNow(prf.prfNo); }}
-                                disabled={isProntoSyncingId === prf.prfNo || !(user?.role === 'admin' || user?.role === 'doccon')}
-                                aria-label="Sync this PRF from Pronto"
-                              >
-                                {isProntoSyncingId === prf.prfNo ? (
-                                  <RefreshCw className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Waypoints className="h-4 w-4" />
-                                )}
-                              </Button>
-                              {prf.items && prf.items.length > 0 && (
-                                <Badge variant="secondary" className="text-xs whitespace-nowrap">
-                                  {prf.items.length} items
-                                </Badge>
-                              )}
+                              </div>
+                              <div className="merdeka-prf-sync-actions">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2"
+                                  onClick={(e) => { e.stopPropagation(); handleSyncPRF(prf.prfNo); }}
+                                  disabled={syncingId === prf.prfNo || !(user?.role === 'admin' || user?.role === 'doccon')}
+                                  aria-label="Sync this PRF from Cloud"
+                                >
+                                  {syncingId === prf.prfNo ? (
+                                    <RefreshCw className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <CloudDownload className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2"
+                                  onClick={(e) => { e.stopPropagation(); handleProntoSyncNow(prf.prfNo); }}
+                                  disabled={isProntoSyncingId === prf.prfNo || !(user?.role === 'admin' || user?.role === 'doccon')}
+                                  aria-label="Sync this PRF from Pronto"
+                                >
+                                  {isProntoSyncingId === prf.prfNo ? (
+                                    <RefreshCw className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Waypoints className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell className="whitespace-nowrap">{new Date(prf.dateSubmit).toLocaleDateString('id-ID')}</TableCell>
                           <TableCell className="truncate max-w-[120px]" title={prf.submitBy}>{prf.submitBy}</TableCell>
-                          <TableCell className="truncate max-w-[200px]" title={prf.description}>{prf.description}</TableCell>
+                          <TableCell className="truncate max-w-[200px]" title={prf.description}><span className="merdeka-prf-description">{prf.description}</span></TableCell>
                           <TableCell><CostCodeDisplay prf={prf} /></TableCell>
                           <TableCell className="font-medium text-right whitespace-nowrap">{formatCurrency(prf.amount)}</TableCell>
                           <TableCell className="truncate max-w-[150px]" title={prf.requiredFor}>{prf.requiredFor}</TableCell>
@@ -1552,160 +1524,12 @@ export default function PRFMonitoring() {
                           <TableCell className="truncate max-w-[150px]" title={prf.approvedByName || ''}>{prf.approvedByName || '-'}</TableCell>
                           <TableCell className="sticky right-0 bg-background z-10" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-1">
-                              <PRFDetailDialog prf={prf} />
+                              <PRFDetailDialog prf={prf} onRefresh={fetchPRFData} />
                               <PRFEditDialog prf={prf} onPRFUpdated={fetchPRFData} />
                               <PRFDeleteDialog prf={prf} onPRFDeleted={fetchPRFData} />
                             </div>
                           </TableCell>
                         </TableRow>
-                        {expandedRows.has(prf.id) && prf.items && prf.items.length > 0 && (
-                          <TableRow>
-                            <TableCell colSpan={15} className="bg-gray-50 p-0">
-                              <div className="p-4">
-                                <h4 className="font-medium mb-3 text-sm text-gray-700">PRF Items ({prf.items.length})</h4>
-                                <div className="space-y-2">
-                                  {prf.items.map((item, index) => (
-                                    <div key={item.PRFItemID || item.ItemID} className="flex items-center justify-between p-3 bg-white rounded border">
-                                      <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                          <div className="font-medium text-sm">{item.ItemName}</div>
-                                          {prf.progress && (
-                                            <div className="flex items-center gap-1">
-                                              {getStatusBadge(prf.progress)}
-                                            </div>
-                                          )}
-                                        </div>
-                                        {(() => {
-                                          const itemCode = (item.ItemCode ?? '').trim();
-                                          const desc = (item.Description ?? '').trim();
-                                          const partLine = itemCode.length > 0 ? `Part: ${itemCode}` : '';
-                                          const showDesc = desc.length > 0 && (partLine.length === 0 || desc.toLowerCase() !== partLine.toLowerCase());
-                                          return (
-                                            <div className="space-y-1">
-                                              {partLine.length > 0 && (
-                                                <div className="text-xs text-gray-600 font-mono">{partLine}</div>
-                                              )}
-                                              {showDesc && (
-                                                <div className="text-xs text-gray-600">{desc}</div>
-                                              )}
-                                            </div>
-                                          );
-                                        })()}
-                                        
-                                        {/* Cost Code Information */}
-                                        <div className="flex flex-wrap gap-2 mt-2">
-                                          {item.PurchaseCostCode && (
-                                            <Badge variant="secondary" className="text-xs font-mono">
-                                              Cost: {item.PurchaseCostCode}
-                                            </Badge>
-                                          )}
-                                          {(() => {
-                                            const originalPo = item.OriginalPONumber?.trim() ?? '';
-                                            const splitPo = item.SplitPONumber?.trim() ?? '';
-                                            const hasOriginal = originalPo.length > 0;
-                                            const hasSplit = splitPo.length > 0;
-                                            if (!hasOriginal && !hasSplit) return null;
-
-                                            return (
-                                              <div className="flex items-center gap-1">
-                                                <Badge variant="outline" className="text-xs" title={hasSplit ? 'Split PO' : 'PO'}>
-                                                  PO: {hasSplit ? (hasOriginal ? `${originalPo} → ${splitPo}` : splitPo) : originalPo}
-                                                </Badge>
-                                                {hasSplit ? (
-                                                  <Badge variant="secondary" className="text-xs" title="Split PO">
-                                                    Split
-                                                  </Badge>
-                                                ) : null}
-                                              </div>
-                                            );
-                                          })()}
-                                          {item.COAID && (
-                                            <Badge variant="outline" className="text-xs" title={`COA ID: ${item.COAID}`}>
-                                              COA: {getCOAName(item.COAID)}
-                                            </Badge>
-                                          )}
-                                          {item.BudgetYear && (
-                                            <Badge variant="outline" className="text-xs">
-                                              Year: {item.BudgetYear}
-                                            </Badge>
-                                          )}
-                                        </div>
-                                        
-                                        {item.Specifications && (
-                                          <div className="text-xs text-gray-500 mt-1">
-                                            <details className="cursor-pointer">
-                                              <summary className="hover:text-gray-700">
-                                                Specifications {JSON.parse(item.Specifications).originalRow ? `(Row ${JSON.parse(item.Specifications).originalRow})` : ''}
-                                              </summary>
-                                              <div className="mt-1 pl-2 border-l-2 border-gray-200">
-                                                {(() => {
-                                                  try {
-                                                    const specs = JSON.parse(item.Specifications);
-                                                    return (
-                                                      <div className="space-y-1">
-                                                        {specs.originalRow && (
-                                                          <div><strong>Row:</strong> {specs.originalRow}</div>
-                                                        )}
-                                                        {(specs.purchaseCostCode || specs.PurchaseCostCode) && (
-                                                          <div><strong>Cost Code:</strong> {specs.purchaseCostCode || specs.PurchaseCostCode}</div>
-                                                        )}
-                                                        {(specs.coaid || specs.COAID) && (
-                                                          <div><strong>COA:</strong> {getCOAName(specs.coaid || specs.COAID)} (ID: {specs.coaid || specs.COAID})</div>
-                                                        )}
-                                                        {(specs.budgetYear || specs.BudgetYear) && (
-                                                          <div><strong>Budget Year:</strong> {specs.budgetYear || specs.BudgetYear}</div>
-                                                        )}
-                                                        {Object.entries(specs).map(([key, value]) => {
-                                                          if (!['originalRow', 'PurchaseCostCode', 'COAID', 'BudgetYear'].includes(key) && value) {
-                                                            return <div key={key}><strong>{key}:</strong> {String(value)}</div>;
-                                                          }
-                                                          return null;
-                                                        })}
-                                                      </div>
-                                                    );
-                                                  } catch {
-                                                    return <div>{item.Specifications}</div>;
-                                                  }
-                                                })()}
-                                              </div>
-                                            </details>
-                                          </div>
-                                        )}
-                                        {item.PickedUpBy && (
-                                          <div className="text-xs text-blue-600 mt-1">
-                                            Picked up by: {item.PickedUpBy} {item.PickedUpDate && `on ${new Date(item.PickedUpDate).toLocaleDateString()}`}
-                                          </div>
-                                        )}
-                                        {item.Notes && (
-                                          <div className="text-xs text-gray-500 mt-1 italic">
-                                            Note: {item.Notes}
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className="text-right flex items-center gap-2">
-                                        <div>
-                                          <div className="text-sm font-medium">{formatCurrency(item.UnitPrice)}</div>
-                                          <div className="text-xs text-gray-500">Qty: {item.Quantity}</div>
-                                          {item.TotalPrice && (
-                                            <div className="text-xs font-medium text-gray-700">Total: {formatCurrency(item.TotalPrice)}</div>
-                                          )}
-                                        </div>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => handleItemModification(item, prf.progress)}
-                                          className="ml-2"
-                                        >
-                                          <Edit className="h-3 w-3" />
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
                       </React.Fragment>
                     ))
                   )}
@@ -1715,7 +1539,7 @@ export default function PRFMonitoring() {
               
               {/* Pagination Controls */}
               {pagination.totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4">
+                <div className="merdeka-pagination flex items-center justify-between mt-4">
                   <div className="text-sm text-muted-foreground">
                     Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} entries
                   </div>
@@ -1728,9 +1552,11 @@ export default function PRFMonitoring() {
                     >
                       Previous
                     </Button>
-                    <span className="text-sm">
-                      Page {pagination.page} of {pagination.totalPages}
-                    </span>
+                    {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, index) => {
+                      const first = Math.max(1, Math.min(pagination.page - 2, pagination.totalPages - 4));
+                      const page = first + index;
+                      return <Button key={page} variant={page === pagination.page ? "default" : "outline"} size="sm" aria-label={`Page ${page}`} aria-current={page === pagination.page ? "page" : undefined} disabled={loading} onClick={() => setPagination(prev => ({ ...prev, page }))}>{page}</Button>;
+                    })}
                     <Button
                       variant="outline"
                       size="sm"
@@ -1746,6 +1572,11 @@ export default function PRFMonitoring() {
           )}
         </CardContent>
       </Card>
+      {panelOpen && (
+        <PRFItemsPanel prfs={panelPRFs} allItems={allItemsOpen} loading={loading} error={error} onClose={closeItemsPanel} onRetry={fetchPRFData} onEdit={handleItemModification} statusBadge={getStatusBadge} formatCurrency={formatCurrency} getCOAName={getCOAName} />
+      )}
+      </div>
+
 
       {/* Item Modification Modal */}
       {selectedItemForModification && (

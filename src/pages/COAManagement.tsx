@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Plus, Search, Filter, MoreHorizontal, Edit, Trash2, Eye, Download, Users, Building, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { coaService, ChartOfAccounts, COAQueryParams, BulkUpdateCOARequest, BulkDeleteCOARequest, CoaCoverageStatus } from '../services/coaService';
+import { MetricCard } from '@/components/dashboard/MetricCard';
 import { COAForm } from '@/components/coa/COAForm';
 import { COADetailsModal } from '@/components/coa/COADetailsModal';
 
@@ -36,6 +37,8 @@ export default function COAManagement() {
   const [accounts, setAccounts] = useState<ChartOfAccounts[]>([]);
   const [mandatoryCoverage, setMandatoryCoverage] = useState<Record<number, CoaCoverageStatus>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const requestVersion = useRef({ value: 0 });
   const [coverageLoading, setCoverageLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -75,7 +78,9 @@ export default function COAManagement() {
 
   // Fetch accounts with current filters
   const fetchAccounts = useCallback(async () => {
+    const version = ++requestVersion.current.value;
     setLoading(true);
+    setError(null);
     try {
       const params: COAQueryParams = {
         page: currentPage,
@@ -96,6 +101,7 @@ export default function COAManagement() {
       };
 
       const response = await coaService.getAll(params);
+      if (version !== requestVersion.current.value) return;
       
       if (response.success && response.data) {
         setAccounts(response.data);
@@ -104,6 +110,8 @@ export default function COAManagement() {
           setTotalAccounts(response.pagination.total);
         }
       } else {
+        setAccounts([]);
+        setError(response.message || 'Failed to fetch accounts');
         toast({
           title: 'Error',
           description: response.message || 'Failed to fetch accounts',
@@ -111,13 +119,16 @@ export default function COAManagement() {
         });
       }
     } catch (error) {
+      if (version !== requestVersion.current.value) return;
+      setAccounts([]);
+      setError('Failed to fetch accounts');
       toast({
         title: 'Error',
         description: 'Failed to fetch accounts',
         variant: 'destructive',
       });
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current.value) setLoading(false);
     }
   }, [
     currentPage,
@@ -149,7 +160,9 @@ export default function COAManagement() {
 
   // Effect to fetch accounts when filters change
   useEffect(() => {
+    const requests = requestVersion.current;
     fetchAccounts();
+    return () => { requests.value++; };
   }, [fetchAccounts]);
 
   useEffect(() => {
@@ -158,6 +171,7 @@ export default function COAManagement() {
 
   // Handle page size change
   const handlePageSizeChange = (newPageSize: string) => {
+    setSelectedAccounts(new Set());
     setPageSize(parseInt(newPageSize));
     setCurrentPage(1); // Reset to first page when changing page size
   };
@@ -338,11 +352,12 @@ export default function COAManagement() {
   const departments = [...new Set(accounts.map(acc => acc.Department).filter(Boolean))];
 
   return (
-    <div className="space-y-6">
+    <div className="merdeka-overview merdeka-coa space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="merdeka-page-heading flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Chart of Accounts</h1>
+          <p className="merdeka-eyebrow">Master Data / COA Management</p>
+          <h1 className="text-[22px] font-semibold tracking-tight">Chart of Accounts</h1>
           <p className="text-muted-foreground">
             Manage your organization's chart of accounts
           </p>
@@ -354,8 +369,8 @@ export default function COAManagement() {
               Add Account
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
+          <DialogContent className="merdeka-budget-dialog merdeka-coa-dialog max-w-2xl">
+            <DialogHeader className="merdeka-budget-dialog-header">
               <DialogTitle>Create New Account</DialogTitle>
               <DialogDescription>
                 Add a new account to your chart of accounts.
@@ -366,48 +381,15 @@ export default function COAManagement() {
         </Dialog>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Accounts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalAccounts}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Accounts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {accounts.filter(acc => acc.IsActive).length}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Categories</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{categories.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Mandatory Ready</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{coverageLoading ? '...' : mandatoryReadyCount}</div>
-            <p className="text-xs text-muted-foreground">
-              FY {CURRENT_FISCAL_YEAR} governed COAs ready
-            </p>
-          </CardContent>
-        </Card>
+      {/* Counts explicitly distinguish dataset totals from page-local coverage. */}
+      <div className="merdeka-summary-grid grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard title="Total Accounts" value={totalAccounts} icon={Building} />
+        <MetricCard title="Active on This Page" value={accounts.filter(acc => acc.IsActive).length} icon={Users} className="merdeka-tone-green" />
+        <MetricCard title="Categories on This Page" value={categories.length} icon={Filter} className="merdeka-tone-violet" />
+        <MetricCard title="Mandatory Ready" value={coverageLoading ? '...' : mandatoryReadyCount} change={`FY ${CURRENT_FISCAL_YEAR} - this page`} icon={Building} className="merdeka-tone-amber" />
       </div>
 
-      <Card className="border-blue-200 bg-blue-50/40">
+      <Card className="merdeka-coa-governance">
         <CardHeader>
           <CardTitle>Mandatory HR / IT OPEX Governance</CardTitle>
           <CardDescription>
@@ -420,20 +402,20 @@ export default function COAManagement() {
             <div className="text-2xl font-bold">{Object.keys(MANDATORY_HR_IT_OPEX_LABELS).length}</div>
           </div>
           <div>
-            <div className="text-sm text-muted-foreground">Need Attention</div>
+            <div className="text-sm text-muted-foreground">Need Attention (This Page)</div>
             <div className="text-2xl font-bold text-orange-600">{coverageLoading ? '...' : mandatoryAttentionCount}</div>
           </div>
           <div>
-            <div className="text-sm text-muted-foreground">Carry Forward Applied</div>
+            <div className="text-sm text-muted-foreground">Carry Forward (This Page)</div>
             <div className="text-2xl font-bold text-blue-700">{coverageLoading ? '...' : mandatoryCarryForwardCount}</div>
           </div>
           <div>
             <div className="text-sm text-muted-foreground">Governance Scope</div>
-            <Select value={governanceScope} onValueChange={setGovernanceScope}>
-              <SelectTrigger>
+            <Select value={governanceScope} onValueChange={(value) => { setGovernanceScope(value); setCurrentPage(1); clearSelection(); }}>
+              <SelectTrigger aria-label="Governance scope">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="merdeka-budget-popover">
                 <SelectItem value="all">All COAs</SelectItem>
                 <SelectItem value="mandatory-hr-it-opex">Mandatory HR / IT OPEX</SelectItem>
               </SelectContent>
@@ -448,21 +430,21 @@ export default function COAManagement() {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-6">
+          <div className="merdeka-coa-filters grid gap-3">
             <div className="relative">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search accounts..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                aria-label="Search accounts" onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); clearSelection(); }}
                 className="pl-8"
               />
             </div>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger>
+            <Select value={selectedCategory} onValueChange={(value) => { setSelectedCategory(value); setCurrentPage(1); clearSelection(); }}>
+              <SelectTrigger aria-label="Category filter">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="merdeka-budget-popover">
                 <SelectItem value="all">All Categories</SelectItem>
                 {categories.map((category) => (
                   <SelectItem key={category} value={category}>
@@ -471,21 +453,21 @@ export default function COAManagement() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={selectedExpenseType} onValueChange={setSelectedExpenseType} disabled={governanceScope === 'mandatory-hr-it-opex'}>
-              <SelectTrigger>
+            <Select value={governanceScope === 'mandatory-hr-it-opex' ? 'OPEX' : selectedExpenseType} onValueChange={(value) => { setSelectedExpenseType(value); setCurrentPage(1); clearSelection(); }} disabled={governanceScope === 'mandatory-hr-it-opex'}>
+              <SelectTrigger aria-label="Expense type filter">
                 <SelectValue placeholder="Expense Type" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="merdeka-budget-popover">
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="CAPEX">CAPEX</SelectItem>
                 <SelectItem value="OPEX">OPEX</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={selectedDepartment} onValueChange={setSelectedDepartment} disabled={governanceScope === 'mandatory-hr-it-opex'}>
-              <SelectTrigger>
+            <Select value={governanceScope === 'mandatory-hr-it-opex' ? 'HR / IT' : selectedDepartment} onValueChange={(value) => { setSelectedDepartment(value); setCurrentPage(1); clearSelection(); }} disabled={governanceScope === 'mandatory-hr-it-opex'}>
+              <SelectTrigger aria-label="Department filter">
                 <SelectValue placeholder="Department" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="merdeka-budget-popover">
                 <SelectItem value="all">All Departments</SelectItem>
                 {departments.map((department) => (
                   <SelectItem key={department} value={department}>
@@ -494,11 +476,11 @@ export default function COAManagement() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={showActiveOnly ? 'active' : 'all'} onValueChange={(value) => setShowActiveOnly(value === 'active')}>
-              <SelectTrigger>
+            <Select value={showActiveOnly ? 'active' : 'all'} onValueChange={(value) => { setShowActiveOnly(value === 'active'); setCurrentPage(1); clearSelection(); }}>
+              <SelectTrigger aria-label="Account status filter">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="merdeka-budget-popover">
                 <SelectItem value="all">All Accounts</SelectItem>
                 <SelectItem value="active">Active Only</SelectItem>
               </SelectContent>
@@ -524,7 +506,7 @@ export default function COAManagement() {
 
       {/* Bulk Actions Toolbar */}
       {showBulkActions && (
-        <Card className="border-blue-200 bg-blue-50">
+        <Card className="merdeka-coa-bulk border-blue-200 bg-blue-50">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -533,19 +515,19 @@ export default function COAManagement() {
                 </span>
                 <div className="flex items-center gap-2">
                   <Select value={bulkDepartment} onValueChange={setBulkDepartment}>
-                    <SelectTrigger className="w-40">
+                    <SelectTrigger aria-label="Bulk department" className="w-40">
                       <SelectValue placeholder="Set Department" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="merdeka-budget-popover">
                       <SelectItem value="HR / IT">HR / IT</SelectItem>
                       <SelectItem value="Non IT">Non IT</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select value={bulkExpenseType} onValueChange={setBulkExpenseType}>
-                    <SelectTrigger className="w-32">
+                    <SelectTrigger aria-label="Bulk expense type" className="w-32">
                       <SelectValue placeholder="Set Type" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="merdeka-budget-popover">
                       <SelectItem value="CAPEX">CAPEX</SelectItem>
                       <SelectItem value="OPEX">OPEX</SelectItem>
                     </SelectContent>
@@ -570,7 +552,7 @@ export default function COAManagement() {
                         Deactivate Selected
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent>
+                    <AlertDialogContent className="merdeka-budget-dialog merdeka-coa-confirm">
                       <AlertDialogHeader>
                         <AlertDialogTitle>Confirm Bulk Deactivation</AlertDialogTitle>
                         <AlertDialogDescription>
@@ -591,7 +573,7 @@ export default function COAManagement() {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                onClick={clearSelection}
+                aria-label="Clear account selection" onClick={clearSelection}
                 disabled={bulkActionLoading}
               >
                 <X className="h-4 w-4" />
@@ -610,13 +592,13 @@ export default function COAManagement() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
+          <div className="merdeka-budget-table-scroll rounded-md border" role="region" aria-label="Chart of accounts table" tabIndex={0}>
+            <Table className="merdeka-budget-table min-w-[1050px]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-12">
                     <Checkbox
-                      checked={accounts.length > 0 && selectedAccounts.size === accounts.length}
+                      checked={accounts.some(a => !isProtectedMandatoryAccount(a)) && accounts.filter(a => !isProtectedMandatoryAccount(a)).every(a => selectedAccounts.has(a.COAID))}
                       onCheckedChange={handleSelectAll}
                       aria-label="Select all accounts"
                     />
@@ -632,7 +614,7 @@ export default function COAManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading ? (
+                {error ? (<TableRow><TableCell colSpan={9}><div role="alert" className="merdeka-data-error">{error}<Button variant="outline" size="sm" onClick={fetchAccounts}>Retry</Button></div></TableCell></TableRow>) : loading ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-8">
                       Loading accounts...
@@ -688,7 +670,7 @@ export default function COAManagement() {
                                     : 'default'
                               }
                             >
-                              {getCoverage(account)?.readinessStatus || 'Loading'}
+                              {getCoverage(account)?.readinessStatus || (coverageLoading ? 'Loading' : 'Unavailable')}
                             </Badge>
                             <div className="text-xs text-muted-foreground">
                               FY {CURRENT_FISCAL_YEAR} total {getCoverage(account) ? getCoverage(account)?.totalAvailableBudget.toLocaleString('en-US') : 0}
@@ -707,11 +689,11 @@ export default function COAManagement() {
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
-                              <span className="sr-only">Open menu</span>
+                              <span className="sr-only">Actions for {account.COACode}</span>
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent className="merdeka-budget-popover" align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuItem
                               onClick={() => {
@@ -739,7 +721,7 @@ export default function COAManagement() {
                                   Deactivate
                                 </DropdownMenuItem>
                               </AlertDialogTrigger>
-                              <AlertDialogContent>
+                              <AlertDialogContent className="merdeka-budget-dialog merdeka-coa-confirm">
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                   <AlertDialogDescription>
@@ -771,18 +753,18 @@ export default function COAManagement() {
           </div>
 
           {/* Pagination and Page Size Selector */}
-          <div className="flex items-center justify-between space-x-2 py-4">
+          <div className="merdeka-data-pager flex flex-wrap items-center justify-between gap-3 py-4">
             <div className="flex items-center gap-4">
               <div className="text-sm text-muted-foreground">
-                Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalAccounts)} of {totalAccounts} entries
+                Showing {totalAccounts === 0 ? 0 : ((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalAccounts)} of {totalAccounts} entries
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Show:</span>
                 <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
-                  <SelectTrigger className="w-20">
+                  <SelectTrigger aria-label="Accounts per page" className="w-20">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="merdeka-budget-popover">
                     <SelectItem value="10">10</SelectItem>
                     <SelectItem value="50">50</SelectItem>
                     <SelectItem value="100">100</SelectItem>
@@ -799,16 +781,16 @@ export default function COAManagement() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setCurrentPage(currentPage - 1)}
-                    disabled={currentPage === 1}
+                    onClick={() => { clearSelection(); setCurrentPage(currentPage - 1); }}
+                    disabled={loading || currentPage === 1}
                   >
                     Previous
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setCurrentPage(currentPage + 1)}
-                    disabled={currentPage === totalPages}
+                    onClick={() => { clearSelection(); setCurrentPage(currentPage + 1); }}
+                    disabled={loading || currentPage === totalPages}
                   >
                     Next
                   </Button>
@@ -821,8 +803,8 @@ export default function COAManagement() {
 
       {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="merdeka-budget-dialog merdeka-coa-dialog max-w-2xl">
+          <DialogHeader className="merdeka-budget-dialog-header">
             <DialogTitle>Edit Account</DialogTitle>
             <DialogDescription>
               Update the account information.

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,9 @@ const truncate = (value: string, max: number): string => {
 
 export default function Reports() {
   const [search, setSearch] = useState("");
+  const [committedSearch, setCommittedSearch] = useState("");
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const activeRequest = useRef<AbortController | null>(null);
   const [rows, setRows] = useState<AuditLogRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,58 +55,68 @@ export default function Reports() {
     const params = new URLSearchParams({
       page: pagination.page.toString(),
       limit: pagination.limit.toString(),
-      ...(search.trim().length > 0 ? { search: search.trim() } : {})
+      ...(committedSearch.length > 0 ? { search: committedSearch } : {})
     });
     return params.toString();
-  }, [pagination.page, pagination.limit, search]);
+  }, [pagination.page, pagination.limit, committedSearch]);
 
   const fetchAuditLog = useCallback(async () => {
+    activeRequest.current?.abort();
+    const controller = new AbortController();
+    activeRequest.current = controller;
     try {
       setLoading(true);
       setError(null);
       const resp = await fetch(`/api/reports/audit-log?${queryString}`, {
+        signal: controller.signal,
         headers: authService.getAuthHeaders()
       });
       const payload = (await resp.json()) as AuditLogApiResponse;
       if (!resp.ok || !payload.success) {
         throw new Error(payload.message || `HTTP ${resp.status}`);
       }
+      if (controller.signal.aborted) return;
       setRows(payload.data);
       setPagination(payload.pagination);
     } catch (e) {
+      if (controller.signal.aborted) return;
       setRows([]);
       setError(e instanceof Error ? e.message : "Failed to load audit log");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, [queryString]);
 
   useEffect(() => {
     fetchAuditLog();
-  }, [fetchAuditLog]);
+    return () => activeRequest.current?.abort();
+  }, [fetchAuditLog, refreshVersion]);
 
   const handleSearchSubmit = () => {
     setPagination((prev) => ({ ...prev, page: 1 }));
-    fetchAuditLog();
+    setCommittedSearch(search.trim());
+    setRefreshVersion(value => value + 1);
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="merdeka-overview merdeka-reports space-y-5">
+      <div className="merdeka-page-heading flex flex-wrap items-center justify-between gap-4">
+        <div><p className="merdeka-eyebrow">Reports / Audit Log</p><h1 className="text-[22px] font-semibold">Reports</h1><p className="text-muted-foreground">Review PRF changes and recorded activity.</p></div>
+        <Button variant="outline" size="sm" onClick={() => setRefreshVersion(value => value + 1)} disabled={loading}><RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />Refresh</Button>
+      </div>
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
-            <CardTitle>Reports - Audit Log</CardTitle>
-            <Button variant="outline" size="sm" onClick={fetchAuditLog} disabled={loading}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
+            <CardTitle>Audit Log</CardTitle>
+
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-2 max-w-md">
+          <div className="merdeka-report-search flex flex-wrap items-center gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
+                aria-label="Search audit log by PRF number"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search PRF No (e.g. 43030)"
@@ -119,15 +132,15 @@ export default function Reports() {
           </div>
 
           {error ? (
-            <div className="text-sm text-red-600">{error}</div>
+            <div role="alert" className="merdeka-data-error">{error}<Button variant="outline" size="sm" onClick={() => setRefreshVersion(value => value + 1)}>Retry</Button></div>
           ) : (
             <div className="text-sm text-muted-foreground">
               Total: {pagination.total} • Page {pagination.page}/{pagination.totalPages || 1}
             </div>
           )}
 
-          <div className="overflow-x-auto">
-            <Table className="min-w-full">
+          <div className="merdeka-budget-table-scroll rounded-md border" role="region" aria-label="Audit log table" tabIndex={0}>
+            <Table className="merdeka-budget-table min-w-[920px]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="min-w-[140px]">When</TableHead>
@@ -138,7 +151,7 @@ export default function Reports() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading ? (
+                {error ? null : loading ? (
                   <TableRow>
                     <TableCell colSpan={5} className="py-8 text-center">
                       <div className="flex items-center justify-center">
@@ -170,7 +183,7 @@ export default function Reports() {
                       <TableCell className="truncate max-w-[160px]" title={row.ChangedByName || ""}>
                         {row.ChangedByName || "-"}
                       </TableCell>
-                      <TableCell>{row.Action}</TableCell>
+                      <TableCell><span className="merdeka-audit-action">{row.Action}</span></TableCell>
                       <TableCell className="text-xs text-muted-foreground" title={row.NewValues || ""}>
                         {row.NewValues ? truncate(row.NewValues, 240) : "-"}
                       </TableCell>
@@ -180,6 +193,10 @@ export default function Reports() {
               </TableBody>
             </Table>
           </div>
+          <nav aria-label="Audit log pagination" className="merdeka-data-pager flex flex-wrap items-center justify-between gap-3">
+            <span className="text-muted-foreground text-xs">{loading ? 'Loading records...' : `${pagination.total} records - Page ${pagination.page} of ${pagination.totalPages || 1}`}</span>
+            <div className="flex gap-2"><Button variant="outline" size="sm" disabled={loading || !!error || pagination.page <= 1} onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}>Previous</Button><Button variant="outline" size="sm" disabled={loading || !!error || pagination.page >= pagination.totalPages} onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}>Next</Button></div>
+          </nav>
         </CardContent>
       </Card>
     </div>

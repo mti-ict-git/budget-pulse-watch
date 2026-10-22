@@ -6,6 +6,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +50,7 @@ interface PRFData {
 
 interface PRFDetailDialogProps {
   prf: PRFData;
+  onRefresh?: () => void | Promise<void>;
 }
 
 const getStatusBadge = (status: string) => {
@@ -105,18 +108,18 @@ const formatCurrency = (amount: number, currencyCode: string = 'IDR', exchangeRa
   }).format(amount);
 };
 
-export function PRFDetailDialog({ prf }: PRFDetailDialogProps) {
+export function PRFDetailDialog({ prf, onRefresh }: PRFDetailDialogProps) {
   const [open, setOpen] = useState(false);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" title="View Details">
+        <Button variant="ghost" size="sm" title="View Details" aria-label={`View details for ${prf.prfNo}`}>
           <Eye className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="merdeka-detail max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="merdeka-detail-header">
           <DialogTitle className="flex items-center gap-2">
             <span>PRF Details - {prf.prfNo}</span>
             {getStatusBadge(prf.progress)}
@@ -127,7 +130,7 @@ export function PRFDetailDialog({ prf }: PRFDetailDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="merdeka-detail-body grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Basic Information */}
           <Card>
             <CardHeader>
@@ -400,11 +403,12 @@ export function PRFDetailDialog({ prf }: PRFDetailDialogProps) {
               prfId={parseInt(prf.id)} 
               prfNo={prf.prfNo} 
               onDocumentUpdate={() => {
-                // Optional: refresh PRF data if needed
+                void onRefresh?.();
               }}
             />
           </div>
         </div>
+        <DialogFooter className="merdeka-detail-footer"><DialogClose asChild><Button variant="outline">Close</Button></DialogClose></DialogFooter>
       </DialogContent>
     </Dialog>
   );

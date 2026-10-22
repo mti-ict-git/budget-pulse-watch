@@ -189,13 +189,16 @@ export function Header() {
   })();
 
   return (
-    <header className="h-16 border-b border-border bg-card/90 backdrop-blur supports-[backdrop-filter]:bg-card/70 px-6 flex items-center justify-between shadow-sm">
+    <header className="merdeka-header h-16 border-b border-border bg-card/90 backdrop-blur supports-[backdrop-filter]:bg-card/70 px-6 flex items-center justify-between shadow-sm">
+      <img className="merdeka-mobile-logo" src="/merdeka/branding/mbm-logo.svg" alt="Merdeka Battery Materials" />
       {/* Search */}
-      <div className="flex items-center space-x-4 flex-1 max-w-md">
+      <div className="merdeka-header-search flex items-center space-x-4 flex-1 max-w-md">
         <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search PRFs, budgets..."
+            aria-label="Search PRFs"
+            placeholder="Search PRFs..."
+            onKeyDown={(event) => { if (event.key === "Enter" && event.currentTarget.value.trim()) navigate(`/prf?search=${encodeURIComponent(event.currentTarget.value.trim())}`); }}
             className="pl-10 bg-background"
           />
         </div>
@@ -206,7 +209,7 @@ export function Header() {
         {/* Notifications */}
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="relative">
+            <Button variant="ghost" size="sm" aria-label="Notifications" className="relative">
               <Bell className="h-5 w-5" />
               {unreadCount > 0 && (
                 <Badge 
@@ -276,7 +279,7 @@ export function Header() {
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="flex items-center gap-3 px-2">
+            <Button variant="ghost" size="sm" aria-label="Account menu" className="merdeka-account flex items-center gap-3 px-2">
               <div className="h-9 w-9 rounded-full bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center">
                 <span className="text-xs font-semibold text-primary">
                   {initials}

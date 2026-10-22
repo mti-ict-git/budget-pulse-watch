@@ -15,6 +15,7 @@ import { loadSettings } from './settingsRoutes';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
 import { getPool } from '../config/database';
 import sql from 'mssql';
+import jwt from 'jsonwebtoken';
 
 const router = express.Router();
 
@@ -62,10 +63,67 @@ type ExistingRescanItem = {
 type RescanProposal = {
   index: number;
   action: 'update' | 'add';
-  matchReason: 'item-code' | 'name-quantity' | 'position' | 'new';
+  matchReason: 'item-code' | 'name-quantity' | 'new';
   existingItemId?: number;
   existing?: ExistingRescanItem;
   scanned: NonNullable<ExtractedPRFData['items']>[number];
+};
+
+type RescanProposalDecision = {
+  index: number;
+  action: 'update' | 'keep' | 'add' | 'ignore';
+};
+
+type PreservedItemDecision = {
+  prfItemId: number;
+  action: 'keep' | 'cancel';
+};
+
+type RescanPreviewSnapshotPayload = {
+  kind: 'ocr-rescan-preview';
+  prfId: number;
+  fileId: number;
+  userId: number;
+  extractedData: ExtractedPRFData;
+};
+
+const OCR_RESCAN_PREVIEW_SECRET =
+  process.env.OCR_RESCAN_PREVIEW_SECRET ||
+  process.env.JWT_SECRET ||
+  'your-secret-key-change-in-production';
+
+const signRescanPreviewToken = (payload: RescanPreviewSnapshotPayload): string =>
+  jwt.sign(payload, OCR_RESCAN_PREVIEW_SECRET, {
+    algorithm: 'HS256',
+    expiresIn: '15m'
+  });
+
+const verifyRescanPreviewToken = (token: string): RescanPreviewSnapshotPayload => {
+  const decoded = jwt.verify(token, OCR_RESCAN_PREVIEW_SECRET);
+  if (typeof decoded !== 'object' || decoded === null) {
+    throw new Error('Invalid rescan preview token');
+  }
+
+  const candidate = decoded as Partial<RescanPreviewSnapshotPayload>;
+  if (
+    candidate.kind !== 'ocr-rescan-preview' ||
+    !Number.isInteger(candidate.prfId) ||
+    !Number.isInteger(candidate.fileId) ||
+    !Number.isInteger(candidate.userId) ||
+    typeof candidate.extractedData !== 'object' ||
+    candidate.extractedData === null ||
+    !Array.isArray(candidate.extractedData.items)
+  ) {
+    throw new Error('Invalid rescan preview token');
+  }
+
+  return {
+    kind: 'ocr-rescan-preview',
+    prfId: Number(candidate.prfId),
+    fileId: Number(candidate.fileId),
+    userId: Number(candidate.userId),
+    extractedData: candidate.extractedData as ExtractedPRFData
+  };
 };
 
 const isScannedCancelled = (
@@ -96,6 +154,73 @@ const calculateRescanTotals = (extractedData: ExtractedPRFData) => {
 const normalizeMatchText = (value: unknown): string =>
   typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().toLowerCase() : '';
 
+const normalizeOptionalText = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.replace(/\s+/g, ' ').trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const normalizePositiveInt = (value: unknown, fallback: number): number => {
+  const numeric = typeof value === 'number' ? value : typeof value === 'string' ? Number.parseFloat(value.trim()) : Number.NaN;
+  if (!Number.isFinite(numeric) || numeric <= 0) return fallback;
+  return Math.max(1, Math.round(numeric));
+};
+
+const normalizeNonNegativeNumber = (value: unknown, fallback: number): number => {
+  const numeric = typeof value === 'number' ? value : typeof value === 'string' ? Number.parseFloat(value.trim()) : Number.NaN;
+  if (!Number.isFinite(numeric) || numeric < 0) return fallback;
+  return numeric;
+};
+
+const mapScannedItemFields = (
+  scanned: NonNullable<ExtractedPRFData['items']>[number],
+  options?: {
+    existing?: ExistingRescanItem;
+    fallbackCostCode?: string | null;
+    fallbackBudgetYear?: number | null;
+  }
+) => {
+  const existing = options?.existing;
+  const itemName =
+    normalizeOptionalText(scanned.description) ||
+    normalizeOptionalText(scanned.partNumber) ||
+    normalizeOptionalText(existing?.ItemName) ||
+    'Unknown Item';
+  const description =
+    normalizeOptionalText(scanned.description) ||
+    normalizeOptionalText(existing?.Description) ||
+    null;
+  const itemCode =
+    normalizeOptionalText(scanned.partNumber) ||
+    normalizeOptionalText(existing?.ItemCode) ||
+    null;
+  const purchaseCostCode =
+    normalizeOptionalText(scanned.purchaseCostCode) ||
+    normalizeOptionalText(options?.fallbackCostCode) ||
+    null;
+  const budgetYear = (() => {
+    const raw = scanned.budgetYear;
+    const parsed =
+      typeof raw === 'number'
+        ? raw
+        : typeof raw === 'string'
+          ? Number.parseInt(raw.trim(), 10)
+          : Number.NaN;
+    if (Number.isInteger(parsed) && parsed >= 2000 && parsed <= 2100) return parsed;
+    return options?.fallbackBudgetYear ?? existing?.BudgetYear ?? new Date().getFullYear();
+  })();
+
+  return {
+    itemName,
+    description,
+    itemCode,
+    quantity: normalizePositiveInt(scanned.quantity, Math.max(1, Number(existing?.Quantity || 1))),
+    unitPrice: normalizeNonNegativeNumber(scanned.unitPrice, Math.max(0, Number(existing?.UnitPrice || 0))),
+    purchaseCostCode,
+    budgetYear
+  };
+};
+
 const buildRescanProposals = (
   existingItems: ExistingRescanItem[],
   scannedItems: NonNullable<ExtractedPRFData['items']>
@@ -117,11 +242,6 @@ const buildRescanProposals = (
           Number(item.Quantity) === Number(scanned.quantity || 1)
       );
       matchReason = 'name-quantity';
-    }
-
-    if (matchIndex < 0 && index < existingItems.length && !used.has(index)) {
-      matchIndex = index;
-      matchReason = 'position';
     }
 
     if (matchIndex >= 0) {
@@ -308,13 +428,19 @@ router.post('/create-from-document', authenticateToken, requireContentManager, u
               ? budgetYearParsed
               : undefined;
 
+          const mapped = mapScannedItemFields(item, {
+            fallbackCostCode: prfCostCode || null,
+            fallbackBudgetYear: budgetYear ?? new Date().getFullYear()
+          });
+
           return {
-            ItemName: item.description || 'Unknown Item',
-            Description: item.partNumber ? `Part: ${item.partNumber}` : '',
-            Quantity: item.quantity || 1,
-            UnitPrice: item.unitPrice || 0,
+            ItemName: mapped.itemName,
+            Description: mapped.description || undefined,
+            ItemCode: mapped.itemCode,
+            Quantity: mapped.quantity,
+            UnitPrice: mapped.unitPrice,
             Specifications: '',
-            PurchaseCostCode: item.purchaseCostCode || prfCostCode || undefined,
+            PurchaseCostCode: mapped.purchaseCostCode || undefined,
             COAID: coaid,
             BudgetYear: budgetYear
           };
@@ -522,6 +648,9 @@ router.post('/rescan/:prfId/file/:fileId/preview', authenticateToken, requireCon
     if (!(await ocrService.isEnabled())) {
       return res.status(503).json({ success: false, message: 'OCR service is not configured' });
     }
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
 
     const buffer = await readStoredPRFFile(file);
     const extractedData = await ocrService.extractPRFData(buffer, ocrMimeType);
@@ -531,6 +660,13 @@ router.post('/rescan/:prfId/file/:fileId/preview', authenticateToken, requireCon
     );
     const totals = calculateRescanTotals(extractedData);
     const cancelledCount = (extractedData.items || []).filter(isScannedCancelled).length;
+    const previewToken = signRescanPreviewToken({
+      kind: 'ocr-rescan-preview',
+      prfId,
+      fileId,
+      userId: req.user.UserID,
+      extractedData
+    });
 
     return res.json({
       success: true,
@@ -546,6 +682,7 @@ router.post('/rescan/:prfId/file/:fileId/preview', authenticateToken, requireCon
           RequiredFor: prf.RequiredFor
         },
         file: { FileID: file.FileID, OriginalFileName: file.OriginalFileName },
+        previewToken,
         extractedData,
         proposals,
         preservedItems,
@@ -584,17 +721,59 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
   try {
     const prfId = Number.parseInt(req.params.prfId, 10);
     const fileId = Number.parseInt(req.params.fileId, 10);
-    const extractedData = req.body?.extractedData as ExtractedPRFData | undefined;
+    const previewToken = typeof req.body?.previewToken === 'string' ? req.body.previewToken : '';
+    const proposalDecisions = Array.isArray(req.body?.proposalDecisions)
+      ? req.body.proposalDecisions.filter((value: unknown): value is RescanProposalDecision => {
+          if (typeof value !== 'object' || value === null) return false;
+          const candidate = value as { index?: unknown; action?: unknown };
+          return Number.isInteger(candidate.index)
+            && typeof candidate.action === 'string'
+            && ['update', 'keep', 'add', 'ignore'].includes(candidate.action);
+        })
+      : [];
     const selectedIndexes = Array.isArray(req.body?.selectedIndexes)
       ? req.body.selectedIndexes.filter((value: unknown): value is number => Number.isInteger(value))
       : [];
+    const preservedItemDecisions = Array.isArray(req.body?.preservedItemDecisions)
+      ? req.body.preservedItemDecisions.filter((value: unknown): value is PreservedItemDecision => {
+          if (typeof value !== 'object' || value === null) return false;
+          const candidate = value as { prfItemId?: unknown; action?: unknown };
+          return Number.isInteger(candidate.prfItemId)
+            && typeof candidate.action === 'string'
+            && ['keep', 'cancel'].includes(candidate.action);
+        })
+      : [];
     const updateHeader = req.body?.updateHeader === true;
 
-    if (!Number.isInteger(prfId) || !Number.isInteger(fileId) || !extractedData || !Array.isArray(extractedData.items)) {
+    if (!Number.isInteger(prfId) || !Number.isInteger(fileId) || previewToken.trim().length === 0) {
       return res.status(400).json({ success: false, message: 'Invalid rescan approval payload' });
     }
     if (!req.user) return res.status(401).json({ success: false, message: 'Authentication required' });
 
+    let extractedData: ExtractedPRFData;
+    try {
+      const snapshot = verifyRescanPreviewToken(previewToken);
+      if (snapshot.prfId !== prfId || snapshot.fileId !== fileId) {
+        return res.status(400).json({ success: false, message: 'Rescan preview token does not match the selected PRF document' });
+      }
+      if (snapshot.userId !== req.user.UserID) {
+        return res.status(403).json({ success: false, message: 'Rescan preview token belongs to a different user' });
+      }
+      extractedData = snapshot.extractedData;
+    } catch (error) {
+      const message =
+        error instanceof Error && error.name === 'TokenExpiredError'
+          ? 'Rescan preview expired. Refresh preview and apply again.'
+          : error instanceof Error
+            ? error.message
+            : 'Invalid rescan preview token';
+      return res.status(400).json({
+        success: false,
+        message
+      });
+    }
+
+    const extractedItems = extractedData.items || [];
     const [prf, file, existingItems] = await Promise.all([
       PRFModel.findById(prfId),
       PRFFilesModel.getById(fileId),
@@ -610,15 +789,34 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
 
     const { proposals, preservedItems } = buildRescanProposals(
       existingItems as ExistingRescanItem[],
-      extractedData.items
+      extractedItems
     );
-    const selected = proposals.filter((proposal) => selectedIndexes.includes(proposal.index));
+    const fallbackHeaderCostCode = normalizeOptionalText(prf.PurchaseCostCode);
+    const fallbackBudgetYear = prf.BudgetYear ?? new Date().getFullYear();
+    const decisionByIndex = new Map<number, RescanProposalDecision['action']>();
+    proposalDecisions.forEach((decision: RescanProposalDecision) => {
+      decisionByIndex.set(decision.index, decision.action);
+    });
+    if (decisionByIndex.size === 0 && selectedIndexes.length > 0) {
+      proposals.forEach((proposal) => {
+        if (!selectedIndexes.includes(proposal.index)) return;
+        if (proposal.action === 'add') {
+          decisionByIndex.set(proposal.index, 'add');
+          return;
+        }
+        decisionByIndex.set(proposal.index, 'update');
+      });
+    }
+    const preservedDecisionById = new Map<number, PreservedItemDecision['action']>();
+    preservedItemDecisions.forEach((decision: PreservedItemDecision) => {
+      preservedDecisionById.set(decision.prfItemId, decision.action);
+    });
     await transaction.begin();
     transactionStarted = true;
 
     if (updateHeader) {
       const totals = calculateRescanTotals(extractedData);
-      const hasCancelledItems = extractedData.items.some(isScannedCancelled);
+      const hasCancelledItems = extractedItems.some(isScannedCancelled);
       const requestedAmount = hasCancelledItems
         ? totals.activeItemsTotal
         : extractedData.totalAmount ?? prf.RequestedAmount ?? 0;
@@ -650,11 +848,19 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
 
     let updatedItemCount = 0;
     let addedItemCount = 0;
-    for (const proposal of selected) {
+    let cancelledItemCount = 0;
+    for (const proposal of proposals) {
+      const chosenAction = decisionByIndex.get(proposal.index);
+      if (!chosenAction || chosenAction === 'keep' || chosenAction === 'ignore') {
+        continue;
+      }
       const scanned = proposal.scanned;
-      const costCode = typeof scanned.purchaseCostCode === 'string' && scanned.purchaseCostCode.trim()
-        ? scanned.purchaseCostCode.trim()
-        : null;
+      const mapped = mapScannedItemFields(scanned, {
+        existing: proposal.existing,
+        fallbackCostCode: fallbackHeaderCostCode,
+        fallbackBudgetYear
+      });
+      const costCode = mapped.purchaseCostCode;
       const coaRequest = new sql.Request(transaction);
       const coaResult = costCode
         ? await coaRequest.input('COACode', sql.NVarChar(50), costCode).query<{ COAID: number }>(
@@ -664,19 +870,19 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
         : null;
       const coaId = coaResult?.recordset[0]?.COAID ?? null;
 
-      if (proposal.action === 'update' && proposal.existingItemId) {
+      if (chosenAction === 'update' && proposal.existingItemId) {
         const applyCancelledStatus = isScannedCancelled(scanned);
         const request = new sql.Request(transaction);
         await request
           .input('PRFItemID', sql.Int, proposal.existingItemId)
-          .input('ItemName', sql.NVarChar(200), scanned.description || proposal.existing?.ItemName || 'Unknown Item')
-          .input('Description', sql.NVarChar(1000), scanned.partNumber ? `Part: ${scanned.partNumber}` : proposal.existing?.Description || '')
-          .input('ItemCode', sql.NVarChar(64), scanned.partNumber || proposal.existing?.ItemCode || null)
-          .input('Quantity', sql.Int, Number(scanned.quantity || proposal.existing?.Quantity || 1))
-          .input('UnitPrice', sql.Decimal(15, 2), Number(scanned.unitPrice ?? proposal.existing?.UnitPrice ?? 0))
+          .input('ItemName', sql.NVarChar(200), mapped.itemName)
+          .input('Description', sql.NVarChar(1000), mapped.description)
+          .input('ItemCode', sql.NVarChar(64), mapped.itemCode)
+          .input('Quantity', sql.Int, mapped.quantity)
+          .input('UnitPrice', sql.Decimal(15, 2), mapped.unitPrice)
           .input('PurchaseCostCode', sql.NVarChar(50), costCode)
           .input('COAID', sql.Int, coaId)
-          .input('BudgetYear', sql.Int, Number(scanned.budgetYear || prf.BudgetYear || new Date().getFullYear()))
+          .input('BudgetYear', sql.Int, mapped.budgetYear)
           .input('ApplyCancelledStatus', sql.Bit, applyCancelledStatus)
           .input('UpdatedBy', sql.Int, req.user.UserID)
           .query(`
@@ -691,19 +897,20 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
             WHERE PRFItemID = @PRFItemID AND PRFID = ${prfId}
           `);
         updatedItemCount += 1;
-      } else if (proposal.action === 'add') {
+        if (applyCancelledStatus) cancelledItemCount += 1;
+      } else if (chosenAction === 'add') {
         const applyCancelledStatus = isScannedCancelled(scanned);
         const request = new sql.Request(transaction);
         await request
           .input('PRFID', sql.Int, prfId)
-          .input('ItemName', sql.NVarChar(200), scanned.description || 'Unknown Item')
-          .input('Description', sql.NVarChar(1000), scanned.partNumber ? `Part: ${scanned.partNumber}` : '')
-          .input('ItemCode', sql.NVarChar(64), scanned.partNumber || null)
-          .input('Quantity', sql.Int, Number(scanned.quantity || 1))
-          .input('UnitPrice', sql.Decimal(15, 2), Number(scanned.unitPrice || 0))
+          .input('ItemName', sql.NVarChar(200), mapped.itemName)
+          .input('Description', sql.NVarChar(1000), mapped.description)
+          .input('ItemCode', sql.NVarChar(64), mapped.itemCode)
+          .input('Quantity', sql.Int, mapped.quantity)
+          .input('UnitPrice', sql.Decimal(15, 2), mapped.unitPrice)
           .input('PurchaseCostCode', sql.NVarChar(50), costCode)
           .input('COAID', sql.Int, coaId)
-          .input('BudgetYear', sql.Int, Number(scanned.budgetYear || prf.BudgetYear || new Date().getFullYear()))
+          .input('BudgetYear', sql.Int, mapped.budgetYear)
           .input('Status', sql.NVarChar(50), applyCancelledStatus ? 'Cancelled' : 'Pending')
           .input('StatusOverridden', sql.Bit, applyCancelledStatus)
           .input('UpdatedBy', sql.Int, req.user.UserID)
@@ -716,7 +923,25 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
                @PurchaseCostCode, @COAID, @BudgetYear, @Status, @StatusOverridden, @UpdatedBy)
           `);
         addedItemCount += 1;
+        if (applyCancelledStatus) cancelledItemCount += 1;
       }
+    }
+
+    for (const preservedItem of preservedItems) {
+      if (preservedDecisionById.get(preservedItem.PRFItemID) !== 'cancel') continue;
+      const request = new sql.Request(transaction);
+      await request
+        .input('PRFItemID', sql.Int, preservedItem.PRFItemID)
+        .input('UpdatedBy', sql.Int, req.user.UserID)
+        .query(`
+          UPDATE dbo.PRFItems
+          SET Status = 'Cancelled',
+              StatusOverridden = 1,
+              UpdatedBy = @UpdatedBy,
+              UpdatedAt = GETDATE()
+          WHERE PRFItemID = @PRFItemID AND PRFID = ${prfId}
+        `);
+      cancelledItemCount += 1;
     }
 
     const afterRequest = new sql.Request(transaction);
@@ -752,7 +977,7 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
       data: {
         updatedItemCount,
         addedItemCount,
-        cancelledItemCount: selected.filter((proposal) => isScannedCancelled(proposal.scanned)).length,
+        cancelledItemCount,
         preservedItemCount: preservedItems.length,
         headerUpdated: updateHeader
       }

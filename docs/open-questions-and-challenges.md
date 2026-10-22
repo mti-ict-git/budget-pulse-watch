@@ -18,12 +18,15 @@ This document records unresolved business and implementation questions that must
 
 - Existing items absent from an OCR rescan are preserved and never auto-deleted
 - Users approve item proposals individually after a side-by-side preview
+- Matched OCR rows support explicit per-item `Update from OCR` or `Keep Existing` decisions; newly scanned unmatched rows support `Add` or `Ignore`
 - Status, PO, pickup, approval, and Pronto-managed fields are protected from OCR updates
 - A clear visual strikethrough/cross-out is proposed as item-level `Cancelled`, remains unchecked by default, and becomes a status override only after that item proposal is explicitly approved
 - Active OCR rows do not reset an existing workflow status
 - Shared/merged cost codes are materialized per item, and preview separates printed, extracted, cancelled, and active totals
 - Apply is transactional and writes a dedicated immutable audit snapshot
+- Apply uses a short-lived server-signed preview token as the authoritative OCR snapshot and does not trust client-edited extracted data
 - If no OCR Source exists, Admin/DocCon may select another stored PDF or supported image; the preview identifies it as an alternative source
+- Hard delete remains outside the OCR rescan workflow; unmatched historical items may be kept or explicitly marked `Cancelled`
 
 ### PRF AI Chatbot
 

@@ -80,8 +80,8 @@ export function COADetailsModal({ account, open, onOpenChange }: COADetailsModal
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="merdeka-budget-dialog merdeka-coa-dialog merdeka-coa-details max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="merdeka-budget-dialog-header">
           <DialogTitle className="flex items-center gap-2">
             <span>{account.COACode} - {account.COAName}</span>
             <Badge variant={account.IsActive ? 'default' : 'destructive'}>
@@ -93,7 +93,7 @@ export function COADetailsModal({ account, open, onOpenChange }: COADetailsModal
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="merdeka-coa-detail-body space-y-4">
           {/* Basic Information */}
           <Card>
             <CardHeader>
@@ -246,18 +246,19 @@ export function COADetailsModal({ account, open, onOpenChange }: COADetailsModal
           <Card>
             <CardHeader>
               <CardTitle>Quick Actions</CardTitle>
+              <CardDescription>Related views are not connected yet.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex gap-2 flex-wrap">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" disabled>
                   <ExternalLink className="mr-2 h-4 w-4" />
                   View Related PRFs
                 </Button>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" disabled>
                   <Wallet className="mr-2 h-4 w-4" />
                   View Budget Entries
                 </Button>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" disabled>
                   <TrendingUp className="mr-2 h-4 w-4" />
                   Generate Report
                 </Button>

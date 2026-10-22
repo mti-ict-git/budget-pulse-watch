@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   BarChart3,
@@ -30,10 +30,18 @@ const navigation = [
 
 interface SidebarProps {
   className?: string;
+  mobile?: boolean;
+  onNavigate?: () => void;
 }
 
-export function Sidebar({ className }: SidebarProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+export function Sidebar({ className, mobile = false, onNavigate }: SidebarProps) {
+  const [collapsed, setIsCollapsed] = useState(() => {
+    try { return localStorage.getItem("merdeka.sidebar.collapsed") === "true"; } catch { return false; }
+  });
+  const isCollapsed = !mobile && collapsed;
+  useEffect(() => {
+    if (!mobile) { try { localStorage.setItem("merdeka.sidebar.collapsed", String(collapsed)); } catch { /* Storage can be unavailable. */ } }
+  }, [collapsed, mobile]);
   const [reportsOpen, setReportsOpen] = useState(true);
   const { user } = useAuth();
   const location = useLocation();
@@ -54,9 +62,9 @@ export function Sidebar({ className }: SidebarProps) {
   const navFromAlerts = alertsIndex >= 0 ? filteredNavigation.slice(alertsIndex) : [];
 
   return (
-    <div className={cn(
-      "relative flex flex-col overflow-hidden bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300",
-      isCollapsed ? "w-16" : "w-64",
+    <aside aria-label="Main navigation" data-collapsed={isCollapsed} onClick={(event) => { if ((event.target as HTMLElement).closest("a")) onNavigate?.(); }} className={cn(
+      "merdeka-sidebar relative flex flex-col overflow-hidden bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300",
+      isCollapsed ? "w-[80px]" : "w-[240px]",
       className
     )}>
       <div
@@ -67,10 +75,10 @@ export function Sidebar({ className }: SidebarProps) {
         )}
       >
         <img
-          src="/sidebar-background.png"
+          src="/merdeka/branding/mbm-symbol.svg"
           alt=""
           className={cn(
-            "select-none object-contain object-bottom opacity-90",
+            "select-none object-contain object-bottom opacity-[0.06]",
             isCollapsed ? "w-10" : "w-36"
           )}
         />
@@ -78,14 +86,13 @@ export function Sidebar({ className }: SidebarProps) {
 
       {/* Header */}
       <div className="relative z-10 flex items-center justify-between px-4 py-3 border-b border-sidebar-border">
-        {!isCollapsed && (
-          <h1 className="text-[15px] font-semibold tracking-tight text-sidebar-foreground">
-            MTI ICT PO Monitoring
-          </h1>
-        )}
+        <img className="merdeka-sidebar-logo" src={isCollapsed ? "/merdeka/branding/mbm-symbol.svg" : "/merdeka/branding/mbm-logo.svg"} alt="Merdeka Battery Materials" />
         <Button
           variant="ghost"
           size="sm"
+          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!isCollapsed}
+          hidden={mobile}
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="h-8 w-8 p-0 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
@@ -93,12 +100,15 @@ export function Sidebar({ className }: SidebarProps) {
         </Button>
       </div>
 
+      {!isCollapsed && <div className="merdeka-sidebar-caption">MTI ICT PO Monitoring</div>}
       {/* Navigation */}
-      <nav className={cn("relative z-10 flex-1 p-4 space-y-2", isCollapsed ? "pb-16" : "pb-28")}>
+      <nav className={cn("merdeka-navigation relative z-10 flex-1 p-4 space-y-2", isCollapsed ? "pb-16" : "pb-28")}>
         {navBeforeAlerts.map((item) => (
           <NavLink
             key={item.name}
             to={item.href}
+            title={item.name}
+            aria-label={item.name}
             end
             className={({ isActive }) =>
               cn(
@@ -117,6 +127,9 @@ export function Sidebar({ className }: SidebarProps) {
 
         <button
           type="button"
+          title="Reports"
+          aria-label="Reports"
+          aria-expanded={!isCollapsed && reportsOpen}
           onClick={() => {
             if (isCollapsed) {
               navigate("/reports/audit-log");
@@ -163,6 +176,8 @@ export function Sidebar({ className }: SidebarProps) {
           <NavLink
             key={item.name}
             to={item.href}
+            title={item.name}
+            aria-label={item.name}
             end
             className={({ isActive }) =>
               cn(
@@ -179,6 +194,6 @@ export function Sidebar({ className }: SidebarProps) {
           </NavLink>
         ))}
       </nav>
-    </div>
+    </aside>
   );
 }

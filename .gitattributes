@@ -1,0 +1,4 @@
+# Captured vendor resources retain their original bytes and source formatting.
+public/merdeka/** -text -whitespace
+# Generated adapter intentionally preserves captured source declarations/formatting.
+src/styles/merdeka-vendor.generated.css -whitespace

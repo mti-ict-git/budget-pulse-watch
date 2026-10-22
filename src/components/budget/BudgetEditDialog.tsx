@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type RefObject } from "react";
 import {
   Dialog,
   DialogContent,
@@ -47,9 +47,12 @@ interface BudgetEditDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   onSuccess?: () => void;
+  returnFocusRef?: RefObject<HTMLElement>;
 }
 
-export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: externalOpen, onOpenChange, onSuccess }: BudgetEditDialogProps) {
+export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: externalOpen, onOpenChange, onSuccess,
+  returnFocusRef
+}: BudgetEditDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const open = externalOpen !== undefined ? externalOpen : internalOpen;
   const setOpen = onOpenChange || setInternalOpen;
@@ -250,16 +253,16 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
         resetForm();
       }
     }}>
-      <DialogTrigger asChild>
+      {externalOpen === undefined && <DialogTrigger asChild>
         {trigger || (
           <Button variant="outline" size="sm">
             <Edit className="mr-2 h-4 w-4" />
             Edit
           </Button>
         )}
-      </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      </DialogTrigger>}
+      <DialogContent onCloseAutoFocus={returnFocusRef ? event => { event.preventDefault(); returnFocusRef.current?.focus(); } : undefined} className="merdeka-budget-dialog max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="merdeka-budget-dialog-header">
           <DialogTitle className="flex items-center gap-2">
             <Edit className="h-5 w-5" />
             {budget.BudgetID === 0 ? 'Create New Budget' : `Edit Budget (ID: ${budget.BudgetID})`}
@@ -284,6 +287,7 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
+                      id="coaid"
                       role="combobox"
                       aria-expanded={coaOpen}
                       className="w-full justify-between"
@@ -299,7 +303,7 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-full p-0">
+                  <PopoverContent align="start" className="merdeka-budget-popover merdeka-budget-coa-popover w-full p-0">
                     <Command>
                       <CommandInput placeholder="Search chart of accounts..." />
                       <CommandList>
@@ -362,7 +366,7 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
                     <SelectTrigger>
                       <SelectValue placeholder="Select currency" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="merdeka-budget-popover">
                       <SelectItem value="IDR">IDR (Rupiah)</SelectItem>
                       <SelectItem value="USD">USD (Dollar)</SelectItem>
                     </SelectContent>
@@ -420,7 +424,7 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
                   <SelectTrigger>
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="merdeka-budget-popover">
                     {departments.map((department) => (
                       <SelectItem key={department} value={department}>
                         {department}
@@ -460,7 +464,7 @@ export function BudgetEditDialog({ budget, onBudgetUpdated, trigger, open: exter
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="merdeka-budget-popover">
                     <SelectItem value="true">Active</SelectItem>
                     <SelectItem value="false">Inactive</SelectItem>
                   </SelectContent>

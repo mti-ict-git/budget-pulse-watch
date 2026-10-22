@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type RefObject } from "react";
 import {
   Dialog,
   DialogContent,
@@ -42,6 +42,7 @@ interface BudgetCreateDialogProps {
   onOpenChange?: (open: boolean) => void;
   onSuccess?: () => void;
   onBudgetCreated?: () => void;
+  returnFocusRef?: RefObject<HTMLButtonElement>;
 }
 
 const HR_IT_DEPARTMENT = "HR / IT";
@@ -51,7 +52,8 @@ export function BudgetCreateDialog({
   open: externalOpen, 
   onOpenChange, 
   onSuccess, 
-  onBudgetCreated 
+  onBudgetCreated,
+  returnFocusRef
 }: BudgetCreateDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const open = externalOpen !== undefined ? externalOpen : internalOpen;
@@ -225,14 +227,14 @@ export function BudgetCreateDialog({
         resetForm();
       }
     }}>
-      <DialogTrigger asChild>
+      {externalOpen === undefined && <DialogTrigger asChild>
         <Button>
           <Plus className="mr-2 h-4 w-4" />
           New Budget
         </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      </DialogTrigger>}
+      <DialogContent onCloseAutoFocus={returnFocusRef ? event => { event.preventDefault(); returnFocusRef.current?.focus(); } : undefined} className="merdeka-budget-dialog max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="merdeka-budget-dialog-header">
           <DialogTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5" />
             Create New Budget
@@ -257,6 +259,7 @@ export function BudgetCreateDialog({
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
+                      id="coaid"
                       role="combobox"
                       aria-expanded={coaOpen}
                       className="w-full justify-between"
@@ -272,7 +275,7 @@ export function BudgetCreateDialog({
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-full p-0">
+                  <PopoverContent align="start" className="merdeka-budget-popover merdeka-budget-coa-popover w-full p-0">
                     <Command>
                       <CommandInput placeholder="Search chart of accounts..." />
                       <CommandList>
@@ -335,7 +338,7 @@ export function BudgetCreateDialog({
                     <SelectTrigger>
                       <SelectValue placeholder="Select currency" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="merdeka-budget-popover">
                       <SelectItem value="IDR">IDR (Rupiah)</SelectItem>
                       <SelectItem value="USD">USD (Dollar)</SelectItem>
                     </SelectContent>
@@ -393,7 +396,7 @@ export function BudgetCreateDialog({
                   <SelectTrigger>
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="merdeka-budget-popover">
                     {departments.map((department) => (
                       <SelectItem key={department} value={department}>
                         {department}

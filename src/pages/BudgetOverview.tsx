@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +45,7 @@ const getStatusBadge = (status: string) => {
     'Over Budget': { label: "Over Budget", variant: "destructive" as const },
     'No Budget': { label: "No Budget", variant: "outline" as const }
   };
-  
+
   const config = statusConfig[status as keyof typeof statusConfig] || { label: status, variant: "outline" as const };
   return <Badge variant={config.variant}>{config.label}</Badge>;
 };
@@ -93,12 +93,16 @@ export default function BudgetOverview() {
   const [readinessData, setReadinessData] = useState<BudgetReadinessData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+  const budgetRequest = useRef(0);
+  const createBudgetTrigger = useRef<HTMLButtonElement>(null);
+  const budgetDetailsRegion = useRef<HTMLDivElement>(null);
+  useEffect(() => () => { budgetRequest.current += 1; }, []);
+
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [expenseTypeFilter, setExpenseTypeFilter] = useState<string>('all');
-  
+
   // Dialog state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -133,6 +137,7 @@ export default function BudgetOverview() {
     fiscalYear?: number | string;
     expenseType?: 'CAPEX' | 'OPEX';
   }) => {
+    const requestId = ++budgetRequest.current;
     try {
       setLoading(true);
       setError(null);
@@ -140,17 +145,18 @@ export default function BudgetOverview() {
       // Determine the fiscal year to use
       let fiscalYear: number | undefined;
       if (searchParams?.fiscalYear !== undefined) {
-        fiscalYear = typeof searchParams.fiscalYear === 'string' && searchParams.fiscalYear !== 'all' 
-          ? parseInt(searchParams.fiscalYear) 
-          : typeof searchParams.fiscalYear === 'number' 
-            ? searchParams.fiscalYear 
+        fiscalYear = typeof searchParams.fiscalYear === 'string' && searchParams.fiscalYear !== 'all'
+          ? parseInt(searchParams.fiscalYear)
+          : typeof searchParams.fiscalYear === 'number'
+            ? searchParams.fiscalYear
             : undefined;
       } else if (selectedFiscalYear !== 'all') {
         fiscalYear = parseInt(selectedFiscalYear);
       }
-      
-      const requestedExpenseType = searchParams?.expenseType && searchParams.expenseType !== 'all'
-        ? searchParams.expenseType
+
+      const selectedExpenseType = searchParams?.expenseType ?? expenseTypeFilter;
+      const requestedExpenseType = selectedExpenseType === 'CAPEX' || selectedExpenseType === 'OPEX'
+        ? selectedExpenseType
         : undefined;
 
       // Load budget data, dashboard metrics, and utilization data in parallel
@@ -160,7 +166,8 @@ export default function BudgetOverview() {
 
        const [budgetResponse, dashboardResponse, utilizationResponse, readinessResponse] = await Promise.all([
          budgetService.getCostCodeBudgets({
-           search: searchParams?.search,
+           search: searchParams?.search ?? (searchTerm || undefined),
+           status: searchParams?.status ?? (statusFilter !== 'all' ? statusFilter : undefined),
            fiscalYear: fiscalYear,
            department: BUDGET_OVERVIEW_DEPARTMENT,
            expenseType: requestedExpenseType
@@ -170,6 +177,7 @@ export default function BudgetOverview() {
          readinessPromise
        ]);
 
+      if (requestId !== budgetRequest.current) return;
       if (budgetResponse.success && budgetResponse.data) {
         const filteredCostCodes = budgetResponse.data.costCodes.filter((row) => {
           if (!isBudgetOverviewRowAllowed(row)) {
@@ -220,12 +228,13 @@ export default function BudgetOverview() {
         setReadinessData(null);
       }
     } catch (error) {
+      if (requestId !== budgetRequest.current) return;
       console.error('Error loading budget data:', error);
       setError('Failed to load budget data');
     } finally {
-      setLoading(false);
+      if (requestId === budgetRequest.current) setLoading(false);
     }
-  }, [selectedFiscalYear]);
+  }, [selectedFiscalYear, searchTerm, statusFilter, expenseTypeFilter]);
 
   const loadCutoffStatus = useCallback(async (fiscalYear: number | null) => {
     if (!fiscalYear) {
@@ -316,7 +325,7 @@ export default function BudgetOverview() {
 
     try {
       const response = await budgetService.deleteBudget(budgetId);
-      
+
       if (response.success) {
         toast.success('Budget deleted successfully');
         loadBudgetData(); // Refresh data
@@ -454,11 +463,6 @@ export default function BudgetOverview() {
     setSelectedBudget(null);
   };
 
-  // Initial load
-  useEffect(() => {
-    loadBudgetData();
-  }, [loadBudgetData]);
-
   // Debounced search effect
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -478,6 +482,20 @@ export default function BudgetOverview() {
     loadCutoffStatus(activeFiscalYear);
   }, [activeFiscalYear, loadCutoffStatus]);
 
+  const handleExportReport = () => {
+    const columns = ["COA", "Category", "Department", "Type", "Annual", "Carry Forward", "Total Available", "Spent", "Remaining", "Utilization (%)", "Status"];
+    const rows = budgetData.map(row => [row.COACode, row.COAName, row.Department, row.ExpenseType, row.AnnualAllocated || 0, row.CarryForwardAmount || 0, row.GrandTotalAllocated || 0, row.GrandTotalApproved || 0, (row.GrandTotalAllocated || 0) - (row.GrandTotalApproved || 0), row.UtilizationPercentage || 0, row.BudgetStatus]);
+    const quote = (value: string | number) => {
+      const text = typeof value === "string" && /^[=+@-]/.test(value) ? `'${value}` : String(value);
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+    const blob = new Blob(["\uFEFF" + [columns, ...rows].map(row => row.map(quote).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url; link.download = `budget-overview-${selectedFiscalYear}.csv`;
+    link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   // Use dashboard metrics if available, fallback to budget summary
   const totalInitialBudget = dashboardMetrics?.budget.totalBudget || budgetSummary?.totalBudgetAllocated || budgetSummary?.totalBudget || 0;
   const totalSpent = dashboardMetrics?.budget.totalSpent || budgetSummary?.totalBudgetApproved || budgetSummary?.totalSpent || 0;
@@ -486,14 +504,15 @@ export default function BudgetOverview() {
   const overBudgetCount = dashboardMetrics?.budget.overBudgetCount || budgetData.filter((b) => b.BudgetStatus === 'Over Budget').length;
   const needAttentionCount = readinessData?.summary.needAttentionCount || 0;
   const alertCount = overBudgetCount + needAttentionCount;
-  
+
   // CAPEX and OPEX utilization data is now handled by the UtilizationChart component using utilizationData
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto p-4 lg:p-6 space-y-6">
+    <div className="merdeka-budget merdeka-overview">
+      <div className="merdeka-budget-content space-y-6">
+        <nav className="merdeka-breadcrumb" aria-label="Breadcrumb"><a href="/">Dashboard</a><span aria-hidden="true">›</span><span aria-current="page">Budget Overview</span></nav>
         {/* Page Header */}
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-4 border-b">
+        <div className="merdeka-overview-heading flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-4 border-b">
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Budget Overview</h1>
             <p className="text-muted-foreground mt-1">
@@ -505,11 +524,12 @@ export default function BudgetOverview() {
               <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
               Refresh
             </Button>
-            <Button variant="outline" className="flex-1 lg:flex-none">
+            <Button variant="outline" onClick={handleExportReport} disabled={loading || !!error || budgetData.length === 0} className="flex-1 lg:flex-none">
               <Download className="h-4 w-4" />
               Export Report
             </Button>
             <Button
+              ref={createBudgetTrigger}
               onClick={() => setCreateDialogOpen(true)}
               className="flex-1 lg:flex-none"
               disabled={!canManageBudgets || isFiscalClosed || !activeFiscalYear}
@@ -521,29 +541,30 @@ export default function BudgetOverview() {
         </div>
 
         {/* Search and Filter Controls */}
-        <Card className="p-4">
+        <Card className="merdeka-budget-filters p-4">
           <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
             <div className="flex flex-col sm:flex-row gap-3 flex-1 w-full lg:w-auto">
-              <div className="relative flex-1 max-w-sm">
+              <div className="merdeka-budget-search relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
-                  placeholder="Search budgets by code, name, or category..."
+                  aria-label="Search budgets"
+                  placeholder="COA code, name, or category..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 pr-8"
                 />
+                {searchTerm && <button type="button" className="merdeka-search-clear" aria-label="Clear budget search" onClick={() => setSearchTerm('')}>×</button>}
               </div>
-              <Select 
-                value={selectedFiscalYear} 
+              <Select
+                value={selectedFiscalYear}
                 onValueChange={(value) => {
                   setSelectedFiscalYear(value);
-                  loadBudgetData({ fiscalYear: value });
                 }}
               >
-                <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectTrigger aria-label="Fiscal year" className="w-full sm:w-[150px]">
                   <SelectValue placeholder="Fiscal Year" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="merdeka-budget-popover">
                   <SelectItem value="all">All Years</SelectItem>
                   <SelectItem value="2026">2026</SelectItem>
                   <SelectItem value="2025">2025</SelectItem>
@@ -554,10 +575,10 @@ export default function BudgetOverview() {
                 </SelectContent>
               </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectTrigger aria-label="Budget status" className="w-full sm:w-[150px]">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="merdeka-budget-popover">
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="No Budget">No Budget</SelectItem>
                   <SelectItem value="On Track">On Track</SelectItem>
@@ -566,10 +587,10 @@ export default function BudgetOverview() {
                 </SelectContent>
               </Select>
               <Select value={expenseTypeFilter} onValueChange={setExpenseTypeFilter}>
-                <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectTrigger aria-label="Expense type" className="w-full sm:w-[150px]">
                   <SelectValue placeholder="Expense Type" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="merdeka-budget-popover">
                   <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="CAPEX">CAPEX</SelectItem>
                   <SelectItem value="OPEX">OPEX</SelectItem>
@@ -579,98 +600,8 @@ export default function BudgetOverview() {
           </div>
         </Card>
 
-        <div className="grid grid-cols-12 gap-4">
-          <Card className="col-span-12 md:col-span-6">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Fiscal Year Cut-Off</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-muted-foreground">
-                  Selected fiscal year
-                </div>
-                <Badge variant="outline">{activeFiscalYear ?? 'All Years'}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-muted-foreground">Status</div>
-                {isFiscalClosed ? (
-                  <Badge variant="destructive" className="flex items-center gap-1">
-                    <Lock className="h-3.5 w-3.5" />
-                    Closed
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary" className="flex items-center gap-1">
-                    <LockOpen className="h-3.5 w-3.5" />
-                    Open
-                  </Badge>
-                )}
-              </div>
-              {isFiscalClosed && (
-                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  Budget write actions are locked for FY {activeFiscalYear}.
-                </div>
-              )}
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={() => handleCutoffAction('close')}
-                  disabled={!canManageBudgets || cutoffActionLoading || !activeFiscalYear || isFiscalClosed}
-                >
-                  Close FY
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleCutoffAction('reopen')}
-                  disabled={!canReopenCutoff || cutoffActionLoading || !activeFiscalYear || !isFiscalClosed}
-                >
-                  Reopen FY
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="col-span-12 md:col-span-6">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">OPEX FY Import</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="text-sm text-muted-foreground">
-                Paste JSON array payload for OPEX rows.
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="opex-payload">Payload</Label>
-                <Textarea
-                  id="opex-payload"
-                  value={opexPayload}
-                  onChange={(event) => setOpexPayload(event.target.value)}
-                  rows={8}
-                  className="font-mono text-xs"
-                />
-              </div>
-              <Button
-                onClick={handleOpexImport}
-                disabled={!canManageBudgets || opexImporting || isFiscalClosed || !activeFiscalYear}
-                className="w-full"
-              >
-                <Upload className="h-4 w-4" />
-                Import OPEX Rows
-              </Button>
-              {opexImportResult && (
-                <div className="grid grid-cols-12 gap-2 rounded-md border p-3 text-sm">
-                  <div className="col-span-6">Inserted: {opexImportResult.insertedCount}</div>
-                  <div className="col-span-6">Updated: {opexImportResult.updatedCount}</div>
-                  <div className="col-span-6">Rejected: {opexImportResult.rejectedCount}</div>
-                  <div className="col-span-6">Total: {opexImportResult.totalRows}</div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
       {/* Summary Cards */}
-      <div className="grid grid-cols-12 gap-4 lg:gap-6">
+      <div className="merdeka-summary-grid merdeka-budget-metrics grid grid-cols-12 gap-4 lg:gap-6">
         <Card className="metric-card min-h-[120px] col-span-12 md:col-span-6 xl:col-span-3">
           <CardContent className="p-4 lg:p-6">
             <div className="flex items-center justify-between">
@@ -736,9 +667,37 @@ export default function BudgetOverview() {
         </Card>
       </div>
 
+      {/* Utilization Charts */}
+      <div className="grid grid-cols-12 gap-4 lg:gap-6 mb-6">
+        <UtilizationChart
+          title="CAPEX Utilization"
+          data={utilizationData}
+          expenseType="CAPEX"
+          className="min-h-[350px] col-span-12 xl:col-span-6"
+        />
+
+        <UtilizationChart
+          title="OPEX Utilization"
+          data={utilizationData}
+          expenseType="OPEX"
+          className="min-h-[350px] col-span-12 xl:col-span-6"
+        />
+      </div>
+
+
+
+      {/* Unallocated Budgets Section - Hidden per user request */}
+       {/* <UnallocatedBudgets
+         data={unallocatedBudgets}
+         loading={loading}
+       /> */}
+
+
+
+
       {activeFiscalYear && readinessData && (
         <Card>
-          <CardHeader className="pb-4">
+          <CardHeader className="merdeka-overview-card-header pb-4">
             <CardTitle className="text-lg">New Fiscal Year Readiness</CardTitle>
             <p className="text-sm text-muted-foreground">
               Mandatory HR / IT OPEX COAs for FY {readinessData.fiscalYear}. Missing budgets stay virtual with zero allocation until you create budget or approve carry forward.
@@ -772,8 +731,8 @@ export default function BudgetOverview() {
               </Card>
             </div>
 
-            <div className="overflow-x-auto">
-              <Table>
+            <div className="merdeka-budget-table-scroll" role="region" aria-label="Fiscal year readiness table" tabIndex={0}>
+              <Table className="merdeka-budget-table">
                 <TableHeader>
                   <TableRow>
                     <TableHead>COA</TableHead>
@@ -787,6 +746,7 @@ export default function BudgetOverview() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {readinessData.items.length === 0 && <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No mandatory budget lines found for this fiscal year.</TableCell></TableRow>}
                   {readinessData.items.map((item) => (
                     <TableRow key={item.coaId}>
                       <TableCell className="font-medium">{item.coaCode}</TableCell>
@@ -848,36 +808,9 @@ export default function BudgetOverview() {
         </Card>
       )}
 
-      {/* Utilization Charts */}
-      <div className="grid grid-cols-12 gap-4 lg:gap-6 mb-6">
-        <UtilizationChart
-          title="CAPEX Utilization"
-          data={utilizationData}
-          expenseType="CAPEX"
-          className="min-h-[350px] col-span-12 xl:col-span-6"
-        />
-        
-        <UtilizationChart
-          title="OPEX Utilization"
-          data={utilizationData}
-          expenseType="OPEX"
-          className="min-h-[350px] col-span-12 xl:col-span-6"
-        />
-      </div>
-
-
-
-      {/* Unallocated Budgets Section - Hidden per user request */}
-       {/* <UnallocatedBudgets 
-         data={unallocatedBudgets}
-         loading={loading}
-       /> */}
-
-
-
       {/* Budget Details Table */}
       <Card className="mt-6">
-        <CardHeader className="pb-4">
+        <CardHeader className="merdeka-overview-card-header pb-4">
           <CardTitle className="text-lg">Budget Details by Category</CardTitle>
           <p className="text-sm text-muted-foreground">
             {budgetData.length} budget{budgetData.length !== 1 ? 's' : ''} found
@@ -895,8 +828,8 @@ export default function BudgetOverview() {
               <span className="ml-2">{error}</span>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
+            <div className="merdeka-budget-table-scroll" ref={budgetDetailsRegion} role="region" aria-label="Budget details table" tabIndex={0}>
+              <Table className="merdeka-budget-table">
                 <TableHeader>
                   <TableRow className="border-b">
                     <TableHead className="min-w-[120px]">COA</TableHead>
@@ -927,7 +860,7 @@ export default function BudgetOverview() {
                       const totalAllocated = budget.GrandTotalAllocated || 0;
                       const totalSpent = budget.GrandTotalApproved || 0;
                       const remainingAmount = totalAllocated - totalSpent;
-                      
+
                       return (
                         <TableRow key={`${budget.PurchaseCostCode}-${index}`} className="hover:bg-muted/50">
                           <TableCell className="font-medium">{budget.PurchaseCostCode}</TableCell>
@@ -949,7 +882,7 @@ export default function BudgetOverview() {
                           <TableCell>
                             <span className={cn(
                               "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium",
-                              budget.ExpenseType === 'CAPEX' 
+                              budget.ExpenseType === 'CAPEX'
                                 ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                                 : budget.ExpenseType === 'OPEX'
                                 ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
@@ -975,8 +908,9 @@ export default function BudgetOverview() {
                                   {(budget.UtilizationPercentage || 0).toFixed(1)}%
                                 </span>
                               </div>
-                              <Progress 
-                                value={Math.min(budget.UtilizationPercentage || 0, 100)} 
+                              <Progress
+                                aria-label={`${budget.COAName} utilization ${(budget.UtilizationPercentage || 0).toFixed(1)} percent`}
+                                value={Math.max(0, Math.min(budget.UtilizationPercentage || 0, 100))}
                                 className={cn("h-2", getProgressColor(budget.UtilizationPercentage || 0))}
                               />
                             </div>
@@ -990,7 +924,7 @@ export default function BudgetOverview() {
                                   className="h-8 w-8 p-0"
                                   disabled={!canManageBudgets || isFiscalClosed}
                                 >
-                                  <span className="sr-only">Open menu</span>
+                                  <span className="sr-only">Actions for {budget.COAName || budget.PurchaseCostCode}</span>
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
@@ -1016,9 +950,101 @@ export default function BudgetOverview() {
         </CardContent>
       </Card>
 
+        <div className="merdeka-budget-governance grid grid-cols-12 gap-4">
+          <Card className="col-span-12 md:col-span-6">
+            <CardHeader className="merdeka-overview-card-header pb-3">
+              <CardTitle className="text-base">Fiscal Year Cut-Off</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Selected fiscal year
+                </div>
+                <Badge variant="outline">{activeFiscalYear ?? 'All Years'}</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">Status</div>
+                {isFiscalClosed ? (
+                  <Badge variant="destructive" className="flex items-center gap-1">
+                    <Lock className="h-3.5 w-3.5" />
+                    Closed
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="flex items-center gap-1">
+                    <LockOpen className="h-3.5 w-3.5" />
+                    Open
+                  </Badge>
+                )}
+              </div>
+              {isFiscalClosed && (
+                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  Budget write actions are locked for FY {activeFiscalYear}.
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => handleCutoffAction('close')}
+                  disabled={!canManageBudgets || cutoffActionLoading || !activeFiscalYear || isFiscalClosed}
+                >
+                  Close FY
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleCutoffAction('reopen')}
+                  disabled={!canReopenCutoff || cutoffActionLoading || !activeFiscalYear || !isFiscalClosed}
+                >
+                  Reopen FY
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="col-span-12 md:col-span-6">
+            <CardHeader className="merdeka-overview-card-header pb-3">
+              <CardTitle className="text-base">OPEX FY Import</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-sm text-muted-foreground">
+                Paste JSON array payload for OPEX rows.
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="opex-payload">Payload</Label>
+                <Textarea
+                  id="opex-payload"
+                  value={opexPayload}
+                  onChange={(event) => setOpexPayload(event.target.value)}
+                  rows={8}
+                  className="font-mono text-xs resize-none"
+                />
+              </div>
+              <Button
+                onClick={handleOpexImport}
+                disabled={!canManageBudgets || opexImporting || isFiscalClosed || !activeFiscalYear}
+                className="w-full"
+              >
+                <Upload className="h-4 w-4" />
+                Import OPEX Rows
+              </Button>
+              {opexImportResult && (
+                <div className="grid grid-cols-12 gap-2 rounded-md border p-3 text-sm">
+                  <div className="col-span-6">Inserted: {opexImportResult.insertedCount}</div>
+                  <div className="col-span-6">Updated: {opexImportResult.updatedCount}</div>
+                  <div className="col-span-6">Rejected: {opexImportResult.rejectedCount}</div>
+                  <div className="col-span-6">Total: {opexImportResult.totalRows}</div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+
       {/* Dialog Components */}
       <BudgetCreateDialog
         open={createDialogOpen}
+        returnFocusRef={createBudgetTrigger}
         onOpenChange={setCreateDialogOpen}
         onSuccess={handleBudgetCreated}
       />
@@ -1026,6 +1052,7 @@ export default function BudgetOverview() {
       {selectedBudget && (
         <BudgetEditDialog
           open={editDialogOpen}
+          returnFocusRef={budgetDetailsRegion}
           onOpenChange={setEditDialogOpen}
           budget={selectedBudget}
           onSuccess={handleBudgetUpdated}

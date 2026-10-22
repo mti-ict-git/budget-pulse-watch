@@ -171,7 +171,7 @@ export function COAForm({ initialData, onSuccess }: COAFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form noValidate onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2">
           <FormField
             control={form.control}
@@ -246,7 +246,7 @@ export function COAForm({ initialData, onSuccess }: COAFormProps) {
                       <SelectValue placeholder="Select parent account" />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent>
+                  <SelectContent className="merdeka-budget-popover">
                     <SelectItem value="none">No Parent</SelectItem>
                     {parentAccounts.map((account) => (
                       <SelectItem key={account.COAID} value={account.COAID.toString()}>
@@ -277,7 +277,7 @@ export function COAForm({ initialData, onSuccess }: COAFormProps) {
                       <SelectValue placeholder="Select expense type" />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent>
+                  <SelectContent className="merdeka-budget-popover">
                     <SelectItem value="OPEX">OPEX (Operating Expenses)</SelectItem>
                     <SelectItem value="CAPEX">CAPEX (Capital Expenses)</SelectItem>
                   </SelectContent>
@@ -302,7 +302,7 @@ export function COAForm({ initialData, onSuccess }: COAFormProps) {
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent>
+                  <SelectContent className="merdeka-budget-popover">
                     {departments.map((department) => (
                       <SelectItem key={department} value={department}>
                         {department}

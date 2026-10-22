@@ -8,7 +8,7 @@ This roadmap restores the formal phase tracker required by `AGENTS.md` and defin
 
 - Roadmap status: In Progress
 - Active phase: `Phase 13B - Operational Intelligence`
-- Last updated: `2026-08-05`
+- Last updated: `2026-10-22`
 
 ## Historical Delivery Context
 
@@ -322,7 +322,7 @@ Allow an authorized user to reread a stored OCR Source, review item-level differ
 - [x] Normalize Title, Description, summary, and Required For deterministically from active item rows
 - [x] Show raw OCR header values beside normalized proposals before optional header apply
 - [x] Keep single-document and per-page OCR prompts semantically equivalent
-- [ ] Expose every unmatched existing item with an explicit Keep or Mark Cancelled reconciliation choice
+- [x] Expose every unmatched existing item with an explicit Keep or Mark Cancelled reconciliation choice
 - [ ] Generate contextual semantic Title and Description separately from literal item specifications and Project Area
 - [x] Update `docs/openapi.yaml` and policy documentation
 - [ ] Complete build/typecheck and end-to-end rescan verification
@@ -333,6 +333,7 @@ Allow an authorized user to reread a stored OCR Source, review item-level differ
 - Missing item cost codes can be reviewed and applied without recreating the PRF
 - Unmatched existing items remain intact unless handled manually outside the rescan workflow
 - Short area labels such as `AIM` are preserved as `ProjectArea` and are not reused as the user-facing description
+- Rescan apply is bound to the exact server-generated preview snapshot rather than trusting client-edited OCR payloads
 - Unmatched historical items are never hard-deleted by rescan; an authorized user may explicitly mark them Cancelled with audit evidence
 
 ### Challenge / Verification
@@ -346,6 +347,7 @@ Allow an authorized user to reread a stored OCR Source, review item-level differ
 - `git diff --check` passed
 - Backend TypeScript build passed using the Visual Studio Node runtime
 - Frontend production build passed (`vite build`, 1,804 modules transformed)
+- Rescan reconciliation now exposes explicit per-item decisions for matched OCR rows and unmatched existing rows; automatic position-based matching was removed
 - Targeted ESLint passed for `OCRRescanDialog`, `PRFDocuments`, and `PRFFileExplorer`
 - Backend typecheck, targeted rescan UI lint, and production build were rerun successfully after item-status detection and total reconciliation were added
 - Full frontend TypeScript check remains blocked by three pre-existing errors in `BudgetOverview.tsx` and `Dashboard.tsx`; no rescan-file TypeScript errors were reported
@@ -604,3 +606,143 @@ No phase should be marked complete until:
 - challenge / verification evidence is explicitly recorded
 - related documentation is synchronized
 - `docs/openapi.yaml` is updated whenever backend contract behavior changes
+
+
+## Merdeka UI workstream — first slice (2026-10-22)
+
+Status: UI slice implemented and browser-verified locally. Phase 13B remains In Progress.
+
+### Objective and sources
+
+Match authenticated shell, PRF Monitoring and one detail dialog to the approved
+merdeka-frontend template while preserving existing data/permission handlers.
+Sources: AGENTS.md, README.md, docs/project-onboarding.md, docs/openapi.yaml,
+docs/budget-control-policy.md, installed Merdeka skill and bundled source patterns.
+
+### Checklist
+
+- [x] Vendor assets copied unchanged; namespaced generated adapter avoids utility collisions
+- [x] Shell and mobile drawer adapted; logo and collapse preference verified
+- [x] PRF table/filter/pager and detail panel adapted; API contracts unchanged
+- [x] Search/pager reset bug and stale list request race corrected within PRF view
+- [x] IAB desktop/phone interaction checks and screenshots recorded
+- [x] DESIGN.md, UX-CONTRACT.md and docs/merdeka-ui-rollout.md maintained
+- [x] Frontend TypeScript baseline errors resolved in the second UI slice
+- [ ] Legacy application-wide static-UX debt remains outside the UI rollout
+
+### Output and challenge / verification
+
+Production build and changed-file lint passed. Browser checks include filtering,
+no-results/clear, page 2 stability, expansion, selection, detail Escape/Close,
+sidebar persistence, mobile drawer focus and synthetic 503/Retry recovery.
+Evidence and limitations: docs/merdeka-ui-rollout.md and artifacts/merdeka-ui/.
+No backend deployment, production authentication, sync/upload/delete UAT or full
+Phase 13B completion is claimed. docs/openapi.yaml reviewed; no contract change.
+
+
+## Merdeka UI workstream — Dashboard / Budget slice (2026-10-22)
+
+Status: implemented and locally verified. Phase 13B remains In Progress.
+
+### Objective and source documents
+
+Continue the approved Merdeka v2 design on Dashboard and Budget Overview while
+preserving budget calculations, HR / IT scope, fiscal-year governance and API
+handlers. Sources: DESIGN.md, UX-CONTRACT.md, docs/project-onboarding.md,
+docs/budget-control-policy.md, docs/historical-budget-governance.md,
+docs/openapi.yaml and the installed merdeka-frontend dashboard template.
+
+### Checklist
+
+- [x] Source-style metric tiles, Dashboard budget ring/panels and alerts
+- [x] Budget filters, summary, utilization, readiness and detail tables
+- [x] Retained cut-off/import/carry-forward controls and server contracts
+- [x] Budget create/edit styling, COA popup, keyboard and return focus
+- [x] Visible-row CSV export and filter-preserving refresh
+- [x] Superseded request guard and frontend TypeScript baseline corrections
+- [x] Desktop/phone success, empty, no-results, error, closed-year checks in IAB
+- [x] DESIGN/UX contract and rollout evidence maintained
+
+### Output and challenge / verification
+
+Frontend typecheck, full lint (zero errors/eight existing warnings), production
+build and vendor asset checks passed. Browser UAT covered refresh, navigation,
+filters, CSV, create validation, edit population, Escape/Cancel, popup geometry,
+closed-year gating and phone-local scrolling. Strict static audit retained 52
+legacy/heuristic findings; whole-product UX compliance is not claimed.
+
+Evidence: docs/merdeka-ui-rollout.md and
+artifacts/merdeka-ui/overview-verification.json. No live mutation or release UAT
+is claimed. OpenAPI reviewed; this UI slice required no backend contract change.
+
+
+## Merdeka UI workstream - COA / Reports slice (2026-10-22)
+
+Status: implemented and locally verified. Phase 13B remains In Progress.
+
+### Objective and source documents
+
+Extend captured Merdeka v2 styling to COA Management and Reports/Audit Log while
+preserving mandatory COA governance and existing service handlers. Sources:
+DESIGN.md, UX-CONTRACT.md, docs/project-onboarding.md, budget governance documents,
+docs/openapi.yaml and installed Merdeka Employee Master/table/dialog patterns.
+
+### Checklist
+
+- [x] Shared summary cards, compact master table, filters and bulk toolbar
+- [x] COA create/edit/detail/menu/confirmation styling and protected baseline rules
+- [x] Honest page-local counts, filter page resets, eligible selection and Retry
+- [x] Audit Log styling, applied search, request aborts and server pagination
+- [x] IAB desktop/390px, loading/empty/error recovery and keyboard dialog checks
+- [x] Typecheck/lint/build/vendor checks and design/behavior/evidence documentation
+
+### Output and challenge / verification
+
+See docs/merdeka-ui-rollout.md and artifacts/merdeka-ui/coa-reports-verification.json.
+Typecheck/build pass; lint zero errors/eight existing warnings. Strict audit legacy
+and heuristic findings remain documented. OpenAPI reviewed: no backend contract
+changes. No production mutation, sync, authentication or deployment UAT is claimed.
+
+
+## Merdeka UI workstream - PRF refinement (2026-10-22)
+
+Status: implemented and verified locally against original backend. Phase 13B
+remains In Progress. Sources: user browser comments, DESIGN.md, UX-CONTRACT.md,
+Merdeka Employee Master/table reference and existing PRF contracts.
+
+- [x] Default-collapsed accessible Filters, retained state and active count
+- [x] Source-style compact identity/badges/actions and 56px table rows
+- [x] Sticky table header and desktop column offsets; tablet/phone local scroll
+- [x] IAB original-backend search/selection/expansion/detail checks
+- [x] TypeScript, changed-file lint, production build and evidence documentation
+
+Output/evidence: docs/merdeka-ui-rollout.md and
+artifacts/merdeka-ui/prf-refinement-verification.json. Mutation operations were
+not submitted, and no commit/push/deployment was performed.
+
+
+## Merdeka UI workstream - selected-item workspace / option C (2026-10-22)
+
+Status: implemented and locally verified. Phase 13B remains In Progress.
+
+### Objective and sources
+
+Implement the user-approved option C with a full-width initial list and an item
+panel only after selection. Sources: selected mockup, DESIGN.md, UX-CONTRACT.md,
+existing PRF/item service contracts, project onboarding and governance documents.
+
+### Checklist
+
+- [x] ID-based panel state, current-data resolution, Close/Escape/focus behavior
+- [x] Independent table scroll, compact shared toolbar and responsive stacked panes
+- [x] Retained all-page item view, complete columns and all existing action handlers
+- [x] Item table with secondary metadata and original edit dialog/update handler
+- [x] Original-backend browser navigation/dialog checks and fixture failure/empty UAT
+- [x] TypeScript, full lint, production build, static audit and evidence documentation
+
+### Output and verification
+
+Evidence and limitations: docs/merdeka-ui-rollout.md and
+artifacts/merdeka-ui/prf-split-verification.json. Strict audit legacy findings remain
+documented. No new API or backend changes; no mutation policy/currency change.
+User will test live mutations before Git push. No commit or push was performed.

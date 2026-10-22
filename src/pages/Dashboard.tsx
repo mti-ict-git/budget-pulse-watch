@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
   FileText,
@@ -9,7 +10,8 @@ import {
   Clock,
   TrendingUp,
   AlertTriangle,
-  DollarSign
+  DollarSign,
+  RefreshCw
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -238,14 +240,14 @@ export default function Dashboard() {
   const metrics = [
     {
       title: `Total PRFs (${currentYear})`,
-      value: dashboardMetrics?.prfs.totalPRFs ?? 0,
-      change: `${dashboardMetrics?.prfs.rejectedPRFs ?? 0} rejected`,
-      changeType: ((dashboardMetrics?.prfs.rejectedPRFs ?? 0) > 0 ? "negative" : "neutral") as const,
+      value: dashboardMetrics ? dashboardMetrics.prfs.totalPRFs : "—",
+      change: dashboardMetrics ? `${dashboardMetrics.prfs.rejectedPRFs} rejected` : "Awaiting data",
+      changeType: ((dashboardMetrics?.prfs.rejectedPRFs ?? 0) > 0 ? "negative" as const : "neutral" as const),
       icon: FileText
     },
     {
       title: "Approved PRFs",
-      value: dashboardMetrics?.prfs.approvedPRFs ?? 0,
+      value: dashboardMetrics ? dashboardMetrics.prfs.approvedPRFs : "—",
       change: dashboardMetrics
         ? `${dashboardMetrics.prfs.totalPRFs > 0 ? Math.round((dashboardMetrics.prfs.approvedPRFs / dashboardMetrics.prfs.totalPRFs) * 100) : 0}% approval rate`
         : "-",
@@ -254,44 +256,46 @@ export default function Dashboard() {
     },
     {
       title: "Pending PRFs",
-      value: dashboardMetrics?.prfs.pendingPRFs ?? 0,
+      value: dashboardMetrics ? dashboardMetrics.prfs.pendingPRFs : "—",
       change: `${overBudgetPRFs.length} over budget`,
-      changeType: (overBudgetPRFs.length > 0 ? "negative" : "neutral") as const,
+      changeType: (overBudgetPRFs.length > 0 ? "negative" as const : "neutral" as const),
       icon: Clock
     },
     {
       title: "Budget Utilization",
-      value: `${Math.round(Number(dashboardMetrics?.budget.overallUtilization ?? 0))}%`,
-      change: `Remaining ${formatCurrency(Number(dashboardMetrics?.budget.totalRemaining ?? 0))}`,
+      value: dashboardMetrics ? `${Math.round(Number(dashboardMetrics.budget.overallUtilization))}%` : "—",
+      change: dashboardMetrics ? `Remaining ${formatCurrency(Number(dashboardMetrics.budget.totalRemaining))}` : "Awaiting data",
       changeType: "neutral" as const,
       icon: TrendingUp
     }
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="merdeka-dashboard merdeka-overview space-y-6" aria-busy={dashboardLoading}>
+      <nav className="merdeka-breadcrumb" aria-label="Breadcrumb"><span aria-current="page">Dashboard</span></nav>
       {/* Page Header */}
-      <div>
+      <div className="merdeka-overview-heading">
         <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground">
           Monitor your purchase orders and budget utilization
         </p>
+        <Button variant="outline" className="merdeka-dashboard-refresh" disabled={dashboardLoading || budgetSummaryLoading || recentPRFsLoading || alertsLoading} onClick={() => { void fetchDashboardMetrics(); void fetchBudgetSummary(); void fetchRecentPRFs(); void fetchAlerts(); }}><RefreshCw className={cn("h-4 w-4", dashboardLoading && "animate-spin")} />Refresh dashboard</Button>
         {dashboardError && (
-          <p className="text-sm text-destructive mt-2">{dashboardError}</p>
+          <p role="alert" className="text-sm text-destructive mt-2">{dashboardError}</p>
         )}
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="merdeka-summary-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {metrics.map((metric, index) => (
-          <MetricCard key={index} {...metric} />
+          <MetricCard key={metric.title} {...metric} className={`merdeka-tone-${["blue", "green", "amber", "violet"][index]}`} />
         ))}
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="merdeka-dashboard-panels grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Budget Utilization */}
-        <Card className="dashboard-card">
+        <Card className="dashboard-card merdeka-dashboard-utilization">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <DollarSign className="h-5 w-5 text-primary" />
@@ -299,6 +303,12 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {dashboardMetrics && !dashboardLoading && (
+              <div className="merdeka-budget-total">
+                <div><p className="text-xs text-muted-foreground">Total available budget · FY {currentYear}</p><p className="merdeka-budget-total-value">{formatCurrency(dashboardMetrics.budget.totalBudget)}</p><p className="text-xs text-muted-foreground">Spent {formatCurrency(dashboardMetrics.budget.totalSpent)}</p></div>
+                <div className="merdeka-utilization-ring" role="img" aria-label={`Overall budget utilization ${Math.round(dashboardMetrics.budget.overallUtilization)} percent`} style={{ background: `conic-gradient(var(--mdka-blue-600) ${Math.max(0, Math.min(dashboardMetrics.budget.overallUtilization, 100))}%, var(--mdka-gray-100) 0)` }}><span>{Math.round(dashboardMetrics.budget.overallUtilization)}<small>%</small></span></div>
+              </div>
+            )}
             {budgetSummaryLoading ? (
               <p className="text-sm text-muted-foreground">Loading budget utilization...</p>
             ) : budgetSummaryError ? (
@@ -311,7 +321,8 @@ export default function Dashboard() {
                   <span className="text-muted-foreground">{Math.round(Number(row.UtilizationPercentage))}%</span>
                 </div>
                 <Progress 
-                  value={Number(row.UtilizationPercentage)} 
+                  aria-label={`${row.Category || row.ExpenseType} utilization ${Math.round(Number(row.UtilizationPercentage))} percent`}
+                  value={Math.max(0, Math.min(100, Number(row.UtilizationPercentage)))}
                   className="h-2"
                 />
                 <div className="flex justify-between text-xs text-muted-foreground">
@@ -328,7 +339,8 @@ export default function Dashboard() {
                   <span className="text-muted-foreground">{Math.round(Number(category.utilization))}%</span>
                 </div>
                 <Progress 
-                  value={Number(category.utilization)} 
+                  aria-label={`${category.expenseType} utilization ${Math.round(Number(category.utilization))} percent`}
+                  value={Math.max(0, Math.min(100, Number(category.utilization)))}
                   className="h-2"
                 />
                 <div className="flex justify-between text-xs text-muted-foreground">
@@ -344,7 +356,7 @@ export default function Dashboard() {
         </Card>
 
         {/* Recent PRFs */}
-        <Card className="dashboard-card">
+        <Card className="dashboard-card merdeka-recent-panel">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
@@ -361,7 +373,7 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground">No recent PRFs available.</p>
               ) : (
                 recentPRFs.map((prf) => (
-                  <div key={prf.id} className="flex items-center justify-between p-3 border border-border rounded-lg">
+                  <div key={prf.id} className="merdeka-recent-row flex items-center justify-between p-3 border border-border rounded-lg">
                     <div className="space-y-1">
                       <p className="font-medium text-sm">{prf.id}</p>
                       <p className="text-xs text-muted-foreground">
@@ -381,7 +393,7 @@ export default function Dashboard() {
       </div>
 
       {/* Alerts Section */}
-      <Card className="dashboard-card border-warning/20 bg-warning/5">
+      <Card className="dashboard-card merdeka-alerts-panel border-warning/20 bg-warning/5">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-warning">
             <AlertTriangle className="h-5 w-5" />
