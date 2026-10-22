@@ -63,3 +63,31 @@ Local validation confirmed both changed final OCR UPDATE templates execute again
 the same configured production SQL host/database with zero affected rows and rollback.
 Production metadata confirmed the audit table and ProjectArea already exist, so no
 schema migration is part of this release. Full external AI OCR/apply is not exercised.
+
+## Verified release outcome — 2026-10-22
+
+Application revision: 869fe2af883dbad9928a51fe88108e6354dab5a0, published to main
+and deployed through existing SSH to the production Docker Compose project.
+Only frontend/backend were recreated, using verified candidates without rebuilding.
+
+- Frontend image: sha256:cdf855e7a8d7e026eed4e4d668f0f0e606a42a4eab62d50ba61ee34380a8ff75.
+- Backend image: sha256:88817888627e489b5f4fa5b2734a93361bcaae9da5b45284ca0695303f2e2c86.
+- Both running images carry the application revision label and report healthy.
+- Public HTTPS https://pomon.merdekabattery.com/, JS/CSS, logo and font returned 200
+  with certificate verification; frontend/API health and proxy checks passed.
+- Unauthenticated OCR apply was rejected with 401. No live OCR extraction/apply or
+  business mutation was performed; these remain authenticated user acceptance tests.
+- Runtime Compose/env checksums and backend mount destinations/sources are unchanged.
+  Actual CIFS mount and configured nested document root were verified after restart.
+- pronto_sync retains its original container and image; no schema migration ran.
+- Production browser reload rendered the sign-in page successfully. No authenticated
+  production session was available; protected workflows were checked locally against
+  the configured real backend before release, not claimed as production browser UAT.
+
+Private server evidence: /root/budget-pulse-watch/artifacts/releases/869fe2af883dbad9928a51fe88108e6354dab5a0
+(build.status READY, activation.status VERIFIED, verification.json, build/activation
+logs, baseline and protected configuration checkpoint). Keep private checkpoint files
+out of Git. Rollback references are retained as budget-pulse-watch-frontend and
+budget-pulse-watch-backend with tag rollback-869fe2af883dbad9928a51fe88108e6354dab5a0.
+Rollback was not exercised. Subsequent documentation-only commits do not change the
+running image revision and do not require a rebuild.

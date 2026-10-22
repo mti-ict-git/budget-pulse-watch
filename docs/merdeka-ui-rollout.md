@@ -306,3 +306,12 @@ commit or push. Evidence: artifacts/merdeka-ui/prf-split-verification.json and
 prf-option-c-live.png; artifacts/merdeka-prf-split-{lint,build,audit}.log / audit JSON.
 The original item modification dialog's existing USD display is retained; this
 layout work does not change stored currency or conversion rules.
+
+Release update (2026-10-22): the prior no-push/no-deploy restriction above describes
+pre-release verification and was superseded by explicit user publication approval.
+Merdeka UI/option C and the explicitly included OCR changes are now published and
+running at application revision 869fe2af883dbad9928a51fe88108e6354dab5a0.
+Frontend/backend health, exact image revisions, public TLS/assets, unchanged runtime
+configuration/mounts and retained Pronto worker passed. Production browser rendered
+sign-in; authenticated production business/OCR apply remains user UAT. See
+[deployment evidence](deployment-and-environment.md#verified-release-outcome--2026-10-22).
