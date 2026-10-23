@@ -828,3 +828,5 @@ Sources: visual review, Merdeka skill, DESIGN/UX contract and budget governance 
 No business writes during QA. No API change or Git/deployment publication.
 
 OCR release (2026-10-23): commit 5b0e6ba deployed backend-only; image/revision health, API proxy, TLS and protected CIFS storage verified; frontend/worker retained. Evidence: docs/releases/2026-10-23-ocr-rescan.md. Phase 13B remains In Progress; live AI/UAT not claimed.
+
+Merdeka frontend publication (2026-10-23): completed Pomon Work changes committed/pushed, final frontend image revision 821eca3 deployed and healthy. Production IAB confirmed new login with MBM/MTI logos; API/public assets/TLS verified. Backend OCR and worker retained; Phase 13B remains In Progress. Evidence: docs/releases/2026-10-23-merdeka-frontend.md.

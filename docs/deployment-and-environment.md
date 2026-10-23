@@ -96,3 +96,8 @@ running image revision and do not require a rebuild.
 ## Backend-only OCR release — 2026-10-23
 
 Backend deployed at `5b0e6ba00f5ca52217413cda9e69d4ba9672f37a`; healthy with proxy, public TLS and protected storage verified. Frontend and worker retained. No schema or business-data changes. See [release evidence](releases/2026-10-23-ocr-rescan.md) for image IDs, tests and rollback references. Subsequent documentation commits do not change the running image.
+
+
+## Complete Merdeka frontend release — 2026-10-23
+
+Frontend now runs `821eca390d542770c6b2ae6161648ddc63407118`, healthy and publicly verified with the new Merdeka login/MBM+MTI logos. Completed Pomon Work UI changes are included. Backend remains `5b0e6ba00f5ca52217413cda9e69d4ba9672f37a`; worker retained. See [frontend release evidence](releases/2026-10-23-merdeka-frontend.md). No API/schema/data changes.
