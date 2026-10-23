@@ -164,3 +164,12 @@ Output report ditulis ke `ARTIFACTS_DIR`:
 - Mapping item Pronto ↔ POMON bergantung pada `part code` dan fallback match berdasarkan `Description`. Jika deskripsi duplikat atau berubah, ada risiko mapping salah.
 - Data Pronto bisa terlambat update atau snapshot tidak konsisten; guardrail status mencegah regression, tetapi field non-status masih bisa berubah bila datanya berubah di source.
 - Sync items melakukan update per item; performa dipengaruhi jumlah PRF kandidat dan jumlah item per PRF.
+
+
+### OCR rescan validation correction — 2026-10-23
+- Rescan must identify the selected PRF number and at least one existing item when items already exist. Entirely different item sets are blocked rather than proposed as additions.
+- Quantities must be positive integers; prices/totals must be finite nonnegative numbers. Each line must reconcile within one currency unit. Printed total must match all rows or active rows (for visible cancellations). Missing values are not silently guessed. Ambiguous existing item-code matches block rescan.
+- Cancellation requires both an explicit visual mark and evidence reason. Confidence is not a substitute for validation.
+- Preview and apply both enforce these checks (HTTP 422). Signed previews bind source SHA-256 and the existing item snapshot; changed sources/items require refresh (409), including old tokens without provenance.
+- Stored source bytes must match recorded file size and PDF signature. PDF page extraction rejects mixed PRF identifiers; exceeding render limits falls back to whole-document OCR instead of silently omitting pages. Prompts explicitly forbid invented item codes/products and non-item notes.
+- No existing FIFO item is removed by this correction. Its original creation path remains unproven. Validation cannot guarantee every AI transcription is accurate; source review remains necessary.

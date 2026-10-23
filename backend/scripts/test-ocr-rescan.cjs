@@ -1,0 +1,40 @@
+// Isolated route regression: all file/model/AI dependencies are stubbed; no DB or AI calls.
+require('ts-node/register/transpile-only');
+const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const { PRFModel } = require('../src/models/PRF');
+const { PRFFilesModel } = require('../src/models/PRFFiles');
+const { ocrService } = require('../src/services/ocrService');
+const db = require('../src/config/database');
+const sql = require('mssql');
+const jwt = require('jsonwebtoken');
+let writes = 0;
+db.getPool = () => new sql.ConnectionPool({server:'unused',database:'unused'});
+sql.Transaction.prototype.begin = async () => { writes++; throw new Error('Unexpected transaction'); };
+const originalRead = fs.readFile;
+let bytes = Buffer.from('%PDF-1.4 test-source');
+fs.readFile = async (path, ...args) => String(path).endsWith('test-source.pdf') ? bytes : originalRead(path, ...args);
+const item = {PRFItemID:1, ItemCode:'5998-03-331602', ItemName:'Modul Relay WIFI ESP-12F ESP82', Quantity:1, UnitPrice:140000};
+let existing = [item];
+PRFModel.findById = async () => ({PRFID:18301,PRFNo:'52726'});
+PRFModel.getItems = async () => existing;
+PRFFilesModel.getById = async () => ({FileID:21213,PRFID:18301,FilePath:'/test-source.pdf',FileSize:bytes.length,MimeType:'application/pdf',OriginalFileName:'52726.pdf',IsOriginalDocument:true});
+ocrService.isEnabled = async () => true;
+let extraction = {prfNo:'52726',confidence:.98,totalAmount:140000,items:[{partNumber:item.ItemCode,description:item.ItemName,quantity:1,unitPrice:140000,totalPrice:140000}]};
+ocrService.extractPRFData = async () => extraction;
+const router = require('../src/routes/ocrPrfRoutes').default;
+const handler = suffix => router.stack.find(l => l.route?.path === `/rescan/:prfId/file/:fileId/${suffix}`).route.stack.at(-1).handle;
+async function call(suffix, body={}) { let status=200, data; const res={status(n){status=n;return this},json(v){data=v;return this}}; await handler(suffix)({params:{prfId:'18301',fileId:'21213'},user:{UserID:4},body},res);return {status,data}; }
+(async()=>{
+ const preview = await call('preview'); assert.equal(preview.status,200); const token=preview.data.data.previewToken;
+ existing=[{...item,Quantity:2}]; assert.equal((await call('apply',{previewToken:token})).status,409); existing=[item];
+ bytes=Buffer.from('%PDF-1.4 other-bytes'); assert.equal((await call('apply',{previewToken:token})).status,409); bytes=Buffer.from('%PDF-1.4 test-source');
+ extraction={...extraction,totalAmount:14262000,items:[{partNumber:'GSM-001',description:'GSM Module',quantity:10,unitPrice:104500,totalPrice:1045000}]};
+ const invalid=await call('preview'); assert.equal(invalid.status,422); assert.equal(invalid.data.data,undefined);
+ const decoded=jwt.decode(token); delete decoded.iat; delete decoded.exp; decoded.extractedData=extraction;
+ const secret=process.env.OCR_RESCAN_PREVIEW_SECRET||process.env.JWT_SECRET||'your-secret-key-change-in-production';
+ assert.equal((await call('apply',{previewToken:jwt.sign(decoded,secret,{expiresIn:'15m'})})).status,422);
+ delete decoded.sourceHash;
+ assert.equal((await call('apply',{previewToken:jwt.sign(decoded,secret,{expiresIn:'15m'})})).status,400);
+ assert.equal(writes,0); console.log('Rescan route regression passed: invalid preview/apply, changed source/items and legacy tokens rejected before any transaction');
+})().catch(e=>{console.error(e);process.exitCode=1});

@@ -355,9 +355,11 @@ paths:
           schema: { type: integer }
       responses:
         '200':
-          description: Rescan preview with matching proposals, per-item status evidence, total reconciliation, and preserved existing items
+          description: Validated rescan preview bound to source SHA-256 and existing item snapshot. Old previews must be refreshed.
         '400':
           description: Invalid source or request
+        '422':
+          description: Unsafe OCR extraction (missing/mismatched PRF, invalid row arithmetic, unreconciled totals, ambiguous matching, or no existing item overlap); no changes applied
         '404':
           description: PRF or selected source document not found
         '503':
@@ -421,7 +423,11 @@ paths:
         '200':
           description: Selected changes applied and audited
         '400':
-          description: Invalid approval payload or expired/invalid preview token
+          description: Invalid approval payload or expired/invalid/legacy preview token
+        '409':
+          description: Source bytes or existing PRF items changed since preview; refresh required
+        '422':
+          description: Unsafe OCR extraction (missing/mismatched PRF, invalid row arithmetic, unreconciled totals, ambiguous matching, or no existing item overlap); no changes applied
         '404':
           description: PRF or selected source document not found
 

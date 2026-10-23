@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import { validateRescanExtraction as validate } from './rescanValidation';
+import type { ExtractedPRFData } from './ocrService';
+const existing = [{ ItemCode: '5998-03-331602', ItemName: 'Modul Relay WIFI ESP-12F ESP82', Quantity: 1 }, { ItemCode: '9908-04-189688', ItemName: 'FIFO Domestik MBM', Quantity: 1 }];
+const row = { partNumber: '5998-03-331602', description: existing[0].ItemName, quantity: 1, unitPrice: 140000, totalPrice: 140000 };
+const valid: ExtractedPRFData = { prfNo: '52726', confidence: .98, totalAmount: 140000, items: [row] };
+assert.deepEqual(validate(valid, '52726', existing), []);
+assert.equal(valid.items!.length, 1); // unmatched existing FIFO must not become an extracted item
+assert.ok(validate({...valid, prfNo:'52733'}, '52726', existing).length);
+assert.ok(validate({...valid, prfNo:undefined}, '52726', existing).length);
+const wrong = {...valid, totalAmount:14262000, items:[{partNumber:'GSM-001',description:'GSM Module 4G LTE',quantity:10,unitPrice:104500,totalPrice:1045000},{partNumber:'LAP-005',description:'Laptop Core i5',quantity:5,unitPrice:6500000,totalPrice:32500000}]};
+assert.ok(validate(wrong,'52726',existing).some(e=>e.includes('None of the scanned')));
+assert.ok(validate(wrong,'52726',existing).some(e=>e.includes('Document total')));
+assert.ok(validate({...wrong,totalAmount:33545000},'52726',existing).some(e=>e.includes('None of the scanned')));
+assert.ok(validate({...valid,items:[{...row,totalPrice:100}]},'52726',existing).some(e=>e.includes('unit price')));
+for (const quantity of [undefined,0,-1,1.5,NaN]) assert.ok(validate({...valid,items:[{...row,quantity}]},'52726',existing).length);
+assert.ok(validate({...valid,items:[]},'52726',existing).length);
+assert.ok(validate(valid,'52726',[existing[0],existing[0]]).some(e=>e.includes('ambiguous')));
+const crossed = {...row, partNumber:'cancelled', description:'Cancelled item',unitPrice:100,totalPrice:100,status:'Cancelled' as const,isStruckThrough:true,statusReason:'Crossed out'};
+assert.deepEqual(validate({...valid,items:[row,crossed]},'52726',existing),[]);
+assert.deepEqual(validate({...valid,totalAmount:140100,items:[row,crossed]},'52726',existing),[]);
+assert.ok(validate({...valid,items:[row,{...crossed,isStruckThrough:false}]},'52726',existing).some(e=>e.includes('visual evidence')));
+console.log('Rescan validation regression checks passed');

@@ -16,6 +16,10 @@ import { authenticateToken, requireContentManager } from '../middleware/auth';
 import { getPool } from '../config/database';
 import sql from 'mssql';
 import jwt from 'jsonwebtoken';
+import { createHash } from 'crypto';
+import { validateRescanExtraction } from '../services/rescanValidation';
+
+const rescanHash = (value: Buffer | string): string => createHash('sha256').update(value).digest('hex');
 
 const router = express.Router();
 
@@ -81,6 +85,8 @@ type PreservedItemDecision = {
 
 type RescanPreviewSnapshotPayload = {
   kind: 'ocr-rescan-preview';
+  sourceHash: string;
+  itemsHash: string;
   prfId: number;
   fileId: number;
   userId: number;
@@ -107,6 +113,8 @@ const verifyRescanPreviewToken = (token: string): RescanPreviewSnapshotPayload =
   const candidate = decoded as Partial<RescanPreviewSnapshotPayload>;
   if (
     candidate.kind !== 'ocr-rescan-preview' ||
+    typeof candidate.sourceHash !== 'string' ||
+    typeof candidate.itemsHash !== 'string' ||
     !Number.isInteger(candidate.prfId) ||
     !Number.isInteger(candidate.fileId) ||
     !Number.isInteger(candidate.userId) ||
@@ -119,6 +127,8 @@ const verifyRescanPreviewToken = (token: string): RescanPreviewSnapshotPayload =
 
   return {
     kind: 'ocr-rescan-preview',
+    sourceHash: candidate.sourceHash,
+    itemsHash: candidate.itemsHash,
     prfId: Number(candidate.prfId),
     fileId: Number(candidate.fileId),
     userId: Number(candidate.userId),
@@ -270,7 +280,10 @@ const readStoredPRFFile = async (file: PRFFile): Promise<Buffer> => {
   let lastError: unknown;
   for (const candidate of candidates) {
     try {
-      return await fs.readFile(candidate);
+      const buffer = await fs.readFile(candidate);
+      if (Number(file.FileSize) > 0 && buffer.length !== Number(file.FileSize)) throw new Error('Source file size differs from stored metadata');
+      if ((file.MimeType === 'application/pdf' || file.FileType?.toLowerCase() === 'pdf') && !buffer.subarray(0, 1024).includes(Buffer.from('%PDF-'))) throw new Error('Selected source is not a valid PDF');
+      return buffer;
     } catch (error) {
       lastError = error;
     }
@@ -654,6 +667,13 @@ router.post('/rescan/:prfId/file/:fileId/preview', authenticateToken, requireCon
 
     const buffer = await readStoredPRFFile(file);
     const extractedData = await ocrService.extractPRFData(buffer, ocrMimeType);
+    const validationErrors = validateRescanExtraction(extractedData, String(prf.PRFNo), existingItems);
+    if (validationErrors.length) {
+      return res.status(422).json({ success: false,
+        message: `Unsafe OCR result for ${file.OriginalFileName}: ${validationErrors.join(' ')}`,
+        validationErrors, file: { FileID: file.FileID, OriginalFileName: file.OriginalFileName }
+      });
+    }
     const { proposals, preservedItems } = buildRescanProposals(
       existingItems as ExistingRescanItem[],
       extractedData.items || []
@@ -662,6 +682,8 @@ router.post('/rescan/:prfId/file/:fileId/preview', authenticateToken, requireCon
     const cancelledCount = (extractedData.items || []).filter(isScannedCancelled).length;
     const previewToken = signRescanPreviewToken({
       kind: 'ocr-rescan-preview',
+      sourceHash: rescanHash(buffer),
+      itemsHash: rescanHash(JSON.stringify(existingItems)),
       prfId,
       fileId,
       userId: req.user.UserID,
@@ -751,6 +773,7 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
     if (!req.user) return res.status(401).json({ success: false, message: 'Authentication required' });
 
     let extractedData: ExtractedPRFData;
+    let approvedSnapshot: RescanPreviewSnapshotPayload;
     try {
       const snapshot = verifyRescanPreviewToken(previewToken);
       if (snapshot.prfId !== prfId || snapshot.fileId !== fileId) {
@@ -760,6 +783,7 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
         return res.status(403).json({ success: false, message: 'Rescan preview token belongs to a different user' });
       }
       extractedData = snapshot.extractedData;
+      approvedSnapshot = snapshot;
     } catch (error) {
       const message =
         error instanceof Error && error.name === 'TokenExpiredError'
@@ -791,6 +815,14 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
       existingItems as ExistingRescanItem[],
       extractedItems
     );
+    const validationErrors = validateRescanExtraction(extractedData, String(prf.PRFNo), existingItems);
+    if (validationErrors.length) {
+      return res.status(422).json({ success: false, message: validationErrors.join(' '), validationErrors });
+    }
+    if (approvedSnapshot.sourceHash !== rescanHash(await readStoredPRFFile(file)) ||
+        approvedSnapshot.itemsHash !== rescanHash(JSON.stringify(existingItems))) {
+      return res.status(409).json({ success: false, message: 'Source document or PRF items changed. Refresh preview before applying.' });
+    }
     const fallbackHeaderCostCode = normalizeOptionalText(prf.PurchaseCostCode);
     const fallbackBudgetYear = prf.BudgetYear ?? new Date().getFullYear();
     const decisionByIndex = new Map<number, RescanProposalDecision['action']>();

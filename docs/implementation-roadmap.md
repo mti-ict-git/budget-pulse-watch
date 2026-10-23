@@ -779,3 +779,6 @@ Output/challenge evidence and limits: docs/merdeka-ui-rollout.md. Real-backend U
 reads and open/cancel only; no business writes, Git publish or deployment.
 
 Merdeka UI follow-up (2026-10-22): [x] sidebar logo/watermark fit and removal of PRF Test OneDrive diagnostics. TypeScript/lint and IAB expanded/collapsed checks passed; evidence in docs/merdeka-ui-rollout.md. Phase 13B remains In Progress; no backend/API change.
+
+
+OCR rescan follow-up (2026-10-23), Phase 13B: backend extraction validation, source/snapshot binding and PDF completeness guards implemented. Regression checks pass for wrong PRF, zero item overlap, screenshot-style totals, missing/invalid quantities, ambiguous matching and cancellation reconciliation. Backend typecheck passed (`node node_modules/typescript/bin/tsc --noEmit`). Isolated route regressions passed (`node scripts/test-ocr-rescan.cjs`): invalid preview/apply, stale source/items and legacy tokens rejected before any transaction. Pure validation tests passed (`node -r ts-node/register src/services/rescanValidation.test.ts`). Live PDF OCR has not been re-run; original source/AI mismatch root cause remains unproven. OpenAPI reviewed/updated (422/409). No PRF data repair, sync, commit, push or deployment performed.
