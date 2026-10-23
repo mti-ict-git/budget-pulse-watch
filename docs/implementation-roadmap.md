@@ -836,3 +836,5 @@ OCR native PDF follow-up (2026-10-23), Phase 13B: reproduced PRF 54123 image OCR
 OCR native PDF verification (2026-10-23): after explicit user authorization, read-only OpenAI retest on original PRF 54123 matched all 19 rows including part/cost codes, quantities/prices/totals/statuses; total 54,904,429, UPS 6,600,000. Header/item hashes unchanged. Candidate remains uncommitted/undeployed; no apply or data repair. Phase 13B still In Progress.
 
 Native PDF OCR release requested (2026-10-23): backend-only publication authorized after PRF 54123 read-only verification. Scope excludes scan apply, PRF repair and schema changes; frontend/Pronto worker must be retained. OpenAPI reviewed: no request/response contract change.
+
+Native PDF OCR release verified (2026-10-23): 995d607 published and deployed backend-only, healthy; final image offline regressions/API proxy/TLS/CIFS checks passed. Frontend/worker retained, PRF 54123 and 52726 hashes unchanged. No scan apply/data repair/migration. Evidence: docs/releases/2026-10-23-native-pdf-ocr.md. Phase 13B remains In Progress.

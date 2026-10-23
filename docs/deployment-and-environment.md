@@ -101,3 +101,8 @@ Backend deployed at `5b0e6ba00f5ca52217413cda9e69d4ba9672f37a`; healthy with pro
 ## Complete Merdeka frontend release — 2026-10-23
 
 Frontend now runs `821eca390d542770c6b2ae6161648ddc63407118`, healthy and publicly verified with the new Merdeka login/MBM+MTI logos. Completed Pomon Work UI changes are included. Backend remains `5b0e6ba00f5ca52217413cda9e69d4ba9672f37a`; worker retained. See [frontend release evidence](releases/2026-10-23-merdeka-frontend.md). No API/schema/data changes.
+
+
+## Native-text PDF OCR release — 2026-10-23
+
+Backend now runs `995d6071b0670ae46c01ee262dcae690f1144530`, healthy and verified. Frontend remains `821eca390d542770c6b2ae6161648ddc63407118`; worker retained. PRF 54123 and 52726 response hashes unchanged across deployment; no scan apply or data/schema changes. See [release evidence](releases/2026-10-23-native-pdf-ocr.md).
