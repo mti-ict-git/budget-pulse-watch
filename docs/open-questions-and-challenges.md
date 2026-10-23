@@ -150,3 +150,5 @@ This document records unresolved business and implementation questions that must
 - Existing PRFs are corrected through rescan preview and explicit header approval; no blind bulk overwrite is allowed.
 - Unmatched existing items default to Keep and may be explicitly marked Cancelled during rescan; hard deletion remains outside the OCR workflow.
 - Semantic descriptions should express procurement purpose (quantity/category/beneficiary) and must not merely duplicate a long item specification.
+
+PRF 54123 candidate native-text+image OCR verified after explicit external-provider approval: all 19 source rows now match, with no PRF writes. Printed 19-row total 54,904,429 is correct; image OCR misread UPS by 300,000 and multiple identifiers. Existing 28 database items need separate origin/reconciliation audit; do not auto-delete them.
