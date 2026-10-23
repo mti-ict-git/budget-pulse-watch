@@ -80,7 +80,7 @@ export function COADetailsModal({ account, open, onOpenChange }: COADetailsModal
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="merdeka-budget-dialog merdeka-coa-dialog merdeka-coa-details max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="merdeka-budget-dialog merdeka-coa-dialog merdeka-coa-details merdeka-finance-dialog max-w-4xl">
         <DialogHeader className="merdeka-budget-dialog-header">
           <DialogTitle className="flex items-center gap-2">
             <span>{account.COACode} - {account.COAName}</span>

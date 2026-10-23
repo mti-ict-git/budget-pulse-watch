@@ -240,3 +240,39 @@ Part: value supply the part column only when ItemCode is absent. No data is save
 by this presentation fallback. Narrow screens keep the wide table in its scroller.
 
 Sidebar refinement: header brand scales down only when space requires it; collapse control remains fixed. Watermark is bounded and anchored 24px above the bottom. Canonical assets are unchanged.
+
+PRF inline panel entry uses 240ms ease-out width/fade/slide on desktop and fade/vertical slide when stacked. Reduced motion disables it; modal motion remains Radix-owned.
+
+Animation revision: PRF panel entry/exit now uses transform/opacity only, 8px and 160ms. Avoid animating width because it repeatedly lays out the wide tables. This supersedes the 240ms width reveal. Reduced motion disables both.
+
+Item workspace header includes compact Export Excel in panel and modal; retain source control density and shared toast feedback. Scope follows displayed PRFs/current page and is stated on the button title.
+
+Excel item reports use blue title/header, alternating neutral rows, Calibri 11, numeric prices, wrapping and frozen header rows. Styling is XLSX-only and does not change app theme tokens. ExcelJS is loaded only during export.
+
+User-provided MTI corporate SVG is paired beside MBM on login and stacked below MBM in expanded sidebar/drawer. Sidebar compact mode retains MBM symbol. Original SVG bytes/colors remain unchanged.
+
+Sidebar pair update: MBM 92x30 and MTI 84x30 share a horizontal row with centered alignment and 8px gap. This replaces stacked sidebar logos; login and collapsed symbol unchanged.
+
+Watermark clarification: full sidebar width (240/80px), bottom 0, no padding, original MBM symbol at .06 opacity. Header logos retain approved compact inline pair 92/84px. This supersedes footer/primary-logo experiments during review.
+
+## Settings / Create PRF long-form variant (2026-10-23)
+
+Both pages now use merdeka-form-page and the dedicated Settings/Create subclasses.
+Reuse gray card headers, 22px page headings, 14px section titles, 34px field density,
+blue underline tabs and 16px panel spacing. OCR model options with two visible lines
+use 48px fields intentionally. Portal SelectContent uses merdeka-form-popover with
+trigger-matched width; dialog uses merdeka-form-dialog. All tokens come from the
+captured Merdeka adapter; no vendor declarations change.
+
+Mobile Settings tabs wrap to two rows, Create PRF Back/title stacks, and inner
+manual fields become one column. Full forms retain natural vertical scrolling,
+with bottom clearance for the assistant. Native Role select stays platform-owned.
+
+## Budget and COA finance variant (2026-10-23)
+Budget currency cards reserve a complete amount row at laptop widths (1200–1599px),
+with compact icons beside labels; four cards fit without digit wrapping. Wider
+screens retain the source icon/amount composition; tablets use two columns and
+phones one. Container-relative type scales within the existing Merdeka adapter.
+COA uses compact metrics/governance/filter headers with every field still visible.
+Finance dialogs reuse Radix and merdeka-finance-dialog/form/body/footer: bounded
+viewport, fixed header/action row, internally scrolling fields. Vendor CSS unchanged.

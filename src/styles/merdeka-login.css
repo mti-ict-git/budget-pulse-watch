@@ -107,3 +107,12 @@
 @media (forced-colors: active) {
   .merdeka-login-thumbnails button[aria-pressed=true] { border: 2px solid Highlight; }
 }
+
+.merdeka-login-brand { align-items: center; gap: 18px; padding-inline: 28px; }
+.merdeka-login-brand img { width: 160px; height: 45px; min-width: 0; }
+.merdeka-login-brand img.merdeka-login-mti-logo { width: 138px; height: 30px; }
+@media (max-width: 480px) {
+  .merdeka-login-brand { gap: 12px; padding-inline: 20px; }
+  .merdeka-login-brand img { width: 140px; }
+  .merdeka-login-brand img.merdeka-login-mti-logo { width: 120px; }
+}

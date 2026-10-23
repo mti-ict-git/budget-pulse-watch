@@ -294,6 +294,9 @@ export default function PRFMonitoring() {
   const [activePRFId, setActivePRFId] = useState<string | null>(null);
   const [allItemsOpen, setAllItemsOpen] = useState(false);
   const [itemsModalOpen, setItemsModalOpen] = useState(false);
+  const [itemsClosing, setItemsClosing] = useState(false);
+  const itemsCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (itemsCloseTimer.current) clearTimeout(itemsCloseTimer.current); }, []);
   const [showAllColumns, setShowAllColumns] = useState(false);
   const listRegion = useRef<HTMLDivElement>(null);
   const lastItemTrigger = useRef<HTMLElement | null>(null);
@@ -702,23 +705,39 @@ export default function PRFMonitoring() {
     if (!loading && !error && activePRFId && !prfData.some(prf => prf.id === activePRFId)) setActivePRFId(null);
   }, [prfData, activePRFId, loading, error]);
 
+  const cancelItemsClose = () => {
+    if (itemsCloseTimer.current) clearTimeout(itemsCloseTimer.current);
+    itemsCloseTimer.current = null;
+    setItemsClosing(false);
+  };
+
   const closeItemsPanel = () => {
-    setItemsModalOpen(false);
-    setActivePRFId(null);
-    setAllItemsOpen(false);
+    if (itemsClosing) return;
+    const finish = () => {
+      itemsCloseTimer.current = null;
+      setItemsClosing(false);
+      setItemsModalOpen(false);
+      setActivePRFId(null);
+      setAllItemsOpen(false);
+    };
+    if (panelOpen && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setItemsClosing(true);
+      itemsCloseTimer.current = setTimeout(finish, 160);
+    } else finish();
     requestAnimationFrame(() => {
       if (lastItemTrigger.current?.isConnected) lastItemTrigger.current.focus();
       else listRegion.current?.focus();
     });
   };
-
   const toggleRowExpansion = (prfId: string, trigger?: HTMLElement) => {
+    cancelItemsClose();
     lastItemTrigger.current = trigger ?? null;
     setAllItemsOpen(false);
     setActivePRFId(prfId);
   };
 
   const expandAllRows = () => {
+    cancelItemsClose();
     lastItemTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setAllItemsOpen(true);
     setActivePRFId(null);
@@ -1516,7 +1535,7 @@ export default function PRFMonitoring() {
         </CardContent>
       </Card>
       {panelOpen && (
-        <PRFItemsPanel onExpand={() => setItemsModalOpen(true)} prfs={panelPRFs} allItems={allItemsOpen} loading={loading} error={error} onClose={closeItemsPanel} onRetry={fetchPRFData} onEdit={handleItemModification} statusBadge={getStatusBadge} formatCurrency={formatCurrency} getCOAName={getCOAName} />
+        <PRFItemsPanel closing={itemsClosing} onExpand={() => { cancelItemsClose(); setItemsModalOpen(true); }} prfs={panelPRFs} allItems={allItemsOpen} loading={loading} error={error} onClose={closeItemsPanel} onRetry={fetchPRFData} onEdit={handleItemModification} statusBadge={getStatusBadge} formatCurrency={formatCurrency} getCOAName={getCOAName} />
       )}
       </div>
 

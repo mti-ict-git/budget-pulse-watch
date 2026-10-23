@@ -352,7 +352,7 @@ export default function COAManagement() {
   const departments = [...new Set(accounts.map(acc => acc.Department).filter(Boolean))];
 
   return (
-    <div className="merdeka-overview merdeka-coa space-y-5">
+    <div className="merdeka-overview merdeka-coa merdeka-coa-compact space-y-5">
       {/* Header */}
       <div className="merdeka-page-heading flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -369,7 +369,7 @@ export default function COAManagement() {
               Add Account
             </Button>
           </DialogTrigger>
-          <DialogContent className="merdeka-budget-dialog merdeka-coa-dialog max-w-2xl">
+          <DialogContent className="merdeka-budget-dialog merdeka-coa-dialog merdeka-finance-dialog max-w-2xl">
             <DialogHeader className="merdeka-budget-dialog-header">
               <DialogTitle>Create New Account</DialogTitle>
               <DialogDescription>
@@ -425,7 +425,7 @@ export default function COAManagement() {
       </Card>
 
       {/* Filters */}
-      <Card>
+      <Card className="merdeka-coa-filter-card">
         <CardHeader>
           <CardTitle>Filters</CardTitle>
         </CardHeader>
@@ -803,7 +803,7 @@ export default function COAManagement() {
 
       {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="merdeka-budget-dialog merdeka-coa-dialog max-w-2xl">
+        <DialogContent className="merdeka-budget-dialog merdeka-coa-dialog merdeka-finance-dialog max-w-2xl">
           <DialogHeader className="merdeka-budget-dialog-header">
             <DialogTitle>Edit Account</DialogTitle>
             <DialogDescription>

@@ -199,3 +199,34 @@ continues through the existing modification dialog and update handler. Its optio
 onCloseAutoFocus hook restores the edit trigger in the expanded dialog; nested
 Escape closes the topmost dialog. No approval, mutation, currency, status, API or
 permission rules change. Data source remains docs/openapi.yaml PRF/items responses.
+
+PRF item export: shared src/lib/exportPrfItems.ts owns XLSX rows from the currently displayed workspace. Scope is one selected PRF or all current-page items, independent of bulk checkboxes. Header Export Excel is disabled for loading/error/empty/closing. Existing SheetJS writes local download; no server writes or auth policy change. API source remains docs/openapi.yaml item responses. Numeric prices stay numbers, codes stay strings; parent/item statuses are separate fields.
+
+Styled export variant uses the same row mapping with ExcelJS writing styles/tables/frozen panes. Busy button and ref guard prevent duplicate export while the writer loads. Numeric/text identities and export scope remain unchanged; no financial conversion or new server calls.
+
+## Merdeka long forms — Settings and Create PRF
+
+Existing page components/handlers remain the business owners. Shared Input/Label,
+Button, Radix Tabs/Select and Dialog own interaction; scoped form classes own
+presentation. Settings/Create-user and Edit-user now use Radix overlays with
+first-field focus, keyboard trap, Escape/backdrop and initiating-button restoration.
+User field labels reference inputs; account options and permissions are unchanged.
+Role select remains the native variant (platform popup accepted). Existing token
+modal is styled but no token is generated in visual QA.
+
+Create PRF retains OCR/manual submit, uploads, native validation and item arithmetic.
+No financial/currency policy is inferred from the visual migration. Keyboard labels
+added to Priority and item removal; dropdown width matches its field. Tab layout
+may wrap on narrow screens while Radix retains arrow-key navigation. No table-size
+height constraint is imposed on either long form; the application content scroller
+owns the page and longer dialogs scroll internally. Sources: docs/openapi.yaml and
+existing auth/OCR/PRF contracts. No backend contract changes.
+
+## Budget / COA visual audit follow-up (2026-10-23)
+Existing finance services, validation, cutoff/import/carry-forward safeguards,
+mandatory baseline protection, search/filter/paging/selection and saves remain
+owned by existing handlers. This batch changes presentation and dialog scroll
+ownership only. merdeka-finance-form keeps its submit owner while the body scrolls;
+the footer stays visible. Radix retains Escape, focus trap and trigger restoration.
+No currency conversion or budget/account policy changed. UI QA on the real backend
+performs reads and invalid empty-form validation only; no business mutation.

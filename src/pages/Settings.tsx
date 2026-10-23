@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -221,6 +221,7 @@ interface ADUser {
 }
 
 const Settings: React.FC = () => {
+  const userDialogReturnFocus = useRef<HTMLElement | null>(null);
   const { user } = useAuth();
   
   // All useState hooks must be called before any early returns
@@ -324,15 +325,15 @@ const Settings: React.FC = () => {
 
   if (!user || user.role !== 'admin') {
     return (
-      <div className="container mx-auto p-6">
+      <div className="merdeka-form-page merdeka-settings">
         <Card className="max-w-md mx-auto">
-          <CardHeader>
+          <CardHeader className="merdeka-form-card-header">
             <CardTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-red-500" />
               Access Denied
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="merdeka-form-card-body">
             <Alert>
               <AlertDescription>
                 You do not have permission to access the Settings page. Only administrators can access system settings.
@@ -1323,8 +1324,8 @@ const Settings: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
-      <div className="mb-6">
+    <div className="merdeka-form-page merdeka-settings">
+      <div className="merdeka-form-page-heading">
         <h1 className="text-3xl font-bold">Settings</h1>
         <p className="text-muted-foreground mt-2">
           Configure application settings and integrations
@@ -1332,7 +1333,7 @@ const Settings: React.FC = () => {
       </div>
 
       <Tabs defaultValue="ocr" className="space-y-6">
-        <TabsList>
+        <TabsList className="merdeka-form-tabs" aria-label="Settings sections">
           <TabsTrigger value="ocr">OCR Configuration</TabsTrigger>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="pronto">Pronto Sync</TabsTrigger>
@@ -1346,22 +1347,22 @@ const Settings: React.FC = () => {
 
         <TabsContent value="ocr">
           <Card>
-            <CardHeader>
+            <CardHeader className="merdeka-form-card-header">
               <CardTitle>OCR Document Processing</CardTitle>
               <CardDescription>
                 Configure OCR settings for automatic PRF creation from uploaded documents.
                 Choose between Google Gemini Vision API or OpenAI Vision API for text extraction.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="merdeka-form-card-body space-y-6">
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="provider">OCR Provider</Label>
                   <Select value={ocrSettings.provider} onValueChange={handleProviderChange}>
-                    <SelectTrigger>
+                    <SelectTrigger id="provider">
                       <SelectValue placeholder="Select OCR provider" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="merdeka-form-popover">
                       <SelectItem value="gemini">Google Gemini Vision API</SelectItem>
                       <SelectItem value="openai">OpenAI Vision API</SelectItem>
                     </SelectContent>
@@ -1393,6 +1394,8 @@ const Settings: React.FC = () => {
                         variant="ghost"
                         size="sm"
                         className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                        aria-pressed={showApiKey}
                         onClick={() => void toggleApiKeyVisibility()}
                         disabled={isRevealingApiKey}
                       >
@@ -1444,7 +1447,9 @@ const Settings: React.FC = () => {
                             variant="ghost"
                             size="sm"
                             className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                            onClick={() => void toggleApiKeyVisibility()}
+                            aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                        aria-pressed={showApiKey}
+                        onClick={() => void toggleApiKeyVisibility()}
                             disabled={isRevealingApiKey}
                           >
                             {showApiKey ? (
@@ -1473,10 +1478,10 @@ const Settings: React.FC = () => {
                 <div className="space-y-2">
                   <Label htmlFor="model">{ocrSettings.provider === 'openai' ? 'OpenAI Model' : 'Gemini Model'}</Label>
                   <Select value={ocrSettings.model} onValueChange={handleModelChange}>
-                    <SelectTrigger>
+                    <SelectTrigger id="model">
                       <SelectValue placeholder={`Select a ${ocrSettings.provider === 'openai' ? 'OpenAI' : 'Gemini'} model`} />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="merdeka-form-popover">
                       {ocrSettings.provider === 'gemini' ? (
                         <>
                           <SelectItem value="gemini-1.5-flash">
@@ -1557,13 +1562,13 @@ const Settings: React.FC = () => {
 
         <TabsContent value="general">
           <Card>
-            <CardHeader>
+            <CardHeader className="merdeka-form-card-header">
               <CardTitle>General Settings</CardTitle>
               <CardDescription>
                 Configure general application settings including shared folder paths for file monitoring.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="merdeka-form-card-body space-y-6">
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="shared-folder-path">Shared Folder Path</Label>
@@ -1742,13 +1747,13 @@ const Settings: React.FC = () => {
 
         <TabsContent value="pronto">
           <Card>
-            <CardHeader>
+            <CardHeader className="merdeka-form-card-header">
               <CardTitle>Pronto Sync</CardTitle>
               <CardDescription>
                 Configure automated synchronization from Pronto to PRF Monitoring without blocking the main backend.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="merdeka-form-card-body space-y-6">
               {prontoSettings.apply && (
                 <Alert variant="destructive">
                   <AlertDescription>
@@ -1798,13 +1803,13 @@ const Settings: React.FC = () => {
               )}
 
               <Card>
-                <CardHeader>
+                <CardHeader className="merdeka-form-card-header">
                   <CardTitle>Time Verification</CardTitle>
                   <CardDescription>
                     Compare client time vs backend server time vs database time to confirm timezone and clock drift.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="merdeka-form-card-body space-y-4">
                   <div className="flex flex-wrap gap-2">
                     <Button onClick={checkServerTime} disabled={isCheckingTime} variant="outline">
                       {isCheckingTime ? 'Checking...' : 'Check Time Now'}
@@ -1957,7 +1962,7 @@ const Settings: React.FC = () => {
                       <SelectTrigger id="pronto-timezone">
                         <SelectValue placeholder="Select time zone" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="merdeka-form-popover">
                         {[
                           ...PRONTO_TIME_ZONES,
                           ...(PRONTO_TIME_ZONES.some((z) => z.value === prontoSettings.timeZone) || prontoSettings.timeZone.trim().length === 0
@@ -2117,7 +2122,7 @@ const Settings: React.FC = () => {
           <TabsContent value="users">
             <div className="space-y-6">
               <Tabs defaultValue="local" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="merdeka-form-tabs" aria-label="User account source">
                   <TabsTrigger value="local">Local Users</TabsTrigger>
                   <TabsTrigger value="ldap">LDAP Users</TabsTrigger>
                 </TabsList>
@@ -2125,13 +2130,13 @@ const Settings: React.FC = () => {
                 <TabsContent value="local" className="space-y-6">
                   {/* Local User Management */}
                   <Card>
-                    <CardHeader>
+                    <CardHeader className="merdeka-form-card-header">
                       <CardTitle className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Users className="h-5 w-5" />
                           Local Users ({localUsers.length})
                         </div>
-                        <Button onClick={() => setShowCreateUserModal(true)}>
+                        <Button onClick={(event) => { userDialogReturnFocus.current = event.currentTarget; setShowCreateUserModal(true); }}>
                           <UserPlus className="h-4 w-4 mr-2" />
                           Create User
                         </Button>
@@ -2140,7 +2145,7 @@ const Settings: React.FC = () => {
                         Manage local user accounts and their permissions.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="merdeka-form-card-body">
                       {localUsers.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
                           <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -2181,7 +2186,7 @@ const Settings: React.FC = () => {
                                 </div>
                                 <div className="flex items-center space-x-2">
                                   <Button
-                                    onClick={() => setEditingUser({ ...localUser, Password: '' })}
+                                    onClick={(event) => { userDialogReturnFocus.current = event.currentTarget; setEditingUser({ ...localUser, Password: '' }); }}
                                     variant="outline"
                                     size="sm"
                                   >
@@ -2221,7 +2226,7 @@ const Settings: React.FC = () => {
                 <TabsContent value="ldap" className="space-y-6">
                   {/* LDAP Connection Test */}
                   <Card>
-                    <CardHeader>
+                    <CardHeader className="merdeka-form-card-header">
                       <CardTitle className="flex items-center gap-2">
                         <Shield className="h-5 w-5" />
                         LDAP Connection
@@ -2230,7 +2235,7 @@ const Settings: React.FC = () => {
                         Test the connection to your Active Directory server.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="merdeka-form-card-body">
                       <Button
                         onClick={testLDAPConnection}
                         disabled={isTestingLDAP}
@@ -2244,7 +2249,7 @@ const Settings: React.FC = () => {
 
               {/* Search AD Users */}
               <Card>
-                <CardHeader>
+                <CardHeader className="merdeka-form-card-header">
                   <CardTitle className="flex items-center gap-2">
                     <Search className="h-5 w-5" />
                     Search Active Directory
@@ -2253,7 +2258,7 @@ const Settings: React.FC = () => {
                     Search for users in Active Directory to grant access.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="merdeka-form-card-body space-y-4">
                   <div className="flex space-x-2">
                     <Input
                       placeholder="Search by username, name, or email..."
@@ -2295,7 +2300,7 @@ const Settings: React.FC = () => {
                                 <SelectTrigger className="w-24">
                                   <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="merdeka-form-popover">
                                   <SelectItem value="user">User</SelectItem>
                                   <SelectItem value="doccon">DocCon</SelectItem>
                                   <SelectItem value="admin">Admin</SelectItem>
@@ -2320,7 +2325,7 @@ const Settings: React.FC = () => {
 
               {/* Current LDAP Users */}
               <Card>
-                <CardHeader>
+                <CardHeader className="merdeka-form-card-header">
                   <CardTitle className="flex items-center gap-2">
                     <Users className="h-5 w-5" />
                     Users with Access ({ldapUsers.length})
@@ -2329,7 +2334,7 @@ const Settings: React.FC = () => {
                     Active Directory users who have been granted access to the system.
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="merdeka-form-card-body">
                   {ldapUsers.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -2373,7 +2378,7 @@ const Settings: React.FC = () => {
                                 <SelectTrigger className="w-24">
                                   <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="merdeka-form-popover">
                                   <SelectItem value="user">User</SelectItem>
                                   <SelectItem value="doccon">DocCon</SelectItem>
                                   <SelectItem value="admin">Admin</SelectItem>
@@ -2404,14 +2409,15 @@ const Settings: React.FC = () => {
         
         {/* Create User Modal */}
         {showCreateUserModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-4">Create New User</h3>
+          <Dialog open={showCreateUserModal} onOpenChange={open => { if (!open) setShowCreateUserModal(false); }}>
+            <DialogContent className="merdeka-form-dialog" onCloseAutoFocus={event => { event.preventDefault(); userDialogReturnFocus.current?.focus(); }}>
+              <DialogHeader><DialogTitle>Create New User</DialogTitle><DialogDescription>Manage local account details and access.</DialogDescription></DialogHeader>
+              <div className="merdeka-user-dialog-body">
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">First Name</label>
-                    <input
+                    <label className="block text-sm font-medium mb-1" htmlFor="create-user-first-name">First Name</label>
+                    <input id="create-user-first-name"
                       type="text"
                       value={newUser.FirstName}
                       onChange={(e) => setNewUser({...newUser, FirstName: e.target.value})}
@@ -2420,8 +2426,8 @@ const Settings: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Last Name</label>
-                    <input
+                    <label className="block text-sm font-medium mb-1" htmlFor="create-user-last-name">Last Name</label>
+                    <input id="create-user-last-name"
                       type="text"
                       value={newUser.LastName}
                       onChange={(e) => setNewUser({...newUser, LastName: e.target.value})}
@@ -2431,8 +2437,8 @@ const Settings: React.FC = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Username</label>
-                  <input
+                  <label className="block text-sm font-medium mb-1" htmlFor="create-user-username">Username</label>
+                  <input id="create-user-username"
                     type="text"
                     value={newUser.Username}
                     onChange={(e) => setNewUser({...newUser, Username: e.target.value})}
@@ -2441,8 +2447,8 @@ const Settings: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Email</label>
-                  <input
+                  <label className="block text-sm font-medium mb-1" htmlFor="create-user-email">Email</label>
+                  <input id="create-user-email"
                     type="email"
                     value={newUser.Email}
                     onChange={(e) => setNewUser({...newUser, Email: e.target.value})}
@@ -2451,8 +2457,8 @@ const Settings: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Password</label>
-                  <input
+                  <label className="block text-sm font-medium mb-1" htmlFor="create-user-password">Password</label>
+                  <input id="create-user-password"
                     type="password"
                     value={newUser.Password}
                     onChange={(e) => setNewUser({...newUser, Password: e.target.value})}
@@ -2461,8 +2467,8 @@ const Settings: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Department</label>
-                  <input
+                  <label className="block text-sm font-medium mb-1" htmlFor="create-user-department">Department</label>
+                  <input id="create-user-department"
                     type="text"
                     value={newUser.Department}
                     onChange={(e) => setNewUser({...newUser, Department: e.target.value})}
@@ -2471,8 +2477,8 @@ const Settings: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Role</label>
-                  <select
+                  <label className="block text-sm font-medium mb-1" htmlFor="create-user-role">Role</label>
+                  <select id="create-user-role"
                     value={newUser.Role}
                     onChange={(e) => setNewUser({...newUser, Role: e.target.value as 'admin' | 'doccon' | 'user'})}
                     className="w-full px-3 py-2 border rounded-md"
@@ -2505,20 +2511,22 @@ const Settings: React.FC = () => {
                   Create User
                 </Button>
               </div>
-            </div>
-          </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         )}
         
         {/* Edit User Modal */}
         {editingUser && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-4">Edit User</h3>
+          <Dialog open={!!editingUser} onOpenChange={open => { if (!open) setEditingUser(null); }}>
+            <DialogContent className="merdeka-form-dialog" onCloseAutoFocus={event => { event.preventDefault(); userDialogReturnFocus.current?.focus(); }}>
+              <DialogHeader><DialogTitle>Edit User</DialogTitle><DialogDescription>Manage local account details and access.</DialogDescription></DialogHeader>
+              <div className="merdeka-user-dialog-body">
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">First Name</label>
-                    <input
+                    <label className="block text-sm font-medium mb-1" htmlFor="edit-user-first-name">First Name</label>
+                    <input id="edit-user-first-name"
                       type="text"
                       value={editingUser.FirstName}
                       onChange={(e) => setEditingUser({...editingUser, FirstName: e.target.value})}
@@ -2526,8 +2534,8 @@ const Settings: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Last Name</label>
-                    <input
+                    <label className="block text-sm font-medium mb-1" htmlFor="edit-user-last-name">Last Name</label>
+                    <input id="edit-user-last-name"
                       type="text"
                       value={editingUser.LastName}
                       onChange={(e) => setEditingUser({...editingUser, LastName: e.target.value})}
@@ -2536,8 +2544,8 @@ const Settings: React.FC = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Username</label>
-                  <input
+                  <label className="block text-sm font-medium mb-1" htmlFor="edit-user-username">Username</label>
+                  <input id="edit-user-username"
                     type="text"
                     value={editingUser.Username}
                     onChange={(e) => setEditingUser({...editingUser, Username: e.target.value})}
@@ -2545,8 +2553,8 @@ const Settings: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Email</label>
-                  <input
+                  <label className="block text-sm font-medium mb-1" htmlFor="edit-user-email">Email</label>
+                  <input id="edit-user-email"
                     type="email"
                     value={editingUser.Email}
                     onChange={(e) => setEditingUser({...editingUser, Email: e.target.value})}
@@ -2554,8 +2562,8 @@ const Settings: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Department</label>
-                  <input
+                  <label className="block text-sm font-medium mb-1" htmlFor="edit-user-department">Department</label>
+                  <input id="edit-user-department"
                     type="text"
                     value={editingUser.Department || ''}
                     onChange={(e) => setEditingUser({...editingUser, Department: e.target.value})}
@@ -2563,8 +2571,8 @@ const Settings: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Role</label>
-                  <select
+                  <label className="block text-sm font-medium mb-1" htmlFor="edit-user-role">Role</label>
+                  <select id="edit-user-role"
                     value={editingUser.Role}
                     onChange={(e) => setEditingUser({...editingUser, Role: e.target.value as 'admin' | 'doccon' | 'user'})}
                     className="w-full px-3 py-2 border rounded-md"
@@ -2575,8 +2583,8 @@ const Settings: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">New Password (leave blank to keep current)</label>
-                  <input
+                  <label className="block text-sm font-medium mb-1" htmlFor="edit-user-new-password-leave-blank-to-keep-current">New Password (leave blank to keep current)</label>
+                  <input id="edit-user-new-password-leave-blank-to-keep-current"
                     type="password"
                     value={editingUser.Password || ''}
                     onChange={(e) => setEditingUser({...editingUser, Password: e.target.value})}
@@ -2596,13 +2604,14 @@ const Settings: React.FC = () => {
                   Update User
                 </Button>
               </div>
-            </div>
-          </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         )}
       </Tabs>
 
       <Dialog open={showTokenModal} onOpenChange={setShowTokenModal}>
-        <DialogContent>
+        <DialogContent className="merdeka-form-dialog">
           <DialogHeader>
             <DialogTitle>New API Token</DialogTitle>
             <DialogDescription>

@@ -171,7 +171,8 @@ export function COAForm({ initialData, onSuccess }: COAFormProps) {
 
   return (
     <Form {...form}>
-      <form noValidate onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form noValidate onSubmit={form.handleSubmit(onSubmit)} className="merdeka-finance-form">
+        <div className="merdeka-finance-form-body space-y-4">
         <div className="grid gap-4 md:grid-cols-2">
           <FormField
             control={form.control}
@@ -368,7 +369,8 @@ export function COAForm({ initialData, onSuccess }: COAFormProps) {
           )}
         />
 
-        <div className="flex justify-end space-x-2">
+        </div>
+        <div className="merdeka-finance-form-footer flex justify-end gap-2">
           <Button type="submit" disabled={loading}>
             {loading ? 'Saving...' : (initialData ? 'Update Account' : 'Create Account')}
           </Button>

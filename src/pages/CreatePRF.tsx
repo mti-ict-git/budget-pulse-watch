@@ -362,10 +362,10 @@ const CreatePRF: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="merdeka-form-page merdeka-create space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="merdeka-form-page-heading">
+        <div className="merdeka-create-title">
           <Button
             variant="ghost"
             size="sm"
@@ -412,7 +412,7 @@ const CreatePRF: React.FC = () => {
       {/* Main Content */}
       {!createdPRF ? (
         <Tabs defaultValue="ocr" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="merdeka-form-tabs" aria-label="Create PRF method">
             <TabsTrigger value="ocr" className="flex items-center gap-2">
               <Zap className="h-4 w-4" />
               OCR Upload
@@ -425,7 +425,7 @@ const CreatePRF: React.FC = () => {
           
           <TabsContent value="ocr" className="space-y-6">
             <Card>
-              <CardHeader>
+              <CardHeader className="merdeka-form-card-header">
                 <CardTitle className="flex items-center gap-2">
                   <Upload className="h-5 w-5" />
                   OCR Document Upload
@@ -435,8 +435,8 @@ const CreatePRF: React.FC = () => {
                   Supports images (JPEG, PNG, GIF, BMP, WebP) and PDF files.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <CardContent className="merdeka-form-card-body">
+                <div className="merdeka-ocr-steps grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                   <div className="flex items-center gap-3 p-4 border rounded-lg">
                     <div className="bg-blue-100 p-2 rounded-full">
                       <Upload className="h-5 w-5 text-blue-600" />
@@ -476,21 +476,21 @@ const CreatePRF: React.FC = () => {
           
           <TabsContent value="manual" className="space-y-6">
             <Card>
-              <CardHeader>
+              <CardHeader className="merdeka-form-card-header">
                 <CardTitle>Manual PRF Entry</CardTitle>
                 <CardDescription>
                   Create a PRF by manually entering all the required information.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="merdeka-form-card-body">
                 <form onSubmit={handleManualSubmit} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Basic Information */}
                     <Card>
-                      <CardHeader>
+                      <CardHeader className="merdeka-form-card-header">
                         <CardTitle className="text-lg">Basic Information</CardTitle>
                       </CardHeader>
-                      <CardContent className="space-y-4">
+                      <CardContent className="merdeka-form-card-body space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <Label htmlFor="prfNo">PRF Number *</Label>
@@ -551,10 +551,10 @@ const CreatePRF: React.FC = () => {
 
                     {/* Request Details */}
                     <Card>
-                      <CardHeader>
+                      <CardHeader className="merdeka-form-card-header">
                         <CardTitle className="text-lg">Request Details</CardTitle>
                       </CardHeader>
-                      <CardContent className="space-y-4">
+                      <CardContent className="merdeka-form-card-body space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <Label htmlFor="department">Department *</Label>
@@ -569,10 +569,10 @@ const CreatePRF: React.FC = () => {
                           <div>
                             <Label htmlFor="priority">Priority</Label>
                             <Select value={formData.Priority} onValueChange={(value) => handleInputChange('Priority', value as CreatePRFRequest['Priority'])}>
-                              <SelectTrigger>
+                              <SelectTrigger id="priority">
                                 <SelectValue placeholder="Select priority" />
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent className="merdeka-form-popover">
                                 {priorities.map((priority) => (
                                   <SelectItem key={priority.value} value={priority.value}>
                                     {priority.label}
@@ -644,10 +644,10 @@ const CreatePRF: React.FC = () => {
 
                   {/* Additional Information */}
                   <Card>
-                    <CardHeader>
+                    <CardHeader className="merdeka-form-card-header">
                       <CardTitle className="text-lg">Additional Information</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="merdeka-form-card-body space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <Label htmlFor="submitBy">Submit By</Label>
@@ -716,7 +716,7 @@ const CreatePRF: React.FC = () => {
 
                   {/* Items Section */}
                   <Card>
-                    <CardHeader>
+                    <CardHeader className="merdeka-form-card-header">
                       <div className="flex items-center justify-between">
                         <div>
                           <CardTitle className="text-lg">PRF Items</CardTitle>
@@ -737,18 +737,19 @@ const CreatePRF: React.FC = () => {
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="merdeka-form-card-body">
                       {formData.Items && formData.Items.length > 0 ? (
                         <div className="space-y-4">
                           {formData.Items.map((item, index) => (
                             <Card key={index} className="border-l-4 border-l-blue-500">
-                              <CardHeader className="pb-3">
+                              <CardHeader className="merdeka-form-card-header pb-3">
                                 <div className="flex items-center justify-between">
                                   <CardTitle className="text-base">Item {index + 1}</CardTitle>
                                   <Button
                                     type="button"
                                     variant="ghost"
                                     size="sm"
+                                    aria-label={`Remove item ${index + 1}`}
                                     onClick={() => removeItem(index)}
                                     className="text-red-600 hover:text-red-700"
                                   >
@@ -756,7 +757,7 @@ const CreatePRF: React.FC = () => {
                                   </Button>
                                 </div>
                               </CardHeader>
-                              <CardContent className="space-y-4">
+                              <CardContent className="merdeka-form-card-body space-y-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                   <div>
                                     <Label htmlFor={`itemName-${index}`}>Item Name *</Label>
@@ -902,13 +903,13 @@ const CreatePRF: React.FC = () => {
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
-              <CardHeader>
+              <CardHeader className="merdeka-form-card-header">
                 <CardTitle>PRF Summary</CardTitle>
                 <CardDescription>
                   Details of the created PRF from OCR extraction
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="merdeka-form-card-body space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-700">PRF Number</label>
@@ -937,13 +938,13 @@ const CreatePRF: React.FC = () => {
             </Card>
 
             <Card>
-              <CardHeader>
+              <CardHeader className="merdeka-form-card-header">
                 <CardTitle>OCR Processing Details</CardTitle>
                 <CardDescription>
                   Information about the OCR extraction process
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="merdeka-form-card-body space-y-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700">Source Document</label>
                   <p className="text-sm">{createdPRF.originalFilename}</p>

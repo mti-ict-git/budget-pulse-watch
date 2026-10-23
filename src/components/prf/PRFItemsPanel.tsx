@@ -1,7 +1,9 @@
-import { Fragment, useEffect, type ReactNode } from 'react';
-import { Edit, Maximize2, RefreshCw, X } from 'lucide-react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Download, Edit, Maximize2, RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { PRFItem } from '@/types/prfItem';
+import { downloadPrfItems } from '@/lib/exportPrfItems';
+import { toast } from '@/hooks/use-toast';
 
 interface PanelPRF {
   id: string;
@@ -13,6 +15,7 @@ interface PanelPRF {
 }
 
 interface Props {
+  closing?: boolean;
   expanded?: boolean;
   onExpand?: () => void;
   prfs: PanelPRF[];
@@ -37,7 +40,9 @@ function Specifications({ value }: { value: string }) {
   return <p>{value}</p>;
 }
 
-export function PRFItemsPanel({ expanded = false, onExpand, prfs, allItems, loading, error, onClose, onRetry, onEdit, statusBadge, formatCurrency, getCOAName }: Props) {
+export function PRFItemsPanel({ closing = false, expanded = false, onExpand, prfs, allItems, loading, error, onClose, onRetry, onEdit, statusBadge, formatCurrency, getCOAName }: Props) {
+  const [exporting, setExporting] = useState(false);
+  const exportPending = useRef(false);
   const count = prfs.reduce((total, prf) => total + (prf.items?.length ?? 0), 0);
   const first = prfs[0];
   const Metadata = expanded ? 'div' : 'details';
@@ -53,10 +58,25 @@ export function PRFItemsPanel({ expanded = false, onExpand, prfs, allItems, load
     return () => window.removeEventListener('keydown', handleEscape);
   }, [onClose, expanded]);
 
+  const exportItems = async () => {
+    if (loading || error || !count || exportPending.current) return;
+    exportPending.current = true;
+    setExporting(true);
+    try {
+      await downloadPrfItems(prfs, getCOAName);
+      toast({ title: 'Export started', description: `${count} items from ${prfs.length} PRF${prfs.length === 1 ? '' : 's'} prepared for download.` });
+    } catch {
+      toast({ title: 'Export failed', description: 'Unable to create the Excel file. Please try again.', variant: 'destructive' });
+    } finally {
+      exportPending.current = false;
+      setExporting(false);
+    }
+  };
+
   return (
-    <aside id="prf-items-panel" className="merdeka-prf-items-panel" aria-label="PRF item panel" aria-busy={loading}>
+    <aside id="prf-items-panel" className={`merdeka-prf-items-panel ${closing ? 'is-closing' : ''}`} {...(closing ? { inert: '' } : {})} aria-hidden={closing || undefined} aria-label="PRF item panel" aria-busy={loading}>
       <header className="merdeka-items-heading">
-        <div className="merdeka-items-title-row"><h2>{allItems ? 'All items on this page' : `PRF ${first.prfNo}`}</h2>{!expanded && <div className="merdeka-items-heading-actions"><Button variant="ghost" size="sm" aria-label="Expand items to modal" title="Expand items to modal" onClick={onExpand}><Maximize2 className="h-4 w-4" /></Button><Button variant="ghost" size="sm" aria-label="Close item panel" onClick={onClose}><X className="h-4 w-4" /></Button></div>}</div>
+        <div className="merdeka-items-title-row"><h2>{allItems ? 'All items on this page' : `PRF ${first.prfNo}`}</h2><div className="merdeka-items-heading-actions"><Button className="merdeka-items-export" variant="outline" size="sm" onClick={exportItems} disabled={loading || !!error || count === 0 || closing || exporting} aria-busy={exporting} title={allItems ? 'Export all items on this page' : 'Export items for this PRF'}><Download className="h-3.5 w-3.5" />{exporting ? 'Exporting…' : 'Export Excel'}</Button>{!expanded && <><Button variant="ghost" size="sm" aria-label="Expand items to modal" title="Expand items to modal" onClick={onExpand}><Maximize2 className="h-4 w-4" /></Button><Button variant="ghost" size="sm" aria-label="Close item panel" onClick={onClose}><X className="h-4 w-4" /></Button></>}</div></div>
         <p>{allItems ? `${prfs.length} PRFs · ${count} items` : first.description}</p>
         <div className="merdeka-items-summary"><div><span>Requested amount</span><strong>{formatCurrency(prfs.reduce((total, prf) => total + prf.amount, 0))}</strong></div><div><span>{allItems ? 'Items' : 'Status'}</span><div>{allItems ? count : statusBadge(first.progress)}</div></div></div>
         <span role="status" className="sr-only">{allItems ? 'All items on this page' : `Items for PRF ${first.prfNo}`}, {count} items</span>

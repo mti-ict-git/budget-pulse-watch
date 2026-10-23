@@ -387,3 +387,197 @@ backend confirmed no diagnostic button, loaded 164px logo in 240px expanded shel
 32px symbol in 80px collapsed shell, and successful expand/collapse. Expanded state
 restored. Screenshot prf-sidebar-toolbar.png in local QA. No data mutation, commit,
 push or deploy. Phase 13B remains In Progress.
+
+PRF panel animation (2026-10-23): item panel opens over 240ms with a quiet fade
+and slide. Desktop width reveal lets the list yield space; stacked layouts use
+vertical entry without changing their existing height rules. Scoped to the inline
+panel; modal and item-edit transitions stay Radix-owned. Switching selected PRFs
+keeps the same panel mounted. Reduced motion disables animation. Closing keeps
+the existing immediate removal and focus restoration. IAB verified desktop and
+stacked animation names/duration, 28 live items, no horizontal page overflow;
+CSS parse and whitespace checks passed. Screenshot prf-panel-animation.png in
+local QA. No backend/API change, data mutation, commit/push or deploy.
+
+Animation revision after user feedback (2026-10-23): width interpolation caused
+repeated table layout during entry. Both entry/exit now animate only transform
+(8px) and opacity for 160ms; split geometry changes once, not per frame. Closing
+retains the panel for 160ms, makes it inert, restores list focus, then removes it.
+Selecting another PRF cancels pending removal; timer is cleaned on unmount.
+Reduced motion closes immediately. Modal motion remains unchanged. IAB with 28
+live items confirmed 0.16s entry, no horizontal overflow, and close/Escape focus
+return. CSS parse/whitespace passed; TypeScript/lint verification from the preceding
+exit implementation remains pending if its background check has not completed.
+This supersedes the earlier 240ms width-reveal and immediate-close notes.
+
+## PRF item Excel export (2026-10-23)
+
+User requested Export in the item workspace. Export Excel is available in both
+inline panel and expanded modal, scoped to the exact loaded PRFs/items. Single
+selection exports that PRF; All items on this page exports current-page items only,
+not all server pages or bulk checkbox selection. Workbook contains PRFs summary
+and PRF Items sheets, with part/cost/original PO/split PO, quantity, numeric unit
+price/total, parent and item statuses, COA/year, pickup, notes and specifications.
+Shared SheetJS dependency is reused, with a focused workbook builder in
+src/lib/exportPrfItems.ts. Leading zeros and formula-like text stay string cells;
+zero totals are preserved. Legacy Part: fallback matches the rendered panel.
+No currency conversion or status-policy change. Export is disabled while loading,
+on refresh failure, empty item sets or closing; errors use existing toast recovery.
+Toast says export started because the browser owns final file saving.
+
+IAB downloaded PRF_Items_54126_20261023_082607.xlsx. Reopened actual file with
+SheetJS: two sheets, one item, matching part 9908-04-126583/cost MTIRMRAD496314,
+numeric unit price. Synthetic XLSX write/read round-trip verified two-PRF scope,
+leading zeros, split PO, numeric zero, and formula-like names as literal text.
+390px modal test confirmed button bounds/no document horizontal overflow.
+TypeScript and changed-file ESLint passed. CSS/whitespace passed. Screenshot:
+prf-items-export.png in local QA. Production build checked separately below.
+No server/API change; docs/openapi.yaml reviewed and unchanged. No business writes,
+commit, push or deployment. Phase 13B remains In Progress.
+
+Final export/animation checks: TypeScript noEmit and ESLint completed successfully for the animation and export changes. Vite production build passed (2068 modules; existing large-chunk warning). Scoped strict audit retains 36 existing/heuristic findings (11 unresolved, 25 violations), no PRFItemsPanel findings; no full-product compliance claim.
+
+## Styled PRF Excel workbook (2026-10-23)
+
+The item export now writes styled XLSX through ExcelJS 4.4, dynamically imported
+only on Export. Existing SheetJS row mapping remains authoritative. Both sheets
+have Merdeka blue title/header, export timestamp and scope counts, native table
+filters, striped rows, wrapped text, appropriate column widths/row heights and
+frozen first column plus four header rows. Gridlines hidden; landscape print
+setup repeats header rows and includes page numbers. Prices use numeric accounting
+format; count/ID/year integers have no trailing decimal. Data/status/currency
+semantics and current selection/page scope are unchanged. Export button has stable
+width and busy/duplicate-submit guard; failures remain recoverable through toast.
+
+Browser-generated styled file PRF_Items_54126_20261023_090545.xlsx was reopened
+with ExcelJS: correct part/cost/price and actual stored fills, frozen panes,
+number formats and table definitions. Synthetic write/read round-trip checks
+leading zeros, zero totals, formula-like literal names and numeric price types.
+Imported actual workbook into bundled spreadsheet renderer; summary PNG visually
+reviewed. TypeScript/lint and Vite production build passed; ExcelJS is a separate
+lazy chunk. Existing chunk-size warning remains. No backend/API contract change;
+OpenAPI reviewed unchanged. No commit, push or deployment.
+
+## MTI corporate branding (2026-10-23)
+
+User supplied Downloads/mti-corporate.svg. Copied byte-identically to
+public/merdeka/branding/mti-corporate.svg. Login places MTI beside MBM; expanded
+sidebar/mobile drawer stacks MTI below MBM to preserve wordmark legibility in the
+240px shell. Collapsed 80px sidebar retains the existing MBM symbol. Both logos
+have meaningful alt text, reserved sizes and object-fit contain. No SVG/vendor
+modification, route/auth behavior or sidebar preference change.
+
+IAB confirmed both logo images load, sidebar MBM/MTI widths 164/138px, collapsed
+width 80px with compact symbol and re-expanded branding restored. Login pair has
+no horizontal document overflow. Screenshots login-mbm-mti.png and
+sidebar-mbm-mti.png in local QA. TypeScript/lint passed. No backend/API change;
+OpenAPI unchanged. No commit/push/deploy. Phase 13B remains In Progress.
+
+Sidebar brand refinement (2026-10-23): user requested smaller, side-by-side logos. Expanded sidebar now pairs MBM 92x30 and MTI 84x30 with 8px gap and centered alignment; collapse control 24px, shell remains 240/80px. Login unchanged. This supersedes stacked sidebar branding. IAB confirmed both loaded and identical y=23/height=30; CSS parse and whitespace passed. Screenshot sidebar-logos-inline.png. No API change, commit/push/deploy.
+
+Sidebar clarification (2026-10-23): user identified the lower MBM watermark,
+not the header logos, as the intended reference-review target. Reference custom.css
+uses sidebar-background width 240px anchored bottom 0. Watermark now fills the
+240/80px sidebar, with zero inset/padding and .06 opacity, original symbol intact.
+Header pair restored to previously approved compact MBM 92x30 / MTI 84x30 inline;
+MTI remains in header. Inter 13px / weight 400, menu 40px and shell 240/80px retained.
+No navigation, permission, route or vendor CSS change. CSS parsed; browser geometry
+and screenshots checked. Earlier experimental MTI footer placement was reversed.
+
+Page-by-page visual audit completed 2026-10-23. See merdeka-visual-review-2026-10-23.md for per-page assessment, measured source/application differences, priorities and evidence. Create PRF/Settings remain visually unmigrated; Alerts incomplete; Budget long-value wrap and Settings mobile tabs confirmed. No UI source changes or business writes during audit.
+
+## Settings and Create PRF Merdeka migration (2026-10-23)
+
+Scope: user-approved first fixes from docs/merdeka-visual-review-2026-10-23.md.
+Added the scoped merdeka-form-page long-form variant, shared card header/body
+markers and portal form/popover variants. Settings/Create PRF use 22px/600 headings,
+14px panel titles, 34px controls, gray source-style panel headers, 12px field text,
+quiet borders and blue underline tabs. Two-line OCR model choices use a deliberate
+48px minimum to retain help text. Forms scroll naturally; 88px end clearance keeps
+last actions reachable beside the floating assistant. Source vendor CSS untouched.
+
+Settings is full content width, without the previous double padding/narrow centered
+container. All four tabs wrap into two rows on phones. The same styling covers
+OCR/General/Pronto and Local/LDAP user sections. Create/Edit local-user overlays
+now reuse the existing Radix Dialog owner with labels, initial field focus, focus
+trap, Escape/backdrop and explicit trigger restoration. Existing save/update handlers
+are unchanged. Role remains the existing native select with platform popup; existing
+role options/gates are untouched. API-key toggle gains an accessible name/state.
+
+Create PRF keeps OCR Upload and Manual Entry with source-style tabs and compact
+nested panels. Phone Back/title stack, inner two-column groups become one column,
+item actions wrap, and dropzone/steps retain their existing handlers. OCRUpload
+receives only card class markers, styled within this page. Manual Priority select
+has a label association; remove-item buttons now have accessible names. No change
+to native validation, upload/OCR limits, source copy, financial policy or currency
+conversion. Existing USD display in manual item totals is preserved, not redefined.
+
+Verification (local IAB real backend): Settings OCR/General/Pronto/Users, Local/LDAP
+panes, authored popup open/Escape and exact trigger width, keyboard ArrowRight tab
+navigation; Create/Edit User open/cancel/Escape and focus return. At 390x844 all
+four tabs remain visible; document and main-content widths do not overflow.
+Create-user dialog x16/width358/height~694 fits viewport, focus starts at First Name,
+Tab from last control wraps inside, Escape returns to Create User. No user created.
+
+Create PRF desktop and phone OCR/manual inspected. Draft add item, set quantity 2
+and unit price 1500, Calculate Total produced 3000, then remove item returned to
+empty state without submitting. Phone title is 22px with column layout; no horizontal
+overflow. Popup width matched trigger after correcting the viewport's extra 2px.
+Auth/API settings remained masked; no save, connection test, access grant/revoke,
+API-token generation, document upload, OCR extraction or real PRF mutation ran.
+
+TypeScript noEmit and changed-file ESLint passed. AST comparison with HEAD proved
+14 selected business handlers unchanged (7 Settings, 5 Create PRF, 2 OCRUpload).
+Scoped strict audit retains the same 36 existing/heuristic findings (11 unresolved,
+25 violations), zero new/resolved findings; not a full-product compliance claim.
+Production build result is recorded below. Final evidence and screenshots are in
+local QA: settings-create-verification.json, settings-create-audit.json,
+settings-merdeka-desktop/mobile.png, create-prf-merdeka-desktop/mobile.png,
+create-prf-merdeka-manual.png, and settings-user-dialog/mobile.png.
+
+DESIGN.md, UX-CONTRACT.md, visual review and roadmap synchronized. OpenAPI reviewed;
+no backend/API changes, so docs/openapi.yaml remains unchanged. Phase 13B remains
+In Progress. No commit, push or deploy, per user instruction.
+
+Final production build passed (Vite, 2072 modules, 45.26s). Existing large-chunk warning remains. Final TypeScript noEmit, changed-file ESLint and git diff --check passed.
+
+## Budget Overview / COA audit fixes (2026-10-23)
+
+Scope: user-requested visual follow-up, Phase 13B remains In Progress. Sources:
+Merdeka skill, DESIGN.md, UX-CONTRACT.md, visual-review audit, budget-control-policy
+and historical-budget-governance. No workflow or data policy change.
+
+Budget currency metrics now have a full-width amount row at laptop widths, retaining
+four cards. At 1440px, Rp 12.793.495.330 fits a single 27.3px line in 239.5px; at
+1280px, it fits a 24.06px line in 199.5px. Responsive cards use two tablet columns
+and one phone column. Cutoff/import spacing is compacted; actions remain intact.
+COA metrics, governance, filters and Accounts heading are compacted. First table
+row moved from y757.5 in the initial pass to y641 after refinement (1280/1440).
+All governance values/scope and filters remain visible; table owns its overflow.
+Create/edit Budget and create/edit/details COA use bounded finance dialog geometry.
+Fields/details scroll inside; form actions stay visible. All 23 compared named
+business handlers match HEAD after line-ending normalization.
+
+Verification: TypeScript noEmit and changed-file ESLint passed. Production Vite
+build passed: 2072 modules, 32.73s; existing large-chunk warning remains. git diff
+--check passed. Existing scoped premium audit remains 36 findings (11 unresolved,
+25 violations); no new findings versus prior Settings audit. That scope covers
+pages/PRF, not all finance forms, and is not a whole-product compliance claim.
+
+ChatGPT IAB real-backend checks: 1280x720 and 1440x900 desktop, 390x844 phone;
+no main/document horizontal overflow in sampled routes. Budget/COA dropdowns,
+Budget create/edit, COA create/protected edit/details, local no-results/Clear,
+mandatory scope/protected disabled controls, pager Next (11–20 of 65), keyboard
+Tab trapping/Escape and Add Account focus restoration checked. Invalid blank COA
+submit displays required-code/name errors and focuses Code; no save sent.
+Phone finance dialog x16,width358,height812; footer y762–827 remains visible while
+body scrolls. No budget/account save, deactivation, cutoff, carry-forward, rate
+fetch, import or export action executed. Currency semantics remain unchanged,
+including the legacy USD formatter in COA usage details.
+
+Screenshots in local QA: budget-merdeka-desktop/mobile.png,
+budget-dialog-merdeka-mobile.png, budget-edit-merdeka-desktop.png,
+coa-merdeka-desktop/mobile.png, coa-dialog-merdeka-mobile.png,
+coa-edit-merdeka-desktop.png, coa-details-merdeka-desktop.png.
+Related docs/roadmap updated. This work makes no backend/API change; OpenAPI review
+requires no contract update. Other concurrent/uncommitted work is preserved.
+No commit/push/deploy.

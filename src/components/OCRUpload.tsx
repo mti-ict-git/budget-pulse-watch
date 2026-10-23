@@ -261,7 +261,7 @@ const OCRUpload: React.FC<OCRUploadProps> = ({ onPRFCreated, onPreviewData }) =>
     <div className="space-y-6">
       {/* File Upload Area */}
       <Card>
-        <CardHeader>
+        <CardHeader className="merdeka-form-card-header">
           <CardTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5" />
             Upload PRF Document
@@ -278,7 +278,7 @@ const OCRUpload: React.FC<OCRUploadProps> = ({ onPRFCreated, onPreviewData }) =>
              </AlertDescription>
            </Alert>
         </CardHeader>
-        <CardContent>
+        <CardContent className="merdeka-form-card-body">
           <div
             {...getRootProps()}
             className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
@@ -359,7 +359,7 @@ const OCRUpload: React.FC<OCRUploadProps> = ({ onPRFCreated, onPreviewData }) =>
       {/* Extracted Data Preview */}
       {extractedData && (
         <Card>
-          <CardHeader>
+          <CardHeader className="merdeka-form-card-header">
             <CardTitle className="flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <Eye className="h-5 w-5" />
@@ -373,7 +373,7 @@ const OCRUpload: React.FC<OCRUploadProps> = ({ onPRFCreated, onPreviewData }) =>
               Review the extracted data before creating the PRF. You can manually correct any errors after creation.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="merdeka-form-card-body">
             <Tabs defaultValue="basic" className="w-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="basic">Basic Info</TabsTrigger>

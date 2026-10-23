@@ -86,7 +86,7 @@ export function Sidebar({ className, mobile = false, onNavigate }: SidebarProps)
 
       {/* Header */}
       <div className="relative z-10 flex items-center justify-between px-4 py-3 border-b border-sidebar-border">
-        <img className="merdeka-sidebar-logo" src={isCollapsed ? "/merdeka/branding/mbm-symbol.svg" : "/merdeka/branding/mbm-logo.svg"} alt="Merdeka Battery Materials" />
+        <div className="merdeka-sidebar-brands"><img className="merdeka-sidebar-logo" src={isCollapsed ? "/merdeka/branding/mbm-symbol.svg" : "/merdeka/branding/mbm-logo.svg"} alt="Merdeka Battery Materials" />{!isCollapsed && <img className="merdeka-sidebar-mti-logo" src="/merdeka/branding/mti-corporate.svg" alt="Merdeka Tsingshan Indonesia" width="66" height="30" />}</div>
         <Button
           variant="ghost"
           size="sm"

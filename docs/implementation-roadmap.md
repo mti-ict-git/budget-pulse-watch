@@ -780,7 +780,51 @@ reads and open/cancel only; no business writes, Git publish or deployment.
 
 Merdeka UI follow-up (2026-10-22): [x] sidebar logo/watermark fit and removal of PRF Test OneDrive diagnostics. TypeScript/lint and IAB expanded/collapsed checks passed; evidence in docs/merdeka-ui-rollout.md. Phase 13B remains In Progress; no backend/API change.
 
+Merdeka UI follow-up (2026-10-23): [x] inline item-panel opening animation with reduced-motion override. CSS parse and IAB desktop/stacked checks passed; evidence in docs/merdeka-ui-rollout.md. Phase 13B remains In Progress; no API change.
+
+PRF animation follow-up (2026-10-23): [x] exit presence, cancellation and focus return; [x] replace width tween with 160ms transform/opacity after user feedback. CSS parse/IAB checked; see rollout notes. No API change or Git publication.
+
+PRF item export follow-up (2026-10-23): [x] scoped panel/modal Excel export; [x] PRF summary and detailed items; [x] actual browser download/read-back and synthetic workbook round-trip; [x] TypeScript/lint and phone bounds checked. See rollout evidence. Phase 13B remains In Progress; no API change.
+
+Styled PRF Excel follow-up (2026-10-23): [x] Merdeka workbook styling/filter/freeze/number formats; [x] lazy writer and busy/error guard; [x] actual XLSX read-back and rendered summary review, synthetic preservation checks, TypeScript/lint/build. Evidence in rollout notes. Phase 13B remains In Progress; no API change.
+
+MTI brand follow-up (2026-10-23): [x] original corporate SVG added to login/sidebar; [x] loaded assets and expanded/collapsed layout verified in IAB, TypeScript/lint passed. Evidence in rollout notes. No API change; Phase 13B remains In Progress.
+
+Brand refinement (2026-10-23): [x] smaller inline sidebar logos, browser geometry/loading and CSS validation passed; rollout notes contain evidence. Phase 13B unchanged.
+
+Sidebar watermark review (2026-10-23): [x] source full-width/bottom anchoring with .06 opacity; header pair retained inline. Evidence in rollout notes. Phase 13B unchanged; no API change.
+
+Merdeka visual audit (2026-10-23): [x] nine route bodies/shared shell plus representative dialogs and 390px inspection reviewed against skill/source. Findings and remaining migration priorities: docs/merdeka-visual-review-2026-10-23.md. Audit complete; fixes remain outstanding. Phase 13B remains In Progress; no API change.
+
+## Merdeka UI — Settings and Create PRF audit fixes (2026-10-23)
+
+Status: implemented and verified locally; Phase 13B remains In Progress.
+Sources: user request, merdeka-frontend long-form/login separation, DESIGN.md,
+UX-CONTRACT.md, visual-review report and existing OCR/Settings/PRF API contracts.
+
+- [x] Compact shared long-form typography, cards, fields and blue tabs
+- [x] Mobile Settings tab wrap and Create PRF Back/title/field stacking
+- [x] Existing OCR/manual/settings handlers and permissions retained
+- [x] Shared user dialogs, field labels, popup dimensions and focus behavior
+- [x] Read-only real-backend IAB states plus local draft item arithmetic/removal
+- [x] TypeScript/lint, static audit comparison and build evidence in rollout notes
+
+Output: docs/merdeka-ui-rollout.md and local QA screenshots/JSON. Settings writes,
+OCR execution and actual PRF/user creation were not performed. No OpenAPI change,
+commit/push or deployment. Other audit findings remain outstanding.
+
 
 OCR rescan follow-up (2026-10-23), Phase 13B: backend extraction validation, source/snapshot binding and PDF completeness guards implemented. Regression checks pass for wrong PRF, zero item overlap, screenshot-style totals, missing/invalid quantities, ambiguous matching and cancellation reconciliation. Backend typecheck passed (`node node_modules/typescript/bin/tsc --noEmit`). Isolated route regressions passed (`node scripts/test-ocr-rescan.cjs`): invalid preview/apply, stale source/items and legacy tokens rejected before any transaction. Pure validation tests passed (`node -r ts-node/register src/services/rescanValidation.test.ts`). Live PDF OCR has not been re-run; original source/AI mismatch root cause remains unproven. OpenAPI reviewed/updated (422/409). No PRF data repair, sync, commit, push or deployment performed.
+
+## Merdeka UI — Budget / COA audit fixes (2026-10-23)
+Status: implemented and verified locally; Phase 13B remains In Progress.
+Sources: visual review, Merdeka skill, DESIGN/UX contract and budget governance docs.
+- [x] Full Budget currency values at laptop widths and responsive metric layout
+- [x] Compact COA summary/governance/filter/table hierarchy
+- [x] Bounded Budget/COA dialogs with internal body scroll and stable actions
+- [x] Existing handlers, mandatory protections and data policy retained
+- [x] IAB desktop/phone, dropdowns, invalid form, keyboard and paging checked
+- [x] TypeScript, lint, build and verification evidence in merdeka-ui-rollout.md
+No business writes during QA. No API change or Git/deployment publication.
 
 OCR release (2026-10-23): commit 5b0e6ba deployed backend-only; image/revision health, API proxy, TLS and protected CIFS storage verified; frontend/worker retained. Evidence: docs/releases/2026-10-23-ocr-rescan.md. Phase 13B remains In Progress; live AI/UAT not claimed.

@@ -233,7 +233,7 @@ export function BudgetCreateDialog({
           New Budget
         </Button>
       </DialogTrigger>}
-      <DialogContent onCloseAutoFocus={returnFocusRef ? event => { event.preventDefault(); returnFocusRef.current?.focus(); } : undefined} className="merdeka-budget-dialog max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent onCloseAutoFocus={returnFocusRef ? event => { event.preventDefault(); returnFocusRef.current?.focus(); } : undefined} className="merdeka-budget-dialog merdeka-finance-dialog max-w-2xl">
         <DialogHeader className="merdeka-budget-dialog-header">
           <DialogTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5" />
@@ -244,7 +244,8 @@ export function BudgetCreateDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="merdeka-finance-form">
+          <div className="merdeka-finance-form-body space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Budget Information</CardTitle>
@@ -424,8 +425,9 @@ export function BudgetCreateDialog({
             </CardContent>
           </Card>
 
+          </div>
           {/* Action Buttons */}
-          <div className="flex justify-end space-x-2 pt-4">
+          <div className="merdeka-finance-form-footer flex justify-end gap-2">
             <Button
               type="button"
               variant="outline"

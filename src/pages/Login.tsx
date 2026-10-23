@@ -85,6 +85,7 @@ const Login: React.FC = () => {
         <section className="merdeka-login-panel" aria-labelledby="login-title">
           <header className="merdeka-login-brand">
             <img src="/merdeka/branding/mbm-logo.svg" alt="Merdeka Battery Materials" width="200" height="55" />
+            <img className="merdeka-login-mti-logo" src="/merdeka/branding/mti-corporate.svg" alt="Merdeka Tsingshan Indonesia" width="138" height="30" />
           </header>
           <div className="merdeka-login-form-body">
             <h1 id="login-title">MTI ICT PO Monitoring</h1>
