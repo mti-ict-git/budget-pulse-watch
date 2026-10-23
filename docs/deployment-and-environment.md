@@ -91,3 +91,8 @@ out of Git. Rollback references are retained as budget-pulse-watch-frontend and
 budget-pulse-watch-backend with tag rollback-869fe2af883dbad9928a51fe88108e6354dab5a0.
 Rollback was not exercised. Subsequent documentation-only commits do not change the
 running image revision and do not require a rebuild.
+
+
+## Backend-only OCR release — 2026-10-23
+
+Backend deployed at `5b0e6ba00f5ca52217413cda9e69d4ba9672f37a`; healthy with proxy, public TLS and protected storage verified. Frontend and worker retained. No schema or business-data changes. See [release evidence](releases/2026-10-23-ocr-rescan.md) for image IDs, tests and rollback references. Subsequent documentation commits do not change the running image.
