@@ -20,6 +20,7 @@ CREATE TABLE Users (
 CREATE TABLE AppSettings (
     SettingsID INT IDENTITY(1,1) PRIMARY KEY,
     Provider NVARCHAR(20) NOT NULL CHECK (Provider IN ('gemini','openai')),
+          UploadExtractionMethod NVARCHAR(10) NOT NULL DEFAULT 'llm' CHECK (UploadExtractionMethod IN ('llm','local')),
     GeminiApiKeyEnc NVARCHAR(MAX) NULL,
     OpenAIApiKeyEnc NVARCHAR(MAX) NULL,
     Enabled BIT NOT NULL DEFAULT 0,

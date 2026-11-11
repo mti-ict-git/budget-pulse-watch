@@ -8,6 +8,8 @@ import puppeteer from 'puppeteer';
 import { createRequire } from 'module';
 
 export interface ExtractedPRFData {
+  sourceNotes?: string;
+  exchangeRateToIDR?: number;
   prfNo?: string;
   requestedBy?: string;
   department?: string;
@@ -17,6 +19,9 @@ export interface ExtractedPRFData {
   totalAmount?: number;
   items?: Array<{
     rowNo?: number | string;
+    sourceRowNo?: number | null;
+    sourcePage?: number;
+    uom?: string;
     partNumber?: string;
     description?: string;
     quantity?: number;

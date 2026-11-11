@@ -43,7 +43,8 @@ RUN npm run build
 FROM base AS production
 
 # Install runtime dependencies, including Chromium for OCR/PDF rendering.
-RUN apk add --no-cache cifs-utils su-exec chromium nss freetype harfbuzz ca-certificates ttf-freefont
+RUN apk add --no-cache cifs-utils su-exec chromium nss freetype harfbuzz ca-certificates ttf-freefont \
+    python3 py3-pip poppler-utils tesseract-ocr tesseract-ocr-data-eng tesseract-ocr-data-ind
 
 # Set NODE_ENV
 ENV NODE_ENV=production
@@ -70,6 +71,12 @@ COPY database ./database
 
 # Copy scripts
 COPY scripts/ ./scripts/
+
+# Private Python runtime. Native PDF extraction does not require PDFium; Poppler renders OCR pages.
+RUN python3 -m venv /opt/prf-parser && \
+    /opt/prf-parser/bin/pip install --no-cache-dir -r /app/scripts/prf_parser/requirements.txt && \
+    /opt/prf-parser/bin/pip install --no-cache-dir --no-deps pdfplumber==0.11.9
+ENV PRF_PARSER_PYTHON=/opt/prf-parser/bin/python3
 
 # Make scripts executable
 RUN chmod +x /app/scripts/*.sh

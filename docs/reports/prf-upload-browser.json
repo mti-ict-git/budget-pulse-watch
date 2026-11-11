@@ -1,0 +1,24 @@
+{
+  "passed": true,
+  "checks": [
+    "empty upload has no save action",
+    "indeterminate loading state",
+    "preview required and save disabled until review",
+    "review flags visible",
+    "source text available",
+    "original PDF preview link",
+    "failed save preserves edited fields",
+    "successful save and persistent attachment warning",
+    {
+      "popupWidthDifference": 0
+    },
+    "authored select keyboard and local runtime check",
+    "local method persistence preserves LLM configuration",
+    "extraction failure retains source and retry",
+    "cancelled response does not repopulate preview",
+    "390px upload preview has no document overflow",
+    "global themed scrollbar"
+  ],
+  "consoleErrors": [],
+  "scope": "Real browser with synthetic API fixtures; no live SQL/provider/write acceptance claimed."
+}

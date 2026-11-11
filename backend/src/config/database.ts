@@ -78,11 +78,11 @@ export const closeDatabase = async (): Promise<void> => {
  */
 export const executeQuery = async <T = unknown>(
   query: string,
-  params?: { [key: string]: unknown }
+  params?: { [key: string]: unknown },
+  transaction?: sql.Transaction
 ): Promise<sql.IResult<T>> => {
   try {
-    const currentPool = getPool();
-    const request = currentPool.request();
+    const request = transaction ? new sql.Request(transaction) : getPool().request();
     
     // Add parameters if provided
     if (params) {

@@ -152,3 +152,14 @@ This document records unresolved business and implementation questions that must
 - Semantic descriptions should express procurement purpose (quantity/category/beneficiary) and must not merely duplicate a long item specification.
 
 PRF 54123 candidate native-text+image OCR verified after explicit external-provider approval: all 19 source rows now match, with no PRF writes. Printed 19-row total 54,904,429 is correct; image OCR misread UPS by 300,000 and multiple identifiers. Existing 28 database items need separate origin/reconciliation audit; do not auto-delete them.
+
+
+## Resolved: optional local upload method (Phase 14)
+
+- The upload selector defaults to existing LLM behavior and does not change rescan.
+- Local PDF failures never fall back to OpenAI/Gemini automatically.
+- Save uses the reviewed preview, with user/file binding and server-side revalidation.
+- Blank source PR numbers require explicit user input; internal inferred row order remains marked.
+- Quantities and text lengths follow the existing SQL schema. Long item descriptions are retained in Description while ItemName remains bounded.
+- The local method does not automatically approve cancellation marks or image-note semantics.
+- Migration 026, runtime installation and production preview verification completed on 2026-10-25. Original LLM/provider settings restored after the smoke check; no PRF records were created. Rescan integration remains deferred.

@@ -1,0 +1,504 @@
+{
+  "scope": "Adapter comparison against established parser-v2 corpus; pass preserves known missing fields and review flags, not automatic approval of every field.",
+  "documents": 55,
+  "passed": 55,
+  "items": 255,
+  "missingPRNumber": 10,
+  "results": [
+    {
+      "prf": "23853",
+      "pass": true,
+      "items": 7,
+      "gl": 7,
+      "pr_number": "23853",
+      "seconds": 5.139,
+      "review_flags": 1
+    },
+    {
+      "prf": "29227",
+      "pass": true,
+      "items": 4,
+      "gl": 4,
+      "pr_number": "29227",
+      "seconds": 4.977,
+      "review_flags": 1
+    },
+    {
+      "prf": "29891",
+      "pass": true,
+      "items": 4,
+      "gl": 4,
+      "pr_number": null,
+      "seconds": 3.828,
+      "review_flags": 2
+    },
+    {
+      "prf": "30471",
+      "pass": true,
+      "items": 2,
+      "gl": 2,
+      "pr_number": "30471",
+      "seconds": 3.31,
+      "review_flags": 1
+    },
+    {
+      "prf": "32307",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": null,
+      "seconds": 2.593,
+      "review_flags": 2
+    },
+    {
+      "prf": "32555",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "32555",
+      "seconds": 2.806,
+      "review_flags": 1
+    },
+    {
+      "prf": "32664",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "32664",
+      "seconds": 3.032,
+      "review_flags": 1
+    },
+    {
+      "prf": "38018",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "38018",
+      "seconds": 3.104,
+      "review_flags": 1
+    },
+    {
+      "prf": "43373",
+      "pass": true,
+      "items": 9,
+      "gl": 9,
+      "pr_number": "43373",
+      "seconds": 3.986,
+      "review_flags": 1
+    },
+    {
+      "prf": "46641",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "46641",
+      "seconds": 2.895,
+      "review_flags": 1
+    },
+    {
+      "prf": "24488",
+      "pass": true,
+      "items": 21,
+      "gl": 21,
+      "pr_number": null,
+      "seconds": 8.079,
+      "review_flags": 3
+    },
+    {
+      "prf": "24730",
+      "pass": true,
+      "items": 2,
+      "gl": 2,
+      "pr_number": "24730",
+      "seconds": 7.849,
+      "review_flags": 1
+    },
+    {
+      "prf": "25000",
+      "pass": true,
+      "items": 2,
+      "gl": 2,
+      "pr_number": "25000",
+      "seconds": 4.882,
+      "review_flags": 1
+    },
+    {
+      "prf": "25083",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "25083",
+      "seconds": 4.584,
+      "review_flags": 1
+    },
+    {
+      "prf": "25343",
+      "pass": true,
+      "items": 9,
+      "gl": 9,
+      "pr_number": "25343",
+      "seconds": 5.956,
+      "review_flags": 1
+    },
+    {
+      "prf": "25564",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "25564",
+      "seconds": 4.876,
+      "review_flags": 1
+    },
+    {
+      "prf": "25762",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "25762",
+      "seconds": 5.407,
+      "review_flags": 1
+    },
+    {
+      "prf": "25999",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "25999",
+      "seconds": 5.228,
+      "review_flags": 1
+    },
+    {
+      "prf": "26723",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "26723",
+      "seconds": 4.741,
+      "review_flags": 1
+    },
+    {
+      "prf": "29440",
+      "pass": true,
+      "items": 9,
+      "gl": 9,
+      "pr_number": null,
+      "seconds": 6.86,
+      "review_flags": 2
+    },
+    {
+      "prf": "32423",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": null,
+      "seconds": 4.641,
+      "review_flags": 2
+    },
+    {
+      "prf": "35167",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "35167",
+      "seconds": 4.688,
+      "review_flags": 1
+    },
+    {
+      "prf": "41682",
+      "pass": true,
+      "items": 17,
+      "gl": 17,
+      "pr_number": "41682",
+      "seconds": 7.938,
+      "review_flags": 10
+    },
+    {
+      "prf": "42042",
+      "pass": true,
+      "items": 56,
+      "gl": 56,
+      "pr_number": "42042",
+      "seconds": 13.075,
+      "review_flags": 16
+    },
+    {
+      "prf": "23463",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "23463",
+      "seconds": 3.376,
+      "review_flags": 1
+    },
+    {
+      "prf": "24921",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "24921",
+      "seconds": 5.075,
+      "review_flags": 1
+    },
+    {
+      "prf": "25796",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "25796",
+      "seconds": 5.45,
+      "review_flags": 1
+    },
+    {
+      "prf": "25902",
+      "pass": true,
+      "items": 2,
+      "gl": 2,
+      "pr_number": "25902",
+      "seconds": 2.998,
+      "review_flags": 1
+    },
+    {
+      "prf": "28151",
+      "pass": true,
+      "items": 2,
+      "gl": 2,
+      "pr_number": "28151",
+      "seconds": 3.232,
+      "review_flags": 1
+    },
+    {
+      "prf": "28248",
+      "pass": true,
+      "items": 16,
+      "gl": 16,
+      "pr_number": "28248",
+      "seconds": 5.055,
+      "review_flags": 1
+    },
+    {
+      "prf": "28296",
+      "pass": true,
+      "items": 9,
+      "gl": 9,
+      "pr_number": "28296",
+      "seconds": 4.039,
+      "review_flags": 1
+    },
+    {
+      "prf": "28394",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "28394",
+      "seconds": 2.736,
+      "review_flags": 1
+    },
+    {
+      "prf": "28443",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "28443",
+      "seconds": 2.917,
+      "review_flags": 1
+    },
+    {
+      "prf": "31092",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": null,
+      "seconds": 2.975,
+      "review_flags": 2
+    },
+    {
+      "prf": "31571",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": null,
+      "seconds": 2.609,
+      "review_flags": 2
+    },
+    {
+      "prf": "31947",
+      "pass": true,
+      "items": 2,
+      "gl": 2,
+      "pr_number": null,
+      "seconds": 3.485,
+      "review_flags": 2
+    },
+    {
+      "prf": "32419",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": null,
+      "seconds": 2.584,
+      "review_flags": 2
+    },
+    {
+      "prf": "33121",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": null,
+      "seconds": 2.635,
+      "review_flags": 2
+    },
+    {
+      "prf": "33346",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "33346",
+      "seconds": 3.119,
+      "review_flags": 1
+    },
+    {
+      "prf": "36058",
+      "pass": true,
+      "items": 9,
+      "gl": 9,
+      "pr_number": "36058",
+      "seconds": 4.928,
+      "review_flags": 1
+    },
+    {
+      "prf": "37573",
+      "pass": true,
+      "items": 8,
+      "gl": 8,
+      "pr_number": "37573",
+      "seconds": 4.187,
+      "review_flags": 1
+    },
+    {
+      "prf": "37864",
+      "pass": true,
+      "items": 4,
+      "gl": 4,
+      "pr_number": "37864",
+      "seconds": 3.985,
+      "review_flags": 3
+    },
+    {
+      "prf": "37979",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "37979",
+      "seconds": 3.096,
+      "review_flags": 1
+    },
+    {
+      "prf": "42151",
+      "pass": true,
+      "items": 2,
+      "gl": 2,
+      "pr_number": "42151",
+      "seconds": 3.111,
+      "review_flags": 1
+    },
+    {
+      "prf": "44307",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "44307",
+      "seconds": 2.869,
+      "review_flags": 1
+    },
+    {
+      "prf": "45643",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "45643",
+      "seconds": 3.097,
+      "review_flags": 1
+    },
+    {
+      "prf": "46095",
+      "pass": true,
+      "items": 8,
+      "gl": 8,
+      "pr_number": "46095",
+      "seconds": 4.567,
+      "review_flags": 1
+    },
+    {
+      "prf": "46187",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "46187",
+      "seconds": 3.097,
+      "review_flags": 1
+    },
+    {
+      "prf": "47012",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "47012",
+      "seconds": 2.927,
+      "review_flags": 1
+    },
+    {
+      "prf": "49540",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "49540",
+      "seconds": 3.068,
+      "review_flags": 1
+    },
+    {
+      "prf": "50118",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "50118",
+      "seconds": 2.752,
+      "review_flags": 1
+    },
+    {
+      "prf": "50767",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "50767",
+      "seconds": 2.734,
+      "review_flags": 1
+    },
+    {
+      "prf": "52254",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "52254",
+      "seconds": 2.962,
+      "review_flags": 1
+    },
+    {
+      "prf": "52645",
+      "pass": true,
+      "items": 1,
+      "gl": 1,
+      "pr_number": "52645",
+      "seconds": 2.811,
+      "review_flags": 1
+    },
+    {
+      "prf": "54123",
+      "pass": true,
+      "items": 19,
+      "gl": 19,
+      "pr_number": "54123",
+      "seconds": 6.305,
+      "review_flags": 1
+    }
+  ]
+}
