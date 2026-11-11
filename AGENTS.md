@@ -125,3 +125,13 @@ A task is done only if:
 - the executed roadmap checklist step has recorded challenge/verification evidence
 - roadmap/checklist reflects reality
 <!-- LOVABLE:END -->
+
+## Documentation Language
+All documentation in this repository must be written in **English**. This applies to:
+- everything under `docs/` (specs, roadmaps, backlogs, runbooks, release notes, reports)
+- `README.md`, `AGENTS.md` and other top-level Markdown files
+- `docs/openapi.yaml` descriptions, code comments, and commit messages / PR descriptions
+
+This holds even when the request or source notes are in Indonesian: translate them into English when writing them down. Product names and Pronto/UI labels (menu names, field names, statuses) stay as they appear in the source system.
+
+Some older documents (for example `docs/pronto-sync.md`) are still in Indonesian. When you substantially edit one of them, translate it to English as part of that change.
