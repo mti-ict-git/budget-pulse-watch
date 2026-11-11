@@ -1,6 +1,9 @@
 import express from 'express';
 import multer from 'multer';
 import { ocrService } from '../services/ocrService';
+import { extractUpload } from '../services/prfUploadExtraction';
+import { loadSettings } from './settingsRoutes';
+import { UploadError } from '../services/localPRFParser';
 import path from 'path';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
@@ -45,15 +48,6 @@ router.post('/prf-document', authenticateToken, requireContentManager, upload.si
       });
     }
 
-    // Check if OCR service is enabled
-    const isOCREnabled = await ocrService.isEnabled();
-    if (!isOCREnabled) {
-      return res.status(503).json({
-        success: false,
-        message: 'OCR service is not configured. Please set up Gemini API key in settings.'
-      });
-    }
-
     const { buffer, mimetype, originalname } = req.file;
     
     // Generate unique ID for this upload session
@@ -61,7 +55,8 @@ router.post('/prf-document', authenticateToken, requireContentManager, upload.si
     
     try {
       // Extract PRF data using OCR
-      const extractedData = await ocrService.extractPRFData(buffer, mimetype);
+      const extraction = await extractUpload(buffer, mimetype);
+      const extractedData = extraction.extractedData;
       
       // Save the uploaded file temporarily (optional, for debugging/review)
       const tempDir = path.join(process.cwd(), 'temp', 'uploads');
@@ -76,15 +71,17 @@ router.post('/prf-document', authenticateToken, requireContentManager, upload.si
         uploadId,
         originalFilename: originalname,
         extractedData,
+        method: extraction.method,
+        reviewIssues: extraction.reviewIssues,
         tempFilePath: tempFilePath,
         message: 'Document processed successfully'
       });
       
     } catch (ocrError) {
       console.error('OCR processing failed:', ocrError);
-      return res.status(500).json({
+      return res.status(ocrError instanceof UploadError ? ocrError.status : 500).json({
         success: false,
-        message: `OCR processing failed: ${ocrError instanceof Error ? ocrError.message : 'Unknown error'}`,
+        message: ocrError instanceof UploadError ? ocrError.message : 'Document processing failed.',
         uploadId
       });
     }
@@ -112,10 +109,13 @@ router.get('/ocr/test', async (req, res) => {
 });
 
 // Get OCR service status
-router.get('/ocr/status', async (req, res) => {
+router.get('/ocr/status', authenticateToken, async (req, res) => {
   try {
-    const isEnabled = await ocrService.isEnabled();
+    const settings = await loadSettings();
+    const method = settings.ocr.uploadMethod || 'llm';
+    const isEnabled = settings.ocr.enabled && (method === 'local' || await ocrService.isEnabled());
     res.json({
+      method,
       enabled: isEnabled,
       message: isEnabled ? 'OCR service is ready' : 'OCR service is not configured'
     });

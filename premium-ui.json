@@ -1,0 +1,9 @@
+{
+  "profile": "product-admin",
+  "sourceRoots": ["src/features/prf-upload"],
+  "locale": "en",
+  "canonicalMap": "UX-CONTRACT.md",
+  "requiredCapabilities": ["Select/Listbox", "Date", "Form", "Scrollbar", "Toast", "CRUD"],
+  "ownership": { "Select/Listbox": "authored", "Date": "typed" },
+  "evidence": { "crudFullFlow": "backend/tests/prf-upload.test.cjs", "failurePaths": "backend/tests/prf-upload.test.cjs" }
+}

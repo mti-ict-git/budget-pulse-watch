@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import { executeQuery } from '../config/database';
 import { authenticateToken, requireAdmin, requireContentManager } from '../middleware/auth';
 import { isRunningInDocker } from '../utils/networkAuth';
+import { runLocalWorker } from '../services/localPRFParser';
 
 const router = express.Router();
 
@@ -13,6 +14,7 @@ const SETTINGS_FILE = path.join(__dirname, '../../data/settings.json');
 const ENCRYPTION_KEY = process.env.SETTINGS_ENCRYPTION_KEY || 'default-key-change-in-production';
 
 interface OCRSettings {
+  uploadMethod?: 'llm' | 'local';
   provider: 'gemini' | 'openai';
   geminiApiKey?: string;
   openaiApiKey?: string;
@@ -57,6 +59,7 @@ interface AppSettings {
 }
 
 interface DbAppSettingsRow {
+  UploadExtractionMethod: 'llm' | 'local' | null;
   Provider: 'gemini' | 'openai';
   GeminiApiKeyEnc: string | null;
   OpenAIApiKeyEnc: string | null;
@@ -304,7 +307,7 @@ async function ensureDataDirectory() {
 async function loadSettings(): Promise<AppSettings> {
   try {
     const result = await executeQuery<DbAppSettingsRow>(
-      'SELECT TOP 1 Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath, ProntoSyncEnabled, ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled, ProntoSyncBudgetYear, ProntoSyncIntervalMinutes, ProntoSyncApply, ProntoSyncMaxPrfs, ProntoSyncLimit, ProntoSyncLogEvery, ProntoHeadless, ProntoCaptureScreenshots, ProntoWritePerPoJson, ProntoSyncReplaceItem, ProntoSyncAddMissingItem, ProntoSyncSyncItemDescription, ProntoSyncRunNowRequestedAt, ProntoSyncRunNowRequestedBy, ProntoSyncRunNowPrfNo, ProntoSyncRunNowPrfNosJson, ProntoSyncLastRunStartedAt, ProntoSyncLastRunFinishedAt, ProntoSyncLastRunExitCode, ProntoSyncTimeZone FROM AppSettings ORDER BY SettingsID DESC'
+      'SELECT TOP 1 UploadExtractionMethod, Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath, ProntoSyncEnabled, ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled, ProntoSyncBudgetYear, ProntoSyncIntervalMinutes, ProntoSyncApply, ProntoSyncMaxPrfs, ProntoSyncLimit, ProntoSyncLogEvery, ProntoHeadless, ProntoCaptureScreenshots, ProntoWritePerPoJson, ProntoSyncReplaceItem, ProntoSyncAddMissingItem, ProntoSyncSyncItemDescription, ProntoSyncRunNowRequestedAt, ProntoSyncRunNowRequestedBy, ProntoSyncRunNowPrfNo, ProntoSyncRunNowPrfNosJson, ProntoSyncLastRunStartedAt, ProntoSyncLastRunFinishedAt, ProntoSyncLastRunExitCode, ProntoSyncTimeZone FROM AppSettings ORDER BY SettingsID DESC'
     );
     const row = result.recordset[0];
     if (row) {
@@ -314,6 +317,7 @@ async function loadSettings(): Promise<AppSettings> {
       const prontoMaxPrfs = typeof row.ProntoSyncMaxPrfs === 'number' ? row.ProntoSyncMaxPrfs : null;
       const settings: AppSettings = {
         ocr: {
+          uploadMethod: row.UploadExtractionMethod || 'llm',
           provider: row.Provider,
           geminiApiKey: geminiKey,
           openaiApiKey: openaiKey,
@@ -366,6 +370,7 @@ async function loadSettings(): Promise<AppSettings> {
       const fileSettings = JSON.parse(data) as AppSettings;
       return {
         ocr: {
+          uploadMethod: fileSettings.ocr.uploadMethod || 'llm',
           provider: fileSettings.ocr.provider || 'gemini',
           geminiApiKey: fileSettings.ocr.geminiApiKey ? decrypt(fileSettings.ocr.geminiApiKey) : '',
           openaiApiKey: fileSettings.ocr.openaiApiKey ? decrypt(fileSettings.ocr.openaiApiKey) : '',
@@ -472,8 +477,9 @@ async function saveSettings(settings: AppSettings): Promise<void> {
   const hasRow = (existing.recordset[0]?.Count || 0) > 0;
   if (hasRow) {
     await executeQuery(
-      'UPDATE AppSettings SET Provider=@Provider, GeminiApiKeyEnc=@GeminiApiKeyEnc, OpenAIApiKeyEnc=@OpenAIApiKeyEnc, Enabled=@Enabled, Model=@Model, SharedFolderPath=@SharedFolderPath, ProntoSyncEnabled=@ProntoSyncEnabled, ProntoSyncHeaderEnabled=@ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled=@ProntoSyncItemsEnabled, ProntoSyncBudgetYear=@ProntoSyncBudgetYear, ProntoSyncIntervalMinutes=@ProntoSyncIntervalMinutes, ProntoSyncApply=@ProntoSyncApply, ProntoSyncMaxPrfs=@ProntoSyncMaxPrfs, ProntoSyncLimit=@ProntoSyncLimit, ProntoSyncLogEvery=@ProntoSyncLogEvery, ProntoHeadless=@ProntoHeadless, ProntoCaptureScreenshots=@ProntoCaptureScreenshots, ProntoWritePerPoJson=@ProntoWritePerPoJson, ProntoSyncReplaceItem=@ProntoSyncReplaceItem, ProntoSyncAddMissingItem=@ProntoSyncAddMissingItem, ProntoSyncSyncItemDescription=@ProntoSyncSyncItemDescription, ProntoSyncTimeZone=@ProntoSyncTimeZone, UpdatedAt=GETDATE()',
+      'UPDATE AppSettings SET UploadExtractionMethod=@UploadExtractionMethod, Provider=@Provider, GeminiApiKeyEnc=@GeminiApiKeyEnc, OpenAIApiKeyEnc=@OpenAIApiKeyEnc, Enabled=@Enabled, Model=@Model, SharedFolderPath=@SharedFolderPath, ProntoSyncEnabled=@ProntoSyncEnabled, ProntoSyncHeaderEnabled=@ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled=@ProntoSyncItemsEnabled, ProntoSyncBudgetYear=@ProntoSyncBudgetYear, ProntoSyncIntervalMinutes=@ProntoSyncIntervalMinutes, ProntoSyncApply=@ProntoSyncApply, ProntoSyncMaxPrfs=@ProntoSyncMaxPrfs, ProntoSyncLimit=@ProntoSyncLimit, ProntoSyncLogEvery=@ProntoSyncLogEvery, ProntoHeadless=@ProntoHeadless, ProntoCaptureScreenshots=@ProntoCaptureScreenshots, ProntoWritePerPoJson=@ProntoWritePerPoJson, ProntoSyncReplaceItem=@ProntoSyncReplaceItem, ProntoSyncAddMissingItem=@ProntoSyncAddMissingItem, ProntoSyncSyncItemDescription=@ProntoSyncSyncItemDescription, ProntoSyncTimeZone=@ProntoSyncTimeZone, UpdatedAt=GETDATE()',
       {
+        UploadExtractionMethod: settings.ocr.uploadMethod || 'llm',
         Provider: settings.ocr.provider,
         GeminiApiKeyEnc: encGemini,
         OpenAIApiKeyEnc: encOpenAI,
@@ -500,8 +506,9 @@ async function saveSettings(settings: AppSettings): Promise<void> {
     );
   } else {
     await executeQuery(
-      'INSERT INTO AppSettings (Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath, ProntoSyncEnabled, ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled, ProntoSyncBudgetYear, ProntoSyncIntervalMinutes, ProntoSyncApply, ProntoSyncMaxPrfs, ProntoSyncLimit, ProntoSyncLogEvery, ProntoHeadless, ProntoCaptureScreenshots, ProntoWritePerPoJson, ProntoSyncReplaceItem, ProntoSyncAddMissingItem, ProntoSyncSyncItemDescription, ProntoSyncTimeZone) VALUES (@Provider, @GeminiApiKeyEnc, @OpenAIApiKeyEnc, @Enabled, @Model, @SharedFolderPath, @ProntoSyncEnabled, @ProntoSyncHeaderEnabled, @ProntoSyncItemsEnabled, @ProntoSyncBudgetYear, @ProntoSyncIntervalMinutes, @ProntoSyncApply, @ProntoSyncMaxPrfs, @ProntoSyncLimit, @ProntoSyncLogEvery, @ProntoHeadless, @ProntoCaptureScreenshots, @ProntoWritePerPoJson, @ProntoSyncReplaceItem, @ProntoSyncAddMissingItem, @ProntoSyncSyncItemDescription, @ProntoSyncTimeZone)',
+      'INSERT INTO AppSettings (UploadExtractionMethod, Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath, ProntoSyncEnabled, ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled, ProntoSyncBudgetYear, ProntoSyncIntervalMinutes, ProntoSyncApply, ProntoSyncMaxPrfs, ProntoSyncLimit, ProntoSyncLogEvery, ProntoHeadless, ProntoCaptureScreenshots, ProntoWritePerPoJson, ProntoSyncReplaceItem, ProntoSyncAddMissingItem, ProntoSyncSyncItemDescription, ProntoSyncTimeZone) VALUES (@UploadExtractionMethod, @Provider, @GeminiApiKeyEnc, @OpenAIApiKeyEnc, @Enabled, @Model, @SharedFolderPath, @ProntoSyncEnabled, @ProntoSyncHeaderEnabled, @ProntoSyncItemsEnabled, @ProntoSyncBudgetYear, @ProntoSyncIntervalMinutes, @ProntoSyncApply, @ProntoSyncMaxPrfs, @ProntoSyncLimit, @ProntoSyncLogEvery, @ProntoHeadless, @ProntoCaptureScreenshots, @ProntoWritePerPoJson, @ProntoSyncReplaceItem, @ProntoSyncAddMissingItem, @ProntoSyncSyncItemDescription, @ProntoSyncTimeZone)',
       {
+        UploadExtractionMethod: settings.ocr.uploadMethod || 'llm',
         Provider: settings.ocr.provider,
         GeminiApiKeyEnc: encGemini,
         OpenAIApiKeyEnc: encOpenAI,
@@ -536,6 +543,7 @@ router.get('/ocr', authenticateToken, requireAdmin, async (req: Request, res: Re
     
     // Return settings without the actual API key for security
     res.json({
+      uploadMethod: settings.ocr.uploadMethod || 'llm',
       enabled: settings.ocr.enabled,
       provider: settings.ocr.provider || 'gemini',
       geminiApiKey: settings.ocr.geminiApiKey ? '***masked***' : '',
@@ -551,7 +559,10 @@ router.get('/ocr', authenticateToken, requireAdmin, async (req: Request, res: Re
 // POST /api/settings/ocr - Save OCR settings
 router.post('/ocr', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { provider, geminiApiKey, openaiApiKey, enabled, model } = req.body;
+    const { uploadMethod, provider, geminiApiKey, openaiApiKey, enabled, model } = req.body;
+    if (uploadMethod !== undefined && !['llm', 'local'].includes(uploadMethod)) {
+      return res.status(400).json({ error: 'uploadMethod must be llm or local' });
+    }
     
     if (typeof enabled !== 'boolean') {
       return res.status(400).json({ error: 'enabled must be a boolean' });
@@ -571,6 +582,7 @@ router.post('/ocr', authenticateToken, requireAdmin, async (req: Request, res: R
     
     const currentSettings = await loadSettings();
     currentSettings.ocr = {
+      uploadMethod: uploadMethod || currentSettings.ocr.uploadMethod || 'llm',
       enabled,
       provider: provider || currentSettings.ocr.provider || 'gemini',
       geminiApiKey: geminiApiKey && geminiApiKey !== '***masked***' ? geminiApiKey : currentSettings.ocr.geminiApiKey || '',
@@ -592,6 +604,17 @@ router.post('/ocr', authenticateToken, requireAdmin, async (req: Request, res: R
 // POST /api/settings/ocr/test - Test OCR API key
 router.post('/ocr/test', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
+    if (req.body.uploadMethod !== undefined && !['llm', 'local'].includes(req.body.uploadMethod)) {
+      return res.status(400).json({ success: false, message: 'uploadMethod must be llm or local' });
+    }
+    if (req.body.uploadMethod === 'local') {
+      try {
+        const status = JSON.parse(await runLocalWorker(['--check'], 30000)) as { ready: boolean };
+        return res.json({ success: status.ready, message: status.ready ? 'Local PDF parser, Poppler and Tesseract are available.' : 'Install Poppler, Tesseract eng/ind and Python parser dependencies.' });
+      } catch {
+        return res.status(503).json({ success: false, message: 'Local parser runtime is unavailable. Check Python, Poppler and Tesseract eng/ind.' });
+      }
+    }
     const { apiKey, provider } = req.body;
     
     if (provider && !['gemini', 'openai'].includes(provider)) {

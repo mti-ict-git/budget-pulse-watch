@@ -72,7 +72,8 @@ yarn.lock
 bun.lockb
 
 # Database files (keep schema, exclude data)
-database/migrations/
+database/migrations/*
+!database/migrations/026_add_prf_upload_extraction_method.sql
 
 # Scripts not needed in production
 fix-admin-role.ts

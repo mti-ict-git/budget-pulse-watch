@@ -7,8 +7,9 @@ This roadmap restores the formal phase tracker required by `AGENTS.md` and defin
 ## Status Summary
 
 - Roadmap status: In Progress
-- Active phase: `Phase 13B - Operational Intelligence`
-- Last updated: `2026-10-22`
+- Active phase: `Phase 14 - Optional Local PRF Upload Parser`
+- Phase 13B remains a separate existing stream; no chatbot scope change in Phase 14.
+- Last updated: `2026-10-25`
 
 ## Historical Delivery Context
 
@@ -837,4 +838,39 @@ OCR native PDF verification (2026-10-23): after explicit user authorization, rea
 
 Native PDF OCR release requested (2026-10-23): backend-only publication authorized after PRF 54123 read-only verification. Scope excludes scan apply, PRF repair and schema changes; frontend/Pronto worker must be retained. OpenAPI reviewed: no request/response contract change.
 
-Native PDF OCR release verified (2026-10-23): 995d607 published and deployed backend-only, healthy; final image offline regressions/API proxy/TLS/CIFS checks passed. Frontend/worker retained, PRF 54123 and 52726 hashes unchanged. No scan apply/data repair/migration. Evidence: docs/releases/2026-10-23-native-pdf-ocr.md. Phase 13B remains In Progress.
+
+## Phase 14 - Optional Local PRF Upload Parser
+
+### Status
+
+Deployed — upload and production preview verified. Local-parser rescan integration is deferred by the user; real-document save acceptance remains pending.
+
+### Objective
+
+Offer an opt-in local PDF parser alongside the existing LLM method, with editable preview and explicit review before creation.
+
+### Source Documents
+
+- `docs/prf-local-upload.md`
+- `docs/openapi.yaml`
+- `docs/open-questions-and-challenges.md`
+- `DESIGN.md` and `UX-CONTRACT.md`
+
+### Checklist
+
+- [x] Preserve LLM as default and persist optional local upload method
+- [x] Package the regression-tested Python parser and local OCR runtime
+- [x] Bind preview to user/source and require reviewed data before create
+- [x] Show editable fields, source PDF and review flags before save
+- [x] Preserve existing rescan dispatch and behavior
+- [x] Update API/runtime documentation and record validation evidence
+
+### Output
+
+Upload supports two explicit methods, with no automatic cloud fallback for local processing.
+
+### Challenge / Verification
+
+Implementation verified locally: 55 unique PDFs passed adapter regression against the established parser-v2 corpus; eight backend tests passed, including preview binding/review validation, edited-data save, rollback/retry, provider isolation, real annotation extraction and unchanged rescan handlers. Backend TypeScript, Vite production build and targeted ESLint passed. Browser fixture evidence is recorded in `docs/reports/prf-upload-browser.json`.
+
+Migration 026 committed on server59 with existing settings preserved. Frontend/backend images deployed; local OCR runtime and production-proxied PDF preview verified without PRF writes or cloud calls. LLM remains the default; provider configuration and compiled rescan handlers are preserved. Pronto Sync retained its container ID. See docs/releases/2026-10-25-prf-local-upload.md for evidence and rollback. Saving a real PRF remains business acceptance, not part of preview smoke testing.

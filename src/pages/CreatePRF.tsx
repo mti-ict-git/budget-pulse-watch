@@ -99,10 +99,11 @@ interface CreatedPRFData {
     Currency: string;
   }>;
   extractedData: ExtractedPRFData;
-  ocrConfidence: number;
+  ocrConfidence?: number;
+  attachmentWarning?: string;
   uploadId: string;
   originalFilename: string;
-  savedFilePath: string;
+  savedFilePath: string | null;
 }
 
 const departments = [
@@ -378,7 +379,7 @@ const CreatePRF: React.FC = () => {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Create PRF</h1>
             <p className="text-muted-foreground">
-              Create a new Purchase Request Form using OCR document scanning
+              Create a new Purchase Request Form from a reviewed document or manual entry
             </p>
           </div>
         </div>
@@ -394,7 +395,8 @@ const CreatePRF: React.FC = () => {
                 <strong>PRF Created Successfully!</strong>
                 <br />
                 PRF {createdPRF.prf.PRFNo} has been created with {createdPRF.items.length} items.
-                OCR Confidence: {Math.round(createdPRF.ocrConfidence * 100)}%
+                {createdPRF.ocrConfidence !== undefined && <>LLM confidence: {Math.round(createdPRF.ocrConfidence * 100)}%</>}
+                {createdPRF.attachmentWarning && <p role="alert" className="mt-2 font-medium">{createdPRF.attachmentWarning}</p>}
               </div>
               <div className="flex gap-2">
                 <Button onClick={handleViewPRF} size="sm">
@@ -451,8 +453,8 @@ const CreatePRF: React.FC = () => {
                       <Zap className="h-5 w-5 text-green-600" />
                     </div>
                     <div>
-                      <h3 className="font-medium">2. AI Processing</h3>
-                      <p className="text-sm text-gray-600">Our AI extracts data from your document</p>
+                      <h3 className="font-medium">2. Extract and review</h3>
+                      <p className="text-sm text-gray-600">Review fields, source pages and warnings before saving</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-4 border rounded-lg">
@@ -460,8 +462,8 @@ const CreatePRF: React.FC = () => {
                       <CheckCircle className="h-5 w-5 text-purple-600" />
                     </div>
                     <div>
-                      <h3 className="font-medium">3. PRF Created</h3>
-                      <p className="text-sm text-gray-600">Review and finalize your PRF</p>
+                      <h3 className="font-medium">3. Save reviewed PRF</h3>
+                      <p className="text-sm text-gray-600">Save only after the preview has been checked</p>
                     </div>
                   </div>
                 </div>
@@ -950,18 +952,10 @@ const CreatePRF: React.FC = () => {
                   <p className="text-sm">{createdPRF.originalFilename}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">OCR Confidence</label>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-blue-600 h-2 rounded-full" 
-                        style={{ width: `${createdPRF.ocrConfidence * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-sm font-medium">
-                      {Math.round(createdPRF.ocrConfidence * 100)}%
-                    </span>
-                  </div>
+                  <label className="text-sm font-medium text-gray-700">Extraction confidence</label>
+                  {createdPRF.ocrConfidence !== undefined ? <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{Math.round(createdPRF.ocrConfidence * 100)}%</span>
+                  </div> : <p className="text-sm">No model score provided; the source review and validation checks were used.</p>}
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">Items Extracted</label>

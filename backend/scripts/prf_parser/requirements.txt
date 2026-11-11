@@ -1,0 +1,4 @@
+# PDFium is not needed: native extraction uses pdfminer, rendering uses Poppler.
+# Install pdfplumber separately with --no-deps (see Dockerfile).
+pdfminer.six==20251230
+Pillow==12.3.0

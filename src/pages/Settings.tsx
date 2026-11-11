@@ -1,3 +1,4 @@
+import { PRFUploadMethodSettings } from '@/features/prf-upload/MethodSettings';
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -55,6 +56,7 @@ const PRONTO_TIME_ZONES: ReadonlyArray<{ value: string; label: string }> = [
 ];
 
 interface OCRSettings {
+  uploadMethod: 'llm' | 'local';
   provider: 'gemini' | 'openai';
   geminiApiKey: string;
   openaiApiKey: string;
@@ -226,6 +228,7 @@ const Settings: React.FC = () => {
   
   // All useState hooks must be called before any early returns
   const [ocrSettings, setOcrSettings] = useState<OCRSettings>({
+    uploadMethod: 'llm',
     provider: 'gemini',
     geminiApiKey: '',
     openaiApiKey: '',
@@ -354,6 +357,7 @@ const Settings: React.FC = () => {
       if (ocrResponse.ok) {
         const settings = await ocrResponse.json();
         setOcrSettings({
+          uploadMethod: settings.uploadMethod === 'local' ? 'local' : 'llm',
           provider: settings.provider || 'gemini',
           geminiApiKey: settings.geminiApiKey || '',
           openaiApiKey: settings.openaiApiKey || '',
@@ -1350,14 +1354,15 @@ const Settings: React.FC = () => {
             <CardHeader className="merdeka-form-card-header">
               <CardTitle>OCR Document Processing</CardTitle>
               <CardDescription>
-                Configure OCR settings for automatic PRF creation from uploaded documents.
-                Choose between Google Gemini Vision API or OpenAI Vision API for text extraction.
+                Choose how new PRF uploads are extracted. Both methods require a reviewed preview before saving.
+                Existing-PDF rescan continues using the LLM provider below.
               </CardDescription>
             </CardHeader>
             <CardContent className="merdeka-form-card-body space-y-6">
               <div className="space-y-4">
+                <PRFUploadMethodSettings value={ocrSettings.uploadMethod} disabled={isLoading} onChange={uploadMethod => setOcrSettings(old => ({ ...old, uploadMethod }))} />
                 <div className="space-y-2">
-                  <Label htmlFor="provider">OCR Provider</Label>
+                  <Label htmlFor="provider">LLM provider (also used for rescan)</Label>
                   <Select value={ocrSettings.provider} onValueChange={handleProviderChange}>
                     <SelectTrigger id="provider">
                       <SelectValue placeholder="Select OCR provider" />

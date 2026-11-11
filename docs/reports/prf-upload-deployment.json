@@ -1,0 +1,62 @@
+{
+  "server": "10.60.10.59",
+  "project": "/root/budget-pulse-watch",
+  "migration026": {
+    "committed": true,
+    "existingSettingsPreserved": true,
+    "uploadDefault": "llm"
+  },
+  "rescanHandlerHashBefore": "5d7e8d6f69b58b84515c8ee36b06cb3dbad2cca25d0a227c134693ad23cc5ef5",
+  "rescanHandlerHashCandidate": "5d7e8d6f69b58b84515c8ee36b06cb3dbad2cca25d0a227c134693ad23cc5ef5",
+  "rescanUnchanged": true,
+  "backendTestsPassed": 8,
+  "rolloutComplete": true,
+  "verifiedAt": "2026-10-25T11:22:35.373871+00:00",
+  "livePreview": {
+    "passed": true,
+    "proxy": "production frontend to production backend",
+    "method": "local",
+    "items": 17,
+    "pages": 2,
+    "allGLPresent": true,
+    "reviewFlags": 11,
+    "previewReceipt": true,
+    "seconds": 15.7,
+    "PRFCountsUnchanged": true,
+    "cloudProviderCalled": false,
+    "originalMethodRestored": "llm",
+    "providerConfigurationPreserved": true
+  },
+  "runtime": {
+    "containers": [
+      {
+        "container": "budget-pulse-watch-backend-1",
+        "id": "c1b3648962ea087e90e452f47b43aeb91964028b3f924cd0be4f1f70c7c0703b",
+        "image": "sha256:dff9b564942676d06e0b84887ecd42898841f7d05e0e4f8109ec6d61765fb6fe",
+        "status": "running",
+        "health": "healthy"
+      },
+      {
+        "container": "budget-pulse-watch-frontend-1",
+        "id": "f042df585e616c7ad9c82027f48611f682112b002aba71ff6bb2c3d7c7b25882",
+        "image": "sha256:40c3f4d180c89788c64bcd26158310e8cf29dfccd8e1f383ca6b1109cddd06f5",
+        "status": "running",
+        "health": "healthy"
+      },
+      {
+        "container": "budget-pulse-watch-pronto_sync-1",
+        "id": "f072e2c1ff45cda7a482d732e88ab71105a57c13400d4a7ce2a65a717d341f80",
+        "image": "sha256:8e960c6ed553f21d75de258db086c0a315abd73006889ffdd6d574e25f93fdba",
+        "status": "running",
+        "health": null
+      }
+    ],
+    "prontoUnchanged": true
+  },
+  "readinessCheckSeconds": 30,
+  "compiledRescanRouteSHA256": "246edfc74606af2b20c727b0b61638be1a1bd9c395a1a42ab1bc8ba09117ead4",
+  "compiledOCRServiceSHA256": "91e579be1e9f1590224f8f42e81d65d1a8d38b9dd2d21cc05a6627183f12c288",
+  "rescanDependenciesPreserved": true,
+  "browserFixtureTestsPassed": true,
+  "businessRecordSaveTestedInProduction": false
+}

@@ -213,3 +213,7 @@ This repository is connected to Lovable:
 
 - Project URL: [lovable.dev/projects/2161adca-98cc-4f2f-ac94-84a8dd852b12](https://lovable.dev/projects/2161adca-98cc-4f2f-ac94-84a8dd852b12)
 - Avoid rewriting published history that has already synced to Lovable.
+
+## Optional local PRF upload parser (Phase 14)
+
+Settings → OCR Configuration offers LLM (existing provider/key/model) or optional local PDF parser v2 for **new uploads only**. Both use editable preview and explicit review before saving. Existing-PDF rescan remains on the LLM path. See `docs/prf-local-upload.md` and `docs/technical-implementation-plan.md` for migration 026, Python/Poppler/Tesseract installation, limits and verification.

@@ -21,6 +21,10 @@ import { validateRescanExtraction } from '../services/rescanValidation';
 
 const rescanHash = (value: Buffer | string): string => createHash('sha256').update(value).digest('hex');
 
+import { extractUpload } from '../services/prfUploadExtraction';
+import { createUploadPreview, acquireUploadPreview, finishUploadPreview, releaseUploadPreview } from '../services/prfUploadReview';
+import { UploadError } from '../services/localPRFParser';
+
 const router = express.Router();
 
 // Configure multer for file uploads
@@ -309,254 +313,74 @@ const supportedStoredOCRMimeType = (file: PRFFile): string | null => {
 
 // Create PRF from uploaded document using OCR
 router.post('/create-from-document', authenticateToken, requireContentManager, upload.single('document'), async (req, res) => {
+  let lease: ReturnType<typeof acquireUploadPreview> | undefined;
+  let committed = false;
   try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: 'No file uploaded'
-      });
-    }
-
-    // Check if OCR service is enabled
-    const isOCREnabled = await ocrService.isEnabled();
-    if (!isOCREnabled) {
-      return res.status(503).json({
-        success: false,
-        message: 'OCR service is not configured. Please set up Gemini API key in settings.'
-      });
-    }
-
-    const { buffer, mimetype, originalname } = req.file;
+    if (!req.file || !req.user) return res.status(400).json({ success: false, message: 'A document and authenticated user are required.' });
+    let reviewed: unknown; let acknowledged: unknown;
+    try { reviewed = JSON.parse(req.body.reviewedData || 'null'); acknowledged = JSON.parse(req.body.acknowledgedReviewIds || '[]'); }
+    catch { throw new UploadError('Review fields must contain valid JSON.', 422, 'INVALID_REVIEW_JSON'); }
+    lease = acquireUploadPreview(req.body.previewToken, req.user.UserID, req.file.buffer, reviewed, acknowledged);
+    if (lease.replay) return res.status(201).json(lease.replay);
+    const extractedData = lease.data;
+    const existing = await PRFModel.findByPRFNo(extractedData.prfNo!);
+    if (existing) throw new UploadError(`PRF ${extractedData.prfNo} already exists.`, 409, 'PRF_EXISTS');
+    const itemCodes = [...new Set((extractedData.items || []).map(x => x.purchaseCostCode).filter((x): x is string => Boolean(x)))];
+    const code = itemCodes.length === 1 ? itemCodes[0] : '';
+    const year = new Date().getFullYear();
+    const userName = req.user.FirstName && req.user.LastName ? `${req.user.FirstName} ${req.user.LastName}` : req.user.Username;
+    const prfItems: CreatePRFItemRequest[] = extractedData.items!.map(item => ({
+      ItemName: item.description!.slice(0, 200), Description: item.description!, ItemCode: item.partNumber || null,
+      Quantity: item.quantity!, UnitPrice: item.unitPrice!, Specifications: item.uom ? `UOM: ${item.uom}` : '',
+      PurchaseCostCode: item.purchaseCostCode, COAID: typeof item.coaid === 'number' ? item.coaid : undefined,
+      BudgetYear: typeof item.budgetYear === 'number' ? item.budgetYear : year
+    }));
+    const prfData: CreatePRFRequest = {
+      PRFNo: extractedData.prfNo!, Title: extractedData.semanticTitle || extractedData.requestFor || `PRF ${extractedData.prfNo}`,
+      Description: extractedData.projectDescription || '', Department: extractedData.department!, COAID: 1,
+      RequestedAmount: extractedData.totalAmount!, Priority: 'Medium', VendorName: extractedData.proposedSupplier || '',
+      RequiredDate: extractedData.dateRequired ? new Date(extractedData.dateRequired) : undefined,
+      DateSubmit: extractedData.dateRaised ? new Date(extractedData.dateRaised) : new Date(), SubmitBy: userName,
+      SumDescriptionRequested: extractedData.projectDescription || '', ProjectArea: extractedData.projectArea || '',
+      PurchaseCostCode: code, RequiredFor: extractedData.requestFor || '', BudgetYear: year,
+      CurrencyCode: extractedData.items![0].currency as 'IDR' | 'USD', ExchangeRateToIDR: extractedData.exchangeRateToIDR,
+      Notes: `Reviewed ${lease.preview.extraction.method} upload. Review flags: ${[...new Set(lease.preview.extraction.reviewIssues.map(x => x.code))].join(', ')}.\n${extractedData.sourceNotes || ''}`,
+      Items: prfItems
+    };
+    const transaction = new sql.Transaction(getPool());
+    await transaction.begin();
+    let createdPRF;
+    try { createdPRF = await PRFModel.create(prfData, req.user.UserID, transaction); await transaction.commit(); committed = true; }
+    catch (error) { try { await transaction.rollback(); } catch { /* retain original failure */ } throw error; }
     const uploadId = uuidv4();
-    
+    const tempDir = path.join(process.cwd(), 'temp', 'ocr-uploads');
+    let savedFilePath: string | null = null; let sharedStorage: FileStorageResult | null = null; let fileRecord: PRFFile | null = null;
+    let attachmentWarning: string | undefined;
     try {
-      // Extract PRF data using OCR
-      console.log(`🔍 Starting OCR extraction for file: ${originalname}`);
-      const extractedData = await ocrService.extractPRFData(buffer, mimetype);
-      
-      console.log(`✅ OCR extraction completed with confidence: ${extractedData.confidence}`);
-      
-      // Validate extracted data has minimum required fields
-      if (!extractedData.prfNo && !extractedData.requestedBy && !extractedData.department) {
-        return res.status(400).json({
-          success: false,
-          message: 'OCR extraction failed to identify key PRF information. Please ensure the document is clear and contains PRF data.',
-          extractedData,
-          uploadId
-        });
-      }
-
-      // Check if PRF already exists
-      if (extractedData.prfNo) {
-        try {
-          const existingPRF = await PRFModel.findByPRFNo(extractedData.prfNo);
-          if (existingPRF) {
-            return res.status(409).json({
-              success: false,
-              message: `PRF ${extractedData.prfNo} already exists in the system`,
-              existingPRF,
-              extractedData,
-              uploadId
-            });
-          }
-        } catch (error) {
-          // If findByPRFNo doesn't exist, continue with creation
-          console.log('PRF lookup method not available, proceeding with creation');
-        }
-      }
-
-      // Get authenticated user information
-      if (!req.user) {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication required'
-        });
-      }
-
-      const userDisplayName = req.user.FirstName && req.user.LastName 
-        ? `${req.user.FirstName} ${req.user.LastName}` 
-        : req.user.Username;
-
-      const itemCostCodes = (extractedData.items || [])
-        .map((item) => item.purchaseCostCode)
-        .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
-        .map((v) => v.trim());
-      const uniqueItemCostCodes = Array.from(new Set<string>(itemCostCodes));
-      const prfCostCode =
-        (typeof extractedData.generalLedgerCode === 'string' && extractedData.generalLedgerCode.trim().length > 0
-          ? extractedData.generalLedgerCode.trim()
-          : uniqueItemCostCodes.length === 1
-            ? uniqueItemCostCodes[0]
-            : '');
-
-      // Prepare PRF data for creation
-      const prfData: CreatePRFRequest = {
-        PRFNo: extractedData.prfNo || `OCR-${uploadId.substring(0, 8)}`,
-        Title: extractedData.semanticTitle || extractedData.projectDescription || 'OCR Generated PRF',
-        Description: extractedData.projectDescription || '',
-        Department: extractedData.department || req.user.Department || 'Unknown',
-        COAID: 1, // Default COA ID
-        RequestedAmount: extractedData.totalAmount || 0,
-        Priority: 'Medium',
-        RequiredDate: extractedData.dateRequired ? new Date(extractedData.dateRequired) : undefined,
-        VendorName: extractedData.proposedSupplier || '',
-        Notes: `OCR extracted from ${originalname}`,
-        DateSubmit: extractedData.dateRaised ? new Date(extractedData.dateRaised) : new Date(),
-        SubmitBy: userDisplayName, // Always use authenticated user, not OCR extracted data
-        SumDescriptionRequested: extractedData.projectDescription || '',
-        ProjectArea: extractedData.projectArea || '',
-        PurchaseCostCode: prfCostCode,
-        RequiredFor: extractedData.requestFor || extractedData.projectId || '',
-        BudgetYear: new Date().getFullYear()
-      };
-
-      // Create the PRF
-      console.log(`📝 Creating PRF with data:`, prfData);
-      const createdPRF = await PRFModel.create(prfData, req.user.UserID);
-      
-      // Create PRF items if extracted
-      const createdItems = [];
-      if (extractedData.items && extractedData.items.length > 0) {
-        console.log(`📦 Creating ${extractedData.items.length} PRF items`);
-        
-        const prfItems: CreatePRFItemRequest[] = extractedData.items.map((item) => {
-          const coaidRaw = item.coaid;
-          const coaidParsed =
-            typeof coaidRaw === 'number'
-              ? coaidRaw
-              : typeof coaidRaw === 'string'
-                ? Number.parseInt(coaidRaw.trim(), 10)
-                : Number.NaN;
-          const coaid = Number.isInteger(coaidParsed) && coaidParsed > 0 ? coaidParsed : undefined;
-
-          const budgetYearRaw = item.budgetYear;
-          const budgetYearParsed =
-            typeof budgetYearRaw === 'number'
-              ? budgetYearRaw
-              : typeof budgetYearRaw === 'string'
-                ? Number.parseInt(budgetYearRaw.trim(), 10)
-                : Number.NaN;
-          const budgetYear =
-            Number.isInteger(budgetYearParsed) && budgetYearParsed >= 2000 && budgetYearParsed <= 2100
-              ? budgetYearParsed
-              : undefined;
-
-          const mapped = mapScannedItemFields(item, {
-            fallbackCostCode: prfCostCode || null,
-            fallbackBudgetYear: budgetYear ?? new Date().getFullYear()
-          });
-
-          return {
-            ItemName: mapped.itemName,
-            Description: mapped.description || undefined,
-            ItemCode: mapped.itemCode,
-            Quantity: mapped.quantity,
-            UnitPrice: mapped.unitPrice,
-            Specifications: '',
-            PurchaseCostCode: mapped.purchaseCostCode || undefined,
-            COAID: coaid,
-            BudgetYear: budgetYear
-          };
-        });
-        
-        try {
-          await PRFModel.addItems(createdPRF.PRFID, prfItems);
-          createdItems.push(...prfItems);
-        } catch (itemError) {
-          console.error('Failed to create PRF items:', itemError);
-        }
-      }
-
-      // Save the uploaded file for reference
-      const tempDir = path.join(process.cwd(), 'temp', 'ocr-uploads');
       await fs.mkdir(tempDir, { recursive: true });
-      
-      const fileExtension = path.extname(originalname);
-      const savedFilePath = path.join(tempDir, `${createdPRF.PRFID}-${uploadId}${fileExtension}`);
-      await fs.writeFile(savedFilePath, buffer);
-      
-      // Copy file to shared storage and save metadata
-      let sharedStorageResult: FileStorageResult | null = null;
-      let fileRecord: PRFFile | null = null;
-      try {
-        const settings = await loadSettings();
-        const envSharedFolderPath = typeof process.env.SHARED_FOLDER_PATH === 'string' ? process.env.SHARED_FOLDER_PATH.trim() : '';
-        const settingsSharedFolderPath = settings.general?.sharedFolderPath?.trim() || '';
-        const basePath = envSharedFolderPath || settingsSharedFolderPath;
-
-        const sharedStorageConfig: SharedStorageConfig = {
-          basePath,
-          enabled: basePath.length > 0
-        };
-        
-        const sharedStorageService = getSharedStorageService(sharedStorageConfig);
-        sharedStorageResult = await sharedStorageService.copyFileToSharedStorage(
-          savedFilePath,
-          createdPRF.PRFNo,
-          originalname
-        );
-        
-        if (!sharedStorageResult.success) {
-          console.warn(`⚠️ Shared storage copy failed: ${sharedStorageResult.error}`);
-        }
-
-        if (sharedStorageResult.success) {
-          console.log(`📁 File copied to shared storage: ${sharedStorageResult.sharedPath}`);
-        }
-
-        const fileStats = await fs.stat(savedFilePath);
-        fileRecord = await PRFFilesModel.create({
-          PRFID: createdPRF.PRFID,
-          OriginalFileName: originalname,
-          FilePath: savedFilePath,
-          SharedPath: sharedStorageResult.success ? sharedStorageResult.sharedPath : undefined,
-          FileSize: fileStats.size,
-          FileType: fileExtension.toLowerCase().replace('.', ''),
-          MimeType: mimetype || 'application/octet-stream',
-          UploadedBy: req.user.UserID,
-          IsOriginalDocument: true,
-          Description: 'OCR source document'
-        });
-
-        console.log(`💾 File metadata saved to database with ID: ${fileRecord.FileID}`);
-      } catch (sharedStorageError) {
-        console.error('Shared storage operation failed:', sharedStorageError);
-      }
-      
-      console.log(`✅ PRF created successfully with ID: ${createdPRF.PRFID}`);
-      
-      return res.status(201).json({
-        success: true,
-        message: 'PRF created successfully from OCR extraction',
-        data: {
-          prf: createdPRF,
-          items: createdItems,
-          extractedData,
-          ocrConfidence: extractedData.confidence,
-          uploadId,
-          originalFilename: originalname,
-          savedFilePath,
-          sharedStorage: sharedStorageResult,
-          fileRecord: fileRecord
-        }
-      });
-      
-    } catch (ocrError) {
-      console.error('OCR processing failed:', ocrError);
-      return res.status(500).json({
-        success: false,
-        message: `OCR processing failed: ${ocrError instanceof Error ? ocrError.message : 'Unknown error'}`,
-        uploadId,
-        originalFilename: originalname
-      });
-    }
-    
+      const ext = path.extname(req.file.originalname).toLowerCase();
+      savedFilePath = path.join(tempDir, `${createdPRF.PRFID}-${uploadId}${ext}`);
+      await fs.writeFile(savedFilePath, req.file.buffer);
+      const settings = await loadSettings();
+      const basePath = process.env.SHARED_FOLDER_PATH?.trim() || settings.general?.sharedFolderPath?.trim() || '';
+      const storage = getSharedStorageService({ basePath, enabled: Boolean(basePath) });
+      sharedStorage = await storage.copyFileToSharedStorage(savedFilePath, createdPRF.PRFNo, req.file.originalname);
+      fileRecord = await PRFFilesModel.create({ PRFID: createdPRF.PRFID, OriginalFileName: req.file.originalname,
+        FilePath: savedFilePath, SharedPath: sharedStorage.success ? sharedStorage.sharedPath : undefined,
+        FileSize: req.file.size, FileType: ext.replace('.', ''), MimeType: req.file.mimetype,
+        UploadedBy: req.user.UserID, IsOriginalDocument: true, Description: `Reviewed ${lease.preview.extraction.method} source document` });
+      if (!sharedStorage.success) attachmentWarning = 'PRF saved; the source is retained locally but the shared-folder copy failed.';
+    } catch { attachmentWarning = 'PRF saved, but attaching its source document failed. Attach the original document manually.'; }
+    const response = { success: true, message: 'PRF created from the reviewed preview.', data: {
+      prf: createdPRF, items: prfItems, extractedData, uploadId, originalFilename: req.file.originalname,
+      method: lease.preview.extraction.method, ocrConfidence: lease.preview.extraction.extractedData.confidence, savedFilePath, sharedStorage, fileRecord, attachmentWarning
+    } };
+    finishUploadPreview(lease.preview, response);
+    return res.status(201).json(response);
   } catch (error) {
-    console.error('PRF creation from OCR failed:', error);
-    return res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'PRF creation failed'
-    });
+    if (lease && !committed) releaseUploadPreview(lease.preview);
+    return res.status(error instanceof UploadError ? error.status : 500).json({ success: false,
+      code: error instanceof UploadError ? error.code : 'CREATE_FAILED', message: error instanceof UploadError ? error.message : 'Unable to save the reviewed PRF. Your preview has been retained.' });
   }
 });
 
@@ -567,15 +391,6 @@ router.post('/preview-extraction', authenticateToken, requireContentManager, upl
       return res.status(400).json({
         success: false,
         message: 'No file uploaded'
-      });
-    }
-
-    // Check if OCR service is enabled
-    const isOCREnabled = await ocrService.isEnabled();
-    if (!isOCREnabled) {
-      return res.status(503).json({
-        success: false,
-        message: 'OCR service is not configured. Please set up Gemini API key in settings.'
       });
     }
 
@@ -590,18 +405,22 @@ router.post('/preview-extraction', authenticateToken, requireContentManager, upl
     try {
       // Extract PRF data using OCR
       console.log(`🔍 Starting OCR preview extraction for file: ${originalname}`);
-      const extractionResult = debugEnabled
-        ? await ocrService.extractPRFDataWithDebug(buffer, mimetype)
-        : { extractedData: await ocrService.extractPRFData(buffer, mimetype), debug: undefined };
+      const extractionResult = await extractUpload(buffer, mimetype, debugEnabled);
       const extractedData = extractionResult.extractedData;
       
       console.log(`✅ OCR preview extraction completed with confidence: ${extractedData.confidence}`);
       
+      const receipt = createUploadPreview(extractionResult, req.user!.UserID, buffer);
       return res.json({
         success: true,
         message: 'OCR extraction preview completed',
         data: {
           extractedData,
+          previewToken: receipt.token,
+          expiresAt: receipt.expiresAt,
+          method: extractionResult.method,
+          reviewIssues: extractionResult.reviewIssues,
+          sourcePages: extractionResult.sourcePages,
           uploadId,
           originalFilename: originalname,
           suggestions: {
@@ -620,9 +439,10 @@ router.post('/preview-extraction', authenticateToken, requireContentManager, upl
       
     } catch (ocrError) {
       console.error('OCR preview extraction failed:', ocrError);
-      return res.status(500).json({
+      return res.status(ocrError instanceof UploadError ? ocrError.status : 500).json({
         success: false,
-        message: `OCR extraction failed: ${ocrError instanceof Error ? ocrError.message : 'Unknown error'}`,
+        code: ocrError instanceof UploadError ? ocrError.code : 'EXTRACTION_FAILED',
+        message: ocrError instanceof UploadError ? ocrError.message : 'Document extraction failed. Retry or choose another method in Settings.',
         uploadId,
         originalFilename: originalname
       });

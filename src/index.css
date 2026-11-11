@@ -126,3 +126,15 @@
     @apply dashboard-card hover:border-primary/20;
   }
 }
+
+/* All app-owned scroll regions share semantic theme tokens. */
+html, body, * {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / .5) hsl(var(--muted));
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: hsl(var(--muted)); }
+*::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / .5); border-radius: 8px; border: 2px solid hsl(var(--muted)); }
+*::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / .8); }
+*::-webkit-scrollbar-thumb:active { background: hsl(var(--primary)); }
+@media (forced-colors: active) { * { scrollbar-color: auto; scrollbar-width: auto; } }

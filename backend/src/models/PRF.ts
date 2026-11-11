@@ -1,3 +1,4 @@
+import sql from 'mssql';
 import { executeQuery } from '../config/database';
 import { PRF, CreatePRFRequest, UpdatePRFRequest, PRFQueryParams, PRFSummary, PRFItem, CreatePRFItemRequest, UpdatePRFParams, AddPRFItemsParams, UpdatePRFItemParams, PRFStatistics } from './types';
 
@@ -12,7 +13,7 @@ export class PRFModel {
   /**
    * Create a new PRF
    */
-  static async create(prfData: CreatePRFRequest, requestorId: number): Promise<PRF> {
+  static async create(prfData: CreatePRFRequest, requestorId: number, transaction?: sql.Transaction): Promise<PRF> {
     if (!prfData.PRFNo || prfData.PRFNo.trim().length === 0) {
       throw new Error('PRFNo is required and cannot be empty');
     }
@@ -58,12 +59,12 @@ export class PRFModel {
       ExchangeRateToIDR: prfData.ExchangeRateToIDR && prfData.ExchangeRateToIDR > 0 ? prfData.ExchangeRateToIDR : 1
     };
     
-    const result = await executeQuery<PRF>(query, params);
+    const result = await executeQuery<PRF>(query, params, transaction);
     const prf = result.recordset[0];
 
     // Add PRF items if provided
     if (prfData.Items && prfData.Items.length > 0) {
-      await this.addItems(prf.PRFID, prfData.Items);
+      await this.addItems(prf.PRFID, prfData.Items, transaction);
     }
 
     return prf;
@@ -541,7 +542,7 @@ export class PRFModel {
   /**
    * Add items to PRF
    */
-  static async addItems(prfId: number, items: CreatePRFItemRequest[]): Promise<PRFItem[]> {
+  static async addItems(prfId: number, items: CreatePRFItemRequest[], transaction?: sql.Transaction): Promise<PRFItem[]> {
     const insertValues = items.map((_, index) => 
       `(@PRFID, @ItemName${index}, @Description${index}, @ItemCode${index}, @Quantity${index}, @UnitPrice${index}, @Specifications${index}, @PurchaseCostCode${index}, @COAID${index}, @BudgetYear${index}, @OriginalPONumber${index}, @SplitPONumber${index})`
     ).join(', ');
@@ -567,7 +568,7 @@ export class PRFModel {
       VALUES ${insertValues}
     `;
 
-    const result = await executeQuery<PRFItem>(query, params);
+    const result = await executeQuery<PRFItem>(query, params, transaction);
     return result.recordset;
   }
 
