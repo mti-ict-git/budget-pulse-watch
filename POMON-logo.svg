@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1450" height="900" viewBox="0 0 1450 900">
+  <g id="mark">
+    <rect x="485" y="30" width="480" height="480" rx="112" fill="#093C58"/>
+    <path d="M590 110 H760 L820 170 V420 a18 18 0 0 1 -18 18 H590 a18 18 0 0 1 -18 -18 V128 a18 18 0 0 1 18 -18 Z" fill="#FFFFFF"/>
+    <path d="M760 110 V152 a18 18 0 0 0 18 18 H820 Z" fill="#C9D6E3"/>
+    <rect x="608" y="196" width="128" height="20" rx="10" fill="#C9D6E3"/>
+    <rect x="608" y="240" width="100" height="20" rx="10" fill="#C9D6E3"/>
+    <rect x="608" y="284" width="70" height="20" rx="10" fill="#C9D6E3"/>
+    <line x1="858" y1="446" x2="905" y2="493" stroke="#19B3A8" stroke-width="34" stroke-linecap="round"/>
+    <circle cx="780" cy="368" r="96" fill="#093C58" stroke="#19B3A8" stroke-width="30"/>
+    <rect x="738" y="370" width="22" height="40" rx="4" fill="#8CC63F"/>
+    <rect x="768" y="344" width="22" height="66" rx="4" fill="#19B3A8"/>
+    <rect x="798" y="318" width="22" height="92" rx="4" fill="#FF7100"/>
+    <path d="M885 129 Q885 175 931 175 Q885 175 885 221 Q885 175 839 175 Q885 175 885 129 Z" fill="#FF7100"/>
+    <path d="M928 92 Q928 112 948 112 Q928 112 928 132 Q928 112 908 112 Q928 112 928 92 Z" fill="#8CC63F"/>
+  </g>
+  <text x="725" y="705" text-anchor="middle" font-family="Bahnschrift, 'Segoe UI', Arial, sans-serif" font-size="200" font-weight="700" letter-spacing="10"><tspan fill="#093C58">PO</tspan><tspan fill="#19B3A8">MON</tspan></text>
+  <text x="725" y="805" text-anchor="middle" font-family="Bahnschrift, 'Segoe UI', Arial, sans-serif" font-size="52" font-weight="600" letter-spacing="8" fill="#5B6B7C">AI-POWERED PO MONITORING</text>
+</svg>
