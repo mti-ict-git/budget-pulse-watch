@@ -1182,6 +1182,297 @@ async def _wait_for_label(page, label: str, timeout_ms: int = 15000) -> bool:
     return False
 
 
+# --- PO E001 (Purchase Order Number enquiry): Lines and Approval Status -------------------------
+# Read-only enquiry. Selectors verified on Pronto Xi 2026-11-11 at 1280x800. Never click toolbar
+# actions that modify data (e.g. "Buyer" = Enter Buyer Modified); only Find, Lines, Approval Status,
+# row selection and the card close button are used here.
+
+PO_ENQUIRY_FUNCTION = "PO E001"
+PO_ENQUIRY_MENU_PATH = ["Supply Chain", "Requisitions", "Requisition and P/O Enquiry", "Purchase Order Number"]
+
+
+async def _current_function_code(page) -> str:
+    try:
+        loc = page.locator(".card-header-toolbar-module-function")
+        n = await loc.count()
+        for i in range(n - 1, -1, -1):
+            el = loc.nth(i)
+            if await el.is_visible():
+                return re.sub(r"\s+", " ", (await el.inner_text()) or "").strip().upper()
+    except Exception:
+        pass
+    return ""
+
+
+async def _wait_for_function(page, code: str, timeout_ms: int = 15000) -> bool:
+    deadline = time.monotonic() + timeout_ms / 1000
+    while time.monotonic() < deadline:
+        if await _current_function_code(page) == code.upper():
+            return True
+        await page.wait_for_timeout(300)
+    return False
+
+
+async def _open_function(page, code: str) -> bool:
+    """Open a Pronto function by its code via the menu's function box, falling back to nothing."""
+    try:
+        inp = page.locator("#module-function-input")
+        if not (await inp.count() > 0 and await inp.first.is_visible()):
+            ham = page.locator(".hamburger-menu")
+            if await ham.count() > 0:
+                await ham.first.click(timeout=5000)
+                await page.wait_for_timeout(600)
+        if await inp.count() > 0 and await inp.first.is_visible():
+            await inp.first.fill(code)
+            await inp.first.press("Enter")
+            return await _wait_for_function(page, code)
+    except Exception:
+        return False
+    return False
+
+
+async def _close_card(page) -> None:
+    try:
+        btn = page.locator("button.page-close")
+        n = await btn.count()
+        for i in range(n - 1, -1, -1):
+            el = btn.nth(i)
+            if await el.is_visible():
+                await el.click(timeout=5000)
+                await page.wait_for_timeout(800)
+                return
+    except Exception:
+        return None
+
+
+async def _wait_for_table(page, header: str, timeout_ms: int = 15000) -> Optional[Locator]:
+    rx = re.compile(rf"^{re.escape(header)}$", re.IGNORECASE)
+    deadline = time.monotonic() + timeout_ms / 1000
+    while time.monotonic() < deadline:
+        table = await _locate_table_by_column(page, rx, header_text_fallback=header)
+        if table is not None:
+            return table
+        await page.wait_for_timeout(300)
+    return None
+
+
+async def _set_visible_rows(page, rows: int) -> None:
+    try:
+        inp = page.locator(".row-count-input")
+        n = await inp.count()
+        for i in range(n - 1, -1, -1):
+            el = inp.nth(i)
+            if await el.is_visible():
+                await el.fill(str(rows))
+                await el.press("Enter")
+                await page.wait_for_timeout(800)
+                return
+    except Exception:
+        return None
+
+
+async def _read_table(table: Locator) -> Tuple[List[str], List[List[str]]]:
+    headers = await table.locator("xpath=.//th").evaluate_all(
+        "els => els.map(e => (e.innerText || '').replace(/\\s+/g, ' ').trim())"
+    )
+    rows = await table.locator("xpath=.//tbody/tr").evaluate_all(
+        "rows => rows.map(r => Array.from(r.querySelectorAll('td')).map(td => (td.innerText || '').trim()))"
+    )
+    return headers, rows
+
+
+async def _read_card_fields(page) -> List[Tuple[str, str, str]]:
+    raw = await page.locator("label.card-field").evaluate_all(
+        "els => els.filter(e => e.offsetParent).map(e => [e.getAttribute('name') || '', e.className || '', "
+        "(e.getAttribute('title') || e.innerText || '').trim()])"
+    )
+    return [(str(a), str(b), str(c)) for a, b, c in raw]
+
+
+async def _click_toolbar_button(page, label: str, timeout_ms: int = 8000) -> bool:
+    """Click a toolbar control by its exact label.
+
+    Pronto toolbar items are not always exposed as role=button, so exact visible text is the
+    fallback (same as the proven INV E071 Find). Exact matches only: partial matches could hit a
+    mutating control on PO screens.
+    """
+    rx = re.compile(rf"^\s*{re.escape(label)}\s*$", re.IGNORECASE)
+    candidates = [
+        page.get_by_role("button", name=rx),
+        page.get_by_role("menuitem", name=rx),
+        page.get_by_role("link", name=rx),
+        page.get_by_text(label, exact=True),
+    ]
+    deadline = time.monotonic() + timeout_ms / 1000
+    while True:
+        for loc in candidates:
+            try:
+                n = await loc.count()
+                for i in range(n - 1, -1, -1):  # newest card's toolbar is last in the DOM
+                    el = loc.nth(i)
+                    if await el.is_visible():
+                        await el.click(timeout=10000)
+                        await page.wait_for_timeout(500)
+                        return True
+            except Exception:
+                continue
+        if time.monotonic() >= deadline:
+            return False
+        await page.wait_for_timeout(300)
+
+
+async def _po_enquiry_find(page, po_number: str) -> Tuple[bool, Dict[str, object]]:
+    stats: Dict[str, object] = {}
+    list_table = await _wait_for_table(page, "Order No", 10000)
+    if list_table is None:
+        stats["error"] = "order_list_not_visible"
+        return False, stats
+    if not await _click_toolbar_button(page, "Find"):
+        stats["error"] = "find_button_not_found"
+        return False, stats
+    editor = page.locator("table input:focus")
+    try:
+        await editor.first.wait_for(timeout=5000)
+    except Exception:
+        stats["error"] = "find_input_not_focused"
+        return False, stats
+    await editor.first.fill(po_number)
+    await page.keyboard.press("Enter")
+    await page.wait_for_timeout(500)
+    await page.keyboard.press("Enter")  # empty suffix
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and await _is_find_dialog_open(page):
+        await page.wait_for_timeout(300)
+    await page.wait_for_timeout(500)
+    selected = ""
+    try:
+        cell = page.locator("table tbody tr.dg-row.selected td").first
+        selected = ((await cell.inner_text()) or "").strip()
+    except Exception:
+        pass
+    stats["selected_order"] = selected
+    # Find positions on the nearest order >= the requested number; require an exact match.
+    return selected == po_number.strip(), stats
+
+
+async def _read_po_lines(page, max_rows: int, with_detail: bool) -> List[Dict[str, object]]:
+    from pronto_po_parse import apply_line_detail, is_item_line, pair_card_fields, parse_po_lines
+
+    if not await _click_toolbar_button(page, "Lines"):
+        raise RuntimeError("lines_button_not_found")
+    table = await _wait_for_table(page, "Seq", 15000)
+    if table is None:
+        raise RuntimeError("lines_table_not_visible")
+    await _set_visible_rows(page, max_rows)
+    table = await _wait_for_table(page, "Seq", 5000) or table
+    headers, rows = await _read_table(table)
+    lines: List[Dict[str, object]] = []
+    row_index: List[int] = []
+    for idx, row in enumerate(rows):
+        parsed = parse_po_lines(headers, [row])
+        if parsed:
+            lines.append(parsed[0])
+            row_index.append(idx)
+    if with_detail:
+        tr = table.locator("xpath=.//tbody/tr")
+        for pos, line in enumerate(lines):
+            if not is_item_line(line):
+                continue
+            try:
+                await tr.nth(row_index[pos]).locator("td").first.click(timeout=5000)
+                # The detail panel updates asynchronously. Wait until it shows this line's item
+                # (Supp Code or Item Desc), so a previous line's Req'n No is never attached here.
+                expected_code = str(line.get("item_code") or "")
+                expected_desc = re.sub(r"\s+", " ", str(line.get("item_description") or "")).strip()[:15]
+                detail: Dict[str, str] = {}
+                matched = False
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:
+                    await page.wait_for_timeout(300)
+                    detail = pair_card_fields(await _read_card_fields(page))
+                    desc_now = re.sub(r"\s+", " ", detail.get("Item Desc") or "").strip()
+                    if (expected_code and detail.get("Supp Code") == expected_code) or (
+                        expected_desc and desc_now.startswith(expected_desc)
+                    ):
+                        matched = True
+                        break
+                if matched:
+                    lines[pos] = apply_line_detail(line, detail)
+                else:
+                    lines[pos] = {**line, "detail_error": "detail_not_refreshed"}
+            except Exception as e:
+                lines[pos] = {**line, "detail_error": type(e).__name__}
+    await _close_card(page)
+    return lines
+
+
+async def _read_po_approvals(page, max_rows: int) -> List[Dict[str, object]]:
+    from pronto_po_parse import parse_approval_rows
+
+    if not await _click_toolbar_button(page, "Approval Status"):
+        raise RuntimeError("approval_status_button_not_found")
+    table = await _wait_for_table(page, "Approval User", 15000)
+    if table is None:
+        raise RuntimeError("approval_table_not_visible")
+    await _set_visible_rows(page, max_rows)
+    table = await _wait_for_table(page, "Approval User", 5000) or table
+    headers, rows = await _read_table(table)
+    await _close_card(page)
+    return parse_approval_rows(headers, rows)
+
+
+async def _gather_po_details(
+    page,
+    po_numbers: List[str],
+    *,
+    with_lines: bool = True,
+    with_line_detail: bool = True,
+    with_approvals: bool = True,
+    max_rows: int = 200,
+    debug: bool = False,
+) -> Dict[str, Dict[str, object]]:
+    """Read Lines (with Req'n No per line) and Approval Status for each PO in PO E001."""
+    out: Dict[str, Dict[str, object]] = {}
+    opened = await _open_function(page, PO_ENQUIRY_FUNCTION)
+    if not opened:
+        opened = await _navigate_menu(page, PO_ENQUIRY_MENU_PATH) and await _wait_for_function(page, PO_ENQUIRY_FUNCTION)
+    if not opened:
+        for po in po_numbers:
+            out[po] = {"found": False, "lines": [], "approvals": [], "errors": ["po_enquiry_not_opened"]}
+        return out
+    await _ensure_standard_grid(page)  # the default tab may filter on the originator
+    for po in po_numbers:
+        rec: Dict[str, object] = {"found": False, "lines": [], "approvals": [], "errors": []}
+        t0 = time.monotonic()
+        try:
+            ok, stats = await _po_enquiry_find(page, po)
+            rec["find"] = stats
+            rec["found"] = ok
+            if ok and with_lines:
+                try:
+                    rec["lines"] = await _read_po_lines(page, max_rows, with_line_detail)
+                except Exception as e:
+                    rec["errors"].append(f"lines:{e}")
+                    if await _current_function_code(page) == PO_ENQUIRY_FUNCTION and await _locate_table_by_column(
+                        page, re.compile(r"^Seq$", re.IGNORECASE), "Seq"
+                    ):
+                        await _close_card(page)
+            if ok and with_approvals:
+                try:
+                    rec["approvals"] = await _read_po_approvals(page, max_rows)
+                except Exception as e:
+                    rec["errors"].append(f"approvals:{e}")
+                    if await _locate_table_by_column(page, re.compile(r"^Approval User$", re.IGNORECASE), "Approval User"):
+                        await _close_card(page)
+        except Exception as e:
+            rec["errors"].append(f"po:{type(e).__name__}")
+        rec["duration_ms"] = int((time.monotonic() - t0) * 1000)
+        _dbg(debug, f"PO details po={po} found={rec['found']} lines={len(rec['lines'])} approvals={len(rec['approvals'])}")
+        out[po] = rec
+    await _close_card(page)
+    return out
+
+
 async def main(*, check_item: bool = False, debug: bool = False, max_scrolls: int = 60) -> None:
     load_dotenv()
     if os.path.exists(".env.pronto"):
@@ -1423,6 +1714,43 @@ async def main(*, check_item: bool = False, debug: bool = False, max_scrolls: in
                                 {"po": item, "duration_ms": dt_ms, "rows": len(filtered), "details": len(details)},
                             )
                             _dbg(debug, f"PRF done po={item} duration_ms={dt_ms} rows={len(filtered)}")
+                        if (os.getenv("PRONTO_PO_DETAILS") or "1").strip().lower() not in {"0", "false", "no", "off"}:
+                            # INV E071 can miss requisition lines that sit on a split PO (seen on 51727:
+                            # PowerEdge R670 and ME5224 on split 53851). Read every related PO in PO E001.
+                            po_sets: Dict[str, List[str]] = {}
+                            for res in batch_results:
+                                req = str(res.get("po") or "").strip()
+                                if not req:
+                                    continue
+                                pos = [req]
+                                for row in res.get("rows") or []:
+                                    on = str((row or {}).get("Order Number") or "").strip()
+                                    if on.isdigit() and on not in pos:
+                                        pos.append(on)
+                                for d in res.get("details") or []:
+                                    on = str(((d or {}).get("dialog") or {}).get("Purchase Order No.") or "").strip()
+                                    if on.isdigit() and on not in pos:
+                                        pos.append(on)
+                                po_sets[req] = pos
+                            all_pos = sorted({p for pos in po_sets.values() for p in pos})
+                            if all_pos:
+                                print(f"PO details gather pos={len(all_pos)}", flush=True)
+                                try:
+                                    details_by_po = await _gather_po_details(
+                                        page,
+                                        all_pos,
+                                        with_approvals=(os.getenv("PRONTO_PO_APPROVALS") or "1").strip().lower()
+                                        not in {"0", "false", "no", "off"},
+                                        debug=debug,
+                                    )
+                                except Exception as e:
+                                    print(f"PO details gather failed: {type(e).__name__}", flush=True)
+                                    details_by_po = {}
+                                for res in batch_results:
+                                    req = str(res.get("po") or "").strip()
+                                    res["po_details"] = {p: details_by_po[p] for p in po_sets.get(req, []) if p in details_by_po}
+                                found = len([p for p in all_pos if (details_by_po.get(p) or {}).get("found")])
+                                print(f"PO details done found={found}/{len(all_pos)}", flush=True)
                         out_batch = os.path.join(artifacts_dir, "prf_items_batch.json")
                         with open(out_batch, "w", encoding="utf-8") as f:
                             json.dump({"results": batch_results}, f, ensure_ascii=False, indent=2)

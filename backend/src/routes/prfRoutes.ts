@@ -4,6 +4,11 @@ import { CreatePRFRequest, UpdatePRFRequest, PRFQueryParams, CreatePRFItemReques
 import { executeQuery } from '../config/database';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
 import { NotificationModel } from '../models/Notification';
+import {
+  listProntoApprovalHistory,
+  replaceProntoApprovalHistory,
+  validateProntoApprovalPayload
+} from '../services/prontoApprovalHistory';
 
 const router = Router();
 
@@ -1140,6 +1145,65 @@ router.get('/:id/activity', async (req: Request, res: Response) => {
       message: 'Failed to fetch PRF activity',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
+  }
+});
+
+/**
+ * @route GET /api/prfs/:id/pronto-approvals
+ * @desc Pronto Approval Status history for the PRF's original and split POs
+ * @access Authenticated
+ */
+router.get('/:id/pronto-approvals', authenticateToken, async (req: Request, res: Response) => {
+  const prfId = parseInt(req.params.id, 10);
+  if (isNaN(prfId)) {
+    return res.status(400).json({ success: false, message: 'Invalid PRF ID' });
+  }
+  try {
+    const rows = await listProntoApprovalHistory(prfId);
+    return res.json({
+      success: true,
+      data: rows.map((r) => ({
+        poNumber: r.PONumber,
+        entrySeq: r.EntrySeq,
+        approvalUser: r.ApprovalUser,
+        // Stored as Pronto wall-clock time; return it without a zone suffix.
+        actionAt: r.ActionAt ? r.ActionAt.toISOString().slice(0, 19) : null,
+        actionAtRaw: r.ActionAtRaw,
+        status: r.Status,
+        comment: r.Comment,
+        syncedAt: r.SyncedAt.toISOString()
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching Pronto approval history:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch Pronto approval history' });
+  }
+});
+
+/**
+ * @route PUT /api/prfs/:id/pronto-approvals
+ * @desc Replace the stored Pronto Approval Status history of one PO (used by the Pronto sync worker)
+ * @access Content Manager or API key
+ */
+router.put('/:id/pronto-approvals', authenticateToken, requireContentManager, async (req: Request, res: Response) => {
+  const prfId = parseInt(req.params.id, 10);
+  if (isNaN(prfId)) {
+    return res.status(400).json({ success: false, message: 'Invalid PRF ID' });
+  }
+  const parsed = validateProntoApprovalPayload(req.body);
+  if (!parsed.ok) {
+    return res.status(400).json({ success: false, message: parsed.message });
+  }
+  try {
+    const prf = await PRFModel.findById(prfId);
+    if (!prf) {
+      return res.status(404).json({ success: false, message: 'PRF not found' });
+    }
+    const saved = await replaceProntoApprovalHistory(prfId, parsed.value);
+    return res.json({ success: true, data: { prfId, poNumber: parsed.value.poNumber, saved } });
+  } catch (error) {
+    console.error('Error saving Pronto approval history:', error);
+    return res.status(500).json({ success: false, message: 'Failed to save Pronto approval history' });
   }
 });
 

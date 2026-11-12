@@ -58,6 +58,36 @@ components:
           type: string
         data:
           nullable: true
+    ProntoApprovalEntry:
+      type: object
+      properties:
+        poNumber:
+          type: string
+          example: '53851'
+        entrySeq:
+          type: integer
+          example: 9
+        approvalUser:
+          type: string
+          example: Approver C
+        actionAt:
+          type: string
+          nullable: true
+          description: Pronto site wall-clock time, no time zone (YYYY-MM-DDTHH:mm:ss)
+          example: '2026-09-29T16:37:03'
+        actionAtRaw:
+          type: string
+          nullable: true
+          example: '29-SEP-2026 16:37:03'
+        status:
+          type: string
+          example: Approve
+        comment:
+          type: string
+          nullable: true
+        syncedAt:
+          type: string
+          format: date-time
     ChatMessage:
       type: object
       required: [role, content]
@@ -2320,6 +2350,126 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
+
+  /api/prfs/{id}/pronto-approvals:
+    get:
+      summary: Pronto Approval Status history of the PRF's original and split POs
+      description: >
+        Synced by the Pronto worker from PO E001 > Approval Status. Ordered by PO number, then by the
+        order shown in Pronto. `actionAt` is Pronto site wall-clock time without a time zone.
+      tags: [PRFs]
+      security:
+        - bearerAuth: []
+        - ApiKeyHeader: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Approval history entries (empty array when nothing has been synced)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProntoApprovalEntry'
+        '400':
+          description: Invalid PRF ID
+        '401':
+          description: Authentication required
+    put:
+      summary: Replace the stored Pronto Approval Status history of one PO
+      description: >
+        Used by the Pronto sync worker. Deletes the stored entries for (PRF, poNumber) and inserts the
+        given entries in one transaction. An empty `entries` array clears that PO's history.
+      tags: [PRFs]
+      security:
+        - bearerAuth: []
+        - ApiKeyHeader: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [poNumber, entries]
+              properties:
+                poNumber:
+                  type: string
+                  pattern: '^\d+$'
+                  maxLength: 20
+                  example: '53851'
+                entries:
+                  type: array
+                  maxItems: 200
+                  items:
+                    type: object
+                    required: [approvalUser, status]
+                    properties:
+                      lineNo:
+                        type: integer
+                        minimum: 1
+                        description: Position in the Pronto list; defaults to the array position. Must be unique.
+                      approvalUser:
+                        type: string
+                        maxLength: 200
+                      actionAt:
+                        type: string
+                        nullable: true
+                        pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+                        example: '2026-09-29T16:37:03'
+                      actionAtRaw:
+                        type: string
+                        maxLength: 40
+                        example: '29-SEP-2026 16:37:03'
+                      status:
+                        type: string
+                        maxLength: 100
+                        example: Approve
+                      comment:
+                        type: string
+                        maxLength: 1000
+      responses:
+        '200':
+          description: History replaced
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      prfId:
+                        type: integer
+                      poNumber:
+                        type: string
+                      saved:
+                        type: integer
+        '400':
+          description: Invalid PRF ID or payload
+        '401':
+          description: Authentication required
+        '403':
+          description: Content manager role required
+        '404':
+          description: PRF not found
 
   /api/prfs/items/{itemId}:
     put:

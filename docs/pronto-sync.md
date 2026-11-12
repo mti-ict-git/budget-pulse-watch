@@ -173,3 +173,47 @@ Output report ditulis ke `ARTIFACTS_DIR`:
 - Preview and apply both enforce these checks (HTTP 422). Signed previews bind source SHA-256 and the existing item snapshot; changed sources/items require refresh (409), including old tokens without provenance.
 - Stored source bytes must match recorded file size and PDF signature. PDF page extraction rejects mixed PRF identifiers; exceeding render limits falls back to whole-document OCR instead of silently omitting pages. Prompts explicitly forbid invented item codes/products and non-item notes.
 - No existing FIFO item is removed by this correction. Its original creation path remains unproven. Validation cannot guarantee every AI transcription is accurate; source review remains necessary.
+
+---
+
+## PO E001 lines and approval history (added 2026-11-11)
+
+*This section is in English per the AGENTS.md documentation rule.*
+
+### Why
+
+INV E071 (Requisition Number enquiry) does not list every requisition line. For requisition 51727 it returned 4 lines, but the split PO 53851 also holds the PowerEdge R670 and the ME5224 storage, both with `Req'n No 51727` in the PO line detail. The item sync only knew INV E071, so those two items stayed unmatched in POMON.
+
+### What the worker now does
+
+After the INV E071 pass, `pronto_access.py` builds the set of related POs for each PRF: the PRF number itself plus every `Order Number` / `Purchase Order No.` seen in INV E071. For each PO it opens **PO E001** (Purchase Order Number enquiry, read-only) and:
+
+1. Selects the **Standard** tab (the default tab can filter on the originator), uses **Find**, and requires the selected row to equal the PO exactly (Find positions on the nearest number otherwise).
+2. Opens **Lines**, raises the visible row count, and reads every line: Seq, Item Code, Ordered, Unit, Item Price, Line Total, **GL Account**, descriptions. For each item line it reads the Line Detail panel to get **Req'n No** and the full item description.
+3. Opens **Approval Status** and reads Approval User, Date Time, Status and Comment.
+
+The results are stored as `po_details` in `prf_items_batch.json`.
+
+`prf_pronto_sync.py` then:
+
+- Adds items that appear only in PO E001 lines whose `Req'n No` equals the PRF (`source: po_lines`, issue `item_from_po_lines`), with `OriginalPONumber` = PRF and `SplitPONumber` = the split PO.
+- Fills gaps on items already found in INV E071 (split PO, unit price, quantity, GL account) without overwriting INV E071 values.
+- Sends each PO's approval history to `PUT /api/prfs/{id}/pronto-approvals` (skipped on dry runs).
+
+Lines without a captured `Req'n No` are only trusted on the PO that carries the PRF's own number.
+
+### Switches
+
+| Env / flag | Default | Effect |
+|---|---|---|
+| `PRONTO_PO_DETAILS` | `1` | Read PO E001 lines and approvals after INV E071. `0` restores the previous behaviour. |
+| `PRONTO_PO_APPROVALS` | `1` | Also read Approval Status in PO E001. |
+| `SYNC_PRONTO_APPROVALS` / `--sync-pronto-approvals` | on | Store approval history in POMON. |
+
+### Safety
+
+Only Find, Lines, Approval Status, row selection and the card close button are used. Toolbar actions that change data (for example **Buyer** = "Enter Buyer Modified") are never clicked. PO 0001 (PRAS Purchase Orders) is not used because its toolbar holds Cancel, Split Order, Synch-PO and Reject PO.
+
+### Selectors (verified 2026-11-11 at 1280x800)
+
+`#module-function-input` (function code box), `.hamburger-menu`, `.card-header-toolbar-module-function` (active function code), `button.page-close`, `tr.dg-row.selected`, `.row-count-input`, and `label.card-field[name="x:<col>,y:<row>"]` for detail panels.

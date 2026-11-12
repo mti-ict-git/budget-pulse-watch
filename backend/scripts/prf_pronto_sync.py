@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError, async_playwright
 
 import pronto_access
+from pronto_po_parse import items_for_requisition
 from pronto_access import (
     _click_find,
     _click_login,
@@ -158,7 +159,63 @@ def _build_pronto_item_code_map(pronto_result: Dict[str, object]) -> Tuple[Dict[
             "row": row if isinstance(row, dict) else {},
         }
 
+    # PO E001 Lines of the original and split POs. INV E071 can miss lines that sit on a split PO,
+    # so items found only there are added, and gaps (split PO, price, GL) are filled from them.
+    po_details = pronto_result.get("po_details")
+    requisition_no = str(pronto_result.get("po") or "").strip()
+    if isinstance(po_details, dict) and po_details and requisition_no:
+        for po, rec in po_details.items():
+            if isinstance(rec, dict) and not rec.get("found"):
+                issues.append({"type": "po_not_found_in_po_enquiry", "po": po, "errors": rec.get("errors") or []})
+        for code, line_item in items_for_requisition(po_details, requisition_no).items():
+            existing = by_code.get(code)
+            if existing is None:
+                by_code[code] = {**line_item, "source": "po_lines", "dialog": {}, "row": {}}
+                issues.append(
+                    {
+                        "type": "item_from_po_lines",
+                        "item_code": code,
+                        "po": line_item.get("split_po") or line_item.get("original_po"),
+                    }
+                )
+                continue
+            if not existing.get("split_po") and line_item.get("split_po"):
+                existing["split_po"] = line_item["split_po"]
+            if existing.get("unit_price") is None and line_item.get("unit_price") is not None:
+                existing["unit_price"] = line_item["unit_price"]
+            if existing.get("quantity") is None and isinstance(line_item.get("quantity"), int):
+                existing["quantity"] = line_item["quantity"]
+            existing.setdefault("gl_account", line_item.get("gl_account") or "")
+            existing.setdefault("unit", line_item.get("unit") or "")
+
     return by_code, issues
+
+
+def _approval_payload(po: str, entries: List[Dict[str, object]]) -> Dict[str, object]:
+    return {
+        "poNumber": po,
+        "entries": [
+            {
+                "lineNo": e.get("line_no"),
+                "approvalUser": e.get("approval_user") or "",
+                "actionAt": e.get("action_at"),
+                "actionAtRaw": e.get("action_at_raw") or "",
+                "status": e.get("status") or "",
+                "comment": e.get("comment") or "",
+            }
+            for e in entries
+            if isinstance(e, dict)
+        ],
+    }
+
+
+def _put_pronto_approvals(base_url: str, api_key: str, prf_id: int, po: str, entries: List[Dict[str, object]]) -> int:
+    headers = _http_headers(api_key)
+    url = f"{base_url}/api/prfs/{prf_id}/pronto-approvals"
+    resp = requests.put(url, headers=headers, data=json.dumps(_approval_payload(po, entries)), timeout=60)
+    resp.raise_for_status()
+    data = resp.json().get("data") or {}
+    return int(data.get("saved") or 0) if isinstance(data, dict) else 0
 
 
 def _fetch_prf_by_prfno(base_url: str, api_key: str, prf_no: str) -> Dict[str, object]:
@@ -1073,6 +1130,12 @@ def main() -> int:
         action=argparse.BooleanOptionalAction,
         default=_parse_bool(os.getenv("SYNC_REQUEST_DATE"), False),
     )
+    parser.add_argument(
+        "--sync-pronto-approvals",
+        action=argparse.BooleanOptionalAction,
+        default=_parse_bool(os.getenv("SYNC_PRONTO_APPROVALS"), True),
+        help="Store the Pronto Approval Status history of each related PO (item sync mode only).",
+    )
     args = parser.parse_args()
 
     if not args.api_key:
@@ -1454,6 +1517,24 @@ def main() -> int:
                         }
                     )
 
+            approvals_out: List[Dict[str, object]] = []
+            if bool(args.sync_pronto_approvals):
+                po_details = pronto_match.get("po_details")
+                for detail_po, rec in (po_details.items() if isinstance(po_details, dict) else []):
+                    if not isinstance(rec, dict) or not rec.get("found"):
+                        continue
+                    entries = [e for e in (rec.get("approvals") or []) if isinstance(e, dict)]
+                    if not entries:
+                        continue
+                    row: Dict[str, object] = {"po": detail_po, "entries": len(entries), "applied": False, "error": ""}
+                    if not is_dry_run:
+                        try:
+                            row["saved"] = _put_pronto_approvals(args.base_url, args.api_key, prf_id, detail_po, entries)
+                            row["applied"] = True
+                        except Exception as e:
+                            row["error"] = (str(e) or type(e).__name__)[:300]
+                    approvals_out.append(row)
+
             return {
                 "prfId": prf_id,
                 "prfNo": prf_no,
@@ -1463,6 +1544,7 @@ def main() -> int:
                 "issues": issues,
                 "items": out_rows,
                 "missingItems": missing_items_out,
+                "approvals": approvals_out,
             }
 
         if prfno:
