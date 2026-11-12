@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Eye, Calendar, User, Building, DollarSign, Target, Code, Clock, CheckCircle2, MessageSquare, Briefcase } from "lucide-react";
 import PRFDocuments from "./PRFDocuments";
+import ProntoApprovalHistory from "./ProntoApprovalHistory";
 
 interface PRFData {
   id: string;
@@ -396,6 +397,9 @@ export function PRFDetailDialog({ prf, onRefresh }: PRFDetailDialogProps) {
               </div>
             </CardContent>
           </Card>
+
+          {/* Pronto approval history (original and split POs) */}
+          <ProntoApprovalHistory prfId={parseInt(prf.id)} prfNo={prf.prfNo} />
 
           {/* PRF Documents */}
           <div className="md:col-span-2">

@@ -874,3 +874,46 @@ Upload supports two explicit methods, with no automatic cloud fallback for local
 Implementation verified locally: 55 unique PDFs passed adapter regression against the established parser-v2 corpus; eight backend tests passed, including preview binding/review validation, edited-data save, rollback/retry, provider isolation, real annotation extraction and unchanged rescan handlers. Backend TypeScript, Vite production build and targeted ESLint passed. Browser fixture evidence is recorded in `docs/reports/prf-upload-browser.json`.
 
 Migration 026 committed on server59 with existing settings preserved. Frontend/backend images deployed; local OCR runtime and production-proxied PDF preview verified without PRF writes or cloud calls. LLM remains the default; provider configuration and compiled rescan handlers are preserved. Pronto Sync retained its container ID. See docs/releases/2026-10-25-prf-local-upload.md for evidence and rollback. Saving a real PRF remains business acceptance, not part of preview smoke testing.
+
+## Phase 15 - Pronto Split-PO Lines And Approval History
+
+### Status
+
+Implemented on branch `feat/pronto-po-lines-approval-history`. Migration 027 applied to production on 2026-11-12. Code not deployed. Live Pronto run pending.
+
+### Objective
+
+Make the item sync see every line of a requisition, including lines on split POs, and store the Pronto Approval Status history of each related PO. Backlog items 3 (Pronto as item source of truth) and 4 (Next Action By / approval history) in `docs/backlog-dashboard-pronto-2026-11.md`.
+
+### Source Documents
+
+- `docs/backlog-dashboard-pronto-2026-11.md` (case study 51727 / 53851)
+- `docs/pronto-sync.md`
+- `docs/openapi.yaml`
+- `docs/database-schema-specification.md`
+
+### Checklist
+
+- [x] Read PO E001 Lines (with Req'n No from Line Detail) for the PRF's original and split POs
+- [x] Read PO E001 Approval Status for the same POs (read-only screens only)
+- [x] Merge Lines items into the item code map without overwriting INV E071 values
+- [x] Store approval history: migration 027, `GET`/`PUT /api/prfs/{id}/pronto-approvals`, OpenAPI
+- [x] Show the history in the PRF detail dialog
+- [x] Apply migration 027 on production (2026-11-12)
+- [ ] Deploy backend, frontend and the pronto_sync worker
+- [ ] Live dry run on 51727: expect 6 matched items (2 from `po_lines`) and approval history for 51727 and 53851
+
+### Output
+
+PRF 51727's PowerEdge R670 and ME5224 are linked to split PO 53851. Each PRF shows the Pronto approval steps per PO.
+
+### Challenge / Verification
+
+- Selectors were checked live in Pronto (read-only) on 2026-11-11 at the worker viewport (1280x800): function box, Standard tab, Find with exact-match check on `tr.dg-row.selected`, Lines grid headers, Line Detail `label.card-field` positions (Req'n No at `x:58,y:24`), Approval Status grid, card close button.
+- Python: 12 offline tests pass (`backend/scripts/tests/`), built from the real 51727 / 53851 screen data. They show the old path finds 4 items and the new path finds all 6 with split 53851, and that line totals add up to IDR 8,400,000 + 3,405,276,500.
+- Backend: `tsc` passes; `node --test backend/tests/` has 11 passing, 0 failing, 2 skipped (pre-existing skips). 5 of the passing tests are new payload-validation tests.
+- Frontend: `tsc -p tsconfig.app.json`, `vite build` and ESLint on the changed files pass.
+- Migration 027 on production `PRFMonitoringDB` (2026-11-12): applied only 027, in one transaction, from inside the backend container with its own DB settings; recorded in `SchemaMigrations`. Verified: table with 10 columns, unique `(PRFID, PONumber, EntrySeq)`, index on `(PRFID, ActionAt)`, FK to `PRF` with `ON DELETE CASCADE`, 0 rows. Backend container kept running (0 restarts). `db-migrate.js` was not used because migration 026 is applied but not recorded in `SchemaMigrations`, so its "latest unapplied" pick is unreliable.
+- Local end-to-end test (2026-11-12), isolated from production: SQL Server in a local container (`azure-sql-edge`, port 14333) built from `backend/database/schema.sql`; backend from source on port 3101 with DB settings overridden by environment (the local `backend/.env` points at production and was not used for the DB); Vite on port 8101 proxying to it. PRF 51727 seeded as a test row. Payloads built with the worker's own `parse_approval_rows` + `_approval_payload` from the 51727 / 53851 screen data. Results: `PUT` saved 8 rows (51727) and 3 rows (53851); `GET` returned 11 rows with wall-clock times unchanged (`2026-09-10T08:52:28`); re-sending the same PO twice still left 11 rows (replace, not append); no token → 401, bad `actionAt` → 400, unknown PRF → 404. The PRF detail dialog showed the "Pronto Approval History" card: PO 51727 "Latest: Approved PO by <PO approver>", PO 53851 with the "Split PO" badge and "Latest: Approve by <third approver>", and the sync timestamp.
+- Live Pronto run into the local backend (2026-11-12): `prf_pronto_sync.py --sync-prf-items --prfno 51727 --apply --add-missing-item`, run from the Mac against live Pronto (read-only screens) with `--base-url` pointing at the local backend. First run found 0/2 POs (`find_button_not_found`): `_click_toolbar_button` only matched `role=button`, but Pronto's Find is not always exposed that way. Fixed with exact-label fallbacks (menuitem, link, exact text; never partial matches) and a short retry. Second run: INV E071 4 rows, PO details found 2/2 (exact match on `tr.dg-row.selected`). PO 51727: 5 lines (1 item: rack `7125-03-297513`), 14 approval steps. PO 53851: 16 lines, 5 items all with `Req'n No 51727` including PowerEdge R670 `7021-03-330869` and ME5224 `7025-03-309184`, no `detail_not_refreshed`, 9 approval steps. Local DB after the run: 6 PRF items, 5 with `SplitPONumber = 53851`; approval history 14 + 9 rows (replacing the earlier test rows). The dialog showed the full history. Note: existing item values are kept on purpose, so the rack keeps its INV E071 estimated unit price (IDR 10.4M) rather than the PO line price.
+- Not yet verified: the same run inside the production `pronto_sync` container image (the local Docker build failed because the Mac disk was full).

@@ -215,6 +215,22 @@ CREATE TABLE PRFApprovals (
     UNIQUE (PRFID, ApproverID, ApprovalLevel)
 );
 
+-- Pronto Approval Status history per PO (original and split), synced from PO E001 (migration 027)
+CREATE TABLE PRFProntoApprovalHistory (
+    HistoryID INT IDENTITY(1,1) PRIMARY KEY,
+    PRFID INT NOT NULL,
+    PONumber NVARCHAR(20) NOT NULL,
+    EntrySeq INT NOT NULL,
+    ApprovalUser NVARCHAR(200) NOT NULL,
+    ActionAt DATETIME2 NULL,
+    ActionAtRaw NVARCHAR(40) NULL,
+    Status NVARCHAR(100) NOT NULL,
+    Comment NVARCHAR(1000) NULL,
+    SyncedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
+    FOREIGN KEY (PRFID) REFERENCES PRF(PRFID) ON DELETE CASCADE,
+    UNIQUE (PRFID, PONumber, EntrySeq)
+);
+
 -- Budget Transactions (tracks all budget movements)
 CREATE TABLE BudgetTransactions (
     TransactionID INT IDENTITY(1,1) PRIMARY KEY,
