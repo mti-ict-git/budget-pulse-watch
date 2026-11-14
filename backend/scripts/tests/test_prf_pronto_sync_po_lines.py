@@ -94,6 +94,21 @@ class MergeTests(unittest.TestCase):
         self.assertEqual(len(code_map), 4)
         self.assertIn("po_not_found_in_po_enquiry", [i["type"] for i in issues])
 
+    def test_po_not_found_reports_the_reason(self):
+        result = pronto_result()
+        result["po_details"]["53851"] = {
+            "found": False,
+            "lines": [],
+            "approvals": [],
+            "errors": [],
+            "find": {"error": "not_found", "message": "Record not found with key specified"},
+        }
+        _, issues = _build_pronto_item_code_map(result)
+        issue = next(i for i in issues if i["type"] == "po_not_found_in_po_enquiry")
+        self.assertEqual(issue["po"], "53851")
+        self.assertEqual(issue["reason"], "not_found")
+        self.assertEqual(issue["message"], "Record not found with key specified")
+
     def test_approval_payload(self):
         entries = pronto_result()["po_details"]["53851"]["approvals"]
         payload = _approval_payload("53851", entries)

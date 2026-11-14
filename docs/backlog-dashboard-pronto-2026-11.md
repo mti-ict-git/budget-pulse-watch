@@ -3,6 +3,56 @@
 Recorded: 11 November 2026
 Status: **improvement input**. Not scheduled, no technical design yet.
 
+## Working checklist
+
+Single place to track progress on the items below. Update it as work lands; record verification evidence in `docs/implementation-roadmap.md`. Last updated: 2026-11-15.
+
+Legend: `[x]` done and verified · `[~]` partly done · `[ ]` not started · **Decision** = needs the product owner.
+
+### A. Bug: PO E001 recovery (blocks item 4 in production)
+- [x] Diagnose: in the 2026-11-14 production cycle only 4 of 61 POs were read. After PO 41562 was not found, the PO E001 screen never recovered (`find_button_not_found`, then `order_list_not_visible` for every later PO).
+- [x] Recover per PO: close a leftover Find dialog after a failed Find; before each PO, check the "Order No" list is visible, otherwise close open cards and reopen PO E001
+- [x] Record why a PO failed in the sync report (not only `found: false`)
+- [x] Find out why 41562 is not found in PO E001: it is Cancelled in Pronto and has no PO; Pronto shows "Record not found with key specified"
+- [x] Test live from the Mac (read-only) with a PO list that includes 41562 (roadmap Phase 16)
+- [ ] Deploy `pronto_sync` only; run a sync so approvals are filled (check 54850)
+- [ ] Release notes and roadmap evidence
+
+### B. Item 4: Next Action By
+- [x] Store and show the Pronto approval history per PO (Phase 15, deployed 2026-11-14)
+- [ ] Approval history filled for all 2026 PRFs in production (depends on A)
+- [ ] New read-only flow for PO M094 > Next Action By (Name / User / Hierarchy)
+- [ ] Store and show "Next Action By" in PRF detail
+
+### C. Item 5: Allocated Buyer
+- [ ] **Decision:** use `Officer` when `Buyer allocation` is empty?
+- [ ] New PRF field (migration), mapping in `prf_pronto_sync.py`, API and OpenAPI
+- [ ] Show in PRF detail; filter or column on the dashboard
+
+### D. Item 1: Follow-up dashboard
+- [ ] **Decision:** what counts as "needs follow-up", whose PRFs are shown, sort order
+- [ ] Track every split PO, not only the original number
+- [ ] Build the dashboard list with latest status, Next Action By, Allocated Buyer and last sync time
+
+### E. Item 3: Pronto as item source of truth
+- [x] Item sync reads PO E001 Lines for the original and every split PO (Phase 15)
+- [ ] **Decision:** upload mechanism (fallback, comparison, or Pronto as primary)
+- [ ] Scrape GL and currency per line from PO E001
+- [ ] Implement the chosen upload mechanism
+
+### F. Item 2: Need Action / Ack (first write to Pronto)
+- [ ] **Decision:** how "returned" is marked, who may click Ack, whether a note is needed
+- [ ] Guardrails: confirm before sending, audit log, check Approval Status before and after
+- [ ] Test on a non-production Pronto, if available
+
+### G. Sync speed and operations (optional)
+- [ ] Wait for Pronto to finish instead of fixed pauses (tested: about 17% faster per PO)
+- [ ] Skip resizing the row count when every row is already visible
+- [ ] **Decision:** skip PRFs with a final status in the item sync
+- [ ] Request a dedicated Pronto service account for the worker
+
+---
+
 This note collects five proposed improvements to POMON. All of them use Pronto data that is richer than what is synced today. The current sync (see [pronto-sync.md](pronto-sync.md)) only **reads** from Pronto: PO header fields (status, approver, supplier, dates, amount) and item fields (Original/Split PO, quantity).
 
 | # | Proposal | Area | Pronto data needed | Direction |
