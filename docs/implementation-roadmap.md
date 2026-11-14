@@ -879,7 +879,7 @@ Migration 026 committed on server59 with existing settings preserved. Frontend/b
 
 ### Status
 
-Implemented on branch `feat/pronto-po-lines-approval-history`. Migration 027 applied to production on 2026-11-12. Code not deployed. Live Pronto run pending.
+Merged in PR #2 (`4320d4d`) and deployed to production on 2026-11-14. Migration 027 applied to production on 2026-11-12. Production dry run on 51727 passed. See `docs/releases/2026-11-14-pronto-po-lines-approvals.md`.
 
 ### Objective
 
@@ -900,8 +900,8 @@ Make the item sync see every line of a requisition, including lines on split POs
 - [x] Store approval history: migration 027, `GET`/`PUT /api/prfs/{id}/pronto-approvals`, OpenAPI
 - [x] Show the history in the PRF detail dialog
 - [x] Apply migration 027 on production (2026-11-12)
-- [ ] Deploy backend, frontend and the pronto_sync worker
-- [ ] Live dry run on 51727: expect 6 matched items (2 from `po_lines`) and approval history for 51727 and 53851
+- [x] Deploy backend, frontend and the pronto_sync worker (2026-11-14)
+- [x] Live dry run on 51727: expect 6 matched items (2 from `po_lines`) and approval history for 51727 and 53851 (2026-11-14)
 
 ### Output
 
@@ -916,4 +916,6 @@ PRF 51727's PowerEdge R670 and ME5224 are linked to split PO 53851. Each PRF sho
 - Migration 027 on production `PRFMonitoringDB` (2026-11-12): applied only 027, in one transaction, from inside the backend container with its own DB settings; recorded in `SchemaMigrations`. Verified: table with 10 columns, unique `(PRFID, PONumber, EntrySeq)`, index on `(PRFID, ActionAt)`, FK to `PRF` with `ON DELETE CASCADE`, 0 rows. Backend container kept running (0 restarts). `db-migrate.js` was not used because migration 026 is applied but not recorded in `SchemaMigrations`, so its "latest unapplied" pick is unreliable.
 - Local end-to-end test (2026-11-12), isolated from production: SQL Server in a local container (`azure-sql-edge`, port 14333) built from `backend/database/schema.sql`; backend from source on port 3101 with DB settings overridden by environment (the local `backend/.env` points at production and was not used for the DB); Vite on port 8101 proxying to it. PRF 51727 seeded as a test row. Payloads built with the worker's own `parse_approval_rows` + `_approval_payload` from the 51727 / 53851 screen data. Results: `PUT` saved 8 rows (51727) and 3 rows (53851); `GET` returned 11 rows with wall-clock times unchanged (`2026-09-10T08:52:28`); re-sending the same PO twice still left 11 rows (replace, not append); no token → 401, bad `actionAt` → 400, unknown PRF → 404. The PRF detail dialog showed the "Pronto Approval History" card: PO 51727 "Latest: Approved PO by <PO approver>", PO 53851 with the "Split PO" badge and "Latest: Approve by <third approver>", and the sync timestamp.
 - Live Pronto run into the local backend (2026-11-12): `prf_pronto_sync.py --sync-prf-items --prfno 51727 --apply --add-missing-item`, run from the Mac against live Pronto (read-only screens) with `--base-url` pointing at the local backend. First run found 0/2 POs (`find_button_not_found`): `_click_toolbar_button` only matched `role=button`, but Pronto's Find is not always exposed that way. Fixed with exact-label fallbacks (menuitem, link, exact text; never partial matches) and a short retry. Second run: INV E071 4 rows, PO details found 2/2 (exact match on `tr.dg-row.selected`). PO 51727: 5 lines (1 item: rack `7125-03-297513`), 14 approval steps. PO 53851: 16 lines, 5 items all with `Req'n No 51727` including PowerEdge R670 `7021-03-330869` and ME5224 `7025-03-309184`, no `detail_not_refreshed`, 9 approval steps. Local DB after the run: 6 PRF items, 5 with `SplitPONumber = 53851`; approval history 14 + 9 rows (replacing the earlier test rows). The dialog showed the full history. Note: existing item values are kept on purpose, so the rack keeps its INV E071 estimated unit price (IDR 10.4M) rather than the PO line price.
-- Not yet verified: the same run inside the production `pronto_sync` container image (the local Docker build failed because the Mac disk was full).
+- Production deploy (2026-11-14): backend, frontend and `pronto_sync` rebuilt on docker59 from the merged code; only the changed files were copied to `/root/budget-pulse-watch`, after checking that the server's copies of every changed code file matched the pre-PR version. `/health` 200; `GET`/`PUT /api/prfs/{id}/pronto-approvals` return 401 without auth; frontend bundle contains the "Pronto Approval History" card; the worker imports `pronto_po_parse`.
+- Production dry run (2026-11-14), inside the deployed `pronto_sync` container: `prf_pronto_sync.py --sync-prf-items --prfno 51727 --max-prfs 1 --dry-run --add-missing-item`. PO details found 2/2; 6/6 items matched, 0 unmatched; 2 changes, both from `po_lines`: items `7021-03-330869` and `7025-03-309184` get `OriginalPONumber 51727`, `SplitPONumber 53851` and `ItemCode`; approval history 14 (51727) + 9 (53851) entries, not written (dry run).
+- Not yet verified: the first scheduled apply cycle across all 2026 PRFs with the new code, including its duration.
