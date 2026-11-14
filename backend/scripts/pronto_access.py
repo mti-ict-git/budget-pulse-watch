@@ -1321,6 +1321,100 @@ async def _click_toolbar_button(page, label: str, timeout_ms: int = 8000) -> boo
         await page.wait_for_timeout(300)
 
 
+_ORDER_NO_RX = re.compile(r"^Order No$", re.IGNORECASE)
+# Transient Find failures that are worth one retry; "not_found" and a different order are final.
+_FIND_RETRY_ERRORS = {"find_input_not_focused", "find_button_not_found", "order_list_not_visible"}
+
+
+async def _message_box_ok(page) -> Optional[Locator]:
+    """The OK button of a visible Pronto message box (e.g. "Record not found with key specified").
+
+    Message boxes use an in-card `button.pro-button`; the Find-mode toolbar OK is `#pro-nav-ok` and
+    is never returned here (clicking it would resubmit the Find).
+    """
+    try:
+        btn = page.locator("button.pro-button")
+        n = await btn.count()
+        for i in range(n - 1, -1, -1):
+            el = btn.nth(i)
+            if await el.is_visible() and re.fullmatch(r"\s*OK\s*", (await el.inner_text()) or "", re.IGNORECASE):
+                return el
+    except Exception:
+        return None
+    return None
+
+
+async def _dismiss_message_box(page) -> str:
+    """Close a visible Pronto message box and return its text ("" when there is none)."""
+    ok = await _message_box_ok(page)
+    if ok is None:
+        return ""
+    text = ""
+    try:
+        box = ok.locator("xpath=ancestor::*[.//label[contains(@class,'card-field')]][1]")
+        text = re.sub(r"\s+", " ", (await box.first.inner_text(timeout=2000)) or "")
+        text = re.sub(r"\s*\bOK\b\s*$", "", text).strip()
+    except Exception:
+        pass
+    try:
+        await ok.click(timeout=5000)
+        await page.wait_for_timeout(300)
+    except Exception:
+        pass
+    return text or "message_box"
+
+
+async def _exit_find_mode(page) -> None:
+    """Leave Find mode with the toolbar Cancel (`#pro-nav-cancel`), falling back to any Cancel button."""
+    try:
+        cancel = page.locator("#pro-nav-cancel")
+        if await cancel.count() > 0 and await cancel.first.is_visible():
+            await cancel.first.click(timeout=5000)
+            await page.wait_for_timeout(300)
+            return
+    except Exception:
+        pass
+    await _exit_find_dialog(page)
+
+
+async def _ensure_po_list(page) -> Tuple[bool, List[str]]:
+    """Bring PO E001 back to its order list, so one failed PO cannot block the ones after it.
+
+    Steps, each only when needed: close a message box, leave Find mode, close a card opened on top
+    of the list (Lines, Approval Status), and finally reopen PO E001.
+    """
+    actions: List[str] = []
+    dismissed = bool(await _dismiss_message_box(page))
+    if dismissed:
+        actions.append("message_dismissed")
+    if dismissed or await _find_entry_open(page):  # a message box during Find leaves Find mode open
+        await _exit_find_mode(page)
+        actions.append("find_cancelled")
+    for _ in range(3):
+        # After a Find (or a cancelled one) Pronto keeps the list in navigation mode: the function
+        # code label can be empty and the toolbar OK/Cancel stay in the DOM, but the list works.
+        if await _locate_table_by_column(page, _ORDER_NO_RX, "Order No") and await _message_box_ok(page) is None:
+            return True, actions
+        code = await _current_function_code(page)
+        if code == PO_ENQUIRY_FUNCTION and await page.locator("button.page-close").count() > 1:
+            await _close_card(page)
+            actions.append("card_closed")
+            continue
+        if await _open_function(page, PO_ENQUIRY_FUNCTION):
+            await _ensure_standard_grid(page)
+        actions.append("function_reopened")
+    ready = await _wait_for_table(page, "Order No", 5000) is not None and await _message_box_ok(page) is None
+    return ready, actions
+
+
+async def _find_entry_open(page) -> bool:
+    """True while the Find key editor is open (a focused input inside the order list)."""
+    try:
+        return await page.locator("table input:focus").count() > 0
+    except Exception:
+        return False
+
+
 async def _po_enquiry_find(page, po_number: str) -> Tuple[bool, Dict[str, object]]:
     stats: Dict[str, object] = {}
     list_table = await _wait_for_table(page, "Order No", 10000)
@@ -1335,6 +1429,7 @@ async def _po_enquiry_find(page, po_number: str) -> Tuple[bool, Dict[str, object
         await editor.first.wait_for(timeout=5000)
     except Exception:
         stats["error"] = "find_input_not_focused"
+        await _exit_find_mode(page)
         return False, stats
     await editor.first.fill(po_number)
     await page.keyboard.press("Enter")
@@ -1342,8 +1437,18 @@ async def _po_enquiry_find(page, po_number: str) -> Tuple[bool, Dict[str, object
     await page.keyboard.press("Enter")  # empty suffix
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline and await _is_find_dialog_open(page):
+        if await _message_box_ok(page) is not None:
+            break
         await page.wait_for_timeout(300)
     await page.wait_for_timeout(500)
+    # Pronto answers an unknown key (e.g. a cancelled requisition that never became a PO) with a
+    # message box and stays in Find mode. Close both, otherwise every later Find fails.
+    message = await _dismiss_message_box(page)
+    if message:
+        stats["error"] = "not_found"
+        stats["message"] = message
+        await _exit_find_mode(page)
+        return False, stats
     selected = ""
     try:
         cell = page.locator("table tbody tr.dg-row.selected td").first
@@ -1352,7 +1457,10 @@ async def _po_enquiry_find(page, po_number: str) -> Tuple[bool, Dict[str, object
         pass
     stats["selected_order"] = selected
     # Find positions on the nearest order >= the requested number; require an exact match.
-    return selected == po_number.strip(), stats
+    if selected != po_number.strip():
+        stats["error"] = "different_order_selected"
+        return False, stats
+    return True, stats
 
 
 async def _read_po_lines(page, max_rows: int, with_detail: bool) -> List[Dict[str, object]]:
@@ -1445,7 +1553,21 @@ async def _gather_po_details(
         rec: Dict[str, object] = {"found": False, "lines": [], "approvals": [], "errors": []}
         t0 = time.monotonic()
         try:
+            ready, recovery = await _ensure_po_list(page)
+            if recovery:
+                rec["recovery"] = recovery
+            if not ready:
+                rec["find"] = {"error": "po_enquiry_not_ready"}
+                rec["duration_ms"] = int((time.monotonic() - t0) * 1000)
+                out[po] = rec
+                continue
             ok, stats = await _po_enquiry_find(page, po)
+            if not ok and stats.get("error") in _FIND_RETRY_ERRORS:
+                # Seen live on the first Find right after PO E001 opens: the key editor is not focused yet.
+                ready, recovery = await _ensure_po_list(page)
+                rec["recovery"] = [*(rec.get("recovery") or []), "retry", *recovery]
+                if ready:
+                    ok, stats = await _po_enquiry_find(page, po)
             rec["find"] = stats
             rec["found"] = ok
             if ok and with_lines:

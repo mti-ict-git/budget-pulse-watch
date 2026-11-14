@@ -919,3 +919,42 @@ PRF 51727's PowerEdge R670 and ME5224 are linked to split PO 53851. Each PRF sho
 - Production deploy (2026-11-14): backend, frontend and `pronto_sync` rebuilt on docker59 from the merged code; only the changed files were copied to `/root/budget-pulse-watch`, after checking that the server's copies of every changed code file matched the pre-PR version. `/health` 200; `GET`/`PUT /api/prfs/{id}/pronto-approvals` return 401 without auth; frontend bundle contains the "Pronto Approval History" card; the worker imports `pronto_po_parse`.
 - Production dry run (2026-11-14), inside the deployed `pronto_sync` container: `prf_pronto_sync.py --sync-prf-items --prfno 51727 --max-prfs 1 --dry-run --add-missing-item`. PO details found 2/2; 6/6 items matched, 0 unmatched; 2 changes, both from `po_lines`: items `7021-03-330869` and `7025-03-309184` get `OriginalPONumber 51727`, `SplitPONumber 53851` and `ItemCode`; approval history 14 (51727) + 9 (53851) entries, not written (dry run).
 - Not yet verified: the first scheduled apply cycle across all 2026 PRFs with the new code, including its duration.
+
+## Phase 16 - PO E001 Recovery After A Failed Find
+
+### Status
+
+Implemented on branch `fix/po-e001-recovery`; live-tested from the Mac (read-only). Not deployed yet.
+
+### Objective
+
+One PO that PO E001 cannot find must not block the POs after it. Fixes the 2026-11-14 production cycle, where approval history was read for only 4 of 61 POs. Working checklist group A in `docs/backlog-dashboard-pronto-2026-11.md`.
+
+### Source Documents
+
+- `docs/backlog-dashboard-pronto-2026-11.md` (working checklist, group A)
+- `docs/pronto-sync.md`
+- Phase 15 in this roadmap
+
+### Checklist
+
+- [x] Diagnose the production cycle of 2026-11-14
+- [x] Close Pronto's "Record not found" message box and leave Find mode after a failed Find
+- [x] Before each PO, bring PO E001 back to its order list (close a card on top, reopen the function only when needed)
+- [x] Retry a transient Find failure once
+- [x] Record the failure reason and Pronto's message in the sync report
+- [x] Find out why 41562 is not found
+- [x] Offline and live tests
+- [ ] Deploy `pronto_sync` and run a sync; approval history filled for the 2026 PRFs (check 54850)
+
+### Output
+
+PO E001 reads continue after a missing PO. The sync report says why a PO was not read (`reason`, `message`).
+
+### Challenge / Verification
+
+- Diagnosis (production report `prf_items_batch.json`, 2026-11-14 cycle): POs are read in ascending order. 39906, 39908, 41401 and 41527 were read; 41562 returned `selected_order: ''` after 43 s; then `find_button_not_found` for 7 POs and `order_list_not_visible` for every PO after that (61 POs, 4 read, 0 errors recorded).
+- Reproduced live (read-only, 2026-11-15): Find on 41562 shows a Pronto message box "Record not found with key specified" and stays in Find mode; the next Find fails with `find_button_not_found`. 41562 is Cancelled in Pronto (header sync), so it has no PO in PO E001; not finding it is correct.
+- DOM checked live: the message box has its own OK (`button.pro-button`); Find mode uses `#pro-nav-ok` / `#pro-nav-cancel`. The recovery clicks only the message box OK and `#pro-nav-cancel`, never `#pro-nav-ok` (which would resubmit the Find). After Cancel the list stays usable in navigation mode, with an empty function-code label.
+- Python: 16 offline tests pass, including 3 new browser tests against a static copy of that markup (message OK clicked instead of the Find OK; Find mode left without closing the list; no action on a clean list) and a report test for `reason` / `message`.
+- Live gather from the Mac (read-only, 2026-11-15) for 39906, 41527, 41562, 41682, 51727, 53851, 54850 in that order: 41562 `not_found` with Pronto's message in 3.4 s; every other PO found with lines and approvals (39906: 7 lines / 7 approvals after one retry of the first Find; 41682: 20 / 17; 51727: 5 / 14; 53851: 16 / 9; 54850: 6 / 6); PO E001 never had to be reopened; total 105 s.

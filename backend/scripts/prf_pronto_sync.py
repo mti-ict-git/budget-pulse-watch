@@ -166,7 +166,16 @@ def _build_pronto_item_code_map(pronto_result: Dict[str, object]) -> Tuple[Dict[
     if isinstance(po_details, dict) and po_details and requisition_no:
         for po, rec in po_details.items():
             if isinstance(rec, dict) and not rec.get("found"):
-                issues.append({"type": "po_not_found_in_po_enquiry", "po": po, "errors": rec.get("errors") or []})
+                find = rec.get("find") if isinstance(rec.get("find"), dict) else {}
+                issues.append(
+                    {
+                        "type": "po_not_found_in_po_enquiry",
+                        "po": po,
+                        "reason": str(find.get("error") or ""),
+                        "message": str(find.get("message") or ""),
+                        "errors": rec.get("errors") or [],
+                    }
+                )
         for code, line_item in items_for_requisition(po_details, requisition_no).items():
             existing = by_code.get(code)
             if existing is None:
