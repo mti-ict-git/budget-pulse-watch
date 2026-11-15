@@ -82,6 +82,7 @@ components:
         status:
           type: string
           example: Approve
+          description: Empty for a pending entry (an approver who has not acted yet; `actionAt` is null).
         comment:
           type: string
           nullable: true
@@ -2418,7 +2419,10 @@ paths:
                   maxItems: 200
                   items:
                     type: object
-                    required: [approvalUser, status]
+                    description: >
+                      An approver who has not acted yet is listed by Pronto with an empty status and date;
+                      send it with `status` empty and `actionAt` null. It is stored as a pending entry.
+                    required: [approvalUser]
                     properties:
                       lineNo:
                         type: integer
@@ -2440,6 +2444,7 @@ paths:
                         type: string
                         maxLength: 100
                         example: Approve
+                        description: Required when `actionAt` is set; empty or missing marks a pending entry.
                       comment:
                         type: string
                         maxLength: 1000

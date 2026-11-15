@@ -924,7 +924,7 @@ PRF 51727's PowerEdge R670 and ME5224 are linked to split PO 53851. Each PRF sho
 
 ### Status
 
-Implemented on branch `fix/po-e001-recovery`; live-tested from the Mac (read-only). Not deployed yet.
+Merged in PR #3 (`323f4e7`) and deployed (`pronto_sync` only) on 2026-11-15. See `docs/releases/2026-11-15-po-e001-recovery.md`.
 
 ### Objective
 
@@ -945,7 +945,7 @@ One PO that PO E001 cannot find must not block the POs after it. Fixes the 2026-
 - [x] Record the failure reason and Pronto's message in the sync report
 - [x] Find out why 41562 is not found
 - [x] Offline and live tests
-- [ ] Deploy `pronto_sync` and run a sync; approval history filled for the 2026 PRFs (check 54850)
+- [x] Deploy `pronto_sync` and run a sync; approval history filled for the 2026 PRFs (check 54850)
 
 ### Output
 
@@ -958,3 +958,39 @@ PO E001 reads continue after a missing PO. The sync report says why a PO was not
 - DOM checked live: the message box has its own OK (`button.pro-button`); Find mode uses `#pro-nav-ok` / `#pro-nav-cancel`. The recovery clicks only the message box OK and `#pro-nav-cancel`, never `#pro-nav-ok` (which would resubmit the Find). After Cancel the list stays usable in navigation mode, with an empty function-code label.
 - Python: 16 offline tests pass, including 3 new browser tests against a static copy of that markup (message OK clicked instead of the Find OK; Find mode left without closing the list; no action on a clean list) and a report test for `reason` / `message`.
 - Live gather from the Mac (read-only, 2026-11-15) for 39906, 41527, 41562, 41682, 51727, 53851, 54850 in that order: 41562 `not_found` with Pronto's message in 3.4 s; every other PO found with lines and approvals (39906: 7 lines / 7 approvals after one retry of the first Find; 41682: 20 / 17; 51727: 5 / 14; 53851: 16 / 9; 54850: 6 / 6); PO E001 never had to be reopened; total 105 s.
+- Production (2026-11-15): `pronto_sync` rebuilt with the fix; the cycle after the restart read 51 of 61 POs in PO E001 (was 4). The 10 others were reported `not_found` with Pronto's message; 8 of those PRFs are Cancelled. Approval history saved for 41 POs, including 54850 (6 entries). 10 POs were rejected with HTTP 400 because their Approval Status has pending approvers (empty status and date); follow-up tracked in the working checklist (group B).
+
+## Phase 17 - Pending Approvers In The Pronto Approval History
+
+### Status
+
+Implemented on branch `fix/pending-approvers`. Not deployed yet.
+
+### Objective
+
+Store approvers who have not acted yet, instead of rejecting the whole PO. Pronto's Approval Status lists them with an empty status and date. They are also the first data for "Next Action By" (backlog item 4, working checklist group B).
+
+### Source Documents
+
+- `docs/backlog-dashboard-pronto-2026-11.md` (working checklist, group B)
+- `docs/openapi.yaml` (`/api/prfs/{id}/pronto-approvals`)
+- `docs/releases/2026-11-15-po-e001-recovery.md` (the 10 rejected POs)
+
+### Checklist
+
+- [x] `PUT /api/prfs/{id}/pronto-approvals` accepts an entry with an empty status when `actionAt` is null (stored as status ""); a dated entry still needs a status
+- [x] OpenAPI updated (request and response schema)
+- [x] PRF detail dialog: "Waiting for" line per PO, "Waiting" badge on pending rows, "Latest" ignores pending rows
+- [ ] Deploy backend and frontend; next sync saves the 10 rejected POs (check 53956)
+
+### Output
+
+Every PO whose Approval Status can be read is stored, and the dialog shows who the PO is waiting for.
+
+### Challenge / Verification
+
+- Production cause (2026-11-15 cycle): 10 POs rejected with HTTP 400 (`entries[i].status is required`). Examples from the worker report: 53956 lists "Human Resources CC" and "MTI Cost Control" with empty status and date above the dated steps; 54944 lists "BUYER" the same way.
+- No database change: `Status` is `NOT NULL`, pending entries store an empty string. The worker already sends `status: ""` and `actionAt: null` for these rows.
+- Backend: `tsc` and build pass; `node --test backend/tests/` 12 pass, 0 fail, 2 skipped (pre-existing). New test: the 53956 shape (pending rows with empty or missing status) is accepted; an entry with a date and no status is still rejected.
+- Frontend: `tsc -p tsconfig.app.json`, ESLint on the changed file and `vite build` pass.
+- Python: 16 offline tests pass (worker unchanged).

@@ -20,6 +20,9 @@ interface ProntoApprovalHistoryProps {
   prfNo: string;
 }
 
+// Pronto lists approvers who have not acted yet with an empty status and date.
+const isPending = (entry: ProntoApprovalEntry): boolean => !entry.status && !entry.actionAt;
+
 const formatActionAt = (entry: ProntoApprovalEntry): string => {
   if (entry.actionAt) {
     // Pronto wall-clock time without a zone: format the parts as-is.
@@ -90,7 +93,9 @@ export default function ProntoApprovalHistory({ prfId, prfNo }: ProntoApprovalHi
           <p className="text-sm text-muted-foreground">No Pronto approval history has been synced for this PRF yet.</p>
         )}
         {byPo.map(([po, list]) => {
-          const last = list[list.length - 1];
+          const done = list.filter((e) => !isPending(e));
+          const last = done[done.length - 1];
+          const waitingFor = [...new Set(list.filter(isPending).map((e) => e.approvalUser))];
           return (
             <div key={po} className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
@@ -102,6 +107,11 @@ export default function ProntoApprovalHistory({ prfId, prfNo }: ProntoApprovalHi
                   </span>
                 )}
               </div>
+              {waitingFor.length > 0 && (
+                <p className="text-sm">
+                  <span className="font-medium">Waiting for:</span> {waitingFor.join(", ")}
+                </p>
+              )}
               <div className="overflow-x-auto rounded-md border">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 text-left">
@@ -119,7 +129,9 @@ export default function ProntoApprovalHistory({ prfId, prfNo }: ProntoApprovalHi
                         <td className="px-3 py-2 text-muted-foreground">{e.entrySeq}</td>
                         <td className="px-3 py-2">{e.approvalUser}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{formatActionAt(e)}</td>
-                        <td className="px-3 py-2">{e.status}</td>
+                        <td className="px-3 py-2">
+                          {isPending(e) ? <Badge variant="secondary">Waiting</Badge> : e.status}
+                        </td>
                         <td className="px-3 py-2 text-muted-foreground">{e.comment || ""}</td>
                       </tr>
                     ))}

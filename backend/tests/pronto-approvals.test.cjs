@@ -35,13 +35,30 @@ test('null actionAt is allowed', () => {
   assert.equal(r.value.entries[0].actionAt, null);
 });
 
+test('accepts pending approvers (empty status and date) as seen on PO 53956', () => {
+  const r = validateProntoApprovalPayload({
+    poNumber: '53956',
+    entries: [
+      entry({ lineNo: 1, approvalUser: 'Human Resources CC', actionAt: null, actionAtRaw: '', status: '' }),
+      entry({ lineNo: 2, approvalUser: 'MTI Cost Control', actionAt: null, actionAtRaw: '' }),
+      entry({ lineNo: 3 })
+    ].map((e, i) => (i === 1 ? { ...e, status: undefined } : e))
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.value.entries[0].status, '');
+  assert.equal(r.value.entries[0].actionAt, null);
+  assert.equal(r.value.entries[0].actionAtRaw, null);
+  assert.equal(r.value.entries[1].status, '');
+  assert.equal(r.value.entries[2].status, 'New Order');
+});
+
 test('rejects bad input', () => {
   const cases = [
     [null, /object/],
     [{ poNumber: 'ABC', entries: [] }, /poNumber/],
     [{ poNumber: '51727' }, /entries must be an array/],
     [{ poNumber: '51727', entries: [entry({ approvalUser: '  ' })] }, /approvalUser/],
-    [{ poNumber: '51727', entries: [entry({ status: '' })] }, /status/],
+    [{ poNumber: '51727', entries: [entry({ status: '' })] }, /status is required when actionAt is set/],
     [{ poNumber: '51727', entries: [entry({ actionAt: '10-SEP-2026' })] }, /actionAt/],
     [{ poNumber: '51727', entries: [entry(), entry()] }, /duplicated/],
     [{ poNumber: '51727', entries: [entry({ lineNo: 0 })] }, /positive integer/],
