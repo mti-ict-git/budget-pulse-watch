@@ -15,12 +15,14 @@ Legend: `[x]` done and verified · `[~]` partly done · `[ ]` not started · **D
 - [x] Record why a PO failed in the sync report (not only `found: false`)
 - [x] Find out why 41562 is not found in PO E001: it is Cancelled in Pronto and has no PO; Pronto shows "Record not found with key specified"
 - [x] Test live from the Mac (read-only) with a PO list that includes 41562 (roadmap Phase 16)
-- [ ] Deploy `pronto_sync` only; run a sync so approvals are filled (check 54850)
-- [ ] Release notes and roadmap evidence
+- [x] Deploy `pronto_sync` only; run a sync so approvals are filled (check 54850): 51 of 61 POs read, approvals saved for 41 POs, 54850 has 6 entries
+- [x] Release notes and roadmap evidence (`docs/releases/2026-11-15-po-e001-recovery.md`, Phase 16)
 
 ### B. Item 4: Next Action By
 - [x] Store and show the Pronto approval history per PO (Phase 15, deployed 2026-11-14)
-- [ ] Approval history filled for all 2026 PRFs in production (depends on A)
+- [~] Approval history filled for all 2026 PRFs in production: 41 of 51 readable POs saved
+- [~] Accept pending approvers (empty status and date); today they make the backend reject the whole PO with HTTP 400 (10 POs, mostly `Req. Approval Reqd`). Implemented in roadmap Phase 17 ("Waiting for" in the dialog); not deployed yet
+- [ ] Check why PO 51160 (PRF 47747, On order) and PRF 46093 are not found in PO E001
 - [ ] New read-only flow for PO M094 > Next Action By (Name / User / Hierarchy)
 - [ ] Store and show "Next Action By" in PRF detail
 

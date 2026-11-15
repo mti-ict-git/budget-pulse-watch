@@ -63,7 +63,10 @@ export const validateProntoApprovalPayload = (body: unknown): ValidationResult<P
     const approvalUser = trimmedString(entry.approvalUser, 200);
     const status = trimmedString(entry.status, 100);
     if (!approvalUser) return { ok: false, message: `entries[${i}].approvalUser is required` };
-    if (!status) return { ok: false, message: `entries[${i}].status is required` };
+    const hasActionAt = entry.actionAt !== null && entry.actionAt !== undefined && entry.actionAt !== '';
+    // Pronto lists approvers who have not acted yet with an empty status and date. Keep them as
+    // pending entries (status ""); a dated entry must say what was done.
+    if (!status && hasActionAt) return { ok: false, message: `entries[${i}].status is required when actionAt is set` };
     let actionAt: Date | null = null;
     if (entry.actionAt !== null && entry.actionAt !== undefined && entry.actionAt !== '') {
       if (typeof entry.actionAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(entry.actionAt)) {
@@ -79,7 +82,7 @@ export const validateProntoApprovalPayload = (body: unknown): ValidationResult<P
       approvalUser,
       actionAt,
       actionAtRaw: trimmedString(entry.actionAtRaw, 40),
-      status,
+      status: status ?? '',
       comment: trimmedString(entry.comment, 1000),
     });
   }
