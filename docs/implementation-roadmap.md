@@ -1030,3 +1030,37 @@ Each PRF shows its Pronto buyer and, from the approval history, who has to act n
 - Python: 20 offline tests pass, including 4 new ones (buyer allocation wins, Officer fallback, none when both empty, desired update and change check).
 - Backend: `tsc` and build pass; `node --test backend/tests/` 12 pass, 0 fail, 2 skipped (pre-existing).
 - Frontend: `tsc -p tsconfig.app.json`, ESLint on the changed files and `vite build` pass.
+
+## Phase 19 - Follow-up Modal After Login
+
+### Status
+
+Implemented on branch `feat/follow-up-modal`. Not deployed yet.
+
+### Objective
+
+Right after login, show the PRFs that need follow-up with their latest status, who they wait for and the buyer. Backlog item 1; working checklist group D.
+
+### Source Documents
+
+- `docs/backlog-dashboard-pronto-2026-11.md` (item 1, working checklist D)
+- `docs/openapi.yaml` (`GET /api/prfs/follow-up`)
+- Phases 15, 17 and 18 (approval history, pending approvers, Allocated Buyer)
+
+### Checklist
+
+- [x] Decisions (product owner, 2026-11-16): an approver waiting more than 3 days counts; every user sees every PRF; build it today
+- [x] Rules and `GET /api/prfs/follow-up` (no database change)
+- [x] Modal after login: PRF, status, Next Action By, buyer, reasons; "Open" goes to the PRF; "Remind me later" (until the next login) and "Don't show again today" (per user)
+- [ ] Deploy backend and frontend; check the modal in production
+
+### Output
+
+Users see the stuck PRFs as soon as they log in.
+
+### Challenge / Verification
+
+- Scope: active PRFs of the current budget year only. In production (2026-11-16) there are 35 active 2026 PRFs, but also 67 "active" 2025 PRFs whose status is stale because the Pronto sync only covers 2026; including them would show outdated reasons. `budgetYear` can be passed to widen the scope later.
+- Rules (thresholds in `FOLLOW_UP_THRESHOLDS`): approval waiting > 3 days since the last approval step; Required Date passed; "Req. Approved" with no approval step for > 7 days (the 7-day value was proposed and accepted with the 3-day one).
+- Backend: `tsc` and build pass; `node --test backend/tests/` 18 pass, 0 fail, 2 skipped (pre-existing); 6 new rule tests (approval waiting over and under 3 days, past Required Date, Req. Approved idle over and under 7 days, closed statuses, sort order).
+- Frontend: `tsc -p tsconfig.app.json`, ESLint on the changed files and `vite build` pass.

@@ -2077,6 +2077,103 @@ paths:
                 type: object
                 additionalProperties: true
 
+  /api/prfs/follow-up:
+    get:
+      summary: PRFs that need follow-up (login modal)
+      description: >
+        Active PRFs (status not Completed, Cancelled or Rejected) of one budget year that match at
+        least one rule. approval_waiting - Pronto lists an approver who has not acted yet and the
+        last approval step is more than 3 days old. past_required_date - the Required Date has
+        passed. requisition_approved_idle - status "Req. Approved" with no approval step for more
+        than 7 days. Days are counted in Pronto site time (WITA). Sorted with approval_waiting first,
+        then by the longest delay. Thresholds agreed on 2026-11-16.
+      tags: [PRFs]
+      security:
+        - bearerAuth: []
+        - ApiKeyHeader: []
+      parameters:
+        - in: query
+          name: budgetYear
+          required: false
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+          description: Defaults to the current year.
+      responses:
+        '200':
+          description: Follow-up list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      budgetYear:
+                        type: integer
+                      thresholds:
+                        type: object
+                        properties:
+                          approvalWaitingDays:
+                            type: integer
+                            example: 3
+                          requisitionApprovedIdleDays:
+                            type: integer
+                            example: 7
+                      count:
+                        type: integer
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            prfId:
+                              type: integer
+                            prfNo:
+                              type: string
+                            title:
+                              type: string
+                              nullable: true
+                            status:
+                              type: string
+                              nullable: true
+                            requiredDate:
+                              type: string
+                              format: date
+                              nullable: true
+                            allocatedBuyer:
+                              type: string
+                              nullable: true
+                            nextActionBy:
+                              type: array
+                              items:
+                                type: string
+                            lastActionAt:
+                              type: string
+                              nullable: true
+                              description: Pronto site wall-clock time, no time zone
+                            reasons:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  code:
+                                    type: string
+                                    enum: [approval_waiting, past_required_date, requisition_approved_idle]
+                                  days:
+                                    type: integer
+                                  label:
+                                    type: string
+                            maxDays:
+                              type: integer
+        '400':
+          description: budgetYear is not a year
+        '401':
+          description: Authentication required
   /api/prfs/search:
     get:
       summary: Search PRFs

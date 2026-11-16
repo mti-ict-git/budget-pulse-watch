@@ -32,9 +32,9 @@ Legend: `[x]` done and verified · `[~]` partly done · `[ ]` not started · **D
 - [~] Show in PRF detail (Phase 18); filter or column on the dashboard not done
 
 ### D. Item 1: Follow-up dashboard
-- [ ] **Decision:** what counts as "needs follow-up", whose PRFs are shown, sort order
+- [x] **Decision:** approver waiting > 3 days, Required Date passed, Req. Approved idle > 7 days; every user sees every PRF; approvals waiting first, then longest delay (2026-11-16)
 - [ ] Track every split PO, not only the original number
-- [ ] Build the dashboard list with latest status, Next Action By, Allocated Buyer and last sync time
+- [~] Follow-up modal after login with status, Next Action By, Allocated Buyer and reasons (roadmap Phase 19); not deployed yet; a dashboard card is not done
 
 ### E. Item 3: Pronto as item source of truth
 - [x] Item sync reads PO E001 Lines for the original and every split PO (Phase 15)

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { PRFModel } from '../models/PRF';
 import { CreatePRFRequest, UpdatePRFRequest, PRFQueryParams, CreatePRFItemRequest, UpdatePRFItemParams } from '../models/types';
 import { executeQuery } from '../config/database';
+import { FOLLOW_UP_THRESHOLDS, listFollowUps } from '../services/prfFollowUp';
 import { authenticateToken, requireContentManager } from '../middleware/auth';
 import { NotificationModel } from '../models/Notification';
 import {
@@ -385,6 +386,22 @@ router.get('/with-items', async (req: Request, res: Response) => {
  * @desc Search PRFs (lightweight endpoint for filter search box)
  * @access Public (will be protected later)
  */
+// PRFs that need follow-up (login modal and dashboard). Registered before '/:id'.
+router.get('/follow-up', authenticateToken, async (req: Request, res: Response) => {
+  const raw = req.query.budgetYear;
+  const budgetYear = raw === undefined ? new Date().getFullYear() : parseInt(String(raw), 10);
+  if (!Number.isInteger(budgetYear) || budgetYear < 2000 || budgetYear > 2100) {
+    return res.status(400).json({ success: false, message: 'budgetYear must be a year' });
+  }
+  try {
+    const items = await listFollowUps(budgetYear);
+    return res.json({ success: true, data: { budgetYear, thresholds: FOLLOW_UP_THRESHOLDS, count: items.length, items } });
+  } catch (error) {
+    console.error('Error building PRF follow-up list:', error);
+    return res.status(500).json({ success: false, message: 'Failed to build follow-up list' });
+  }
+});
+
 router.get('/search', async (req: Request, res: Response) => {
   try {
     const q = typeof req.query.q === 'string' ? req.query.q : '';
