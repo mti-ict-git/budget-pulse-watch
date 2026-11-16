@@ -2084,7 +2084,7 @@ paths:
         Active PRFs (status not Completed, Cancelled or Rejected) of one budget year that match at
         least one rule. approval_waiting - Pronto lists an approver who has not acted yet and the
         last approval step is more than 3 days old. past_required_date - the Required Date has
-        passed. requisition_approved_idle - status "Req. Approved" with no approval step for more
+        passed, at most 90 days ago (older ones are left out). requisition_approved_idle - status "Req. Approved" with no approval step for more
         than 7 days. Days are counted in Pronto site time (WITA). Sorted with approval_waiting first,
         then by the longest delay. Thresholds agreed on 2026-11-16.
       tags: [PRFs]
@@ -2124,6 +2124,9 @@ paths:
                           requisitionApprovedIdleDays:
                             type: integer
                             example: 7
+                          pastRequiredDateMaxDays:
+                            type: integer
+                            example: 90
                       count:
                         type: integer
                       items:

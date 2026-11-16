@@ -4,6 +4,8 @@ import { executeQuery } from '../config/database';
 export const FOLLOW_UP_THRESHOLDS = {
   approvalWaitingDays: 3,
   requisitionApprovedIdleDays: 7,
+  /** Older overdue PRFs are left out (product owner, 2026-11-16): they are usually closed in practice. */
+  pastRequiredDateMaxDays: 90,
 };
 
 /** Pronto site time zone (WITA, UTC+8). Approval times are stored as Pronto wall-clock time. */
@@ -55,7 +57,7 @@ const wallDays = (fromWall: Date, nowWall: number): number => Math.floor((nowWal
  * Pure rules: which active PRFs need follow-up and why. A PRF is listed when any rule matches:
  * - approval_waiting: Pronto lists an approver who has not acted yet, and the last approval step is
  *   older than `approvalWaitingDays`;
- * - past_required_date: the Required Date has passed;
+ * - past_required_date: the Required Date has passed, at most `pastRequiredDateMaxDays` ago;
  * - requisition_approved_idle: status "Req. Approved" (the buyer still has to convert it into a PO)
  *   and no approval step for more than `requisitionApprovedIdleDays`.
  */
@@ -94,7 +96,7 @@ export const buildFollowUps = (
       const required = p.RequiredDate.toISOString().slice(0, 10);
       if (required < today) {
         const days = Math.floor((Date.parse(today) - Date.parse(required)) / DAY_MS);
-        reasons.push({ code: 'past_required_date', days, label: `Required Date passed ${days} days ago` });
+        if (days <= thresholds.pastRequiredDateMaxDays) reasons.push({ code: 'past_required_date', days, label: `Required Date passed ${days} days ago` });
       }
     }
     if (
