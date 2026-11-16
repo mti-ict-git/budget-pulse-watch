@@ -994,3 +994,39 @@ Every PO whose Approval Status can be read is stored, and the dialog shows who t
 - Backend: `tsc` and build pass; `node --test backend/tests/` 12 pass, 0 fail, 2 skipped (pre-existing). New test: the 53956 shape (pending rows with empty or missing status) is accepted; an entry with a date and no status is still rejected.
 - Frontend: `tsc -p tsconfig.app.json`, ESLint on the changed file and `vite build` pass.
 - Python: 16 offline tests pass (worker unchanged).
+
+## Phase 18 - Allocated Buyer And Next Action By
+
+### Status
+
+Implemented on branch `feat/allocated-buyer-next-action`. Not deployed yet.
+
+### Objective
+
+Show who owns each PO in Pronto and who it is waiting for. Backlog items 5 (Allocated Buyer) and 4 (Next Action By); working checklist groups C and B.
+
+### Source Documents
+
+- `docs/backlog-dashboard-pronto-2026-11.md` (items 4 and 5, working checklist)
+- `docs/database-schema-specification.md` (migration 028)
+- `docs/openapi.yaml` (PRF schema)
+
+### Checklist
+
+- [x] Decision (product owner, 2026-11-16): use `Officer` when `Buyer allocation` is empty
+- [x] Migration 028: `PRF.AllocatedBuyer NVARCHAR(200) NULL`
+- [x] Header sync maps `Buyer allocation`, else `Officer`, into `AllocatedBuyer` (`--sync-allocated-buyer`, default on)
+- [x] API: PRF list queries return `AllocatedBuyer`; PRF update endpoints accept it; OpenAPI updated
+- [x] PRF detail dialog: "Allocated Buyer" field; "Next Action By" summary at the top of the Pronto approval card (pending approvers per PO)
+- [ ] Apply migration 028 on production, deploy backend, frontend and `pronto_sync`, run the header sync
+
+### Output
+
+Each PRF shows its Pronto buyer and, from the approval history, who has to act next.
+
+### Challenge / Verification
+
+- Production data check (header report `prf_pronto_sync_2026.json`, 2026-11-16): 43 PRFs, 36 with a Pronto row; `Buyer allocation` filled on 14, `Officer` used on 22.
+- Python: 20 offline tests pass, including 4 new ones (buyer allocation wins, Officer fallback, none when both empty, desired update and change check).
+- Backend: `tsc` and build pass; `node --test backend/tests/` 12 pass, 0 fail, 2 skipped (pre-existing).
+- Frontend: `tsc -p tsconfig.app.json`, ESLint on the changed files and `vite build` pass.

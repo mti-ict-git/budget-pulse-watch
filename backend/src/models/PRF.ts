@@ -176,6 +176,10 @@ export class PRFModel {
       setClause.push('ApprovedByName = @ApprovedByName');
       params.ApprovedByName = updateData.ApprovedByName;
     }
+    if (updateData.AllocatedBuyer !== undefined) {
+      setClause.push('AllocatedBuyer = @AllocatedBuyer');
+      params.AllocatedBuyer = updateData.AllocatedBuyer;
+    }
     if (updateData.Justification !== undefined) {
       setClause.push('Justification = @Justification');
       params.Justification = updateData.Justification;
@@ -318,7 +322,7 @@ export class PRFModel {
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     const query = `
-      SELECT v.*, prf.ApprovedByName
+      SELECT v.*, prf.ApprovedByName, prf.AllocatedBuyer
       FROM vw_PRFSummary v
       INNER JOIN PRF prf ON prf.PRFID = v.PRFID
       ${whereClause}
@@ -500,7 +504,7 @@ export class PRFModel {
 
     // Query to get PRFs with enhanced search
     const query = `
-      SELECT DISTINCT p.*, prf.ApprovedByName
+      SELECT DISTINCT p.*, prf.ApprovedByName, prf.AllocatedBuyer
       FROM vw_PRFSummary p
       INNER JOIN PRF prf ON prf.PRFID = p.PRFID
       ${whereClause}

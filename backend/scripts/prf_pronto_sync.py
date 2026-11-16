@@ -605,10 +605,21 @@ class SyncOptions:
     sync_approval_date: bool
     sync_completion_date: bool
     sync_approved_by: bool
+    sync_allocated_buyer: bool
     sync_vendor: bool
     sync_currency: bool
     sync_amounts: bool
     amount_source: str
+
+
+def _allocated_buyer(row: Dict[str, str]) -> Optional[str]:
+    """Buyer responsible for the PO: "Buyer allocation", else "Officer" (the buyer who converted the
+    requisition into the PO). Decided with the product owner on 2026-11-16."""
+    for key in ("Buyer allocation", "Officer"):
+        value = (row.get(key) or "").strip()
+        if value:
+            return value
+    return None
 
 
 def _desired_update_from_pronto_row(row: Dict[str, str], options: SyncOptions) -> Dict[str, object]:
@@ -637,6 +648,11 @@ def _desired_update_from_pronto_row(row: Dict[str, str], options: SyncOptions) -
         approved_by = row.get("Approver")
         if approved_by:
             desired["ApprovedByName"] = approved_by.strip()
+
+    if options.sync_allocated_buyer:
+        buyer = _allocated_buyer(row)
+        if buyer:
+            desired["AllocatedBuyer"] = buyer
 
     if options.sync_requested_date:
         request_date = _parse_pronto_date(row.get("Ordered"))
@@ -713,6 +729,14 @@ def _evaluate_fields(
         options.sync_approved_by,
         pronto_approver,
         approved_by_candidate,
+    )
+
+    pronto_buyer = (row.get("Buyer allocation") or "").strip() or None
+    add_check(
+        "AllocatedBuyer",
+        options.sync_allocated_buyer,
+        pronto_buyer or (row.get("Officer") or None),
+        _allocated_buyer(row),
     )
 
     vendor_name_src = row.get("Supplier Name") or row.get("Supplier")
@@ -1103,6 +1127,12 @@ def main() -> int:
         "--sync-approved-by",
         action=argparse.BooleanOptionalAction,
         default=_parse_bool(os.getenv("SYNC_APPROVED_BY"), True),
+    )
+    parser.add_argument(
+        "--sync-allocated-buyer",
+        action=argparse.BooleanOptionalAction,
+        default=_parse_bool(os.getenv("SYNC_ALLOCATED_BUYER"), True),
+        help="Sync the PO buyer (Buyer allocation, else Officer) into PRF.AllocatedBuyer.",
     )
     parser.add_argument(
         "--sync-vendor",
@@ -1757,6 +1787,7 @@ def main() -> int:
                 "sync": {
                     "status": bool(args.sync_status),
                     "approved_by_name": bool(args.sync_approved_by),
+                    "allocated_buyer": bool(args.sync_allocated_buyer),
                     "vendor": bool(args.sync_vendor),
                     "currency": bool(args.sync_currency),
                     "approval_date": bool(args.sync_approval_date),
@@ -1836,6 +1867,7 @@ def main() -> int:
         sync_approval_date=bool(args.sync_approval_date),
         sync_completion_date=bool(args.sync_completion_date),
         sync_approved_by=bool(args.sync_approved_by),
+        sync_allocated_buyer=bool(args.sync_allocated_buyer),
         sync_vendor=bool(args.sync_vendor),
         sync_currency=bool(args.sync_currency),
         sync_amounts=bool(args.sync_amounts),

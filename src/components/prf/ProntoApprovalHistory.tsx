@@ -71,6 +71,11 @@ export default function ProntoApprovalHistory({ prfId, prfNo }: ProntoApprovalHi
     return [...groups.entries()].sort(([a], [b]) => (a === prfNo ? -1 : b === prfNo ? 1 : a.localeCompare(b)));
   }, [entries, prfNo]);
 
+  // Next Action By: approvers still waiting, per PO (original first, then split POs).
+  const nextActions = byPo
+    .map(([po, list]) => ({ po, users: [...new Set(list.filter(isPending).map((e) => e.approvalUser))] }))
+    .filter((x) => x.users.length > 0);
+
   const lastSynced = entries.reduce<string | null>((acc, e) => (!acc || e.syncedAt > acc ? e.syncedAt : acc), null);
 
   return (
@@ -87,6 +92,23 @@ export default function ProntoApprovalHistory({ prfId, prfNo }: ProntoApprovalHi
         )}
       </CardHeader>
       <CardContent className="space-y-6">
+        {!loading && !error && byPo.length > 0 && (
+          <div className="rounded-md border bg-muted/30 px-4 py-3">
+            <p className="text-sm font-medium">Next Action By</p>
+            {nextActions.length === 0 ? (
+              <p className="text-sm text-muted-foreground mt-1">No pending approver in Pronto.</p>
+            ) : (
+              <ul className="mt-1 space-y-1 text-sm">
+                {nextActions.map(({ po, users }) => (
+                  <li key={po}>
+                    <span className="font-semibold">{users.join(", ")}</span>
+                    <span className="text-muted-foreground"> · PO {po}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
         {loading && <p className="text-sm text-muted-foreground">Loading approval history…</p>}
         {!loading && error && <p className="text-sm text-destructive">{error}</p>}
         {!loading && !error && byPo.length === 0 && (

@@ -67,6 +67,7 @@ interface PRFData {
   priority: string;
   progress: string;
   approvedByName?: string;
+  allocatedBuyer?: string;
   lastUpdate: string;
   items?: PRFItem[];
 
@@ -114,6 +115,7 @@ interface PRFRawData {
   Priority?: string;
   Status?: string;
   ApprovedByName?: string;
+  AllocatedBuyer?: string | null;
   RequiredDate?: string;
   ApprovalDate?: string;
   CompletionDate?: string;
@@ -383,6 +385,7 @@ export default function PRFMonitoring() {
           priority: prf.Priority || 'Medium',
           progress: prf.Status || 'pending',
           approvedByName: prf.ApprovedByName,
+          allocatedBuyer: prf.AllocatedBuyer ?? undefined,
           lastUpdate: prf.UpdatedAt || prf.LastUpdate || prf.RequestDate || '',
           items: prf.Items || [],
           
