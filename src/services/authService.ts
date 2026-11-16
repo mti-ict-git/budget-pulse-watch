@@ -174,6 +174,7 @@ class AuthService {
     localStorage.removeItem('user');
     sessionStorage.removeItem('prf-chat-messages');
     sessionStorage.removeItem('prf-chat-context');
+    sessionStorage.removeItem('pomon-followup-snoozed'); // follow-up modal shows again after the next login
   }
 
   /**

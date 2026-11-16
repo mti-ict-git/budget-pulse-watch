@@ -4,6 +4,7 @@ import { Menu } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { PRFChat } from "../chat/PRFChat";
+import { FollowUpModal } from "../followup/FollowUpModal";
 import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 
 export function Layout() {
@@ -28,6 +29,7 @@ export function Layout() {
         <footer className="merdeka-footer"><span>MTI ICT PO Monitoring</span><span>Purchase requests & budget control</span></footer>
       </div>
       <PRFChat />
+      <FollowUpModal />
     </div>
     </Sheet>
   );
