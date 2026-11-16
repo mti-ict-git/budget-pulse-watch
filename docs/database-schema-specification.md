@@ -6,6 +6,10 @@ The preview receipt is bounded in-memory state (15 minutes), not a new SQL entit
 
 ItemCode retains the part number (64 characters). ItemName is a 200-character display label; the full reviewed description is stored separately in Description (up to 1000). Quantities follow the existing INT schema; money follows existing decimal precision. PRF notes retain a bounded review summary and literal document notes.
 
+## PRF.AllocatedBuyer (migration 028)
+
+`PRF.AllocatedBuyer NVARCHAR(200) NULL` holds the buyer responsible for the PO in Pronto. The Pronto header sync fills it from the Purchase Orders grid: `Buyer allocation`, or `Officer` (the buyer who converted the requisition into the PO) when `Buyer allocation` is empty. The fallback was confirmed by the product owner on 2026-11-16. It is read through the PRF list queries (`prf.AllocatedBuyer` joined next to `vw_PRFSummary`, like `ApprovedByName`) and shown in the PRF detail dialog.
+
 ## Pronto approval history (migration 027)
 
 `PRFProntoApprovalHistory` stores the Pronto **Approval Status** list of every PO linked to a PRF: the original PO (same number as the PRF) and any split POs. The Pronto sync worker reads it from PO E001 > Approval Status and replaces the rows of one `(PRFID, PONumber)` pair per sync, in a transaction.

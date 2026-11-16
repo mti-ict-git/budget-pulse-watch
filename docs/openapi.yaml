@@ -378,6 +378,7 @@ components:
         CompletionDate: { type: string, format: date-time }
         ApprovedBy: { type: integer, nullable: true }
         ApprovedByName: { type: string, nullable: true }
+        AllocatedBuyer: { type: string, nullable: true, maxLength: 200, description: 'Pronto buyer for the PO (Buyer allocation, else Officer). Synced by the Pronto worker; returned by the PRF list and detail endpoints and accepted by PUT /api/prfs/{id} and /api/prfs/prfno/{prfNo}.' }
         Justification: { type: string }
         VendorName: { type: string }
         VendorContact: { type: string }

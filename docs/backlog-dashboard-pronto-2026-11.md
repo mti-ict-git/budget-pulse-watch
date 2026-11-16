@@ -5,7 +5,7 @@ Status: **improvement input**. Not scheduled, no technical design yet.
 
 ## Working checklist
 
-Single place to track progress on the items below. Update it as work lands; record verification evidence in `docs/implementation-roadmap.md`. Last updated: 2026-11-15.
+Single place to track progress on the items below. Update it as work lands; record verification evidence in `docs/implementation-roadmap.md`. Last updated: 2026-11-16.
 
 Legend: `[x]` done and verified · `[~]` partly done · `[ ]` not started · **Decision** = needs the product owner.
 
@@ -23,13 +23,13 @@ Legend: `[x]` done and verified · `[~]` partly done · `[ ]` not started · **D
 - [~] Approval history filled for all 2026 PRFs in production: 41 of 51 readable POs saved
 - [~] Accept pending approvers (empty status and date); today they make the backend reject the whole PO with HTTP 400 (10 POs, mostly `Req. Approval Reqd`). Implemented in roadmap Phase 17 ("Waiting for" in the dialog); not deployed yet
 - [ ] Check why PO 51160 (PRF 47747, On order) and PRF 46093 are not found in PO E001
-- [ ] New read-only flow for PO M094 > Next Action By (Name / User / Hierarchy)
-- [ ] Store and show "Next Action By" in PRF detail
+- [ ] New read-only flow for PO M094 > Next Action By (Name / User / Hierarchy): not needed for a first version, pending approvers in Approval Status give the same names
+- [~] Show "Next Action By" in PRF detail, from pending approvers (roadmap Phase 18); not deployed yet
 
 ### C. Item 5: Allocated Buyer
-- [ ] **Decision:** use `Officer` when `Buyer allocation` is empty?
-- [ ] New PRF field (migration), mapping in `prf_pronto_sync.py`, API and OpenAPI
-- [ ] Show in PRF detail; filter or column on the dashboard
+- [x] **Decision:** use `Officer` when `Buyer allocation` is empty: yes (2026-11-16)
+- [~] New PRF field (migration 028), mapping in `prf_pronto_sync.py`, API and OpenAPI (roadmap Phase 18); not deployed yet
+- [~] Show in PRF detail (Phase 18); filter or column on the dashboard not done
 
 ### D. Item 1: Follow-up dashboard
 - [ ] **Decision:** what counts as "needs follow-up", whose PRFs are shown, sort order

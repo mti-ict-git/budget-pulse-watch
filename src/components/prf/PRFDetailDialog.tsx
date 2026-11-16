@@ -32,6 +32,7 @@ interface PRFData {
   priority: string;
   progress: string;
   approvedByName?: string;
+  allocatedBuyer?: string;
   lastUpdate: string;
   
   // Additional Fields
@@ -392,6 +393,17 @@ export function PRFDetailDialog({ prf, onRefresh }: PRFDetailDialogProps) {
                       Approved By
                     </label>
                     <p className="font-medium text-green-600 mt-2">{prf.approvedByName}</p>
+                  </div>
+                )}
+
+                {prf.allocatedBuyer && (
+                  <div className="text-center md:col-span-3 mt-2 pt-4 border-t">
+                    <label className="text-sm font-medium text-muted-foreground flex items-center justify-center gap-1">
+                      <User className="h-4 w-4 text-blue-600" />
+                      Allocated Buyer
+                    </label>
+                    <p className="font-medium mt-2">{prf.allocatedBuyer}</p>
+                    <p className="text-xs text-muted-foreground mt-1">From Pronto (Buyer allocation, or Officer)</p>
                   </div>
                 )}
               </div>

@@ -149,6 +149,7 @@ CREATE TABLE PRF (
     CompletionDate DATETIME2 NULL,
     ApprovedBy INT NULL,
     ApprovedByName NVARCHAR(200) NULL,
+    AllocatedBuyer NVARCHAR(200) NULL, -- Pronto buyer allocation (or Officer), synced
     Justification NVARCHAR(2000),
     VendorName NVARCHAR(200),
     VendorContact NVARCHAR(500),

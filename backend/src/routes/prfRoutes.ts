@@ -720,6 +720,16 @@ router.put('/:id', authenticateToken, requireContentManager, async (req: Request
       }
       updateData.ApprovedByName = parsedApprovedByName.value;
     }
+    if (updateData.AllocatedBuyer !== undefined) {
+      const parsedAllocatedBuyer = parseNullableString(updateData.AllocatedBuyer);
+      if (!parsedAllocatedBuyer.ok) {
+        return res.status(400).json({
+          success: false,
+          message: 'AllocatedBuyer must be a string or null'
+        });
+      }
+      updateData.AllocatedBuyer = parsedAllocatedBuyer.value;
+    }
     if (updateData.CurrencyCode && !['IDR', 'USD'].includes(updateData.CurrencyCode)) {
       return res.status(400).json({
         success: false,
@@ -814,6 +824,16 @@ router.put('/prfno/:prfNo', authenticateToken, requireContentManager, async (req
         });
       }
       updateData.ApprovedByName = parsedApprovedByName.value;
+    }
+    if (updateData.AllocatedBuyer !== undefined) {
+      const parsedAllocatedBuyer = parseNullableString(updateData.AllocatedBuyer);
+      if (!parsedAllocatedBuyer.ok) {
+        return res.status(400).json({
+          success: false,
+          message: 'AllocatedBuyer must be a string or null'
+        });
+      }
+      updateData.AllocatedBuyer = parsedAllocatedBuyer.value;
     }
     if (updateData.CurrencyCode && !['IDR', 'USD'].includes(updateData.CurrencyCode)) {
       return res.status(400).json({
