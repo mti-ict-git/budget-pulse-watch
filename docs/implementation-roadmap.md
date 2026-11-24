@@ -1216,7 +1216,7 @@ Misread prices are flagged on the item in the review screen; ASAP PRFs can be sa
 
 ### Status
 
-Implemented on branch `feat/rescan-remove-duplicate`. Not deployed.
+Deployed on 2026-11-25 (PR #13, merge `19f4d9f`), backend and frontend.
 
 ### Objective
 
@@ -1233,7 +1233,8 @@ Let the reviewer remove leftover duplicates during an OCR rescan. Product owner,
 - [x] Preview: an unmatched existing item gets `likelyDuplicateOf` when it has the same quantity, a unit price within 10% and a word similarity of at least 0.3 to an item the OCR matched (`backend/src/services/rescanDuplicates.ts`). Each matched item is paired once, best match first; cancelled items are never paired.
 - [x] Apply: new preserved-item decision `remove` deletes the row inside the rescan transaction; the row stays in the audit `BeforeSnapshot`. The response reports `removedItemCount`.
 - [x] Rescan dialog: "Remove (duplicate)" option; likely duplicates default to it and show "Likely duplicate of: ...". Other unmatched items still default to Keep existing.
-- [ ] Deploy; rescan PRF 54123 in production
+- [x] Deploy (2026-11-25); backend healthy, new code present in the running build
+- [ ] Rescan PRF 54123 in production (product owner)
 
 ### Output
 
