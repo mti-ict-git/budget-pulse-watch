@@ -550,6 +550,9 @@ router.post('/rescan/:prfId/file/:fileId/preview', authenticateToken, requireCon
     });
   } catch (error) {
     console.error('OCR rescan preview failed:', error);
+    if (error instanceof UploadError) {
+      return res.status(error.status).json({ success: false, code: error.code, message: error.message });
+    }
     return res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'OCR rescan preview failed'
