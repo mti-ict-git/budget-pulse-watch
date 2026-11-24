@@ -1110,7 +1110,7 @@ A "Sign in with Microsoft 365" option that is off until it is configured, with u
 
 ### Status
 
-Implemented on branch `feat/ocr-reliability`. Not deployed.
+Deployed on 2026-11-24 (PR #10, merge `9af9831`).
 
 ### Objective
 
@@ -1154,7 +1154,7 @@ PDF pages are rendered in about a second without a browser; provider problems te
 
 ### Status
 
-Implemented on branch `feat/ocr-accuracy`. Not deployed. Migration 029 applied in production on 2026-11-24.
+Deployed on 2026-11-25 from branch `feat/ocr-accuracy` (commit `3c4d3eb`), backend and frontend. Migration 029 applied in production on 2026-11-24.
 
 ### Objective
 
@@ -1175,7 +1175,8 @@ Catch AI misreads before a PRF is saved, read dates the Indonesian way, and acce
 - [x] OCR evaluation bench `backend/scripts/ocr-bench.cjs` (read-only; real AI cost): scores extraction against reviewed rescans (`--source rescan`) or stored items (`--source files`), per model.
 - [x] Apply migration 029 in production (2026-11-24; 485 PRFs, all `RequiredASAP = 0`)
 - [x] GL code cross-check: an item GL code that does not appear in the PDF text (O/0, D/0, I/1 confusions) is part of the same review warning.
-- [ ] Deploy; check an upload in production
+- [x] Deploy (2026-11-25); backend healthy, new code present in the running build
+- [ ] Check an upload and a rescan in production (product owner)
 
 ### Output
 
