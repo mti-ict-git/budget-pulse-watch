@@ -46,7 +46,11 @@ interface RescanPreview {
     items?: RescanProposal['scanned'][];
   };
   proposals: RescanProposal[];
-  preservedItems: Array<{ PRFItemID: number; ItemName: string; Description?: string | null; ItemCode?: string | null; PurchaseCostCode?: string | null; Status?: string | null }>;
+  preservedItems: Array<{
+    PRFItemID: number; ItemName: string; Description?: string | null; ItemCode?: string | null; PurchaseCostCode?: string | null; Status?: string | null;
+    /** Set when this leftover is most likely a duplicate of an item the OCR did find. */
+    likelyDuplicateOf?: { PRFItemID: number; ItemName: string; similarity: number };
+  }>;
   warnings: string[];
   totals: {
     documentTotal: number;
@@ -58,7 +62,7 @@ interface RescanPreview {
 }
 
 type ProposalAction = 'update' | 'keep' | 'add' | 'ignore';
-type PreservedAction = 'keep' | 'cancel';
+type PreservedAction = 'keep' | 'cancel' | 'remove';
 
 interface OCRRescanDialogProps {
   open: boolean;
@@ -128,7 +132,7 @@ export function OCRRescanDialog({ open, onOpenChange, prfId, prfNo, file, onAppl
         Object.fromEntries(next.proposals.map((proposal) => [proposal.index, getDefaultProposalAction(proposal)]))
       );
       setPreservedActions(
-        Object.fromEntries(next.preservedItems.map((item) => [item.PRFItemID, 'keep']))
+        Object.fromEntries(next.preservedItems.map((item) => [item.PRFItemID, item.likelyDuplicateOf ? 'remove' : 'keep']))
       );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'OCR rescan failed');
@@ -176,7 +180,7 @@ export function OCRRescanDialog({ open, onOpenChange, prfId, prfNo, file, onAppl
       if (!response.ok || !body.success) throw new Error(body.message || 'Failed to apply OCR rescan');
       toast({
         title: 'PRF updated from AI scan',
-        description: `${body.data.updatedItemCount} updated, ${body.data.addedItemCount} added, ${body.data.cancelledItemCount || 0} cancelled, ${body.data.preservedItemCount} preserved.`,
+        description: `${body.data.updatedItemCount} updated, ${body.data.addedItemCount} added, ${body.data.cancelledItemCount || 0} cancelled, ${body.data.removedItemCount || 0} removed, ${body.data.preservedItemCount} preserved.`,
       });
       onOpenChange(false);
       onApplied?.();
@@ -388,6 +392,12 @@ export function OCRRescanDialog({ open, onOpenChange, prfId, prfNo, file, onAppl
                   <CheckCircle className="h-4 w-4" />
                   Existing item(s) not found by OCR
                 </div>
+                {preview.preservedItems.some((item) => item.likelyDuplicateOf) && (
+                  <p className="text-sm text-muted-foreground">
+                    {preview.preservedItems.filter((item) => item.likelyDuplicateOf).length} item(s) look like duplicates of items the OCR did find
+                    (same quantity, near price, similar name) and are set to Remove. Removed rows are kept in the rescan audit.
+                  </p>
+                )}
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -410,6 +420,7 @@ export function OCRRescanDialog({ open, onOpenChange, prfId, prfNo, file, onAppl
                             >
                               <option value="keep">Keep existing</option>
                               <option value="cancel">Mark Cancelled</option>
+                              <option value="remove">Remove (duplicate)</option>
                             </select>
                           </TableCell>
                           <TableCell>
@@ -417,6 +428,11 @@ export function OCRRescanDialog({ open, onOpenChange, prfId, prfNo, file, onAppl
                               <div>{item.ItemName}</div>
                               {item.Description && item.Description !== item.ItemName ? (
                                 <div className="text-xs text-muted-foreground">{item.Description}</div>
+                              ) : null}
+                              {item.likelyDuplicateOf ? (
+                                <Badge variant="secondary" className="whitespace-normal text-left font-normal">
+                                  Likely duplicate of: {item.likelyDuplicateOf.ItemName}
+                                </Badge>
                               ) : null}
                             </div>
                           </TableCell>
