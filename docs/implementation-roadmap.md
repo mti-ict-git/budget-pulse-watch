@@ -1211,3 +1211,36 @@ Misread prices are flagged on the item in the review screen; ASAP PRFs can be sa
   - 52726: item 10;
   - 41609, 30183, 43702: GL codes.
 
+
+## Phase 23 - Remove Duplicate Items On OCR Rescan
+
+### Status
+
+Implemented on branch `feat/rescan-remove-duplicate`. Not deployed.
+
+### Objective
+
+Let the reviewer remove leftover duplicates during an OCR rescan. Product owner, 2026-11-25: PRF 54123 has 19 items on the PDF but 28 in POMON, and the rescan only offered Keep existing or Mark Cancelled for the 9 extra rows.
+
+### Source Documents
+
+- `docs/openapi.yaml` (`/api/ocr-prf/rescan/{prfId}/file/{fileId}` preview and apply)
+- Phase 22 (OCR accuracy)
+
+### Checklist
+
+- [x] Cause, from production data (read-only): PRF 54123's first scan on 2026-10-19 stored 9 misread rows (no item code, GL `AMINB043`, UPS at 6,300,000); the corrected rows were added on 2026-10-20 without removing them. The rescan matches the corrected rows and lists the misread ones as "not found by OCR".
+- [x] Preview: an unmatched existing item gets `likelyDuplicateOf` when it has the same quantity, a unit price within 10% and a word similarity of at least 0.3 to an item the OCR matched (`backend/src/services/rescanDuplicates.ts`). Each matched item is paired once, best match first; cancelled items are never paired.
+- [x] Apply: new preserved-item decision `remove` deletes the row inside the rescan transaction; the row stays in the audit `BeforeSnapshot`. The response reports `removedItemCount`.
+- [x] Rescan dialog: "Remove (duplicate)" option; likely duplicates default to it and show "Likely duplicate of: ...". Other unmatched items still default to Keep existing.
+- [ ] Deploy; rescan PRF 54123 in production
+
+### Output
+
+Duplicates left by an earlier scan are proposed for removal in the rescan review instead of being marked Cancelled.
+
+### Challenge / Verification
+
+- `node --test backend/tests/rescan-duplicates.test.cjs`: 4 pass. The PRF 54123 data pairs all 9 stale rows with their corrected rows (lowest similarity 0.33, Access Point; UPS paired despite the 6,300,000 / 6,600,000 misread), and none of the 10 single rows is flagged. Different quantity, far price, different name and cancelled rows are not paired.
+- Backend `tsc` and frontend `tsc` pass; ESLint on the dialog passes.
+- Production data, read-only, no AI call (2026-11-25): the detection run on PRF 54123's stored rows (name and description), with the rows that carry an item code as the OCR-matched set, paired all 9 stale rows with their corrected rows (similarity 0.43 to 0.87).

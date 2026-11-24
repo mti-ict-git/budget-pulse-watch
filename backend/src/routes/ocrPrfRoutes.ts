@@ -26,6 +26,7 @@ import { createUploadPreview, acquireUploadPreview, finishUploadPreview, release
 import { UploadError } from '../services/localPRFParser';
 import { crossCheckItemNumbers } from '../services/ocrCrossCheck';
 import { extractPdfText } from '../services/pdfPageRenderer';
+import { findLikelyDuplicates, type LikelyDuplicate } from '../services/rescanDuplicates';
 
 const router = express.Router();
 
@@ -86,7 +87,7 @@ type RescanProposalDecision = {
 
 type PreservedItemDecision = {
   prfItemId: number;
-  action: 'keep' | 'cancel';
+  action: 'keep' | 'cancel' | 'remove';
 };
 
 type RescanPreviewSnapshotPayload = {
@@ -240,7 +241,7 @@ const mapScannedItemFields = (
 const buildRescanProposals = (
   existingItems: ExistingRescanItem[],
   scannedItems: NonNullable<ExtractedPRFData['items']>
-): { proposals: RescanProposal[]; preservedItems: ExistingRescanItem[] } => {
+): { proposals: RescanProposal[]; preservedItems: Array<ExistingRescanItem & { likelyDuplicateOf?: LikelyDuplicate }> } => {
   const used = new Set<number>();
   const proposals = scannedItems.map((scanned, index): RescanProposal => {
     const partNumber = normalizeMatchText(scanned.partNumber);
@@ -275,9 +276,14 @@ const buildRescanProposals = (
     return { index, action: 'add', matchReason: 'new', scanned };
   });
 
+  const unmatched = existingItems.filter((_item, index) => !used.has(index));
+  const duplicates = findLikelyDuplicates(unmatched, existingItems.filter((_item, index) => used.has(index)));
   return {
     proposals,
-    preservedItems: existingItems.filter((_item, index) => !used.has(index))
+    preservedItems: unmatched.map((item) => {
+      const likelyDuplicateOf = duplicates.get(item.PRFItemID);
+      return likelyDuplicateOf ? { ...item, likelyDuplicateOf } : item;
+    })
   };
 };
 
@@ -593,7 +599,7 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
           const candidate = value as { prfItemId?: unknown; action?: unknown };
           return Number.isInteger(candidate.prfItemId)
             && typeof candidate.action === 'string'
-            && ['keep', 'cancel'].includes(candidate.action);
+            && ['keep', 'cancel', 'remove'].includes(candidate.action);
         })
       : [];
     const updateHeader = req.body?.updateHeader === true;
@@ -790,8 +796,20 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
       }
     }
 
+    let removedItemCount = 0;
     for (const preservedItem of preservedItems) {
-      if (preservedDecisionById.get(preservedItem.PRFItemID) !== 'cancel') continue;
+      const preservedAction = preservedDecisionById.get(preservedItem.PRFItemID);
+      if (preservedAction === 'remove') {
+        // Removes a leftover copy (usually a duplicate from an earlier scan). The row stays in the
+        // audit BeforeSnapshot below.
+        await new sql.Request(transaction)
+          .input('PRFItemID', sql.Int, preservedItem.PRFItemID)
+          .input('PRFID', sql.Int, prfId)
+          .query('DELETE FROM dbo.PRFItems WHERE PRFItemID = @PRFItemID AND PRFID = @PRFID');
+        removedItemCount += 1;
+        continue;
+      }
+      if (preservedAction !== 'cancel') continue;
       const request = new sql.Request(transaction);
       await request
         .input('PRFItemID', sql.Int, preservedItem.PRFItemID)
@@ -819,7 +837,7 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
       .input('OCRConfidence', sql.Decimal(8, 6), extractedData.confidence ?? null)
       .input('UpdatedItemCount', sql.Int, updatedItemCount)
       .input('AddedItemCount', sql.Int, addedItemCount)
-      .input('PreservedItemCount', sql.Int, preservedItems.length)
+      .input('PreservedItemCount', sql.Int, preservedItems.length - removedItemCount)
       .input('BeforeSnapshot', sql.NVarChar(sql.MAX), JSON.stringify({ prf, items: existingItems }))
       .input('AfterSnapshot', sql.NVarChar(sql.MAX), JSON.stringify({ items: afterResult.recordset }))
       .input('ExtractionSnapshot', sql.NVarChar(sql.MAX), JSON.stringify(extractedData))
@@ -841,7 +859,8 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
         updatedItemCount,
         addedItemCount,
         cancelledItemCount,
-        preservedItemCount: preservedItems.length,
+        removedItemCount,
+        preservedItemCount: preservedItems.length - removedItemCount,
         headerUpdated: updateHeader
       }
     });
