@@ -163,3 +163,10 @@ PRF 54123 candidate native-text+image OCR verified after explicit external-provi
 - Quantities and text lengths follow the existing SQL schema. Long item descriptions are retained in Description while ItemName remains bounded.
 - The local method does not automatically approve cancellation marks or image-note semantics.
 - Migration 026, runtime installation and production preview verification completed on 2026-10-25. Original LLM/provider settings restored after the smoke check; no PRF records were created. Rescan integration remains deferred.
+
+## Resolved: HTTPS redirect host for Microsoft 365 sign-in (Phase 20)
+
+- Entra ID accepts only `https://` redirect URIs (or `http://localhost`); users opened POMON at `http://10.60.10.59:9007`.
+- Decision (product owner, 2026-11-24): use `https://pomon.merdekabattery.com`, which already serves POMON and its API with the company `*.merdekabattery.com` certificate. Redirect URI `https://pomon.merdekabattery.com/api/auth/microsoft/callback`; post-login page `https://pomon.merdekabattery.com/login`.
+- Not chosen: `https://pomonbackend.justanapi.my.id` (public API for the mobile app, outside the company domain).
+- Follow-up: point users to the HTTPS address as the normal way to open POMON.

@@ -7,6 +7,7 @@ import { authenticateToken } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { LDAPService } from '../services/ldapService';
 import { LDAPUserAccessModel } from '../models/LDAPUserAccess';
+import { issueLdapSession } from '../services/authSession';
 import crypto from 'crypto';
 import { ApiKeyModel, ApiKeyRole } from '../models/ApiKey';
 import { requireAdmin } from '../middleware/auth';
@@ -81,31 +82,7 @@ router.post('/login', asyncHandler(async (req, res) => {
           // Update last login
           await LDAPUserAccessModel.updateLastLogin(userAccess.Username);
 
-          // Generate JWT token for LDAP user
-          const token = jwt.sign(
-            {
-              username: userAccess.Username,
-              authType: 'ldap'
-            },
-            JWT_SECRET,
-            { expiresIn: JWT_EXPIRES_IN }
-          );
-
-          authResult = {
-            success: true,
-            token,
-            user: {
-              id: userAccess.AccessID,
-              username: userAccess.Username,
-              role: userAccess.Role,
-              email: userAccess.Email,
-              firstName: userAccess.DisplayName.split(' ')[0] || userAccess.DisplayName,
-              lastName: userAccess.DisplayName.split(' ').slice(1).join(' ') || '',
-              department: userAccess.Department,
-              authType: 'ldap',
-              createdAt: userAccess.CreatedAt
-            }
-          };
+          authResult = { success: true, ...issueLdapSession(userAccess) };
           isLDAPAuth = true;
         }
       }

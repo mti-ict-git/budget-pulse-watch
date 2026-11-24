@@ -6,9 +6,18 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { CircleAlert, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { authService } from '@/services/authService';
 import '@/styles/merdeka-login.css';
 
 const photographs = ['LOGIN1.jpg', 'bgscm1.jpeg', 'LOGIN3.jpg'];
+
+// Reasons the backend sends back in the URL fragment after Microsoft 365 sign-in.
+const SSO_ERRORS: Record<string, string> = {
+  no_access: 'Your Microsoft 365 account does not have POMON access yet. Ask your administrator to grant access.',
+  cancelled: 'Microsoft sign-in was cancelled.',
+  expired: 'Microsoft sign-in took too long. Please try again.',
+};
+const SSO_ERROR_DEFAULT = 'Microsoft sign-in failed. Please try again or use your username and password.';
 
 const Login: React.FC = () => {
   const [formData, setFormData] = useState({ username: '', password: '' });
@@ -21,13 +30,36 @@ const Login: React.FC = () => {
   const usernameRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
-  const { login, isAuthenticated } = useAuth();
+  const { login, completeMicrosoftSso, isAuthenticated } = useAuth();
+  const [ssoEnabled, setSsoEnabled] = useState(false);
+  const [ssoBusy, setSsoBusy] = useState(false);
 
   useEffect(() => {
     const previous = document.title;
     document.title = 'Sign in | MTI ICT PO Monitoring';
     return () => { document.title = previous; };
   }, []);
+
+  // Microsoft 365: show the button when configured, and finish a sign-in that came back in the fragment.
+  useEffect(() => {
+    let cancelled = false;
+    void authService.isMicrosoftSsoEnabled().then((enabled) => { if (!cancelled) setSsoEnabled(enabled); });
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    const code = params.get('sso');
+    const ssoError = params.get('sso_error');
+    if (code || ssoError) window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    if (ssoError) setError(SSO_ERRORS[ssoError] || SSO_ERROR_DEFAULT);
+    if (code) {
+      setSsoBusy(true);
+      void completeMicrosoftSso(code).then((result) => {
+        if (cancelled) return;
+        setSsoBusy(false);
+        if (result.success) navigate('/');
+        else setError(result.message || SSO_ERROR_DEFAULT);
+      });
+    }
+    return () => { cancelled = true; };
+  }, [completeMicrosoftSso, navigate]);
 
   useEffect(() => {
     if (isAuthenticated) navigate('/');
@@ -120,11 +152,21 @@ const Login: React.FC = () => {
               <div className="merdeka-login-feedback" aria-live="polite" aria-atomic="true">
                 {error && <div role="alert"><CircleAlert size={16} aria-hidden="true" /><span>{error}</span></div>}
               </div>
-              <Button type="submit" className="merdeka-login-submit" disabled={isSubmitting}>
+              <Button type="submit" className="merdeka-login-submit" disabled={isSubmitting || ssoBusy}>
                 {isSubmitting && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
                 {isSubmitting ? 'Signing in…' : 'Sign in'}
               </Button>
             </form>
+            {(ssoEnabled || ssoBusy) && (
+              <div className="merdeka-login-sso">
+                <div className="merdeka-login-sso-divider"><span>or</span></div>
+                <Button type="button" variant="outline" className="merdeka-login-sso-button" disabled={isSubmitting || ssoBusy}
+                  onClick={() => { setSsoBusy(true); authService.startMicrosoftSso(); }}>
+                  {ssoBusy && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
+                  {ssoBusy ? 'Signing in with Microsoft 365…' : 'Sign in with Microsoft 365'}
+                </Button>
+              </div>
+            )}
             <div className="merdeka-login-guide-link">
               <Dialog>
                 <span>Need help signing in? </span>
@@ -137,6 +179,10 @@ const Login: React.FC = () => {
                   <div className="merdeka-login-guide-body">
                     <h3>Corporate or local account</h3>
                     <p>Use your internal username or registered corporate email and password. Your account must have LDAP or local access enabled.</p>
+                    {ssoEnabled && (<>
+                      <h3>Microsoft 365</h3>
+                      <p>Choose Sign in with Microsoft 365 to use your office Microsoft account. Your corporate email must be on the POMON access list.</p>
+                    </>)}
                     <h3>Unable to sign in?</h3>
                     <p>Check your credentials and try again. If access is still denied or you need a password reset, contact your administrator or document controller.</p>
                   </div>

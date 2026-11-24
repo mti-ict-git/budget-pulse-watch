@@ -540,6 +540,101 @@ paths:
                 $ref: '#/components/schemas/AuthLoginResponse'
         '400':
           description: Missing parameters
+  /api/auth/microsoft/config:
+    get:
+      summary: Whether Microsoft 365 sign-in is enabled
+      description: Public. The login page shows the Microsoft 365 button only when `enabled` is true. See docs/m365-sso.md.
+      tags: [Auth]
+      security: []
+      responses:
+        '200':
+          description: SSO availability
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+  /api/auth/microsoft/login:
+    get:
+      summary: Start Microsoft 365 sign-in
+      description: Browser navigation, not an XHR call. Redirects to the Entra ID authorize endpoint (authorization code flow with PKCE, state and nonce kept server-side for 10 minutes).
+      tags: [Auth]
+      security: []
+      responses:
+        '302':
+          description: Redirect to login.microsoftonline.com
+        '404':
+          description: Microsoft 365 sign-in is not enabled
+        '503':
+          description: Too many sign-ins in progress
+  /api/auth/microsoft/callback:
+    get:
+      summary: Entra ID redirect URI (directly, or forwarded by the frontend page /auth/microsoft/callback)
+      description: >-
+        Redeems the authorization code, checks the ID token (audience, tenant, issuer, nonce, expiry) and matches its
+        email, then its sign-in name, against the active LDAPUserAccess entries. Always ends with a redirect to
+        M365_POST_LOGIN_URL with either `#sso=<one-time code>` (valid 2 minutes) or
+        `#sso_error=<expired|cancelled|microsoft_error|invalid_token|no_access>`.
+      tags: [Auth]
+      security: []
+      parameters:
+        - in: query
+          name: code
+          schema:
+            type: string
+        - in: query
+          name: state
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: error
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to the POMON login page with the result in the URL fragment
+        '404':
+          description: Microsoft 365 sign-in is not enabled
+  /api/auth/microsoft/exchange:
+    post:
+      summary: Exchange the one-time Microsoft 365 handoff code for a POMON session
+      description: The code is single use. The response has the same shape as a successful POST /api/auth/login (JWT with authType ldap).
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Code missing, already used or expired
   /api/auth/api-keys:
     post:
       summary: Create API key

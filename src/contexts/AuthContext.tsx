@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useState, useEffect, ReactNode } from 'react';
 import { authService, User } from '../services/authService';
 
 interface AuthContextType {
@@ -6,6 +6,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
+  completeMicrosoftSso: (code: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   checkAuth: () => Promise<void>;
 }
@@ -74,6 +75,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // Stable identity: the login page runs it from an effect.
+  const completeMicrosoftSso = useCallback(async (code: string) => {
+    const response = await authService.completeMicrosoftSso(code);
+    if (response.success && response.user) {
+      setUser(response.user);
+      return { success: true };
+    }
+    return { success: false, message: response.message || 'Microsoft sign-in failed. Please try again.' };
+  }, []);
+
   const logout = () => {
     authService.logout();
     setUser(null);
@@ -88,6 +99,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: !!user,
     isLoading,
     login,
+    completeMicrosoftSso,
     logout,
     checkAuth
   };

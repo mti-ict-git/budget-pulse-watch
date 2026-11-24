@@ -13,6 +13,7 @@ import Settings from "./pages/Settings";
 import Reports from "./pages/Reports";
 import CreatePRF from "./pages/CreatePRF";
 import Login from "./pages/Login";
+import MicrosoftCallback from "./pages/MicrosoftCallback";
 import COAManagement from "./pages/COAManagement";
 import NotFound from "./pages/NotFound";
 
@@ -28,6 +29,7 @@ const AppRoutes = () => {
         path="/login" 
         element={isAuthenticated ? <Navigate to="/" replace /> : <Login />} 
       />
+      <Route path="/auth/microsoft/callback" element={<MicrosoftCallback />} />
       
       {/* Protected routes */}
       <Route 
