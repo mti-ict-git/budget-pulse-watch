@@ -6,6 +6,25 @@ import fs from 'fs/promises';
 import path from 'path';
 import puppeteer from 'puppeteer';
 import { createRequire } from 'module';
+import { PdfRenderLimitError, RenderedPdfPage, renderPdfWithPoppler } from './pdfPageRenderer';
+import { OcrProvider, OcrProviderError, classifyProviderError } from './ocrProviderErrors';
+import { UploadError } from './localPRFParser';
+
+/** Default model per provider when settings name none (also used for the fallback provider). */
+export const DEFAULT_OCR_MODEL: Record<OcrProvider, string> = { openai: 'gpt-4o-mini', gemini: 'gemini-2.5-flash' };
+/** Gemini 1.x models were retired by Google; a stored 1.x choice uses the current default instead. */
+export const resolveOcrModel = (provider: OcrProvider, model?: string | null): string => {
+  const m = (model || '').trim();
+  if (!m || (provider === 'gemini' && /^gemini-1\./.test(m))) return DEFAULT_OCR_MODEL[provider];
+  return m;
+};
+/** Per-request limit for provider calls (OCR_PROVIDER_TIMEOUT_MS, default 120 s). */
+const providerTimeoutMs = (): number => {
+  const v = Number.parseInt(process.env.OCR_PROVIDER_TIMEOUT_MS || '', 10);
+  return Number.isInteger(v) && v >= 10_000 ? v : 120_000;
+};
+/** Gemini takes inline files up to about 20 MB per request. */
+const GEMINI_INLINE_MAX_BYTES = 18 * 1024 * 1024;
 
 export interface ExtractedPRFData {
   sourceNotes?: string;
@@ -125,12 +144,20 @@ export interface OCRPdfDebug {
   mergedItems: number;
   usedFallback: boolean;
   fallbackReason?: string;
+  /** Which renderer produced the page images: poppler first, Chromium if poppler failed. */
+  renderer?: 'poppler' | 'chromium';
+  /** Why poppler was not used, when Chromium rendered the pages. */
+  rendererFallbackReason?: string;
 }
 
 export interface OCRExtractionDebug {
   mode: OCRExtractionMode;
   openaiJsonRepairAttempts: number;
   pdf?: OCRPdfDebug;
+  /** Provider that produced the result. */
+  provider?: OcrProvider;
+  /** Set when the configured provider failed and OCR_PROVIDER_FALLBACK sent the document to the other one. */
+  fallbackFrom?: { provider: OcrProvider; code: string };
 }
 
 export interface OCRExtractionResult {
@@ -145,19 +172,32 @@ export class OCRService {
   private async initializeAI() {
     try {
       const settings = await loadSettings();
-      
-      if (settings.ocr.provider === 'openai' && settings.ocr.openaiApiKey) {
-        this.openAI = new OpenAI({
-          apiKey: settings.ocr.openaiApiKey
-        });
-      }
-      
-      if (settings.ocr.provider === 'gemini' && settings.ocr.geminiApiKey) {
-        this.genAI = new GoogleGenerativeAI(settings.ocr.geminiApiKey);
-      }
+      // Clients for every provider with a key, so a fallback provider is ready too.
+      this.openAI = settings.ocr.openaiApiKey
+        ? new OpenAI({ apiKey: settings.ocr.openaiApiKey, timeout: providerTimeoutMs(), maxRetries: 1 })
+        : null;
+      this.genAI = settings.ocr.geminiApiKey ? new GoogleGenerativeAI(settings.ocr.geminiApiKey) : null;
     } catch (error) {
       console.error('Failed to initialize AI services:', error);
     }
+  }
+
+  private hasClient(provider: OcrProvider): boolean {
+    return provider === 'openai' ? this.openAI !== null : this.genAI !== null;
+  }
+
+  private async runProvider(provider: OcrProvider, buffer: Buffer, mimeType: string, settings: AppSettings): Promise<OCRExtractionResult> {
+    if (provider === 'openai') {
+      if (mimeType === 'application/pdf') return await this.extractPdfWithOpenAIByPages(buffer, settings);
+      const debugState = { openaiJsonRepairAttempts: 0 };
+      const extractedData = await this.extractWithOpenAI(buffer, mimeType, settings, debugState);
+      return { extractedData, debug: { mode: 'image', openaiJsonRepairAttempts: debugState.openaiJsonRepairAttempts } };
+    }
+    if (mimeType === 'application/pdf' && buffer.length > GEMINI_INLINE_MAX_BYTES) {
+      throw new UploadError('This PDF is too large for Google Gemini (about 18 MB maximum). Use a smaller file or the OpenAI provider.', 413, 'FILE_TOO_LARGE_FOR_PROVIDER');
+    }
+    const extractedData = await this.extractWithGemini(buffer, mimeType, settings);
+    return { extractedData, debug: { mode: mimeType === 'application/pdf' ? 'pdf-single' : 'image', openaiJsonRepairAttempts: 0 } };
   }
 
   async testConnection(apiKey?: string, provider?: 'gemini' | 'openai'): Promise<{ success: boolean; message: string }> {
@@ -188,7 +228,7 @@ export class OCRService {
   private async testGeminiConnection(apiKey: string, settings: AppSettings): Promise<{ success: boolean; message: string }> {
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: settings.ocr.model || 'gemini-1.5-flash' });
+      const model = genAI.getGenerativeModel({ model: resolveOcrModel('gemini', settings.ocr.model) });
       
       const result = await model.generateContent('Test connection');
       const response = await result.response;
@@ -249,39 +289,42 @@ export class OCRService {
     return res.extractedData;
   }
 
+  /**
+   * Reads a PRF document with the configured provider. Provider failures become OcrProviderError with a
+   * user-facing message. With OCR_PROVIDER_FALLBACK=true, a provider-side failure (no credit, rate limit,
+   * key rejected, timeout, outage) is retried once with the other provider when it has an API key.
+   */
   async extractPRFDataWithDebug(imageBuffer: Buffer, mimeType: string): Promise<OCRExtractionResult> {
     await this.initializeAI();
-    
     const settings = await loadSettings();
-    
-    if (settings.ocr.provider === 'openai' && this.openAI) {
-      if (mimeType === 'application/pdf') {
-        return await this.extractPdfWithOpenAIByPages(imageBuffer, settings);
+    const primary: OcrProvider = settings.ocr.provider === 'gemini' ? 'gemini' : 'openai';
+    if (!this.hasClient(primary)) {
+      throw new UploadError(`OCR is not configured: no API key for ${primary === 'openai' ? 'OpenAI' : 'Google Gemini'}. Ask an administrator to check the OCR settings.`, 503, 'OCR_NOT_CONFIGURED');
+    }
+
+    try {
+      const result = await this.runProvider(primary, imageBuffer, mimeType, settings);
+      return { ...result, debug: { ...result.debug, provider: primary } };
+    } catch (error) {
+      if (error instanceof UploadError && !(error instanceof OcrProviderError)) throw error;
+      const failure = classifyProviderError(primary, error);
+      console.error(`[OCR] ${primary} failed (${failure.providerCode}): ${failure.detail}`);
+      const secondary: OcrProvider = primary === 'openai' ? 'gemini' : 'openai';
+      const fallbackAllowed = process.env.OCR_PROVIDER_FALLBACK === 'true' && failure.providerSide && this.hasClient(secondary);
+      if (!fallbackAllowed) {
+        // Unknown errors keep their original message (for example conflicting PRF numbers across pages).
+        throw failure.providerCode === 'PROVIDER_FAILED' && error instanceof Error ? error : failure;
       }
-      const debugState = { openaiJsonRepairAttempts: 0 };
-      const extractedData = await this.extractWithOpenAI(imageBuffer, mimeType, settings, debugState);
-      return {
-        extractedData,
-        debug: {
-          mode: 'image',
-          openaiJsonRepairAttempts: debugState.openaiJsonRepairAttempts
-        }
-      };
-    } else if (settings.ocr.provider === 'gemini' && this.genAI) {
-      // Note: Gemini currently only supports images, not PDFs
-      if (mimeType === 'application/pdf') {
-        throw new Error('PDF processing is only supported with OpenAI provider. Please switch to OpenAI in settings or convert PDF to image.');
+      console.warn(`[OCR] Falling back from ${primary} to ${secondary}`);
+      const fallbackSettings: AppSettings = { ...settings, ocr: { ...settings.ocr, provider: secondary, model: DEFAULT_OCR_MODEL[secondary] } };
+      try {
+        const result = await this.runProvider(secondary, imageBuffer, mimeType, fallbackSettings);
+        return { ...result, debug: { ...result.debug, provider: secondary, fallbackFrom: { provider: primary, code: failure.providerCode } } };
+      } catch (fallbackError) {
+        const second = fallbackError instanceof UploadError ? fallbackError : classifyProviderError(secondary, fallbackError);
+        console.error(`[OCR] Fallback ${secondary} also failed (${second.code}): ${second.message}`);
+        throw failure; // report the configured provider's problem; that is what an administrator must fix
       }
-      const extractedData = await this.extractWithGemini(imageBuffer, mimeType, settings);
-      return {
-        extractedData,
-        debug: {
-          mode: 'image',
-          openaiJsonRepairAttempts: 0
-        }
-      };
-    } else {
-      throw new Error('OCR service not properly configured');
     }
   }
 
@@ -336,7 +379,26 @@ export class OCRService {
     return repairResponse.choices[0]?.message?.content || '';
   }
 
-  private async renderPdfPagesToPngDataUrls(pdfBuffer: Buffer, maxPages: number): Promise<Array<{ image: string; nativeText: string }>> {
+  /**
+   * Page images plus each page's text layer. Poppler is the primary renderer (fast, no browser);
+   * Chromium + pdf.js is kept as a backup. A PDF over the page limit is not rendered at all.
+   */
+  private async renderPdfPages(
+    pdfBuffer: Buffer,
+    maxPages: number
+  ): Promise<{ pages: RenderedPdfPage[]; renderer: 'poppler' | 'chromium'; rendererFallbackReason?: string }> {
+    let popplerError: string;
+    try {
+      return { pages: await renderPdfWithPoppler(pdfBuffer, maxPages), renderer: 'poppler' };
+    } catch (error) {
+      if (error instanceof PdfRenderLimitError) throw error;
+      popplerError = error instanceof Error ? error.message : String(error);
+      console.warn(`[OCR] Poppler page rendering failed, trying Chromium: ${popplerError}`);
+    }
+    return { pages: await this.renderPdfPagesWithChromium(pdfBuffer, maxPages), renderer: 'chromium', rendererFallbackReason: popplerError };
+  }
+
+  private async renderPdfPagesWithChromium(pdfBuffer: Buffer, maxPages: number): Promise<RenderedPdfPage[]> {
     const tmpDir = path.join(process.cwd(), 'temp', 'ocr-pdf-render');
     await fs.mkdir(tmpDir, { recursive: true });
     const tmpPdfPath = path.join(tmpDir, `ocr-${Date.now()}-${Math.random().toString(16).slice(2)}.pdf`);
@@ -356,7 +418,9 @@ export class OCRService {
     const browser = await puppeteer.launch({
       headless: true,
       executablePath: browserExecutablePath,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      // No GPU in the container; /dev/shm is only 64 MB there.
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
+      timeout: 60_000
     });
 
     try {
@@ -526,12 +590,15 @@ export class OCRService {
 
     const debugState = { openaiJsonRepairAttempts: 0 };
 
-    let images: Array<{ image: string; nativeText: string }> = [];
+    let images: RenderedPdfPage[] = [];
+    let renderer: 'poppler' | 'chromium' = 'poppler';
+    let rendererFallbackReason: string | undefined;
     try {
-      images = await this.renderPdfPagesToPngDataUrls(pdfBuffer, maxPages);
+      ({ pages: images, renderer, rendererFallbackReason } = await this.renderPdfPages(pdfBuffer, maxPages));
+      console.log(`[OCR] Rendered ${images.length} PDF page(s) with ${renderer}`);
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'Unknown error';
-      console.warn('PDF page rendering failed, falling back to single-pass PDF OCR:', error);
+      console.warn(`[OCR] PDF page rendering failed, falling back to single-pass PDF OCR: ${reason}`);
       const extractedData = await this.extractWithOpenAI(pdfBuffer, 'application/pdf', settings, debugState);
       return {
         extractedData,
@@ -663,7 +730,9 @@ ${images[i].nativeText || '(No embedded text; use the image only.)'}
           maxPages,
           itemsPerPage,
           mergedItems: Array.isArray(merged.items) ? merged.items.length : 0,
-          usedFallback: false
+          usedFallback: false,
+          renderer,
+          ...(rendererFallbackReason ? { rendererFallbackReason } : {})
         }
       }
     };
@@ -671,7 +740,10 @@ ${images[i].nativeText || '(No embedded text; use the image only.)'}
 
   private async extractWithGemini(imageBuffer: Buffer, mimeType: string, settings: AppSettings): Promise<ExtractedPRFData> {
     try {
-      const model = this.genAI!.getGenerativeModel({ model: settings.ocr.model || 'gemini-1.5-flash' });
+      const model = this.genAI!.getGenerativeModel(
+        { model: resolveOcrModel('gemini', settings.ocr.model) },
+        { timeout: providerTimeoutMs() }
+      );
       
       const prompt = `Analyze this Purchase Request Form (PRF) document and extract the following information in JSON format.
 Be very careful to extract exact values as they appear in the document.
@@ -792,8 +864,7 @@ For amounts, extract only the numeric value without currency symbols.`;
       return this.validateAndCleanData(extractedData);
       
     } catch (error) {
-      console.error('Gemini OCR extraction failed:', error);
-      throw new Error(`Gemini OCR extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw classifyProviderError('gemini', error);
     }
   }
 
@@ -970,8 +1041,7 @@ For requestFor: look for text starting with 'FOR' or 'For' in item descriptions 
       return this.validateAndCleanData(extractedData);
       
     } catch (error) {
-      console.error('OpenAI OCR extraction failed:', error);
-      throw new Error(`OpenAI OCR extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw classifyProviderError('openai', error);
     }
   }
 
