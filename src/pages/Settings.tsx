@@ -233,7 +233,7 @@ const Settings: React.FC = () => {
     geminiApiKey: '',
     openaiApiKey: '',
     enabled: false,
-    model: 'gemini-1.5-flash'
+    model: 'gemini-2.5-flash'
   });
   const [generalSettings, setGeneralSettings] = useState<GeneralSettings>({
     sharedFolderPath: ''
@@ -362,7 +362,7 @@ const Settings: React.FC = () => {
           geminiApiKey: settings.geminiApiKey || '',
           openaiApiKey: settings.openaiApiKey || '',
           enabled: settings.enabled || false,
-          model: settings.model || (settings.provider === 'openai' ? 'gpt-4o-mini' : 'gemini-1.5-flash')
+          model: settings.model || (settings.provider === 'openai' ? 'gpt-4o-mini' : 'gemini-2.5-flash')
         });
       }
       
@@ -1039,7 +1039,7 @@ const Settings: React.FC = () => {
     setOcrSettings(prev => ({ 
       ...prev, 
       provider: value,
-      model: value === 'openai' ? 'gpt-4o-mini' : 'gemini-1.5-flash'
+      model: value === 'openai' ? 'gpt-4o-mini' : 'gemini-2.5-flash'
     }));
   };
 
@@ -1489,22 +1489,10 @@ const Settings: React.FC = () => {
                     <SelectContent className="merdeka-form-popover">
                       {ocrSettings.provider === 'gemini' ? (
                         <>
-                          <SelectItem value="gemini-1.5-flash">
-                            <div className="flex flex-col">
-                              <span className="font-medium">Gemini 1.5 Flash</span>
-                              <span className="text-xs text-muted-foreground">Fast, cost-effective for most tasks</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="gemini-1.5-pro">
-                            <div className="flex flex-col">
-                              <span className="font-medium">Gemini 1.5 Pro</span>
-                              <span className="text-xs text-muted-foreground">Higher accuracy for complex documents</span>
-                            </div>
-                          </SelectItem>
                           <SelectItem value="gemini-2.5-flash">
                             <div className="flex flex-col">
                               <span className="font-medium">Gemini 2.5 Flash</span>
-                              <span className="text-xs text-muted-foreground">Latest model with improved performance</span>
+                              <span className="text-xs text-muted-foreground">Recommended: fast, reads images and PDFs</span>
                             </div>
                           </SelectItem>
                           <SelectItem value="gemini-2.0-flash">

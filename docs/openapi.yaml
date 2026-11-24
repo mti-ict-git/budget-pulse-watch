@@ -1383,8 +1383,14 @@ paths:
           description: Unsupported local PDF or extraction validation failure
         '429':
           description: Local worker or active-preview capacity reached
+        '413':
+          description: File too large for the selected provider (`FILE_TOO_LARGE_FOR_PROVIDER`, Gemini about 18 MB)
         '503':
-          description: Processing disabled, LLM not configured, or local runtime unavailable
+          description: >-
+            Processing disabled, LLM not configured (`OCR_NOT_CONFIGURED`), local runtime unavailable, or the AI
+            provider failed. Provider failures carry `code` PROVIDER_NO_CREDIT, PROVIDER_RATE_LIMITED, PROVIDER_AUTH,
+            PROVIDER_TIMEOUT, PROVIDER_UNAVAILABLE or PROVIDER_FAILED and a user-facing `message`. With
+            OCR_PROVIDER_FALLBACK=true a provider-side failure is retried once with the other provider when it has a key.
         '504':
           description: Local worker timed out
 

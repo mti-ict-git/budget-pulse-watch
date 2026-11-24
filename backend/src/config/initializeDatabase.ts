@@ -169,7 +169,7 @@ export const ensureTablesExist = async (): Promise<void> => {
       await executeQuery(insertDefault, {
         Provider: 'gemini',
         Enabled: 0,
-        Model: 'gemini-1.5-flash'
+        Model: 'gemini-2.5-flash'
       });
       console.log('✅ Default AppSettings row inserted');
     }

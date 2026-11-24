@@ -322,7 +322,7 @@ async function loadSettings(): Promise<AppSettings> {
           geminiApiKey: geminiKey,
           openaiApiKey: openaiKey,
           enabled: !!row.Enabled,
-          model: row.Model || (row.Provider === 'openai' ? 'gpt-4o-mini' : 'gemini-1.5-flash')
+          model: row.Model || (row.Provider === 'openai' ? 'gpt-4o-mini' : 'gemini-2.5-flash')
         },
         general: {
           sharedFolderPath: row.SharedFolderPath || ''
@@ -375,7 +375,7 @@ async function loadSettings(): Promise<AppSettings> {
           geminiApiKey: fileSettings.ocr.geminiApiKey ? decrypt(fileSettings.ocr.geminiApiKey) : '',
           openaiApiKey: fileSettings.ocr.openaiApiKey ? decrypt(fileSettings.ocr.openaiApiKey) : '',
           enabled: fileSettings.ocr.enabled || false,
-          model: fileSettings.ocr.model || 'gemini-1.5-flash'
+          model: fileSettings.ocr.model || 'gemini-2.5-flash'
         },
         general: fileSettings.general ? { sharedFolderPath: fileSettings.general.sharedFolderPath || '' } : { sharedFolderPath: '' },
         prontoSync: fileSettings.prontoSync
@@ -404,7 +404,7 @@ async function loadSettings(): Promise<AppSettings> {
         ocr: {
           enabled: false,
           provider: 'gemini',
-          model: 'gemini-1.5-flash'
+          model: 'gemini-2.5-flash'
         },
         general: { sharedFolderPath: '' },
         prontoSync: {
@@ -429,7 +429,7 @@ async function loadSettings(): Promise<AppSettings> {
       ocr: {
         enabled: false,
         provider: 'gemini',
-        model: 'gemini-1.5-flash'
+        model: 'gemini-2.5-flash'
       },
       general: { sharedFolderPath: '' },
       prontoSync: {
@@ -548,7 +548,7 @@ router.get('/ocr', authenticateToken, requireAdmin, async (req: Request, res: Re
       provider: settings.ocr.provider || 'gemini',
       geminiApiKey: settings.ocr.geminiApiKey ? '***masked***' : '',
       openaiApiKey: settings.ocr.openaiApiKey ? '***masked***' : '',
-      model: settings.ocr.model || (settings.ocr.provider === 'openai' ? 'gpt-4o-mini' : 'gemini-1.5-flash')
+      model: settings.ocr.model || (settings.ocr.provider === 'openai' ? 'gpt-4o-mini' : 'gemini-2.5-flash')
     });
   } catch (error) {
     console.error('Failed to load OCR settings:', error);
@@ -587,7 +587,7 @@ router.post('/ocr', authenticateToken, requireAdmin, async (req: Request, res: R
       provider: provider || currentSettings.ocr.provider || 'gemini',
       geminiApiKey: geminiApiKey && geminiApiKey !== '***masked***' ? geminiApiKey : currentSettings.ocr.geminiApiKey || '',
       openaiApiKey: openaiApiKey && openaiApiKey !== '***masked***' ? openaiApiKey : currentSettings.ocr.openaiApiKey || '',
-      model: model || currentSettings.ocr.model || (provider === 'openai' ? 'gpt-4o-mini' : 'gemini-1.5-flash')
+      model: model || currentSettings.ocr.model || (provider === 'openai' ? 'gpt-4o-mini' : 'gemini-2.5-flash')
     };
     await saveSettings(currentSettings);
     

@@ -1104,3 +1104,47 @@ A "Sign in with Microsoft 365" option that is off until it is configured, with u
 - Frontend `tsc -p tsconfig.app.json` and ESLint on the changed files pass (one pre-existing fast-refresh warning in `AuthContext.tsx`).
 - Not yet verified: the login page in a browser, and a real sign-in against Entra ID (needs the app registration).
 
+## Phase 21 - OCR Reliability
+
+### Status
+
+Implemented on branch `feat/ocr-reliability`. Not deployed.
+
+### Objective
+
+Make PRF document reading dependable before improving its accuracy: page rendering that works in the container, a clear message when the AI provider fails, PDF support and a current model for Gemini, an optional second provider, and time limits on provider calls.
+
+### Source Documents
+
+- `docs/prf-local-upload.md` (upload methods)
+- `docs/openapi.yaml` (`/api/ocr-prf/preview-extraction`, `/api/ocr-prf/rescan/{prfId}/file/{fileId}/preview`)
+- Production logs 2026-11-16 to 2026-11-24 (below)
+
+### Findings (production, 2026-11-16 to 2026-11-24)
+
+- 10 OCR previews. Page rendering failed on 7 with Puppeteer "Timed out after 30000 ms while waiting for the WS endpoint URL", so every affected PDF was sent whole, without the per-page text-layer hint that guards against misread numbers. Launching Chromium by hand in the same container, also as the app user, worked in about 1 s, so the root cause was not reproduced.
+- 3 previews failed because the OpenAI account had no credit (HTTP 429 `insufficient_quota`); users saw the generic "Document extraction failed".
+- Settings: provider OpenAI, model `gpt-4o`, no Gemini key. Gemini PDFs were refused in code, and its default model (`gemini-1.5-flash`) is retired.
+
+### Checklist
+
+- [x] Render PDF pages with poppler (`pdfinfo`, `pdftoppm` at 144 dpi, `pdftotext -layout`), already in the backend image; Chromium only as a backup (now with `--disable-gpu`, `--disable-dev-shm-usage` and a 60 s launch limit); whole-PDF extraction stays the last resort. The page limit (`OCR_PDF_MAX_PAGES`, default 6) is unchanged.
+- [x] Provider errors mapped to codes with user-facing messages: PROVIDER_NO_CREDIT, PROVIDER_RATE_LIMITED, PROVIDER_AUTH, PROVIDER_TIMEOUT, PROVIDER_UNAVAILABLE, PROVIDER_FAILED; `OCR_NOT_CONFIGURED` when the provider has no key. Upload preview and rescan preview return them as HTTP 503 with `code` and `message`.
+- [x] Gemini reads PDFs (inline, up to about 18 MB; larger files get `FILE_TOO_LARGE_FOR_PROVIDER`). Default Gemini model is `gemini-2.5-flash`; a stored retired 1.x model is mapped to it; the 1.x choices are removed from Settings.
+- [x] Optional fallback (`OCR_PROVIDER_FALLBACK=true`, off by default): a provider-side failure is retried once with the other provider when it has a key, using that provider's default model. Document errors (for example conflicting PRF numbers across pages) are not retried. The preview debug output records `provider` and `fallbackFrom`.
+- [x] Provider calls time out (`OCR_PROVIDER_TIMEOUT_MS`, default 120 s); the OpenAI client retries at most once.
+- [ ] Deploy; upload one PDF and check the log shows `Rendered N PDF page(s) with poppler`
+- [ ] Decide whether to add a Gemini key and enable `OCR_PROVIDER_FALLBACK` (sends documents to a second provider)
+
+### Output
+
+PDF pages are rendered in about a second without a browser; provider problems tell the user what to do; Gemini is a usable alternative.
+
+### Challenge / Verification
+
+- Poppler renderer on 10 real PRF PDFs inside the production container, as the app user (no AI call, no database write): 9 rendered in 0.35 to 1.7 s (1 to 2 pages, 218 to 873 KB of PNG), and the 10-page PDF was refused with `PdfRenderLimitError` and goes whole, as before. The PRF 54123 text layer keeps the row `UPS APC SMC1000I-2UC ... 6,600,000` that vision once misread as 6,300,000. The Chromium path took 7 s on the same kind of file when it worked.
+- `node --test backend/tests/ocr-reliability.test.cjs`: 9 pass (no-credit message for OpenAI's two wordings; rate limit, key, timeout, outage and unknown errors told apart for OpenAI and Gemini; retired model mapping; poppler helpers; fallback off by default; fallback to Gemini with its default model; no fallback without a key or for document errors; missing key; Gemini size limit).
+- `node --test backend/tests/`: 28 pass, 0 fail, 2 skipped (pre-existing). `scripts/test-ocr-native-text.cjs`, `scripts/test-ocr-rescan.cjs` and `rescanValidation.test.ts` pass.
+- Backend `tsc` and frontend `tsc -p tsconfig.app.json` pass; ESLint on `src/pages/Settings.tsx` passes.
+- Not verified: a real extraction with Gemini (no key in production) and the fallback against live providers.
+

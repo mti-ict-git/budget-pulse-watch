@@ -1,7 +1,7 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
-import { X, Download, ExternalLink } from 'lucide-react';
+import { Download, ExternalLink } from 'lucide-react';
 import { formatBytes } from '../lib/utils';
 
 interface FilePreviewModalProps {
@@ -123,7 +123,8 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               <span>Uploaded: {new Date(file.uploadedAt).toLocaleDateString()}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          {/* pr-8 leaves room for the dialog's built-in close button (top right). */}
+          <div className="flex items-center gap-2 pr-8">
             {isPDF && (
               <Button
                 variant="outline"
@@ -143,14 +144,6 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             >
               <Download className="w-4 h-4" />
               Download
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className="p-2"
-            >
-              <X className="w-4 h-4" />
             </Button>
           </div>
         </DialogHeader>
