@@ -116,3 +116,11 @@
   .merdeka-login-brand img { width: 140px; }
   .merdeka-login-brand img.merdeka-login-mti-logo { width: 120px; }
 }
+
+/* Microsoft 365 sign-in (shown only when the server has it configured). */
+.merdeka-login .merdeka-login-sso { margin-top: 14px; }
+.merdeka-login .merdeka-login-sso-divider { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; color: var(--login-secondary); font-size: 12px; }
+.merdeka-login .merdeka-login-sso-divider::before,
+.merdeka-login .merdeka-login-sso-divider::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: .3; }
+.merdeka-login .merdeka-login-sso-button { width: 100%; height: 38px; border-radius: 4px; font-size: 14px; font-weight: 500; gap: 8px; }
+.merdeka-login .merdeka-login-sso-button:disabled { opacity: .65; cursor: wait; }

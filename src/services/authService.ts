@@ -95,6 +95,41 @@ class AuthService {
     }
   }
 
+  /** Whether Microsoft 365 sign-in is configured on the server (GET /api/auth/microsoft/config). */
+  async isMicrosoftSsoEnabled(): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.baseUrl}/microsoft/config`);
+      const data = await response.json();
+      return response.ok && data?.data?.enabled === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Full-page redirect to the Microsoft sign-in page; the backend sends the browser back to /login. */
+  startMicrosoftSso(): void {
+    window.location.assign(`${this.baseUrl}/microsoft/login`);
+  }
+
+  /** Trades the one-time code from the Microsoft 365 redirect for a POMON session. */
+  async completeMicrosoftSso(code: string): Promise<LoginResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/microsoft/exchange`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      const data = (await response.json()) as LoginResponse;
+      if (response.ok && data.success && data.token && data.user) {
+        localStorage.setItem('authToken', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+      }
+      return data;
+    } catch {
+      return { success: false, message: 'Network error. Please try again.' };
+    }
+  }
+
   /**
    * Get current authentication token
    */

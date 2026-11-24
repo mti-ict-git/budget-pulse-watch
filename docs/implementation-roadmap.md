@@ -1066,3 +1066,41 @@ Users see the stuck PRFs as soon as they log in.
 - Backend: `tsc` and build pass; `node --test backend/tests/` 18 pass, 0 fail, 2 skipped (pre-existing); 6 new rule tests (approval waiting over and under 3 days, past Required Date, Req. Approved idle over and under 7 days, closed statuses, sort order).
 - Frontend: `tsc -p tsconfig.app.json`, ESLint on the changed files and `vite build` pass.
 - Production (2026-11-16, PR #6): the modal appeared after login with 31 PRFs (5 approval waiting, 29 past Required Date, most waiting for BUYER); `GET /api/prfs/follow-up` returns 401 without auth. Some overdue PRFs were up to 268 days past their Required Date, so the product owner limited that rule to 90 days (PR #7; 7 rule tests).
+
+## Phase 20 - Microsoft 365 Sign-in (Entra ID SSO)
+
+### Status
+
+Implemented on branch `feat/m365-sso`, disabled by default. Not deployed. Enabling it waits on the Entra ID app registration and the HTTPS redirect host decision.
+
+### Objective
+
+Let users sign in to POMON with their office Microsoft 365 account, while POMON access and roles stay on the existing access list.
+
+### Source Documents
+
+- `docs/m365-sso.md` (design, configuration, Entra ID setup, rollout)
+- `docs/openapi.yaml` (`/api/auth/microsoft/*`)
+- `docs/open-questions-and-challenges.md` (HTTPS redirect host)
+
+### Checklist
+
+- [x] Backend: OIDC authorization code flow with PKCE, state and nonce; ID token claim checks; match to `LDAPUserAccess` by email, then sign-in name; one-time handoff code in the URL fragment
+- [x] LDAP password login and Microsoft 365 sign-in share one session helper (`issueLdapSession`)
+- [x] Login page: "Sign in with Microsoft 365" when enabled, error messages for no access, cancelled and expired
+- [x] Documentation: setup guide, OpenAPI, env template
+- [ ] Decide the HTTPS redirect host
+- [ ] Entra ID app registration (tenant administrator)
+- [ ] Deploy, configure `M365_*` on docker59, verify with an allowed and a not-allowed account
+
+### Output
+
+A "Sign in with Microsoft 365" option that is off until it is configured, with username/password login unchanged.
+
+### Challenge / Verification
+
+- Backend `tsc` and build pass. `node --test backend/tests/microsoft-sso.test.cjs`: 8 tests pass (config gating and GUID tenant, PKCE S256, authorize URL parameters, email then UPN order, rejection of wrong audience, tenant, issuer, nonce, expiry and missing email, malformed token, single-use and expiring store, fragment redirect).
+- Endpoint smoke test on a throwaway Express app with a fake tenant: `/config` returns enabled; `/login` returns 302 to the tenant authorize endpoint with state, nonce and PKCE; `/callback` with an unknown state redirects to `#sso_error=expired`, `error=access_denied` to `#sso_error=cancelled`; `/exchange` with an unknown code returns 400.
+- Frontend `tsc -p tsconfig.app.json` and ESLint on the changed files pass (one pre-existing fast-refresh warning in `AuthContext.tsx`).
+- Not yet verified: the login page in a browser, and a real sign-in against Entra ID (needs the app registration).
+
