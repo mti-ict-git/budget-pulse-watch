@@ -17,14 +17,14 @@ import { getPool } from '../config/database';
 import sql from 'mssql';
 import jwt from 'jsonwebtoken';
 import { createHash } from 'crypto';
-import { validateRescanExtraction } from '../services/rescanValidation';
+import { printedTotalWarning, validateRescanExtraction } from '../services/rescanValidation';
 
 const rescanHash = (value: Buffer | string): string => createHash('sha256').update(value).digest('hex');
 
 import { extractUpload } from '../services/prfUploadExtraction';
 import { createUploadPreview, acquireUploadPreview, finishUploadPreview, releaseUploadPreview } from '../services/prfUploadReview';
 import { UploadError } from '../services/localPRFParser';
-import { crossCheckItemNumbers } from '../services/ocrCrossCheck';
+import { crossCheckItemNumbers, pdfConfirmsItemRows } from '../services/ocrCrossCheck';
 import { extractPdfText } from '../services/pdfPageRenderer';
 import { findLikelyDuplicates, type LikelyDuplicate } from '../services/rescanDuplicates';
 
@@ -496,10 +496,12 @@ router.post('/rescan/:prfId/file/:fileId/preview', authenticateToken, requireCon
 
     const buffer = await readStoredPRFFile(file);
     const extractedData = await ocrService.extractPRFData(buffer, ocrMimeType);
-    const numberWarnings = ocrMimeType === 'application/pdf'
-      ? crossCheckItemNumbers(extractedData, await extractPdfText(buffer)).map((issue) => issue.message)
+    const pdfText = ocrMimeType === 'application/pdf' ? await extractPdfText(buffer) : '';
+    const numberWarnings = pdfText
+      ? crossCheckItemNumbers(extractedData, pdfText).map((issue) => issue.message)
       : [];
-    const validationErrors = validateRescanExtraction(extractedData, String(prf.PRFNo), existingItems);
+    const rowsConfirmedByPdf = pdfConfirmsItemRows(extractedData, pdfText);
+    const validationErrors = validateRescanExtraction(extractedData, String(prf.PRFNo), existingItems, { rowsConfirmedByPdf });
     if (validationErrors.length) {
       return res.status(422).json({ success: false,
         message: `Unsafe OCR result for ${file.OriginalFileName}: ${validationErrors.join(' ')}`,
@@ -553,9 +555,10 @@ router.post('/rescan/:prfId/file/:fileId/preview', authenticateToken, requireCon
           cancelledCount > 0
             ? `${cancelledCount} item(s) appear struck through and are proposed as Cancelled. Confirm each status change before applying.`
             : null,
-          Math.abs(totals.documentItemVariance) > 1
-            ? `Document total differs from the sum of extracted item rows by ${totals.documentItemVariance.toLocaleString('en-US')}`
-            : null,
+          printedTotalWarning(extractedData)
+            ?? (Math.abs(totals.documentItemVariance) > 1
+              ? `Document total differs from the sum of extracted item rows by ${totals.documentItemVariance.toLocaleString('en-US')}`
+              : null),
           ...(extractedData.items || []).map((item, index) =>
             item.purchaseCostCode ? null : `Scanned item ${index + 1} has no cost code`
           )
@@ -652,11 +655,14 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
       existingItems as ExistingRescanItem[],
       extractedItems
     );
-    const validationErrors = validateRescanExtraction(extractedData, String(prf.PRFNo), existingItems);
+    const sourceBuffer = await readStoredPRFFile(file);
+    const rowsConfirmedByPdf = supportedStoredOCRMimeType(file) === 'application/pdf'
+      && pdfConfirmsItemRows(extractedData, await extractPdfText(sourceBuffer));
+    const validationErrors = validateRescanExtraction(extractedData, String(prf.PRFNo), existingItems, { rowsConfirmedByPdf });
     if (validationErrors.length) {
       return res.status(422).json({ success: false, message: validationErrors.join(' '), validationErrors });
     }
-    if (approvedSnapshot.sourceHash !== rescanHash(await readStoredPRFFile(file)) ||
+    if (approvedSnapshot.sourceHash !== rescanHash(sourceBuffer) ||
         approvedSnapshot.itemsHash !== rescanHash(JSON.stringify(existingItems))) {
       return res.status(409).json({ success: false, message: 'Source document or PRF items changed. Refresh preview before applying.' });
     }
@@ -686,7 +692,9 @@ router.post('/rescan/:prfId/file/:fileId/apply', authenticateToken, requireConte
     if (updateHeader) {
       const totals = calculateRescanTotals(extractedData);
       const hasCancelledItems = extractedItems.some(isScannedCancelled);
-      const requestedAmount = hasCancelledItems
+      // A printed total that matches no item sum (validated above: rows confirmed by the PDF) is a
+      // mistake on the form; the item sum is used instead.
+      const requestedAmount = hasCancelledItems || printedTotalWarning(extractedData)
         ? totals.activeItemsTotal
         : extractedData.totalAmount ?? prf.RequestedAmount ?? 0;
       const headerRequest = new sql.Request(transaction);

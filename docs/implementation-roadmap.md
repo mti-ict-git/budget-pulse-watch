@@ -1186,7 +1186,7 @@ Misread prices are flagged on the item in the review screen; ASAP PRFs can be sa
 
 - Real data, read-only, no AI call (2026-11-24): the cross-check applied to the stored (already reviewed) items of the 40 latest PRFs with an original PDF (138 items) flagged 2 items and 2 document totals; each was a real difference between the database and the PDF, not a false alarm:
   - PRF 54123 item 8 is still stored as 6,300,000, the known misread of 6,600,000;
-  - PRF 55690 is stored as 84,915,000 against a printed total of 76,245,000;
+  - PRF 55690 is stored as 84,915,000 against a printed total of 76,245,000. Correction (2026-11-25): the stored value is right; the form's printed TOTAL leaves out row 3 (see Phase 25);
   - PRF 54345 is stored with a total of 10;
   - PRF 52726 item 10 (4,468,172) does not appear in its PDF, although the document total matches.
 
@@ -1285,9 +1285,41 @@ Items outside the phases above that are still open. Check each before acting; so
 - **Multi-page PRF forms**: the page-type filter of Phase 22 is not yet proven on a real multi-page PRF form; test with a PRF number that used to read badly.
 - **Data corrections for the document controller** (stored values differ from the PDF):
   - 54123: item 8 price and GL code on 9 items (duplicates now removable by rescan);
-  - 55690: total (84,915,000 stored, 76,245,000 printed);
   - 54345: total (10);
   - 52726: item 10;
   - 41609, 30183, 43702: GL codes.
 - **Security**: rotate the Microsoft Graph client secret (it was shared in chat on 2026-11-24); on docker59, `/root/budget-pulse-watch/.env.production` and `backend/.env.staging` are still mode 644 (`backend/.env.production` is 600).
 - **Roadmap hygiene**: Phases 17 and 18 still say "Not deployed yet"; confirm against production and update.
+
+## Phase 25 - Rescan With A Wrong Printed Total
+
+### Status
+
+Implemented on branch `feat/rescan-total-warning` (local commit, not pushed at the product owner's request). Not deployed.
+
+### Objective
+
+Do not block a rescan when the form's printed total is wrong but every item row is confirmed by the PDF. Product owner, 2026-11-25: PRF 55690 rescan failed with "Document total does not reconcile with either all item rows or active item rows".
+
+### Source Documents
+
+- `docs/openapi.yaml` (`/api/ocr-prf/rescan/{prfId}/file/{fileId}` preview and apply, 422)
+- Phase 22 (PDF text cross-check)
+
+### Checklist
+
+- [x] Cause, from the production PDF (read-only): PRF 55690 prints TOTAL 76,245,000, while its three rows add up to 84,915,000; the printed total leaves out row 3 (8,670,000). The OCR read every row correctly. The stored PRF (3 items, 84,915,000) already matches the rows; the Phase 22 note that listed 55690 as a data error was wrong.
+- [x] `pdfConfirmsItemRows` (`backend/src/services/ocrCrossCheck.ts`): every active row's unit price and line total appear in the PDF text layer. False for scans without a text layer.
+- [x] `validateRescanExtraction` takes `rowsConfirmedByPdf`; with it and no row errors, an unreconciled printed total is not an error. Preview and apply both check it (apply re-reads the source PDF).
+- [x] Preview warning `printedTotalWarning`: printed total, item sum and difference. An approved header update uses the item sum as requested amount.
+- [ ] Push, review, deploy; rescan PRF 55690 in production
+
+### Output
+
+A form with a wrong SUM can be rescanned; the reviewer sees the difference, and a misread row or a scanned PDF still blocks.
+
+### Challenge / Verification
+
+- `node --test backend/tests/rescan-total-warning.test.cjs`: 5 pass (55690 rows confirmed and warning text; still blocks without PDF confirmation or with no text layer; a misread row is not confirmed; a row arithmetic error still blocks; a reconciled total gives no warning). Existing `rescanValidation.test.ts` checks pass unchanged.
+- `node --test backend/tests/`: 59 pass, 0 fail, 2 skipped. Backend `tsc` passes.
+- Production data, read-only, no AI call: with PRF 55690's real PDF text and its stored rows, `rowsConfirmedByPdf` is true, validation returns no errors, and the warning reads "Printed document total 76,245,000 differs from the sum of the item rows 84,915,000 (difference 8,670,000)".

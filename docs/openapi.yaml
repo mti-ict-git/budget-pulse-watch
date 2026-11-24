@@ -431,7 +431,7 @@ paths:
         '400':
           description: Invalid source or request
         '422':
-          description: Unsafe OCR extraction (missing/mismatched PRF, invalid row arithmetic, unreconciled totals, ambiguous matching, or no existing item overlap); no changes applied
+          description: Unsafe OCR extraction (missing/mismatched PRF, invalid row arithmetic, unreconciled totals, ambiguous matching, or no existing item overlap); no changes applied. An unreconciled printed total is not blocking when the PDF text layer shows every active row's unit price and line total; it is then returned as a preview warning, and an approved header update sets the requested amount to the item sum.
         '404':
           description: PRF or selected source document not found
         '503':
@@ -499,7 +499,7 @@ paths:
         '409':
           description: Source bytes or existing PRF items changed since preview; refresh required
         '422':
-          description: Unsafe OCR extraction (missing/mismatched PRF, invalid row arithmetic, unreconciled totals, ambiguous matching, or no existing item overlap); no changes applied
+          description: Unsafe OCR extraction (missing/mismatched PRF, invalid row arithmetic, unreconciled totals, ambiguous matching, or no existing item overlap); no changes applied. An unreconciled printed total is not blocking when the PDF text layer shows every active row's unit price and line total; it is then returned as a preview warning, and an approved header update sets the requested amount to the item sum.
         '404':
           description: PRF or selected source document not found
 
