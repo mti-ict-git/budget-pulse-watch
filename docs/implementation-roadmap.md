@@ -1071,7 +1071,7 @@ Users see the stuck PRFs as soon as they log in.
 
 ### Status
 
-Implemented on branch `feat/m365-sso`, disabled by default. Not deployed. Enabling it waits on the Entra ID app registration and the HTTPS redirect host decision.
+Implemented on branch `feat/m365-sso`, disabled by default. Not deployed. Redirect host decided (`https://pomon.merdekabattery.com`); enabling it waits on the Entra ID app registration.
 
 ### Objective
 
@@ -1089,7 +1089,7 @@ Let users sign in to POMON with their office Microsoft 365 account, while POMON 
 - [x] LDAP password login and Microsoft 365 sign-in share one session helper (`issueLdapSession`)
 - [x] Login page: "Sign in with Microsoft 365" when enabled, error messages for no access, cancelled and expired
 - [x] Documentation: setup guide, OpenAPI, env template
-- [ ] Decide the HTTPS redirect host
+- [x] Decide the HTTPS redirect host: `https://pomon.merdekabattery.com` (product owner, 2026-11-24)
 - [ ] Entra ID app registration (tenant administrator)
 - [ ] Deploy, configure `M365_*` on docker59, verify with an allowed and a not-allowed account
 

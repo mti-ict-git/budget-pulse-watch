@@ -164,10 +164,9 @@ PRF 54123 candidate native-text+image OCR verified after explicit external-provi
 - The local method does not automatically approve cancellation marks or image-note semantics.
 - Migration 026, runtime installation and production preview verification completed on 2026-10-25. Original LLM/provider settings restored after the smoke check; no PRF records were created. Rescan integration remains deferred.
 
-## Open: HTTPS redirect host for Microsoft 365 sign-in (Phase 20)
+## Resolved: HTTPS redirect host for Microsoft 365 sign-in (Phase 20)
 
-- Entra ID accepts only `https://` redirect URIs (or `http://localhost`). Users open POMON at `http://10.60.10.59:9007`.
-- Option 1: use the existing public backend host `https://pomonbackend.justanapi.my.id/api/auth/microsoft/callback`. No new infrastructure, but sign-in then depends on that host and domain.
-- Option 2: give POMON its own HTTPS hostname (company domain, certificate on a reverse proxy) for the app and the redirect URI. Also protects username/password logins, which go over plain HTTP today.
-- Owner: product owner / ICT infrastructure. The code supports both; only `M365_REDIRECT_URI` and `M365_POST_LOGIN_URL` change.
-
+- Entra ID accepts only `https://` redirect URIs (or `http://localhost`); users opened POMON at `http://10.60.10.59:9007`.
+- Decision (product owner, 2026-11-24): use `https://pomon.merdekabattery.com`, which already serves POMON and its API with the company `*.merdekabattery.com` certificate. Redirect URI `https://pomon.merdekabattery.com/api/auth/microsoft/callback`; post-login page `https://pomon.merdekabattery.com/login`.
+- Not chosen: `https://pomonbackend.justanapi.my.id` (public API for the mobile app, outside the company domain).
+- Follow-up: point users to the HTTPS address as the normal way to open POMON.

@@ -48,21 +48,25 @@ Browser            POMON backend                         Microsoft Entra ID
 | `M365_TENANT_ID` | `xxxxxxxx-xxxx-...` | Tenant **GUID** (Directory ID), not the domain name. |
 | `M365_CLIENT_ID` | `xxxxxxxx-xxxx-...` | Application (client) ID of the POMON app registration. |
 | `M365_CLIENT_SECRET` | *(secret)* | Client secret value. Keep it only in the server `.env`; note its expiry date. |
-| `M365_REDIRECT_URI` | `https://<pomon-https-host>/api/auth/microsoft/callback` | Must match the app registration exactly. |
-| `M365_POST_LOGIN_URL` | `http://10.60.10.59:9007/login` | The POMON login page users normally open. |
+| `M365_REDIRECT_URI` | `https://pomon.merdekabattery.com/api/auth/microsoft/callback` | Must match the app registration exactly. |
+| `M365_POST_LOGIN_URL` | `https://pomon.merdekabattery.com/login` | The POMON login page users land on after sign-in. |
 
 If the variables are incomplete, the backend logs `[M365 SSO] Disabled: incomplete configuration (...)` (names only, never values) and the button stays hidden.
 
 These are separate from `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET`, which belong to the OneDrive sync app. A separate app registration keeps sign-in permissions apart from file access.
 
-## HTTPS requirement (open question)
+## HTTPS redirect host (decided 2026-11-24)
 
-Entra ID only accepts `https://` redirect URIs, apart from `http://localhost`. Users currently open POMON at `http://10.60.10.59:9007`, so that address cannot be the redirect URI. Two options:
+Entra ID only accepts `https://` redirect URIs, apart from `http://localhost`, so `http://10.60.10.59:9007` cannot be used.
 
-1. **Use the existing public backend host**: `https://pomonbackend.justanapi.my.id/api/auth/microsoft/callback`. It already reaches the same backend container, so it works without new infrastructure. The browser must be able to open that host during sign-in.
-2. **Give POMON its own HTTPS hostname** (for example on a company domain, with a certificate on a reverse proxy) and use it for both the app and the redirect URI. This is cleaner, and also stops sending passwords over plain HTTP on the login form. It needs DNS and a certificate.
+**Decision (product owner, 2026-11-24): use `https://pomon.merdekabattery.com`.** It already serves the POMON frontend and proxies `/api` to the backend (checked 2026-11-24: `/api/auth/verify` returns 401 without a token), with the company wildcard certificate `*.merdekabattery.com` (DigiCert, valid until 2027-05-28).
 
-The backend works with either option: only `M365_REDIRECT_URI` and `M365_POST_LOGIN_URL` change. The choice is recorded in `docs/open-questions-and-challenges.md`.
+- `M365_REDIRECT_URI=https://pomon.merdekabattery.com/api/auth/microsoft/callback`
+- `M365_POST_LOGIN_URL=https://pomon.merdekabattery.com/login`
+
+Users should open POMON at this address. Microsoft sign-in can still be started from `http://10.60.10.59:9007`, but the user ends up on the HTTPS address afterwards, where the session is stored (browser storage is per address). Username/password logins on this address are also encrypted.
+
+`https://pomonbackend.justanapi.my.id` (the public API for the POMON mobile app, through Cloudflare) was considered and not chosen: it is outside the company domain.
 
 ## Entra ID setup (done by a tenant administrator)
 
