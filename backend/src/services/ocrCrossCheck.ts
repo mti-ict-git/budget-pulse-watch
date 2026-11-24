@@ -51,7 +51,7 @@ const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 2 
 const MIN_NUMBERS_IN_TEXT = 5;
 
 /**
- * Review flags for items whose unit price or line total does not appear anywhere in the PDF text.
+ * Review flags for items whose unit price, line total or GL code does not appear anywhere in the PDF text.
  * Returns no flags when the PDF has no usable text layer. Quantities are not checked: small integers
  * appear everywhere in a form and would never be flagged.
  */
@@ -59,6 +59,7 @@ export const crossCheckItemNumbers = (data: ExtractedPRFData, pdfText: string): 
   const numbers = numbersInText(pdfText);
   if (numbers.size < MIN_NUMBERS_IN_TEXT) return [];
   const issues: ReviewIssue[] = [];
+  const compactText = pdfText.replace(/\s+/g, '').toUpperCase();
   (data.items || []).forEach((item, i) => {
     const missing: string[] = [];
     for (const [label, raw] of [['unit price', item.unitPrice], ['line total', item.totalPrice]] as const) {
@@ -66,6 +67,9 @@ export const crossCheckItemNumbers = (data: ExtractedPRFData, pdfText: string): 
       if (raw === undefined || raw === null || !Number.isFinite(value) || value === 0) continue;
       if (!numbers.has(Math.round(value * 100) / 100)) missing.push(`${label} ${fmt(value)}`);
     }
+    // GL codes are letter/digit mixes (AMINFO12.6250): O/0 and I/1 are easy to confuse in an image.
+    const gl = (item.purchaseCostCode || '').replace(/\s+/g, '').toUpperCase();
+    if (gl.length >= 5 && !compactText.includes(gl)) missing.push(`GL code ${item.purchaseCostCode}`);
     if (missing.length) {
       issues.push({
         id: `number-not-in-pdf-${i}`,

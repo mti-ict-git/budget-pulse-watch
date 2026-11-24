@@ -61,6 +61,16 @@ test('a misread price is flagged on its item; correct prices are not', () => {
   assert.match(issues[0].message, /Item 8: unit price 6,300,000 and line total 6,300,000 not found/);
 });
 
+test('a GL code misread (O/0) is flagged; the printed code is not', () => {
+  const data = { items: [
+    { rowNo: 7, unitPrice: 4250000, totalPrice: 8500000, purchaseCostCode: 'AMINBD43.6250' },
+    { rowNo: 8, unitPrice: 6600000, totalPrice: 6600000, purchaseCostCode: 'AMlNBD43.625O' }
+  ] };
+  const issues = crossCheckItemNumbers(data, pdfText);
+  assert.deepEqual(issues.map((i) => i.itemIndex), [1]);
+  assert.match(issues[0].message, /GL code AMlNBD43\.625O not found/);
+});
+
 test('a wrong document total is flagged; a scan without text is not judged', () => {
   const data = { totalAmount: 15400000, items: [{ unitPrice: 4250000, totalPrice: 8500000 }] };
   assert.deepEqual(crossCheckItemNumbers(data, pdfText).map((i) => i.id), ['total-not-in-pdf']);

@@ -1174,6 +1174,7 @@ Catch AI misreads before a PRF is saved, read dates the Indonesian way, and acce
 - [x] Multi-page PDFs (product owner, 2026-11-24: accuracy drops on multi-page PDFs and PDFs with many items): every page reports `pageType` (`prf_form` or `attachment`: quotation, CBE/TBE, specification, Pronto print, ...); items, header and total come from PRF form pages only, with an `attachment-pages-skipped` review flag naming the skipped pages, or `no-prf-form-page` when none is found. Rows are de-duplicated only when number and content match (a shared row number no longer drops an item). The total is the last form page's total, not the largest number on any page. Whole-PDF mode (over `OCR_PDF_MAX_PAGES`) allows 16,000 output tokens instead of 4,000 and flags `output-truncated` when the answer is cut off.
 - [x] OCR evaluation bench `backend/scripts/ocr-bench.cjs` (read-only; real AI cost): scores extraction against reviewed rescans (`--source rescan`) or stored items (`--source files`), per model.
 - [x] Apply migration 029 in production (2026-11-24; 485 PRFs, all `RequiredASAP = 0`)
+- [x] GL code cross-check: an item GL code that does not appear in the PDF text (O/0, D/0, I/1 confusions) is part of the same review warning.
 - [ ] Deploy; check an upload in production
 
 ### Output
@@ -1191,5 +1192,21 @@ Misread prices are flagged on the item in the review screen; ASAP PRFs can be sa
   1 of the 40 PDFs had no text layer and was skipped.
 - `node --test backend/tests/ocr-accuracy.test.cjs`: 8 pass (day-first and month-name dates, no invented dates, separator readings, misread price flagged on its item, wrong total flagged, scans not judged, ASAP accepted in review and other text rejected, follow-up `requiredAsap`).
 - `node --test backend/tests/`: 45 pass, 0 fail, 2 skipped (pre-existing). OCR regression scripts pass. Backend and frontend `tsc` pass; ESLint on changed frontend files passes.
-- Follow-up: the four PRFs above should be corrected by the document controller.
+- OCR bench, 2026-11-24/25, real AI calls, about US$1.5 in total:
+  - **20 PRF source PDFs** (`--source files`): the 10 small PRFs (1 to 8 items, all 1 page) were read 100% right (items, quantity, price, GL, total) by both gpt-4o and gpt-4o-mini.
+  - **Large PRFs scored against stored items were unreliable**: some "original" files are not PRF forms (PRF 42042 is a 2-page CBE/TBE with 56 priced rows; PRF 39247 is a 13-page Pronto print), and older items come from Excel import or Pronto.
+  - **10 reviewed rescans with 8 to 22 items** (`--source rescan`, all 1-page):
+    - quantities and prices correct on every matched row;
+    - baseline (`12ace2e`) and the multi-page change gave identical results, so there is no regression;
+    - gpt-4o-mini matched gpt-4o on every measure at US$0.06 against US$0.27;
+    - GL "mismatches" (41609, 30183, 43702) were wrong stored codes from older rescans; the current reading equals the PDF text (`AMINFO12.6250`, `MTIRMRPRC06250`, `AMITCM19.6250`).
+  - **Cost per 20 PDFs**: gpt-4o US$0.49, gpt-4o-mini US$0.14.
+- The new GL cross-check on the stored items of the same 40 PRFs flagged 9 items, all in PRF 54123 (stored `AMINB043.6250`, printed `AMINBD43.6250`).
+- Not yet shown on a real multi-page PRF form: the bench had no multi-page PRF form with reviewed items. For PRF 42042 (CBE/TBE) the model classified both pages as `prf_form`, so the page-type filter did not apply.
+- Follow-up: the PRFs above should be corrected by the document controller:
+  - 54123: item 8 price; GL codes on 9 items;
+  - 55690: total;
+  - 54345: total;
+  - 52726: item 10;
+  - 41609, 30183, 43702: GL codes.
 

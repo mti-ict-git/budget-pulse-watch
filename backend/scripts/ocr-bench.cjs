@@ -149,6 +149,8 @@ const matchItems = (truth, got) => {
           flaggedWrong: wrong.filter((gi) => flags.includes(gi)).length,
           flaggedRight: flags.filter((gi) => !wrong.includes(gi)).length,
           textLayer: pdfNumbers.size >= 5,
+          warnings: (data.extractionWarnings || []).map((w) => w.code),
+          glSample: pairs.slice(0, 3).map(([ti, gi]) => `${truth[ti].PurchaseCostCode} | ${got[gi].purchaseCostCode}`),
           seconds: Math.round((Date.now() - t0) / 1000)
         });
       } catch (err) {
