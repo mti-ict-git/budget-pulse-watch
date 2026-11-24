@@ -1245,3 +1245,49 @@ Duplicates left by an earlier scan are proposed for removal in the rescan review
 - `node --test backend/tests/rescan-duplicates.test.cjs`: 4 pass. The PRF 54123 data pairs all 9 stale rows with their corrected rows (lowest similarity 0.33, Access Point; UPS paired despite the 6,300,000 / 6,600,000 misread), and none of the 10 single rows is flagged. Different quantity, far price, different name and cancelled rows are not paired.
 - Backend `tsc` and frontend `tsc` pass; ESLint on the dialog passes.
 - Production data, read-only, no AI call (2026-11-25): the detection run on PRF 54123's stored rows (name and description), with the rows that carry an item code as the OCR-matched set, paired all 9 stale rows with their corrected rows (similarity 0.43 to 0.87).
+
+## Phase 24 - OCR Cost And Control (Planned)
+
+### Status
+
+Planned, not started. Recorded on 2026-11-25 at the product owner's request so it can be resumed later (possibly from another laptop). This is the third of the three OCR areas agreed in November 2026: 1. reliability (Phase 21, done), 2. accuracy (Phases 22 and 23, done), 3. cost and control (this phase).
+
+### Objective
+
+Know what each OCR call costs, spend less where accuracy allows, and stop saving uploaded PRFs with a placeholder COA.
+
+### Source Documents
+
+- Phase 21 (OCR reliability) and Phase 22 (OCR accuracy, bench results)
+- `backend/src/services/ocrService.ts`, `backend/src/routes/ocrPrfRoutes.ts`, `backend/scripts/ocr-bench.cjs`
+- `docs/openapi.yaml`, `docs/database-schema-specification.md`
+
+### Checklist
+
+- [x] Time limit on AI provider calls: done in Phase 21 (`OCR_PROVIDER_TIMEOUT_MS`, default 120 s).
+- [ ] Token and cost record per upload and per rescan. Today usage is only visible in the OpenAI dashboard, not per PRF. Suggested start: store provider, model, prompt and completion tokens, estimated USD, PRF and file ID for every call (new table or the existing rescan audit); show totals in Settings → OCR. `backend/scripts/ocr-bench.cjs` already shows how to read `usage` from the OpenAI client.
+- [ ] Automatic COA mapping for PRFs created from an uploaded document. `create-from-document` in `backend/src/routes/ocrPrfRoutes.ts` saves every new PRF with `COAID: 1`. Map from the item purchase cost code (GL, for example `AMINBD43.6250`) to the COA table; leave it for review when no match is found.
+- [ ] Decide the default model. The Phase 22 bench showed `gpt-4o-mini` as accurate as `gpt-4o` on small and 8–22 item PRFs at about a quarter of the cost (US$0.06 vs US$0.27 per 10 PRFs). Production still uses `gpt-4o`. Switching needs no deploy (Settings → OCR); confirm with the per-call cost record above.
+
+### Output
+
+Cost per PRF is visible, the default model is chosen on evidence, and uploaded PRFs get a real COA.
+
+### Challenge / Verification
+
+To be defined when the phase starts.
+
+## Pending Follow-ups (as of 2026-11-25)
+
+Items outside the phases above that are still open. Check each before acting; some may have been done outside this repository.
+
+- **Production checks by the product owner**: upload a new PRF and rescan an existing one (Phase 22); rescan PRF 54123 and confirm the 9 duplicates are proposed for removal and 19 items remain (Phase 23).
+- **Multi-page PRF forms**: the page-type filter of Phase 22 is not yet proven on a real multi-page PRF form; test with a PRF number that used to read badly.
+- **Data corrections for the document controller** (stored values differ from the PDF):
+  - 54123: item 8 price and GL code on 9 items (duplicates now removable by rescan);
+  - 55690: total (84,915,000 stored, 76,245,000 printed);
+  - 54345: total (10);
+  - 52726: item 10;
+  - 41609, 30183, 43702: GL codes.
+- **Security**: rotate the Microsoft Graph client secret (it was shared in chat on 2026-11-24); on docker59, `/root/budget-pulse-watch/.env.production` and `backend/.env.staging` are still mode 644 (`backend/.env.production` is 600).
+- **Roadmap hygiene**: Phases 17 and 18 still say "Not deployed yet"; confirm against production and update.
