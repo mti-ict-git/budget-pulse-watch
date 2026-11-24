@@ -32,6 +32,7 @@ interface CreatePRFRequest {
   RequestedAmount: number;
   Priority?: 'Low' | 'Medium' | 'High' | 'Critical';
   RequiredDate?: Date;
+  RequiredASAP?: boolean;
   Justification?: string;
   VendorName?: string;
   VendorContact?: string;
@@ -86,7 +87,7 @@ export function PRFCreateDialog({ onPRFCreated }: PRFCreateDialogProps) {
     BudgetYear: new Date().getFullYear()
   });
 
-  const handleInputChange = (field: keyof CreatePRFRequest, value: string | number | Date | undefined) => {
+  const handleInputChange = (field: keyof CreatePRFRequest, value: string | number | boolean | Date | undefined) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -344,9 +345,15 @@ export function PRFCreateDialog({ onPRFCreated }: PRFCreateDialogProps) {
                   <Input
                     id="requiredDate"
                     type="date"
+                    disabled={formData.RequiredASAP === true}
                     value={formData.RequiredDate ? formData.RequiredDate.toISOString().split('T')[0] : ''}
                     onChange={(e) => handleInputChange('RequiredDate', e.target.value ? new Date(e.target.value) : undefined)}
                   />
+                  <label className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                    <input type="checkbox" className="h-4 w-4" checked={formData.RequiredASAP === true}
+                      onChange={(e) => setFormData(prev => ({ ...prev, RequiredASAP: e.target.checked, RequiredDate: e.target.checked ? undefined : prev.RequiredDate }))} />
+                    ASAP (no fixed date)
+                  </label>
                 </div>
               </CardContent>
             </Card>

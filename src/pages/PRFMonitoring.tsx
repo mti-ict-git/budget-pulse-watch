@@ -78,6 +78,7 @@ interface PRFData {
   currencyCode?: string;
   exchangeRateToIDR?: number;
   requiredDate?: string | null;
+  requiredAsap?: boolean;
   approvalDate?: string | null;
   completionDate?: string | null;
   justification?: string | null;
@@ -117,6 +118,7 @@ interface PRFRawData {
   ApprovedByName?: string;
   AllocatedBuyer?: string | null;
   RequiredDate?: string;
+  RequiredASAP?: boolean | null;
   ApprovalDate?: string;
   CompletionDate?: string;
   Justification?: string;
@@ -159,6 +161,7 @@ interface PRFDetailRawData {
   DateSubmit?: string;
   SubmitBy?: string;
   RequiredDate?: string | null;
+  RequiredASAP?: boolean | null;
   ApprovalDate?: string | null;
   CompletionDate?: string | null;
   ApprovedByName?: string | null;
@@ -194,6 +197,7 @@ interface ExportPRFRow {
   DateSubmit: string;
   SubmitBy: string;
   RequiredDate: string | null;
+  RequiredASAP?: boolean | null;
   ApprovalDate: string | null;
   CompletionDate: string | null;
   ApprovedByName: string | null;
@@ -395,6 +399,7 @@ export default function PRFMonitoring() {
           currencyCode: prf.CurrencyCode,
           exchangeRateToIDR: prf.ExchangeRateToIDR,
           requiredDate: prf.RequiredDate,
+          requiredAsap: prf.RequiredASAP === true,
           approvalDate: prf.ApprovalDate,
           completionDate: prf.CompletionDate,
           justification: prf.Justification,

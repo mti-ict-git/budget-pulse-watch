@@ -66,6 +66,8 @@ export interface UpdatePRFParams {
   Priority?: string;
   Status?: string;
   RequiredDate?: Date;
+  /** Date Required written as ASAP (migration 029). */
+  RequiredASAP?: boolean;
   ApprovedAmount?: number;
   ActualAmount?: number;
   ApprovalDate?: Date;
@@ -413,6 +415,8 @@ export interface PRF {
   Status: string;
   RequestDate: Date;
   RequiredDate?: Date;
+  /** Date Required written as ASAP (migration 029). */
+  RequiredASAP?: boolean;
   ApprovalDate?: Date;
   CompletionDate?: Date;
   ApprovedBy?: number | null;
@@ -447,6 +451,8 @@ export interface CreatePRFRequest {
   ExchangeRateToIDR?: number;
   Priority?: 'Low' | 'Medium' | 'High' | 'Critical';
   RequiredDate?: Date;
+  /** Date Required written as ASAP (migration 029). */
+  RequiredASAP?: boolean;
   Justification?: string;
   VendorName?: string;
   VendorContact?: string;
@@ -474,6 +480,8 @@ export interface UpdatePRFRequest {
   Priority?: 'Low' | 'Medium' | 'High' | 'Critical';
   Status?: string;
   RequiredDate?: Date;
+  /** Date Required written as ASAP (migration 029). */
+  RequiredASAP?: boolean;
   ApprovedAmount?: number;
   ActualAmount?: number;
   ApprovalDate?: Date;
@@ -595,6 +603,8 @@ export interface PRFSummary {
   Priority: string;
   RequestDate: Date;
   RequiredDate?: Date;
+  /** Date Required written as ASAP (migration 029). */
+  RequiredASAP?: boolean;
   RequestorName: string;
   COACode: string;
   COAName: string;

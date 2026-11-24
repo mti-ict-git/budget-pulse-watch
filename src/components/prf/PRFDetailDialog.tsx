@@ -42,6 +42,7 @@ interface PRFData {
   currencyCode?: string;
   exchangeRateToIDR?: number;
   requiredDate?: string | null;
+  requiredAsap?: boolean;
   approvalDate?: string | null;
   completionDate?: string | null;
   justification?: string | null;
@@ -350,14 +351,16 @@ export function PRFDetailDialog({ prf, onRefresh }: PRFDetailDialogProps) {
                   </p>
                 </div>
 
-                {prf.requiredDate && (
+                {(prf.requiredDate || prf.requiredAsap) && (
                   <div className="text-center">
                     <label className="text-sm font-medium text-muted-foreground flex items-center justify-center gap-1">
                       <Calendar className="h-4 w-4" />
                       Required By
                     </label>
                     <p className="font-medium mt-2">
-                      {new Date(prf.requiredDate).toLocaleDateString('id-ID')}
+                      {prf.requiredAsap ? 'ASAP' : ''}
+                      {prf.requiredAsap && prf.requiredDate ? ' · ' : ''}
+                      {prf.requiredDate ? new Date(prf.requiredDate).toLocaleDateString('id-ID') : ''}
                     </p>
                   </div>
                 )}

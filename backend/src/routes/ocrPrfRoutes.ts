@@ -24,6 +24,8 @@ const rescanHash = (value: Buffer | string): string => createHash('sha256').upda
 import { extractUpload } from '../services/prfUploadExtraction';
 import { createUploadPreview, acquireUploadPreview, finishUploadPreview, releaseUploadPreview } from '../services/prfUploadReview';
 import { UploadError } from '../services/localPRFParser';
+import { crossCheckItemNumbers } from '../services/ocrCrossCheck';
+import { extractPdfText } from '../services/pdfPageRenderer';
 
 const router = express.Router();
 
@@ -339,7 +341,8 @@ router.post('/create-from-document', authenticateToken, requireContentManager, u
       PRFNo: extractedData.prfNo!, Title: extractedData.semanticTitle || extractedData.requestFor || `PRF ${extractedData.prfNo}`,
       Description: extractedData.projectDescription || '', Department: extractedData.department!, COAID: 1,
       RequestedAmount: extractedData.totalAmount!, Priority: 'Medium', VendorName: extractedData.proposedSupplier || '',
-      RequiredDate: extractedData.dateRequired ? new Date(extractedData.dateRequired) : undefined,
+      RequiredDate: extractedData.dateRequired && extractedData.dateRequired !== 'ASAP' ? new Date(extractedData.dateRequired) : undefined,
+      RequiredASAP: extractedData.dateRequired === 'ASAP',
       DateSubmit: extractedData.dateRaised ? new Date(extractedData.dateRaised) : new Date(), SubmitBy: userName,
       SumDescriptionRequested: extractedData.projectDescription || '', ProjectArea: extractedData.projectArea || '',
       PurchaseCostCode: code, RequiredFor: extractedData.requestFor || '', BudgetYear: year,
@@ -487,6 +490,9 @@ router.post('/rescan/:prfId/file/:fileId/preview', authenticateToken, requireCon
 
     const buffer = await readStoredPRFFile(file);
     const extractedData = await ocrService.extractPRFData(buffer, ocrMimeType);
+    const numberWarnings = ocrMimeType === 'application/pdf'
+      ? crossCheckItemNumbers(extractedData, await extractPdfText(buffer)).map((issue) => issue.message)
+      : [];
     const validationErrors = validateRescanExtraction(extractedData, String(prf.PRFNo), existingItems);
     if (validationErrors.length) {
       return res.status(422).json({ success: false,
@@ -530,6 +536,8 @@ router.post('/rescan/:prfId/file/:fileId/preview', authenticateToken, requireCon
         preservedItems,
         totals,
         warnings: [
+          ...(extractedData.extractionWarnings || []).map((w) => w.message),
+          ...numberWarnings,
           !file.IsOriginalDocument
             ? `${file.OriginalFileName} is an alternative synced document, not the original OCR Source. Review every proposed change carefully.`
             : null,

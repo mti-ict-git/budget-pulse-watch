@@ -21,14 +21,14 @@ export class PRFModel {
     const query = `
       INSERT INTO PRF (
         PRFNo, Title, Description, RequestorID, Department, COAID, 
-        RequestedAmount, Priority, RequiredDate, Justification, 
+        RequestedAmount, Priority, RequiredDate, RequiredASAP, Justification, 
         VendorName, VendorContact, Notes, DateSubmit, SubmitBy, 
         SumDescriptionRequested, ProjectArea, PurchaseCostCode, RequiredFor, BudgetYear, CurrencyCode, ExchangeRateToIDR
       )
       OUTPUT INSERTED.*
       VALUES (
         @PRFNo, @Title, @Description, @RequestorID, @Department, @COAID,
-        @RequestedAmount, @Priority, @RequiredDate, @Justification,
+        @RequestedAmount, @Priority, @RequiredDate, @RequiredASAP, @Justification,
         @VendorName, @VendorContact, @Notes, @DateSubmit, @SubmitBy,
         @SumDescriptionRequested, @ProjectArea, @PurchaseCostCode, @RequiredFor, @BudgetYear, @CurrencyCode, @ExchangeRateToIDR
       )
@@ -44,6 +44,7 @@ export class PRFModel {
       RequestedAmount: prfData.RequestedAmount,
       Priority: prfData.Priority || 'Medium',
       RequiredDate: prfData.RequiredDate || null,
+      RequiredASAP: prfData.RequiredASAP === true,
       Justification: prfData.Justification || null,
       VendorName: prfData.VendorName || null,
       VendorContact: prfData.VendorContact || null,
@@ -151,6 +152,10 @@ export class PRFModel {
     if (updateData.RequiredDate !== undefined) {
       setClause.push('RequiredDate = @RequiredDate');
       params.RequiredDate = updateData.RequiredDate;
+    }
+    if (updateData.RequiredASAP !== undefined) {
+      setClause.push('RequiredASAP = @RequiredASAP');
+      params.RequiredASAP = updateData.RequiredASAP;
     }
     if (updateData.ApprovedAmount !== undefined) {
       setClause.push('ApprovedAmount = @ApprovedAmount');
@@ -322,7 +327,7 @@ export class PRFModel {
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     const query = `
-      SELECT v.*, prf.ApprovedByName, prf.AllocatedBuyer
+      SELECT v.*, prf.ApprovedByName, prf.AllocatedBuyer, prf.RequiredASAP
       FROM vw_PRFSummary v
       INNER JOIN PRF prf ON prf.PRFID = v.PRFID
       ${whereClause}
@@ -504,7 +509,7 @@ export class PRFModel {
 
     // Query to get PRFs with enhanced search
     const query = `
-      SELECT DISTINCT p.*, prf.ApprovedByName, prf.AllocatedBuyer
+      SELECT DISTINCT p.*, prf.ApprovedByName, prf.AllocatedBuyer, prf.RequiredASAP
       FROM vw_PRFSummary p
       INNER JOIN PRF prf ON prf.PRFID = p.PRFID
       ${whereClause}

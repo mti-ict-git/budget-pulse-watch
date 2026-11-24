@@ -145,6 +145,7 @@ CREATE TABLE PRF (
     Status NVARCHAR(100) DEFAULT 'Draft', -- No CHECK constraint - accepts any Excel 'Status in Pronto' values
     RequestDate DATETIME2 NOT NULL DEFAULT GETDATE(),
     RequiredDate DATETIME2,
+    RequiredASAP BIT NOT NULL CONSTRAINT DF_PRF_RequiredASAP DEFAULT 0, -- migration 029
     ApprovalDate DATETIME2 NULL,
     CompletionDate DATETIME2 NULL,
     ApprovedBy INT NULL,

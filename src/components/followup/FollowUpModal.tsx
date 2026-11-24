@@ -18,6 +18,7 @@ interface FollowUpItem {
   title: string | null;
   status: string | null;
   requiredDate: string | null;
+  requiredAsap?: boolean;
   allocatedBuyer: string | null;
   nextActionBy: string[];
   reasons: FollowUpReason[];
@@ -247,7 +248,7 @@ export function FollowUpModal() {
                   <td className="px-3 py-2 whitespace-nowrap">{i.status || "-"}</td>
                   <td className="px-3 py-2">{i.nextActionBy.length ? i.nextActionBy.join(", ") : "-"}</td>
                   <td className="px-3 py-2">{i.allocatedBuyer || "-"}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{i.requiredDate ?? "-"}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{i.requiredAsap ? (i.requiredDate ? `ASAP · ${i.requiredDate}` : "ASAP") : i.requiredDate ?? "-"}</td>
                   <td className="px-3 py-2">
                     <div className="flex flex-col gap-1">
                       {i.reasons.map((r) => (

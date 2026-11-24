@@ -656,6 +656,9 @@ router.post('/', authenticateToken, requireContentManager, async (req: Request, 
         message: 'ExchangeRateToIDR must be greater than 0'
       });
     }
+    if (prfData.RequiredASAP !== undefined && typeof prfData.RequiredASAP !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'RequiredASAP must be a boolean' });
+    }
 
     // Use authenticated user as requestor
     if (!req.user) {
@@ -736,6 +739,9 @@ router.put('/:id', authenticateToken, requireContentManager, async (req: Request
         });
       }
       updateData.ApprovedByName = parsedApprovedByName.value;
+    }
+    if (updateData.RequiredASAP !== undefined && typeof updateData.RequiredASAP !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'RequiredASAP must be a boolean' });
     }
     if (updateData.AllocatedBuyer !== undefined) {
       const parsedAllocatedBuyer = parseNullableString(updateData.AllocatedBuyer);
@@ -841,6 +847,9 @@ router.put('/prfno/:prfNo', authenticateToken, requireContentManager, async (req
         });
       }
       updateData.ApprovedByName = parsedApprovedByName.value;
+    }
+    if (updateData.RequiredASAP !== undefined && typeof updateData.RequiredASAP !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'RequiredASAP must be a boolean' });
     }
     if (updateData.AllocatedBuyer !== undefined) {
       const parsedAllocatedBuyer = parseNullableString(updateData.AllocatedBuyer);
