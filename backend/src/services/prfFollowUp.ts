@@ -19,6 +19,7 @@ export interface FollowUpPrfRow {
   Title: string | null;
   Status: string | null;
   RequiredDate: Date | null;
+  RequiredASAP?: boolean | null;
   AllocatedBuyer: string | null;
 }
 
@@ -44,6 +45,8 @@ export interface FollowUpItem {
   title: string | null;
   status: string | null;
   requiredDate: string | null;
+  /** Date Required written as ASAP on the PRF. */
+  requiredAsap: boolean;
   allocatedBuyer: string | null;
   nextActionBy: string[];
   lastActionAt: string | null;
@@ -115,6 +118,7 @@ export const buildFollowUps = (
       title: p.Title,
       status: p.Status,
       requiredDate: p.RequiredDate ? p.RequiredDate.toISOString().slice(0, 10) : null,
+      requiredAsap: p.RequiredASAP === true,
       allocatedBuyer: p.AllocatedBuyer,
       nextActionBy: pending,
       lastActionAt: lastActionAt ? lastActionAt.toISOString().slice(0, 19) : null,
@@ -130,7 +134,7 @@ export const buildFollowUps = (
 /** Loads the active PRFs of one budget year with their Pronto approval history and applies the rules. */
 export const listFollowUps = async (budgetYear: number, now = new Date()): Promise<FollowUpItem[]> => {
   const prfs = await executeQuery<FollowUpPrfRow>(
-    `SELECT PRFID, PRFNo, Title, Status, RequiredDate, AllocatedBuyer
+    `SELECT PRFID, PRFNo, Title, Status, RequiredDate, RequiredASAP, AllocatedBuyer
        FROM dbo.PRF
       WHERE BudgetYear = @BudgetYear
         AND LOWER(LTRIM(RTRIM(ISNULL(Status, '')))) NOT IN ('completed', 'cancelled', 'rejected')`,

@@ -39,6 +39,8 @@ interface CreatedPRFData {
   savedFilePath: string | null; attachmentWarning?: string;
 }
 interface Props { onPRFCreated?: (data: CreatedPRFData) => void; onPreviewData?: (data: ExtractedPRFData) => void; }
+// Date Required may be ASAP on the PRF.
+const validRequired = (v?: string) => /^a\.?s\.?a\.?p\.?$/i.test((v || '').trim()) || validDate(v);
 const validDate = (v?: string) => !v || (/^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(v)) && new Date(v).toISOString().slice(0,10) === v);
 const numeric = (value: string) => value === '' ? undefined : Number(value);
 const money = (v?: number) => v === undefined ? 'Not read' : new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(v);
@@ -113,14 +115,14 @@ export default function OCRUpload({ onPRFCreated, onPreviewData }: Props) {
   const sum = data?.items?.reduce((total, item) => total + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0) || 0;
   const needsUSD = data?.items?.some(item => item.currency === 'USD');
   const valid = Boolean(data?.prfNo?.trim() && data?.requestedBy?.trim() && data?.department?.trim() && data.items?.length
-    && validDate(data.dateRaised) && validDate(data.dateRequired) && data.totalAmount !== undefined && Math.abs(sum - data.totalAmount) <= .01
+    && validDate(data.dateRaised) && validRequired(data.dateRequired) && data.totalAmount !== undefined && Math.abs(sum - data.totalAmount) <= .01
     && data.items.every(x => x.description?.trim() && x.purchaseCostCode?.trim() && x.quantity !== undefined && Number.isInteger(x.quantity) && x.quantity > 0 && x.unitPrice !== undefined && x.unitPrice >= 0 && ['IDR','USD'].includes(x.currency || '') && x.status !== 'Cancelled' && !x.isStruckThrough)
     && new Set(data.items.map(x => x.currency)).size === 1 && (!needsUSD || (data.exchangeRateToIDR || 0) > 0));
   const headerField = (field: keyof ExtractedPRFData, label: string, type = 'text') => (
     <div className="space-y-1"><Label htmlFor={`upload-${field}`}>{label}</Label><Input id={`upload-${field}`} type={type}
       value={typeof data?.[field] === 'string' || typeof data?.[field] === 'number' ? String(data[field]) : ''}
       maxLength={({ prfNo: 50, requestedBy: 200, department: 100, proposedSupplier: 200, projectArea: 100, semanticTitle: 200, requestFor: 500 } as Partial<Record<keyof ExtractedPRFData,number>>)[field] || 1000}
-      aria-invalid={Boolean(data && ((['prfNo','requestedBy','department'].includes(field) && !data[field]) || (field === 'dateRaised' && !validDate(data.dateRaised)) || (field === 'dateRequired' && !validDate(data.dateRequired))))}
+      aria-invalid={Boolean(data && ((['prfNo','requestedBy','department'].includes(field) && !data[field]) || (field === 'dateRaised' && !validDate(data.dateRaised)) || (field === 'dateRequired' && !validRequired(data.dateRequired))))}
       aria-describedby={!valid ? 'upload-validation-hint' : undefined}
       disabled={busy} onChange={e => edit(field, type === 'number' ? numeric(e.target.value) : e.target.value)} /></div>
   );
@@ -147,7 +149,7 @@ export default function OCRUpload({ onPRFCreated, onPreviewData }: Props) {
         {preview.reviewIssues.length > 0 && <Alert><AlertCircle className="h-4 w-4" /><AlertDescription><details open><summary className="cursor-pointer font-medium">Fields and source details to review</summary><ul className="mt-2 max-h-48 list-disc space-y-1 overflow-y-auto pl-5">{preview.reviewIssues.map(issue => <li key={issue.id}>{issue.page ? `Page ${issue.page}: ` : ''}{issue.message}</li>)}</ul></details></AlertDescription></Alert>}
         <Tabs defaultValue="fields"><TabsList className="grid w-full grid-cols-3"><TabsTrigger value="fields">Fields and items</TabsTrigger><TabsTrigger value="document">Source document</TabsTrigger><TabsTrigger value="text">Source text</TabsTrigger></TabsList>
           <TabsContent value="fields" className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-2">{headerField('prfNo','PR number *')}{headerField('requestedBy','Requested by *')}{headerField('department','Department *')}{headerField('semanticTitle','PRF title')}{headerField('dateRaised','Date raised (YYYY-MM-DD)')}{headerField('dateRequired','Date required (YYYY-MM-DD)')}{headerField('proposedSupplier','Proposed supplier')}{headerField('projectArea','Project area')}{headerField('requestFor','Required for')}{headerField('totalAmount','Reviewed total *','number')}
+            <div className="grid gap-4 md:grid-cols-2">{headerField('prfNo','PR number *')}{headerField('requestedBy','Requested by *')}{headerField('department','Department *')}{headerField('semanticTitle','PRF title')}{headerField('dateRaised','Date raised (YYYY-MM-DD)')}{headerField('dateRequired','Date required (YYYY-MM-DD or ASAP)')}{headerField('proposedSupplier','Proposed supplier')}{headerField('projectArea','Project area')}{headerField('requestFor','Required for')}{headerField('totalAmount','Reviewed total *','number')}
               {needsUSD && headerField('exchangeRateToIDR','USD to IDR exchange rate *','number')}
             </div>
             <p className="text-sm text-muted-foreground">Original printed total: {money(preview.extractedData.totalAmount)} · Included item sum: {money(sum)} <Button variant="link" className="h-auto p-0" onClick={() => edit('totalAmount',sum)} disabled={busy}>Use item sum as reviewed total</Button></p>

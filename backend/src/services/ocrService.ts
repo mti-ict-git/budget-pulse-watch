@@ -9,6 +9,7 @@ import { createRequire } from 'module';
 import { PdfRenderLimitError, RenderedPdfPage, renderPdfWithPoppler } from './pdfPageRenderer';
 import { OcrProvider, OcrProviderError, classifyProviderError } from './ocrProviderErrors';
 import { UploadError } from './localPRFParser';
+import { parseDocumentDate } from './documentDate';
 
 /** Default model per provider when settings name none (also used for the fallback provider). */
 export const DEFAULT_OCR_MODEL: Record<OcrProvider, string> = { openai: 'gpt-4o-mini', gemini: 'gemini-2.5-flash' };
@@ -637,7 +638,7 @@ Return ONLY a valid JSON object with this structure:
   "requestedBy": "string or null",
   "department": "string or null",
   "dateRaised": "string or null",
-  "dateRequired": "string or null",
+  "dateRequired": "string (\"ASAP\" when the form says ASAP) or null",
   "proposedSupplier": "string or null",
   "totalAmount": number or null,
   "items": [
@@ -802,7 +803,7 @@ Return ONLY a valid JSON object with this structure:
   "requestedBy": "string",
   "department": "string",
   "dateRaised": "YYYY-MM-DD or original format",
-  "dateRequired": "YYYY-MM-DD or original format",
+  "dateRequired": "YYYY-MM-DD, original format, or \"ASAP\" when the form says ASAP",
   "proposedSupplier": "string",
   "totalAmount": number,
   "items": [
@@ -936,7 +937,7 @@ Return ONLY a valid JSON object with this structure:
   "requestedBy": "string",
   "department": "string",
   "dateRaised": "YYYY-MM-DD or original format",
-  "dateRequired": "YYYY-MM-DD or original format",
+  "dateRequired": "YYYY-MM-DD, original format, or \"ASAP\" when the form says ASAP",
   "proposedSupplier": "string",
   "totalAmount": number,
   "items": [
@@ -1121,7 +1122,10 @@ For requestFor: look for text starting with 'FOR' or 'For' in item descriptions 
     }
     
     if (data.dateRequired) {
-      cleaned.dateRequired = this.cleanDate(data.dateRequired);
+      // "ASAP" (also A.S.A.P, Segera) is a valid Date Required on PRFs.
+      cleaned.dateRequired = /^(a\.?s\.?a\.?p\.?|segera)$/i.test(String(data.dateRequired).trim())
+        ? 'ASAP'
+        : this.cleanDate(data.dateRequired);
     }
     
     if (data.receivedPRDate) {
@@ -1291,14 +1295,8 @@ For requestFor: look for text starting with 'FOR' or 'For' in item descriptions 
   private cleanDate(dateStr: string): string {
     if (!dateStr) return '';
     
-    // Try to parse and format the date
-    const date = new Date(dateStr);
-    if (!isNaN(date.getTime())) {
-      return date.toISOString().split('T')[0]; // Return YYYY-MM-DD format
-    }
-    
-    // If parsing fails, return the original string trimmed
-    return String(dateStr).trim();
+    // Day-first (Indonesian) parsing; unparseable text is kept as printed for the reviewer.
+    return parseDocumentDate(dateStr) ?? String(dateStr).trim();
   }
 
   private isValidCostCode(code: string): boolean {

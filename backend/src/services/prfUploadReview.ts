@@ -34,7 +34,10 @@ export function validateReviewedData(value: unknown): ExtractedPRFData {
   const limits: Partial<Record<typeof fields[number], number>> = { sourceNotes: 1500, prfNo: 50, requestedBy: 200, department: 100, proposedSupplier: 200, semanticTitle: 200, projectArea: 100, generalLedgerCode: 50, requestFor: 500 };
   for (const field of fields) data[field] = str(value[field], limits[field] || 1000);
   if (!data.prfNo || !data.department || !data.requestedBy) throw new UploadError('Enter the PR number, requested by and department before saving.', 422, 'REQUIRED_HEADER_FIELDS');
+  // Date Required may be written as ASAP on the PRF (stored as RequiredASAP, no date).
+  if (data.dateRequired && /^a\.?s\.?a\.?p\.?$/i.test(data.dateRequired)) data.dateRequired = 'ASAP';
   for (const field of ['dateRaised','dateRequired'] as const) {
+    if (field === 'dateRequired' && data.dateRequired === 'ASAP') continue;
     if (data[field] && (!/^\d{4}-\d{2}-\d{2}$/.test(data[field]!) || !Number.isFinite(Date.parse(data[field]!)) || new Date(data[field]!).toISOString().slice(0, 10) !== data[field])) {
       throw new UploadError('Dates must use YYYY-MM-DD.', 422, 'INVALID_DATE');
     }

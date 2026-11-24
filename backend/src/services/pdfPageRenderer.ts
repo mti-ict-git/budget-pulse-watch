@@ -59,6 +59,23 @@ export const cleanLayoutText = (text: string): string =>
     .trim();
 
 /**
+ * The whole document's text layer in layout order (pdftotext -layout), for checking AI results.
+ * Returns '' when the PDF has no text layer or poppler is not available.
+ */
+export const extractPdfText = async (pdfBuffer: Buffer, timeoutMs = 20_000): Promise<string> => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'pomon-pdftext-'));
+  try {
+    const pdfPath = path.join(dir, 'input.pdf');
+    await fs.writeFile(pdfPath, pdfBuffer);
+    return cleanLayoutText((await run('pdftotext', ['-layout', '-enc', 'UTF-8', pdfPath, '-'], timeoutMs)).stdout);
+  } catch {
+    return '';
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+};
+
+/**
  * Renders PDF pages with poppler (pdfinfo, pdftoppm, pdftotext), which ships in the backend image.
  * 144 dpi matches the previous pdf.js scale 2. The text keeps the page layout (columns aligned by spaces).
  * Temporary files go to a private directory that is always removed.

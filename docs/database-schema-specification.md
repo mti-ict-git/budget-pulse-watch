@@ -6,6 +6,10 @@ The preview receipt is bounded in-memory state (15 minutes), not a new SQL entit
 
 ItemCode retains the part number (64 characters). ItemName is a 200-character display label; the full reviewed description is stored separately in Description (up to 1000). Quantities follow the existing INT schema; money follows existing decimal precision. PRF notes retain a bounded review summary and literal document notes.
 
+## PRF.RequiredASAP (migration 029)
+
+`PRF.RequiredASAP BIT NOT NULL DEFAULT 0` marks a Date Required written as "ASAP" on the PRF (product owner, 2026-11-24). `RequiredDate` stays NULL in that case, so no artificial date is stored; if a real date becomes known later (for example from the Pronto sync), both are kept and the UI shows "ASAP · date". It is set by the reviewed upload (`dateRequired = "ASAP"`), the PRF create forms (ASAP checkbox), and PUT `/api/prfs/{id}`; it is read through the PRF list queries (`prf.RequiredASAP` next to `vw_PRFSummary`) and the follow-up list. Follow-up rules are unchanged: `past_required_date` still needs a date.
+
 ## PRF.AllocatedBuyer (migration 028)
 
 `PRF.AllocatedBuyer NVARCHAR(200) NULL` holds the buyer responsible for the PO in Pronto. The Pronto header sync fills it from the Purchase Orders grid: `Buyer allocation`, or `Officer` (the buyer who converted the requisition into the PO) when `Buyer allocation` is empty. The fallback was confirmed by the product owner on 2026-11-16. It is read through the PRF list queries (`prf.AllocatedBuyer` joined next to `vw_PRFSummary`, like `ApprovedByName`) and shown in the PRF detail dialog.

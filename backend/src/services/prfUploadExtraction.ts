@@ -2,6 +2,8 @@ import { loadSettings } from '../routes/settingsRoutes';
 import { ocrService, normalizeOCRHeader } from './ocrService';
 import { parseLocalPDF, UploadError, type UploadExtraction } from './localPRFParser';
 import { reviewIssues } from './prfUploadReview';
+import { crossCheckItemNumbers } from './ocrCrossCheck';
+import { extractPdfText } from './pdfPageRenderer';
 
 // Upload only. Existing rescan routes deliberately keep using ocrService.
 export async function extractUpload(buffer: Buffer, mimeType: string, debug = false): Promise<UploadExtraction> {
@@ -16,6 +18,10 @@ export async function extractUpload(buffer: Buffer, mimeType: string, debug = fa
   }
   if ((result.extractedData.items?.length || 0) > 200) throw new UploadError('This upload exceeds the 200-item preview limit. Split the source document before processing.', 422, 'ITEM_LIMIT');
   result.extractedData = normalizeOCRHeader(result.extractedData);
+  // AI results: prices must appear in the PDF's own text (the local parser reads that text already).
+  if (result.method === 'llm' && mimeType === 'application/pdf') {
+    result.reviewIssues.push(...crossCheckItemNumbers(result.extractedData, await extractPdfText(buffer)));
+  }
   result.reviewIssues = reviewIssues(result.extractedData, result.reviewIssues);
   return result;
 }

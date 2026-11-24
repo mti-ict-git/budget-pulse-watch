@@ -378,6 +378,7 @@ components:
         CompletionDate: { type: string, format: date-time }
         ApprovedBy: { type: integer, nullable: true }
         ApprovedByName: { type: string, nullable: true }
+        RequiredASAP: { type: boolean, description: 'Date Required written as ASAP on the PRF (migration 029). RequiredDate is then null unless a real date is known. Returned by the PRF list and detail endpoints; accepted by POST /api/prfs and PUT /api/prfs/{id} and /api/prfs/prfno/{prfNo}; set by the reviewed upload when dateRequired is ASAP.' }
         AllocatedBuyer: { type: string, nullable: true, maxLength: 200, description: 'Pronto buyer for the PO (Buyer allocation, else Officer). Synced by the Pronto worker; returned by the PRF list and detail endpoints and accepted by PUT /api/prfs/{id} and /api/prfs/prfno/{prfNo}.' }
         Justification: { type: string }
         VendorName: { type: string }
@@ -1351,7 +1352,7 @@ paths:
   /api/ocr-prf/preview-extraction:
     post:
       summary: Preview selected upload extraction method (no PRF created)
-      description: Uses OCRSettings.uploadMethod, default llm. Local accepts native-text PDFs up to 20 pages and returns review flags/source text without provider calls. Images and scan-only PDFs require LLM or manual entry. No automatic cloud fallback. Rescan endpoints are not affected by this selector.
+      description: Uses OCRSettings.uploadMethod, default llm. Local accepts native-text PDFs up to 20 pages and returns review flags/source text without provider calls. Images and scan-only PDFs require LLM or manual entry. No automatic cloud fallback. Rescan endpoints are not affected by this selector. For LLM extraction of PDFs, every item unit price, line total and the document total are looked up in the PDF's own text layer (pdftotext); a value that is missing becomes a `number-not-in-pdf` review warning. Dates are read day-first (Indonesian); Date Required may be `ASAP`.
       tags: [OCR]
       security:
         - bearerAuth: []
@@ -2249,6 +2250,9 @@ paths:
                               type: string
                               format: date
                               nullable: true
+                            requiredAsap:
+                              type: boolean
+                              description: Date Required written as ASAP
                             allocatedBuyer:
                               type: string
                               nullable: true

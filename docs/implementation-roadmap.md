@@ -1150,3 +1150,43 @@ PDF pages are rendered in about a second without a browser; provider problems te
 - Backend `tsc` and frontend `tsc -p tsconfig.app.json` pass; ESLint on `src/pages/Settings.tsx` passes.
 - Not verified: a real extraction with Gemini (no key in production) and the fallback against live providers.
 
+## Phase 22 - OCR Accuracy Checks And ASAP Date Required
+
+### Status
+
+Implemented on branch `feat/ocr-accuracy`. Not deployed. Needs migration 029 in production.
+
+### Objective
+
+Catch AI misreads before a PRF is saved, read dates the Indonesian way, and accept "ASAP" as Date Required.
+
+### Source Documents
+
+- `docs/openapi.yaml` (`/api/ocr-prf/preview-extraction`, PRF `RequiredASAP`, follow-up `requiredAsap`)
+- `docs/database-schema-specification.md` (migration 029)
+- Phase 21 (OCR reliability)
+
+### Checklist
+
+- [x] Cross-check AI results against the PDF text layer (`pdftotext -layout`, whole document): an item unit price or line total, or the document total, that does not appear becomes a `number-not-in-pdf` review warning (upload) or a rescan warning. Separators are read both ways (6,600,000 / 6.600.000 / 1.234,50). PDFs without a usable text layer are not judged. The local parser is not affected.
+- [x] Dates: day-first parsing (`05/11/2026` is 5 November), Indonesian and English month names (`17 Nopember 2026`, `1 Agustus 2026`), impossible dates left as printed for the reviewer.
+- [x] Date Required "ASAP" (product owner, 2026-11-24): migration 029 `PRF.RequiredASAP`; OCR returns `ASAP`; the upload review accepts it; create forms have an ASAP checkbox; list, detail and follow-up show ASAP.
+- [ ] Apply migration 029 and deploy; check an upload in production
+
+### Output
+
+Misread prices are flagged on the item in the review screen; ASAP PRFs can be saved.
+
+### Challenge / Verification
+
+- Real data, read-only, no AI call (2026-11-24): the cross-check applied to the stored (already reviewed) items of the 40 latest PRFs with an original PDF (138 items) flagged 2 items and 2 document totals; each was a real difference between the database and the PDF, not a false alarm:
+  - PRF 54123 item 8 is still stored as 6,300,000, the known misread of 6,600,000;
+  - PRF 55690 is stored as 84,915,000 against a printed total of 76,245,000;
+  - PRF 54345 is stored with a total of 10;
+  - PRF 52726 item 10 (4,468,172) does not appear in its PDF, although the document total matches.
+
+  1 of the 40 PDFs had no text layer and was skipped.
+- `node --test backend/tests/ocr-accuracy.test.cjs`: 8 pass (day-first and month-name dates, no invented dates, separator readings, misread price flagged on its item, wrong total flagged, scans not judged, ASAP accepted in review and other text rejected, follow-up `requiredAsap`).
+- `node --test backend/tests/`: 45 pass, 0 fail, 2 skipped (pre-existing). OCR regression scripts pass. Backend and frontend `tsc` pass; ESLint on changed frontend files passes.
+- Follow-up: the four PRFs above should be corrected by the document controller.
+
