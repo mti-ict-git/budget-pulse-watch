@@ -576,7 +576,7 @@ paths:
           description: Too many sign-ins in progress
   /api/auth/microsoft/callback:
     get:
-      summary: Entra ID redirect URI
+      summary: Entra ID redirect URI (directly, or forwarded by the frontend page /auth/microsoft/callback)
       description: >-
         Redeems the authorization code, checks the ID token (audience, tenant, issuer, nonce, expiry) and matches its
         email, then its sign-in name, against the active LDAPUserAccess entries. Always ends with a redirect to

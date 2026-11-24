@@ -17,19 +17,30 @@ export interface MicrosoftSsoConfig {
 
 const GUID_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Returns null when SSO is disabled or incomplete; the login page then hides the Microsoft button. */
+const first = (...values: Array<string | undefined>): string => (values.find((v) => v && v.trim()) || '').trim();
+
+/**
+ * Reads the configuration. Two naming schemes are accepted (the first one set wins):
+ * - M365_TENANT_ID / M365_CLIENT_ID / M365_CLIENT_SECRET / M365_REDIRECT_URI / M365_POST_LOGIN_URL
+ * - MS_GRAPH_TENANT_ID / MS_GRAPH_CLIENT_ID / MS_GRAPH_CLIENT_SECRET / MS_SSO_REDIRECT_URI / APP_URL
+ *   (post-login page = APP_URL + "/login")
+ * Sign-in is on when the configuration is complete, unless M365_SSO_ENABLED=false.
+ * Returns null when it is off or incomplete; the login page then hides the Microsoft button.
+ */
 export const loadMicrosoftSsoConfig = (env: NodeJS.ProcessEnv = process.env): MicrosoftSsoConfig | null => {
-  if ((env.M365_SSO_ENABLED || '').toLowerCase() !== 'true') return null;
+  if ((env.M365_SSO_ENABLED || '').trim().toLowerCase() === 'false') return null;
+  const appUrl = first(env.APP_URL).replace(/\/+$/, '');
   const config = {
-    tenantId: (env.M365_TENANT_ID || '').trim(),
-    clientId: (env.M365_CLIENT_ID || '').trim(),
-    clientSecret: env.M365_CLIENT_SECRET || '',
-    redirectUri: (env.M365_REDIRECT_URI || '').trim(),
-    postLoginUrl: (env.M365_POST_LOGIN_URL || '').trim(),
+    tenantId: first(env.M365_TENANT_ID, env.MS_GRAPH_TENANT_ID),
+    clientId: first(env.M365_CLIENT_ID, env.MS_GRAPH_CLIENT_ID),
+    clientSecret: first(env.M365_CLIENT_SECRET, env.MS_GRAPH_CLIENT_SECRET),
+    redirectUri: first(env.M365_REDIRECT_URI, env.MS_SSO_REDIRECT_URI),
+    postLoginUrl: first(env.M365_POST_LOGIN_URL, appUrl ? `${appUrl}/login` : ''),
   };
   const missing = Object.entries(config).filter(([, v]) => !v).map(([k]) => k);
+  if (missing.length === Object.keys(config).length) return null; // not configured at all: stay quiet
   if (missing.length > 0 || !GUID_RX.test(config.tenantId)) {
-    console.warn(`[M365 SSO] Disabled: incomplete configuration (${missing.join(', ') || 'M365_TENANT_ID must be the tenant GUID'})`);
+    console.warn(`[M365 SSO] Disabled: incomplete configuration (${missing.join(', ') || 'tenant ID must be the tenant GUID'})`);
     return null;
   }
   return config;

@@ -33,6 +33,27 @@ test('config: disabled unless enabled and complete; tenant must be a GUID', () =
   assert.equal(sso.loadMicrosoftSsoConfig({ ...env, M365_TENANT_ID: 'example.com' }), null);
 });
 
+test('config: MS_GRAPH_* / MS_SSO_REDIRECT_URI / APP_URL names work and are on when complete', () => {
+  const c = sso.loadMicrosoftSsoConfig({
+    MS_GRAPH_TENANT_ID: TENANT,
+    MS_GRAPH_CLIENT_ID: 'client-456',
+    MS_GRAPH_CLIENT_SECRET: 'secret',
+    MS_SSO_REDIRECT_URI: 'https://pomon.example.test/auth/microsoft/callback',
+    APP_URL: 'https://pomon.example.test/'
+  });
+  assert.deepEqual(c, {
+    tenantId: TENANT,
+    clientId: 'client-456',
+    clientSecret: 'secret',
+    redirectUri: 'https://pomon.example.test/auth/microsoft/callback',
+    postLoginUrl: 'https://pomon.example.test/login'
+  });
+  assert.equal(sso.loadMicrosoftSsoConfig({ MS_GRAPH_TENANT_ID: TENANT, M365_SSO_ENABLED: 'false', MS_GRAPH_CLIENT_ID: 'a', MS_GRAPH_CLIENT_SECRET: 'b', MS_SSO_REDIRECT_URI: 'https://x', APP_URL: 'https://x' }), null);
+  assert.equal(sso.loadMicrosoftSsoConfig({}), null);
+  // M365_* wins over MS_GRAPH_* when both are set.
+  assert.equal(sso.loadMicrosoftSsoConfig({ ...env, MS_GRAPH_CLIENT_ID: 'other' }).clientId, 'client-123');
+});
+
 test('PKCE challenge is the S256 hash of the verifier', () => {
   const { verifier, challenge } = sso.createPkce();
   assert.equal(challenge, crypto.createHash('sha256').update(verifier).digest('base64url'));

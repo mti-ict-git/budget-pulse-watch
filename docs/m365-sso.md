@@ -1,6 +1,6 @@
 # Microsoft 365 Sign-in (Entra ID SSO)
 
-Status: implemented, **disabled by default**. It is switched on per environment with the `M365_*` variables below after the Entra ID app registration exists. Roadmap: Phase 20.
+Status: implemented. It is **on only when the server has a complete configuration** (variables below) and can be forced off with `M365_SSO_ENABLED=false`. Roadmap: Phase 20.
 
 ## What the user sees
 
@@ -27,7 +27,8 @@ Browser            POMON backend                         Microsoft Entra ID
   |----------------->| state, nonce, PKCE verifier kept in memory (10 min, single use)
   |<---- 302 --------| to login.microsoftonline.com/<tenant>/oauth2/v2.0/authorize
   |------------------------------------------------------>| user signs in (MFA, Conditional Access apply)
-  |<----------------------------------------------- 302 --| to M365_REDIRECT_URI?code&state
+  |<----------------------------------------------- 302 --| to the redirect URI ?code&state
+  | (APP_URL/auth/microsoft/callback is a frontend page that forwards ?code&state unchanged)
   | GET /api/auth/microsoft/callback
   |----------------->| code + verifier + client secret -> token endpoint (server to server)
   |                  | check aud / tid / iss / nonce / exp, match email to LDAPUserAccess
@@ -42,18 +43,29 @@ Browser            POMON backend                         Microsoft Entra ID
 
 ## Configuration
 
-| Variable | Example | Notes |
-|---|---|---|
-| `M365_SSO_ENABLED` | `true` | Anything else disables the feature (button hidden, endpoints return 404). |
-| `M365_TENANT_ID` | `xxxxxxxx-xxxx-...` | Tenant **GUID** (Directory ID), not the domain name. |
-| `M365_CLIENT_ID` | `xxxxxxxx-xxxx-...` | Application (client) ID of the POMON app registration. |
-| `M365_CLIENT_SECRET` | *(secret)* | Client secret value. Keep it only in the server `.env`; note its expiry date. |
-| `M365_REDIRECT_URI` | `https://pomon.merdekabattery.com/api/auth/microsoft/callback` | Must match the app registration exactly. |
-| `M365_POST_LOGIN_URL` | `https://pomon.merdekabattery.com/login` | The POMON login page users land on after sign-in. |
+Set in `backend/.env` on the server, then recreate the backend container. Two naming schemes are accepted; for each value the `M365_*` name wins if both are set.
 
-If the variables are incomplete, the backend logs `[M365 SSO] Disabled: incomplete configuration (...)` (names only, never values) and the button stays hidden.
+| Value | `M365_*` name | Alternative name | Notes |
+|---|---|---|---|
+| On/off | `M365_SSO_ENABLED` | | Optional. `false` turns sign-in off; otherwise it is on when every value below is set. |
+| Tenant | `M365_TENANT_ID` | `MS_GRAPH_TENANT_ID` | Tenant **GUID** (Directory ID), not the domain name. |
+| Client | `M365_CLIENT_ID` | `MS_GRAPH_CLIENT_ID` | Application (client) ID. |
+| Secret | `M365_CLIENT_SECRET` | `MS_GRAPH_CLIENT_SECRET` | Client secret **value**. Only in the server `.env`, never in the repository or chat; note its expiry date. |
+| Redirect URI | `M365_REDIRECT_URI` | `MS_SSO_REDIRECT_URI` | Must match the app registration exactly. |
+| Post-login page | `M365_POST_LOGIN_URL` | `APP_URL` | With `APP_URL`, the page is `APP_URL/login`. |
 
-These are separate from `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET`, which belong to the OneDrive sync app. A separate app registration keeps sign-in permissions apart from file access.
+Production values (2026-11-24): redirect URI `https://pomon.merdekabattery.com/auth/microsoft/callback`, `APP_URL=https://pomon.merdekabattery.com`.
+
+Two redirect URI paths work:
+
+- `https://<host>/auth/microsoft/callback`: a frontend page (`src/pages/MicrosoftCallback.tsx`) that immediately forwards Microsoft's `code` and `state` to `/api/auth/microsoft/callback`. No nginx change is needed.
+- `https://<host>/api/auth/microsoft/callback`: the backend directly.
+
+Client certificates (`MS_GRAPH_CERTIFICATE_PATH`) are not used: sign-in authenticates with the client secret.
+
+If some but not all values are set, the backend logs `[M365 SSO] Disabled: incomplete configuration (...)` (names only, never values) and the button stays hidden.
+
+`AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` belong to the OneDrive sync and are not read by sign-in.
 
 ## HTTPS redirect host (decided 2026-11-24)
 
@@ -61,8 +73,8 @@ Entra ID only accepts `https://` redirect URIs, apart from `http://localhost`, s
 
 **Decision (product owner, 2026-11-24): use `https://pomon.merdekabattery.com`.** It already serves the POMON frontend and proxies `/api` to the backend (checked 2026-11-24: `/api/auth/verify` returns 401 without a token), with the company wildcard certificate `*.merdekabattery.com` (DigiCert, valid until 2027-05-28).
 
-- `M365_REDIRECT_URI=https://pomon.merdekabattery.com/api/auth/microsoft/callback`
-- `M365_POST_LOGIN_URL=https://pomon.merdekabattery.com/login`
+- Redirect URI: `https://pomon.merdekabattery.com/auth/microsoft/callback` (registered by the tenant administrator, 2026-11-24)
+- Post-login page: `https://pomon.merdekabattery.com/login` (from `APP_URL`)
 
 Users should open POMON at this address. Microsoft sign-in can still be started from `http://10.60.10.59:9007`, but the user ends up on the HTTPS address afterwards, where the session is stored (browser storage is per address). Username/password logins on this address are also encrypted.
 
@@ -73,9 +85,9 @@ Users should open POMON at this address. Microsoft sign-in can still be started 
 1. Microsoft Entra admin center → **App registrations** → **New registration**.
    - Name: `POMON - MTI ICT PO Monitoring`.
    - Supported account types: **Accounts in this organizational directory only** (single tenant).
-   - Redirect URI: platform **Web**, value = `M365_REDIRECT_URI`.
-2. **Overview** page: copy **Application (client) ID** → `M365_CLIENT_ID`, and **Directory (tenant) ID** → `M365_TENANT_ID`.
-3. **Certificates & secrets** → **New client secret** → copy the **Value** once → `M365_CLIENT_SECRET`. Put a calendar reminder before it expires.
+   - Redirect URI: platform **Web**, value = the redirect URI above (for example `https://pomon.merdekabattery.com/auth/microsoft/callback`).
+2. **Overview** page: copy **Application (client) ID** → `MS_GRAPH_CLIENT_ID` (or `M365_CLIENT_ID`), and **Directory (tenant) ID** → `MS_GRAPH_TENANT_ID` (or `M365_TENANT_ID`).
+3. **Certificates & secrets** → **New client secret** → copy the **Value** once → `MS_GRAPH_CLIENT_SECRET` (or `M365_CLIENT_SECRET`). Put a calendar reminder before it expires.
 4. **Token configuration** → **Add optional claim** → token type **ID** → `email`. Accept the prompt to add the Microsoft Graph `email` permission.
 5. **API permissions**: `openid`, `profile`, `email` (Microsoft Graph, delegated). Click **Grant admin consent** so users are not asked to consent.
 6. Optional, to limit who can even reach POMON: **Enterprise applications** → POMON → **Properties** → **Assignment required? = Yes**, then assign the allowed users or groups. The POMON access list still applies on top.

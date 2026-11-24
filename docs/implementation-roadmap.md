@@ -1071,7 +1071,7 @@ Users see the stuck PRFs as soon as they log in.
 
 ### Status
 
-Implemented on branch `feat/m365-sso`, disabled by default. Not deployed. Redirect host decided (`https://pomon.merdekabattery.com`); enabling it waits on the Entra ID app registration.
+Implemented on branch `feat/m365-sso`. Not deployed. The app registration exists (2026-11-24, redirect URI `https://pomon.merdekabattery.com/auth/microsoft/callback`); sign-in turns on when its values are in the server `.env`.
 
 ### Objective
 
@@ -1090,7 +1090,8 @@ Let users sign in to POMON with their office Microsoft 365 account, while POMON 
 - [x] Login page: "Sign in with Microsoft 365" when enabled, error messages for no access, cancelled and expired
 - [x] Documentation: setup guide, OpenAPI, env template
 - [x] Decide the HTTPS redirect host: `https://pomon.merdekabattery.com` (product owner, 2026-11-24)
-- [ ] Entra ID app registration (tenant administrator)
+- [x] Entra ID app registration (tenant administrator, 2026-11-24)
+- [x] Accept the `MS_GRAPH_*` / `MS_SSO_REDIRECT_URI` / `APP_URL` names and a frontend redirect path `/auth/microsoft/callback` that forwards to the backend callback
 - [ ] Deploy, configure `M365_*` on docker59, verify with an allowed and a not-allowed account
 
 ### Output
@@ -1099,7 +1100,7 @@ A "Sign in with Microsoft 365" option that is off until it is configured, with u
 
 ### Challenge / Verification
 
-- Backend `tsc` and build pass. `node --test backend/tests/microsoft-sso.test.cjs`: 8 tests pass (config gating and GUID tenant, PKCE S256, authorize URL parameters, email then UPN order, rejection of wrong audience, tenant, issuer, nonce, expiry and missing email, malformed token, single-use and expiring store, fragment redirect).
+- Backend `tsc` and build pass. `node --test backend/tests/microsoft-sso.test.cjs`: 9 tests pass, including the alternative variable names, `APP_URL` → `/login`, `M365_SSO_ENABLED=false` and precedence of `M365_*`; (config gating and GUID tenant, PKCE S256, authorize URL parameters, email then UPN order, rejection of wrong audience, tenant, issuer, nonce, expiry and missing email, malformed token, single-use and expiring store, fragment redirect).
 - Endpoint smoke test on a throwaway Express app with a fake tenant: `/config` returns enabled; `/login` returns 302 to the tenant authorize endpoint with state, nonce and PKCE; `/callback` with an unknown state redirects to `#sso_error=expired`, `error=access_denied` to `#sso_error=cancelled`; `/exchange` with an unknown code returns 400.
 - Frontend `tsc -p tsconfig.app.json` and ESLint on the changed files pass (one pre-existing fast-refresh warning in `AuthContext.tsx`).
 - Not yet verified: the login page in a browser, and a real sign-in against Entra ID (needs the app registration).
