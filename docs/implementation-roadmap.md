@@ -1071,7 +1071,7 @@ Users see the stuck PRFs as soon as they log in.
 
 ### Status
 
-Implemented on branch `feat/m365-sso`. Not deployed. The app registration exists (2026-11-24, redirect URI `https://pomon.merdekabattery.com/auth/microsoft/callback`); sign-in turns on when its values are in the server `.env`.
+Deployed on 2026-11-24 (PR #11, merge `a91b860`) and verified in production by the product owner the same day. The login page offers Sign in with Microsoft by default and Corporate Account (AD) on request (commit `880b29d`, deployed 2026-11-24).
 
 ### Objective
 
@@ -1092,7 +1092,8 @@ Let users sign in to POMON with their office Microsoft 365 account, while POMON 
 - [x] Decide the HTTPS redirect host: `https://pomon.merdekabattery.com` (product owner, 2026-11-24)
 - [x] Entra ID app registration (tenant administrator, 2026-11-24)
 - [x] Accept the `MS_GRAPH_*` / `MS_SSO_REDIRECT_URI` / `APP_URL` names and a frontend redirect path `/auth/microsoft/callback` that forwards to the backend callback
-- [ ] Deploy, configure `M365_*` on docker59, verify with an allowed and a not-allowed account
+- [x] Deploy, configure the values in `backend/.env.production` on docker59 (file mode now 600), verify: `/api/auth/microsoft/config` enabled, `/login` redirects to the tenant authorize endpoint with the registered redirect URI and Microsoft shows its sign-in page without an AADSTS error; a real sign-in succeeded (product owner, 2026-11-24)
+- [x] Login page: Microsoft as the default choice, Corporate Account (AD) opens the form (checked in a browser locally and in production)
 
 ### Output
 
