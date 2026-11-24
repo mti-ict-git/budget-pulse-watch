@@ -87,3 +87,43 @@ test('follow-up items carry requiredAsap', () => {
   );
   assert.equal(item.requiredAsap, true);
 });
+
+// Multi-page merge (no AI call): PRF form pages vs attachments.
+const { OCRService } = require('../dist/services/ocrService');
+const page = (pageType, items, extra = {}) => ({ pageType, prfNo: '42042', items, ...extra });
+const row = (rowNo, description, unitPrice) => ({ rowNo, description, quantity: 1, unitPrice, totalPrice: unitPrice, currency: 'IDR', purchaseCostCode: 'MTIRMRAD496328', status: 'Active' });
+
+test('attachment pages do not add items or totals; a warning names them', () => {
+  const merged = new OCRService().mergePageExtractions([
+    page('prf_form', [row(1, 'Fiber cable 12 core', 1000000), row(2, 'ODP box', 500000)], { totalAmount: 1500000 }),
+    page('attachment', [row(1, 'Quotation line A', 999), row(2, 'Quotation line B', 888)], { totalAmount: 1665000 })
+  ]);
+  assert.deepEqual(merged.items.map((i) => i.description), ['Fiber cable 12 core', 'ODP box']);
+  assert.equal(merged.totalAmount, 1500000);
+  assert.deepEqual(merged.extractionWarnings.map((w) => w.code), ['attachment-pages-skipped']);
+  assert.match(merged.extractionWarnings[0].message, /Page\(s\) 2/);
+});
+
+test('table continued on a second PRF page keeps every row; an exact repeat is dropped', () => {
+  const merged = new OCRService().mergePageExtractions([
+    page('prf_form', [row(1, 'Switch', 100), row(2, 'Router', 200)]),
+    page('prf_form', [row(2, 'Router', 200), row(3, 'Cable', 300)], { totalAmount: 600 })
+  ]);
+  assert.deepEqual(merged.items.map((i) => i.rowNo), [1, 2, 3]);
+  assert.equal(merged.totalAmount, 600);
+  assert.equal(merged.extractionWarnings, undefined);
+});
+
+test('rows that share a number but differ are both kept', () => {
+  const merged = new OCRService().mergePageExtractions([
+    page('prf_form', [row(1, 'Laptop', 15000000)]),
+    page('prf_form', [row(1, 'Docking station', 3000000)])
+  ]);
+  assert.equal(merged.items.length, 2);
+});
+
+test('with no PRF form page, all pages are used and the reviewer is warned', () => {
+  const merged = new OCRService().mergePageExtractions([page('attachment', [row(1, 'Bid line', 10)])]);
+  assert.equal(merged.items.length, 1);
+  assert.deepEqual(merged.extractionWarnings.map((w) => w.code), ['no-prf-form-page']);
+});

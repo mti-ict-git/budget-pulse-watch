@@ -536,6 +536,7 @@ router.post('/rescan/:prfId/file/:fileId/preview', authenticateToken, requireCon
         preservedItems,
         totals,
         warnings: [
+          ...(extractedData.extractionWarnings || []).map((w) => w.message),
           ...numberWarnings,
           !file.IsOriginalDocument
             ? `${file.OriginalFileName} is an alternative synced document, not the original OCR Source. Review every proposed change carefully.`

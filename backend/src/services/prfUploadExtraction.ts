@@ -17,6 +17,10 @@ export async function extractUpload(buffer: Buffer, mimeType: string, debug = fa
     result = { ...extraction, method: 'llm', reviewIssues: [] };
   }
   if ((result.extractedData.items?.length || 0) > 200) throw new UploadError('This upload exceeds the 200-item preview limit. Split the source document before processing.', 422, 'ITEM_LIMIT');
+  for (const w of result.extractedData.extractionWarnings || []) {
+    result.reviewIssues.push({ id: w.code, code: w.code, severity: 'warning', message: w.message });
+  }
+  delete result.extractedData.extractionWarnings;
   result.extractedData = normalizeOCRHeader(result.extractedData);
   // AI results: prices must appear in the PDF's own text (the local parser reads that text already).
   if (result.method === 'llm' && mimeType === 'application/pdf') {

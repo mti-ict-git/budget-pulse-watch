@@ -1154,7 +1154,7 @@ PDF pages are rendered in about a second without a browser; provider problems te
 
 ### Status
 
-Implemented on branch `feat/ocr-accuracy`. Not deployed. Needs migration 029 in production.
+Implemented on branch `feat/ocr-accuracy`. Not deployed. Migration 029 applied in production on 2026-11-24.
 
 ### Objective
 
@@ -1171,7 +1171,10 @@ Catch AI misreads before a PRF is saved, read dates the Indonesian way, and acce
 - [x] Cross-check AI results against the PDF text layer (`pdftotext -layout`, whole document): an item unit price or line total, or the document total, that does not appear becomes a `number-not-in-pdf` review warning (upload) or a rescan warning. Separators are read both ways (6,600,000 / 6.600.000 / 1.234,50). PDFs without a usable text layer are not judged. The local parser is not affected.
 - [x] Dates: day-first parsing (`05/11/2026` is 5 November), Indonesian and English month names (`17 Nopember 2026`, `1 Agustus 2026`), impossible dates left as printed for the reviewer.
 - [x] Date Required "ASAP" (product owner, 2026-11-24): migration 029 `PRF.RequiredASAP`; OCR returns `ASAP`; the upload review accepts it; create forms have an ASAP checkbox; list, detail and follow-up show ASAP.
-- [ ] Apply migration 029 and deploy; check an upload in production
+- [x] Multi-page PDFs (product owner, 2026-11-24: accuracy drops on multi-page PDFs and PDFs with many items): every page reports `pageType` (`prf_form` or `attachment`: quotation, CBE/TBE, specification, Pronto print, ...); items, header and total come from PRF form pages only, with an `attachment-pages-skipped` review flag naming the skipped pages, or `no-prf-form-page` when none is found. Rows are de-duplicated only when number and content match (a shared row number no longer drops an item). The total is the last form page's total, not the largest number on any page. Whole-PDF mode (over `OCR_PDF_MAX_PAGES`) allows 16,000 output tokens instead of 4,000 and flags `output-truncated` when the answer is cut off.
+- [x] OCR evaluation bench `backend/scripts/ocr-bench.cjs` (read-only; real AI cost): scores extraction against reviewed rescans (`--source rescan`) or stored items (`--source files`), per model.
+- [x] Apply migration 029 in production (2026-11-24; 485 PRFs, all `RequiredASAP = 0`)
+- [ ] Deploy; check an upload in production
 
 ### Output
 
