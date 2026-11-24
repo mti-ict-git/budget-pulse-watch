@@ -4,9 +4,12 @@ Status: implemented. It is **on only when the server has a complete configuratio
 
 ## What the user sees
 
-The login page shows **Sign in with Microsoft 365** under the username/password form. It is shown only when the server has a complete configuration (`GET /api/auth/microsoft/config`). After choosing the account at Microsoft, the user lands back on POMON already signed in.
+When Microsoft 365 sign-in is configured (`GET /api/auth/microsoft/config` returns `enabled: true`), the login page first offers two choices:
 
-Username/password login (LDAP and local accounts) keeps working unchanged. It is the fallback if Microsoft sign-in is down or not configured.
+1. **Sign in with Microsoft** (default, shown first, with the Microsoft mark).
+2. **Sign in with Corporate Account (AD)**, which opens the username/password form (LDAP or local account) with a "Back to Microsoft sign-in" link.
+
+Sign-in errors from Microsoft (for example no POMON access) are shown above the two buttons. When it is not configured, the page shows the username/password form directly, as before. After choosing the account at Microsoft, the user lands back on POMON already signed in.
 
 ## Who may sign in
 

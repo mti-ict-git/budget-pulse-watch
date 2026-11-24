@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { CircleAlert, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { ArrowLeft, Building2, CircleAlert, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { authService } from '@/services/authService';
@@ -17,6 +17,16 @@ const SSO_ERRORS: Record<string, string> = {
   cancelled: 'Microsoft sign-in was cancelled.',
   expired: 'Microsoft sign-in took too long. Please try again.',
 };
+// Microsoft's four-square mark, as used on "Sign in with Microsoft" buttons.
+const MicrosoftMark = () => (
+  <svg width="21" height="21" viewBox="0 0 21 21" aria-hidden="true" focusable="false">
+    <rect x="1" y="1" width="9" height="9" fill="#F25022" />
+    <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
+    <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
+    <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
+  </svg>
+);
+
 const SSO_ERROR_DEFAULT = 'Microsoft sign-in failed. Please try again or use your username and password.';
 
 const Login: React.FC = () => {
@@ -33,6 +43,14 @@ const Login: React.FC = () => {
   const { login, completeMicrosoftSso, isAuthenticated } = useAuth();
   const [ssoEnabled, setSsoEnabled] = useState(false);
   const [ssoBusy, setSsoBusy] = useState(false);
+  const showSso = ssoEnabled || ssoBusy;
+  // With Microsoft 365 configured, Microsoft is the default; the AD form opens on request.
+  const [useAccount, setUseAccount] = useState(false);
+  const showChooser = showSso && !useAccount;
+
+  useEffect(() => {
+    if (useAccount) usernameRef.current?.focus();
+  }, [useAccount]);
 
   useEffect(() => {
     const previous = document.title;
@@ -123,49 +141,72 @@ const Login: React.FC = () => {
             <h1 id="login-title">MTI ICT PO Monitoring</h1>
             <p className="merdeka-login-subtitle">Purchase requests &amp; budget monitoring</p>
             <div className="merdeka-login-divider" />
-            <h2>Sign in</h2>
-            <p className="merdeka-login-intro">Use your corporate username or registered email.</p>
-            <form onSubmit={handleSubmit} noValidate aria-busy={isSubmitting}>
-              <div className="merdeka-login-field">
-                <Label htmlFor="username">Username or email</Label>
-                <Input ref={usernameRef} id="username" name="username" type="text" autoComplete="username"
-                  autoCapitalize="none" spellCheck={false} placeholder="Username or email" required
-                  value={formData.username} onChange={e => handleInputChange('username', e.target.value)}
-                  disabled={isSubmitting} aria-invalid={!!fieldErrors.username}
-                  aria-describedby={fieldErrors.username ? 'username-error' : undefined} />
-                <span id="username-error" className="merdeka-login-field-error">{fieldErrors.username}</span>
-              </div>
-              <div className="merdeka-login-field">
-                <Label htmlFor="password">Password</Label>
-                <div className="merdeka-login-password">
-                  <Input ref={passwordRef} id="password" name="password" type={showPassword ? 'text' : 'password'}
-                    autoComplete="current-password" placeholder="Password" required value={formData.password}
-                    onChange={e => handleInputChange('password', e.target.value)} disabled={isSubmitting}
-                    aria-invalid={!!fieldErrors.password} aria-describedby={fieldErrors.password ? 'password-error' : undefined} />
-                  <button type="button" onClick={() => setShowPassword(value => !value)} disabled={isSubmitting}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            {showChooser ? (
+              <>
+                <h2>Sign in</h2>
+                <p className="merdeka-login-intro">Choose how you want to sign in.</p>
+                {error && (
+                  <div className="merdeka-login-feedback merdeka-login-feedback-compact" aria-live="polite" aria-atomic="true">
+                    <div role="alert"><CircleAlert size={16} aria-hidden="true" /><span>{error}</span></div>
+                  </div>
+                )}
+                <div className="merdeka-login-choices">
+                  <button type="button" className="merdeka-login-sso-button" disabled={ssoBusy}
+                    onClick={() => { setSsoBusy(true); setError(null); authService.startMicrosoftSso(); }}>
+                    {ssoBusy ? <Loader2 size={20} className="animate-spin" aria-hidden="true" /> : <MicrosoftMark />}
+                    <span>{ssoBusy ? 'Signing in with Microsoft…' : 'Sign in with Microsoft'}</span>
+                  </button>
+                  <div className="merdeka-login-or" role="separator"><span>OR</span></div>
+                  <button type="button" className="merdeka-login-account-button" disabled={ssoBusy}
+                    onClick={() => { setError(null); setUseAccount(true); }}>
+                    <Building2 size={18} aria-hidden="true" />
+                    <span>Sign in with Corporate Account (AD)</span>
                   </button>
                 </div>
-                <span id="password-error" className="merdeka-login-field-error">{fieldErrors.password}</span>
-              </div>
-              <div className="merdeka-login-feedback" aria-live="polite" aria-atomic="true">
-                {error && <div role="alert"><CircleAlert size={16} aria-hidden="true" /><span>{error}</span></div>}
-              </div>
-              <Button type="submit" className="merdeka-login-submit" disabled={isSubmitting || ssoBusy}>
-                {isSubmitting && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
-                {isSubmitting ? 'Signing in…' : 'Sign in'}
-              </Button>
-            </form>
-            {(ssoEnabled || ssoBusy) && (
-              <div className="merdeka-login-sso">
-                <div className="merdeka-login-sso-divider"><span>or</span></div>
-                <Button type="button" variant="outline" className="merdeka-login-sso-button" disabled={isSubmitting || ssoBusy}
-                  onClick={() => { setSsoBusy(true); authService.startMicrosoftSso(); }}>
-                  {ssoBusy && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
-                  {ssoBusy ? 'Signing in with Microsoft 365…' : 'Sign in with Microsoft 365'}
+              </>
+            ) : (
+              <>
+                <h2>{showSso ? 'Corporate Account (AD)' : 'Sign in'}</h2>
+                <p className="merdeka-login-intro">Use your corporate username or registered email.</p>
+              <form onSubmit={handleSubmit} noValidate aria-busy={isSubmitting}>
+                <div className="merdeka-login-field">
+                  <Label htmlFor="username">Username or email</Label>
+                  <Input ref={usernameRef} id="username" name="username" type="text" autoComplete="username"
+                    autoCapitalize="none" spellCheck={false} placeholder="Username or email" required
+                    value={formData.username} onChange={e => handleInputChange('username', e.target.value)}
+                    disabled={isSubmitting} aria-invalid={!!fieldErrors.username}
+                    aria-describedby={fieldErrors.username ? 'username-error' : undefined} />
+                  <span id="username-error" className="merdeka-login-field-error">{fieldErrors.username}</span>
+                </div>
+                <div className="merdeka-login-field">
+                  <Label htmlFor="password">Password</Label>
+                  <div className="merdeka-login-password">
+                    <Input ref={passwordRef} id="password" name="password" type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password" placeholder="Password" required value={formData.password}
+                      onChange={e => handleInputChange('password', e.target.value)} disabled={isSubmitting}
+                      aria-invalid={!!fieldErrors.password} aria-describedby={fieldErrors.password ? 'password-error' : undefined} />
+                    <button type="button" onClick={() => setShowPassword(value => !value)} disabled={isSubmitting}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  <span id="password-error" className="merdeka-login-field-error">{fieldErrors.password}</span>
+                </div>
+                <div className="merdeka-login-feedback" aria-live="polite" aria-atomic="true">
+                  {error && <div role="alert"><CircleAlert size={16} aria-hidden="true" /><span>{error}</span></div>}
+                </div>
+                <Button type="submit" className="merdeka-login-submit" disabled={isSubmitting || ssoBusy}>
+                  {isSubmitting && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
+                  {isSubmitting ? 'Signing in…' : 'Sign in'}
                 </Button>
-              </div>
+              </form>
+                {showSso && (
+                  <button type="button" className="merdeka-login-back" disabled={isSubmitting}
+                    onClick={() => { setError(null); setUseAccount(false); }}>
+                    <ArrowLeft size={14} aria-hidden="true" /> Back to Microsoft sign-in
+                  </button>
+                )}
+              </>
             )}
             <div className="merdeka-login-guide-link">
               <Dialog>
@@ -177,11 +218,11 @@ const Login: React.FC = () => {
                     <DialogDescription>MTI ICT PO Monitoring</DialogDescription>
                   </DialogHeader>
                   <div className="merdeka-login-guide-body">
-                    <h3>Corporate or local account</h3>
+                    <h3>Corporate Account (AD) or local account</h3>
                     <p>Use your internal username or registered corporate email and password. Your account must have LDAP or local access enabled.</p>
                     {ssoEnabled && (<>
-                      <h3>Microsoft 365</h3>
-                      <p>Choose Sign in with Microsoft 365 to use your office Microsoft account. Your corporate email must be on the POMON access list.</p>
+                      <h3>Microsoft 365 (recommended)</h3>
+                      <p>Choose Sign in with Microsoft to use your office Microsoft 365 account. Your corporate email must be on the POMON access list.</p>
                     </>)}
                     <h3>Unable to sign in?</h3>
                     <p>Check your credentials and try again. If access is still denied or you need a password reset, contact your administrator or document controller.</p>
