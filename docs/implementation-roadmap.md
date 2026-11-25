@@ -1328,7 +1328,7 @@ A form with a wrong SUM can be rescanned; the reviewer sees the difference, and 
 
 ### Status
 
-Implemented on branch `feat/bulk-rescan` (local commit on top of Phase 25, not pushed). Not deployed.
+Deployed to production 2026-11-25 (release commit 69746e1, built from a local branch before push).
 
 ### Objective
 
@@ -1361,7 +1361,7 @@ A document controller can rescan up to 20 PRFs at once. Only previews that can d
 
 ### Status
 
-Implemented on branch `fix/pronto-sync-resilience` (local commit on top of a24eb2d, not pushed). Not deployed.
+Deployed to production 2026-11-25 (release commit 69746e1, built from a local branch before push).
 
 ### Objective
 
@@ -1397,7 +1397,7 @@ A Pronto login failure, crash or hang stops the sync cleanly, is retried within 
 
 ### Status
 
-Implemented on branch `feat/approval-popover` (local commit on top of Phase 27, not pushed). Not deployed.
+Deployed to production 2026-11-25 (release commit 69746e1, built from a local branch before push).
 
 ### Objective
 
