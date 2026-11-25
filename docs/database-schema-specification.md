@@ -4,6 +4,8 @@
 
 Phase 27 (Pronto sync resilience) adds `AppSettings.ProntoSyncLastRunError NVARCHAR(1000) NULL` (failing step and its last error line) and `AppSettings.ProntoSyncLastRunKind NVARCHAR(20) NULL` (`scheduled` or `run-now`). Migration 030 adds them idempotently, and the backend adds them at startup (`initializeDatabase.ts`).
 
+Migration 031 changes `vw_PRFSummary` to LEFT JOIN `Users` and `ChartOfAccounts`, so a PRF with a missing requestor or COA (for example `RequestorID = 0`) is still listed; `RequestorName` falls back to `SubmitBy`. It must be run by hand.
+
 The preview receipt is bounded in-memory state (15 minutes), not a new SQL entity. Reviewed upload creation writes PRF header and PRFItems in the same transaction. Existing rescan audit schema and rescan statements remain unchanged.
 
 ItemCode retains the part number (64 characters). ItemName is a 200-character display label; the full reviewed description is stored separately in Description (up to 1000). Quantities follow the existing INT schema; money follows existing decimal precision. PRF notes retain a bounded review summary and literal document notes.

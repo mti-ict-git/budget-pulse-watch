@@ -299,7 +299,9 @@ SELECT
     p.Priority,
     p.RequestDate,
     p.RequiredDate,
-    u.FirstName + ' ' + u.LastName AS RequestorName,
+    -- A PRF whose requestor or COA is missing (for example RequestorID 0 from an old import) must
+    -- still be listed, so both joins are LEFT JOINs and the name falls back to Submit By.
+    COALESCE(u.FirstName + ' ' + u.LastName, p.SubmitBy) AS RequestorName,
     coa.COACode,
     coa.COAName,
     DATEDIFF(day, p.RequestDate, GETDATE()) AS DaysOpen,
@@ -315,8 +317,8 @@ SELECT
     p.UpdatedAt,
     p.ApprovedByName
 FROM PRF p
-INNER JOIN Users u ON p.RequestorID = u.UserID
-INNER JOIN ChartOfAccounts coa ON p.COAID = coa.COAID;
+LEFT JOIN Users u ON p.RequestorID = u.UserID
+LEFT JOIN ChartOfAccounts coa ON p.COAID = coa.COAID;
 GO
 
 CREATE VIEW vw_BudgetUtilization AS
