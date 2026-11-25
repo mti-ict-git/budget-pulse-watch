@@ -2211,6 +2211,11 @@ paths:
   /api/prfs/with-items:
     get:
       summary: List PRFs with items
+      description: >
+        Each PRF also carries `PendingApprovers` (string array): the approvers Pronto still lists without
+        an action (empty status and date) in the synced approval history (`PRFProntoApprovalHistory`),
+        across all of the PRF's POs, original PO first, in approval order. Empty when nothing is pending
+        or no history has been synced. PRF Monitoring shows it as "Waiting: ..." in the Approved By column.
       tags: [PRFs]
       parameters:
         - in: query

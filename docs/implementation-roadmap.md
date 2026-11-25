@@ -1360,3 +1360,39 @@ A Pronto login failure, crash or hang stops the sync cleanly, is retried within 
 - Backend `tsc`, frontend `tsc` and `vite build` pass; eslint is clean on `Settings.tsx`.
 - Not yet run in the container against Pronto.
 
+## Phase 28 - Approval Status In The PRF List
+
+### Status
+
+Implemented on branch `feat/approval-popover` (local commit on top of Phase 27, not pushed). Not deployed.
+
+### Objective
+
+See who a PRF is waiting for without opening it. Product owner, 2026-11-25: in the Approved By column, show the Next Action By text and a quick menu with each approver's status and date. Completed PRFs without synced history are left as they are.
+
+### Source Documents
+
+- `docs/openapi.yaml` (`GET /api/prfs/with-items`, `GET /api/prfs/{id}/pronto-approvals`)
+- `docs/pronto-sync.md` (approval history from PO E001 > Approval Status)
+
+### Checklist
+
+- [x] `GET /api/prfs/with-items` returns `PendingApprovers` per PRF, with one query per page (`PRFModel.getPendingApprovers`), using the same rule as Next Action By in the approval history card.
+- [x] PRF Monitoring, Approved By column: the approver name, "Waiting: ..." when Pronto lists pending approvers, and a history button that opens a popover with Next Action By and each approval user, status and date per PO (original PO first, split POs marked). The steps load when the popover opens.
+- [x] The approval history card and the popover share `src/components/prf/prontoApprovals.ts`.
+- [ ] Push, review, deploy; check the column and the popover in production
+
+### Output
+
+The PRF list shows who each open PRF is waiting for, and one click shows the approval steps.
+
+### Challenge / Verification
+
+- Production data, read-only: the new pending-approver query over the 39 PRFs that have approval history returns 12 waiting PRFs, for example 55996 "Human Resources CC, MTI Cost Control" and 54123 "BUYER", which matches the approval history synced on 2026-11-25.
+- Backend `tsc`, frontend `tsc` and `vite build` pass; eslint is clean on the changed frontend files.
+- Not yet checked in a browser: the local backend points at the production database.
+
+### Found While Checking
+
+- PRF 50117 (status "Req. Approval Reqd") has `RequestorID = 0`, which matches no user. `vw_PRFSummary` inner-joins `Users`, so 50117 is missing from `GET /api/prfs/with-items`; as a result PRF Monitoring and the Pronto sync both skip it. Not fixed yet.
+

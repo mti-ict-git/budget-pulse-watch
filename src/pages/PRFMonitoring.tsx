@@ -46,6 +46,7 @@ import { toast } from "@/hooks/use-toast";
 import { authService } from "@/services/authService";
 import { budgetService, type ChartOfAccount } from "@/services/budgetService";
 import { useAuth } from "@/contexts/AuthContext";
+import { ApprovalStatusPopover } from "@/components/prf/ApprovalStatusPopover";
 import { useLocation } from "react-router-dom";
 
 import type { PRFItem } from '@/types/prfItem';
@@ -67,6 +68,8 @@ interface PRFData {
   priority: string;
   progress: string;
   approvedByName?: string;
+  /** Approvers Pronto still waits for (Next Action By). */
+  pendingApprovers?: string[];
   allocatedBuyer?: string;
   lastUpdate: string;
   items?: PRFItem[];
@@ -116,6 +119,7 @@ interface PRFRawData {
   Priority?: string;
   Status?: string;
   ApprovedByName?: string;
+  PendingApprovers?: string[];
   AllocatedBuyer?: string | null;
   RequiredDate?: string;
   RequiredASAP?: boolean | null;
@@ -387,6 +391,7 @@ export default function PRFMonitoring() {
           priority: prf.Priority || 'Medium',
           progress: prf.Status || 'pending',
           approvedByName: prf.ApprovedByName,
+          pendingApprovers: Array.isArray(prf.PendingApprovers) ? prf.PendingApprovers : [],
           allocatedBuyer: prf.AllocatedBuyer ?? undefined,
           lastUpdate: prf.UpdatedAt || prf.LastUpdate || prf.RequestDate || '',
           items: prf.Items || [],
@@ -1390,7 +1395,14 @@ export default function PRFMonitoring() {
                           <TableCell>{getPriorityBadge(prf.priority)}</TableCell>
                           <TableCell className="whitespace-nowrap">{prf.budgetYear}</TableCell>
                           <TableCell>{getStatusBadge(prf.progress)}</TableCell>
-                          <TableCell className="truncate max-w-[150px]" title={prf.approvedByName || ''}>{prf.approvedByName || '-'}</TableCell>
+                          <TableCell className="max-w-[180px]">
+                            <ApprovalStatusPopover
+                              prfId={Number.parseInt(prf.id, 10)}
+                              prfNo={prf.prfNo}
+                              approvedByName={prf.approvedByName}
+                              pendingApprovers={prf.pendingApprovers}
+                            />
+                          </TableCell>
                           <TableCell className="sticky right-0 bg-background z-10" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-1">
                               <PRFDetailDialog prf={prf} onRefresh={fetchPRFData} />
