@@ -1397,5 +1397,6 @@ The PRF list shows who each open PRF is waiting for, and one click shows the app
 - PRF 50117 (status "Req. Approval Reqd") has `RequestorID = 0`, which matches no user (submitted by "Adhi Surahman [MTI]", probably from the retired Excel import). `vw_PRFSummary` inner-joined `Users` and `ChartOfAccounts`, so 50117 was missing from `GET /api/prfs/with-items` and the PRF detail; PRF Monitoring and the Pronto sync both skipped it.
 - [x] Migration 031 (`031_prf_summary_view_keep_unknown_requestor.sql`) and `schema.sql`: both joins become LEFT JOINs; `RequestorName` falls back to `SubmitBy`. Columns are unchanged.
 - [x] Read-only check on production: the new SELECT returns 486 PRFs against 485 from the current view; the only added row is 50117 (requestor "Adhi Surahman [MTI]"); no existing row changes its requestor name.
-- [ ] Run migration 031 on production (it is not applied by the backend at startup), then confirm 50117 shows in PRF Monitoring and is picked up by the next Pronto sync.
+- [x] Migration 031 run on production 2026-11-25 (by hand; the backend does not apply it). `vw_PRFSummary` now returns 486 rows, and `GET /api/prfs/with-items` returns 50117 with requestor "Adhi Surahman [MTI]".
+- [ ] Confirm the next Pronto sync picks up 50117.
 
