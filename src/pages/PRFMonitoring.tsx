@@ -35,7 +35,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync, Waypoints } from "lucide-react";
+import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync, Waypoints, Sparkles } from "lucide-react";
 import * as XLSX from "xlsx";
 import { PRFDetailDialog } from "@/components/prf/PRFDetailDialog";
 import { ExcelImportDialog } from "@/components/prf/ExcelImportDialog";
@@ -47,6 +47,7 @@ import { authService } from "@/services/authService";
 import { budgetService, type ChartOfAccount } from "@/services/budgetService";
 import { useAuth } from "@/contexts/AuthContext";
 import { ApprovalStatusPopover } from "@/components/prf/ApprovalStatusPopover";
+import { BulkRescanDialog, BULK_RESCAN_LIMIT } from "@/components/prf/BulkRescanDialog";
 import { useLocation } from "react-router-dom";
 
 import type { PRFItem } from '@/types/prfItem';
@@ -312,6 +313,8 @@ export default function PRFMonitoring() {
   const lastItemTrigger = useRef<HTMLElement | null>(null);
   const lastEditItemTrigger = useRef<HTMLElement | null>(null);
   const [isBulkSyncing, setIsBulkSyncing] = useState(false);
+  const [bulkRescanPRFs, setBulkRescanPRFs] = useState<Array<{ prfId: number; prfNo: string }>>([]);
+  const [showBulkRescan, setShowBulkRescan] = useState(false);
   const [selectedItemForModification, setSelectedItemForModification] = useState<SelectedItemForModification | null>(null);
   const [isModificationModalOpen, setIsModificationModalOpen] = useState(false);
   const [pagination, setPagination] = useState({
@@ -884,6 +887,24 @@ export default function PRFMonitoring() {
     });
   };
 
+  const handleBulkRescan = () => {
+    const selected = filteredData
+      .filter((prf) => selectedItems.has(prf.id))
+      .map((prf) => ({ prfId: Number.parseInt(prf.id, 10), prfNo: prf.prfNo }))
+      .filter((prf) => Number.isInteger(prf.prfId));
+    if (selected.length === 0) return;
+    if (selected.length > BULK_RESCAN_LIMIT) {
+      toast({
+        title: "Too many PRFs for one rescan",
+        description: `Select at most ${BULK_RESCAN_LIMIT} PRFs; ${selected.length} are selected.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    setBulkRescanPRFs(selected);
+    setShowBulkRescan(true);
+  };
+
   const handleBulkArchive = () => {
     // TODO: Implement bulk archive functionality
   };
@@ -1253,6 +1274,12 @@ export default function PRFMonitoring() {
                     <Download className="h-4 w-4 mr-1" />
                     Export ({selectedItems.size})
                   </Button>
+                  {(user?.role === 'admin' || user?.role === 'doccon') && (
+                    <Button variant="outline" size="sm" onClick={handleBulkRescan}>
+                      <Sparkles className="h-4 w-4 mr-1" />
+                      Rescan with AI ({selectedItems.size})
+                    </Button>
+                  )}
                   <Button variant="outline" size="sm" onClick={handleBulkArchive}>
                     <Archive className="h-4 w-4 mr-1" />
                     Archive ({selectedItems.size})
@@ -1481,6 +1508,13 @@ export default function PRFMonitoring() {
           onUpdate={handleItemUpdate}
         />
       )}
+
+      <BulkRescanDialog
+        open={showBulkRescan}
+        onOpenChange={setShowBulkRescan}
+        prfs={bulkRescanPRFs}
+        onApplied={() => fetchPRFData()}
+      />
     </div>
   );
 }

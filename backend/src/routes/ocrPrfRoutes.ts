@@ -27,6 +27,7 @@ import { UploadError } from '../services/localPRFParser';
 import { crossCheckItemNumbers, pdfConfirmsItemRows } from '../services/ocrCrossCheck';
 import { extractPdfText } from '../services/pdfPageRenderer';
 import { findLikelyDuplicates, type LikelyDuplicate } from '../services/rescanDuplicates';
+import { rescanAutoApplyDecision } from '../services/rescanAutoApply';
 
 const router = express.Router();
 
@@ -524,6 +525,28 @@ router.post('/rescan/:prfId/file/:fileId/preview', authenticateToken, requireCon
       extractedData
     });
 
+    const warnings = [
+      ...(extractedData.extractionWarnings || []).map((w) => w.message),
+      ...numberWarnings,
+      !file.IsOriginalDocument
+        ? `${file.OriginalFileName} is an alternative synced document, not the original OCR Source. Review every proposed change carefully.`
+        : null,
+      extractedData.prfNo && String(extractedData.prfNo).trim() !== String(prf.PRFNo).trim()
+        ? `Scanned PRF number ${extractedData.prfNo} differs from existing PRF ${prf.PRFNo}`
+        : null,
+      cancelledCount > 0
+        ? `${cancelledCount} item(s) appear struck through and are proposed as Cancelled. Confirm each status change before applying.`
+        : null,
+      printedTotalWarning(extractedData)
+        ?? (Math.abs(totals.documentItemVariance) > 1
+          ? `Document total differs from the sum of extracted item rows by ${totals.documentItemVariance.toLocaleString('en-US')}`
+          : null),
+      ...(extractedData.items || []).map((item, index) =>
+        item.purchaseCostCode ? null : `Scanned item ${index + 1} has no cost code`
+      )
+    ].filter((warning): warning is string => Boolean(warning));
+    const autoApply = rescanAutoApplyDecision({ proposals, preservedItems, warnings });
+
     return res.json({
       success: true,
       message: 'OCR rescan preview completed',
@@ -543,26 +566,8 @@ router.post('/rescan/:prfId/file/:fileId/preview', authenticateToken, requireCon
         proposals,
         preservedItems,
         totals,
-        warnings: [
-          ...(extractedData.extractionWarnings || []).map((w) => w.message),
-          ...numberWarnings,
-          !file.IsOriginalDocument
-            ? `${file.OriginalFileName} is an alternative synced document, not the original OCR Source. Review every proposed change carefully.`
-            : null,
-          extractedData.prfNo && String(extractedData.prfNo).trim() !== String(prf.PRFNo).trim()
-            ? `Scanned PRF number ${extractedData.prfNo} differs from existing PRF ${prf.PRFNo}`
-            : null,
-          cancelledCount > 0
-            ? `${cancelledCount} item(s) appear struck through and are proposed as Cancelled. Confirm each status change before applying.`
-            : null,
-          printedTotalWarning(extractedData)
-            ?? (Math.abs(totals.documentItemVariance) > 1
-              ? `Document total differs from the sum of extracted item rows by ${totals.documentItemVariance.toLocaleString('en-US')}`
-              : null),
-          ...(extractedData.items || []).map((item, index) =>
-            item.purchaseCostCode ? null : `Scanned item ${index + 1} has no cost code`
-          )
-        ].filter(Boolean)
+        warnings,
+        autoApply
       }
     });
   } catch (error) {
