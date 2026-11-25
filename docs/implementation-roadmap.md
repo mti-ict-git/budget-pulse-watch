@@ -1295,7 +1295,7 @@ Items outside the phases above that are still open. Check each before acting; so
 
 ### Status
 
-Implemented on branch `feat/rescan-total-warning` (local commit, not pushed at the product owner's request). Not deployed.
+Implemented on branch `feat/rescan-total-warning` (local commit a24eb2d, not pushed at the product owner's request). Deployed to production 2026-11-25 (backend only) from that commit.
 
 ### Objective
 
@@ -1323,3 +1323,37 @@ A form with a wrong SUM can be rescanned; the reviewer sees the difference, and 
 - `node --test backend/tests/rescan-total-warning.test.cjs`: 5 pass (55690 rows confirmed and warning text; still blocks without PDF confirmation or with no text layer; a misread row is not confirmed; a row arithmetic error still blocks; a reconciled total gives no warning). Existing `rescanValidation.test.ts` checks pass unchanged.
 - `node --test backend/tests/`: 59 pass, 0 fail, 2 skipped. Backend `tsc` passes.
 - Production data, read-only, no AI call: with PRF 55690's real PDF text and its stored rows, `rowsConfirmedByPdf` is true, validation returns no errors, and the warning reads "Printed document total 76,245,000 differs from the sum of the item rows 84,915,000 (difference 8,670,000)".
+
+## Phase 26 - Bulk AI Rescan
+
+### Status
+
+Implemented on branch `feat/bulk-rescan` (local commit on top of Phase 25, not pushed). Not deployed.
+
+### Objective
+
+Rescan several PRFs in one go. Product owner, 2026-11-25: bulk rescan of the PRFs selected in PRF Monitoring; clean results are applied automatically, the rest wait for review; at most 20 PRFs per batch.
+
+### Source Documents
+
+- `docs/openapi.yaml` (`/api/ocr-prf/rescan/{prfId}/file/{fileId}` preview and apply)
+- Phases 22, 23 and 25 (rescan validation, duplicate removal, printed-total warning)
+
+### Checklist
+
+- [x] `rescanAutoApplyDecision` (`backend/src/services/rescanAutoApply.ts`): a preview is clean only when it has item rows, no warnings, no new rows, no existing rows left unmatched and no row that looks cancelled. The preview response returns it as `autoApply { eligible, blockers }`.
+- [x] PRF Monitoring: "Rescan with AI (n)" in the bulk-action bar for admin and doccon. More than 20 selected PRFs are refused with a message.
+- [x] `BulkRescanDialog`: after Start, scans each PRF's original PDF or image document one at a time with the existing preview endpoint. Clean previews are applied through the existing apply endpoint with the default decisions and no header update, so each one writes the normal rescan audit. Other outcomes: Needs review (with the blockers), Skipped (no original readable document), Failed (for example a 422 unsafe OCR result). "Stop after current PRF" ends the batch early. The dialog cannot be closed while a scan runs.
+- [x] Review opens the normal rescan dialog with the bulk preview (no second AI call); an expired preview is refreshed there as before.
+- [ ] Push, review, deploy; run a bulk rescan in production
+
+### Output
+
+A document controller can rescan up to 20 PRFs at once. Only previews that can do nothing but update rows the OCR matched are applied without a person looking at them.
+
+### Challenge / Verification
+
+- `node --test backend/tests/rescan-auto-apply.test.cjs`: 3 pass (clean preview eligible; warnings, new rows, unmatched rows, cancelled or struck-through rows and an empty result each block; every reason is listed).
+- `node --test backend/tests/`: 62 pass, 0 fail, 2 skipped. Backend `tsc`, frontend `tsc` and `vite build` pass; eslint is clean on the changed frontend files.
+- Not yet exercised in a browser: the local backend `.env` points at the production database, so it was not run locally.
+

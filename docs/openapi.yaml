@@ -427,7 +427,7 @@ paths:
           schema: { type: integer }
       responses:
         '200':
-          description: Validated rescan preview bound to source SHA-256 and existing item snapshot. Old previews must be refreshed. Each entry of `data.preservedItems` (existing items not matched by OCR) may carry `likelyDuplicateOf` `{ PRFItemID, ItemName, similarity }` when it looks like a duplicate of an item the OCR did match (same quantity, unit price within 10%, word similarity of at least 0.3).
+          description: Validated rescan preview bound to source SHA-256 and existing item snapshot. Old previews must be refreshed. Each entry of `data.preservedItems` (existing items not matched by OCR) may carry `likelyDuplicateOf` `{ PRFItemID, ItemName, similarity }` when it looks like a duplicate of an item the OCR did match (same quantity, unit price within 10%, word similarity of at least 0.3). `data.autoApply` `{ eligible, blockers[] }` says whether bulk rescan may apply the preview with the default decisions without review: eligible only when there are item rows, no warnings, no new rows, no existing rows left unmatched and no row that looks cancelled; `blockers` lists each reason otherwise.
         '400':
           description: Invalid source or request
         '422':
