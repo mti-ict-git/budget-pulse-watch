@@ -1852,6 +1852,10 @@ paths:
   /api/cloud-sync/pull/prf/{prfNo}:
     post:
       summary: Pull a PRF from the shared OneDrive Excel
+      description: >
+        No longer called by the app. The shared OneDrive Excel is no longer used (product owner,
+        2026-11-25), so PRF Monitoring no longer has the "Sync Selected PRFs" or per-row cloud sync
+        buttons. The endpoint is kept until the cloud-sync backend is removed.
       tags: [Cloud Sync]
       security:
         - bearerAuth: []

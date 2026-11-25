@@ -35,7 +35,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync, CloudDownload, Waypoints } from "lucide-react";
+import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync, Waypoints } from "lucide-react";
 import * as XLSX from "xlsx";
 import { PRFDetailDialog } from "@/components/prf/PRFDetailDialog";
 import { ExcelImportDialog } from "@/components/prf/ExcelImportDialog";
@@ -317,8 +317,6 @@ export default function PRFMonitoring() {
     totalPages: 0
   });
   const [chartOfAccounts, setChartOfAccounts] = useState<ChartOfAccount[]>([]);
-  const [syncingId, setSyncingId] = useState<string | null>(null);
-  const [isSelectedSyncing, setIsSelectedSyncing] = useState<boolean>(false);
   const [isProntoSyncingId, setIsProntoSyncingId] = useState<string | null>(null);
   const [isProntoSelectedSyncing, setIsProntoSelectedSyncing] = useState<boolean>(false);
   const [availableSubmitYears, setAvailableSubmitYears] = useState<number[]>([]);
@@ -1009,81 +1007,8 @@ export default function PRFMonitoring() {
     }
   };
 
-  const handleSyncPRF = async (prfNo: string) => {
-    if (!user) {
-      toast({ title: "Authentication Required", description: "Please log in to sync", variant: "destructive" });
-      return;
-    }
-    const canManageContent = user.role === 'admin' || user.role === 'doccon';
-    if (!canManageContent) {
-      toast({ title: "Not Allowed", description: "Admin or Document Control role is required to sync.", variant: "destructive" });
-      return;
-    }
-    setSyncingId(prfNo);
-    try {
-      const yearParam = yearFilter !== 'all' ? `&year=${encodeURIComponent(yearFilter)}` : '';
-      const response = await fetch(`/api/cloud-sync/pull/prf/${encodeURIComponent(prfNo)}?mode=scan${yearParam}`, { method: 'POST', headers: authService.getAuthHeaders() });
-      const result = await response.json();
-      if (result.success) {
-        toast({ title: "Synced From Cloud", description: result.message });
-        fetchPRFData();
-      } else {
-        throw new Error((result && (result.error || result.message)) || 'Failed to sync');
-      }
-    } catch (error) {
-      toast({ title: "Sync Failed", description: error instanceof Error ? error.message : 'Error syncing PRF', variant: "destructive" });
-    } finally {
-      setSyncingId(null);
-    }
-  };
-
   const handlePageSizeChange = (newLimit: string) => {
     setPagination(prev => ({ ...prev, limit: parseInt(newLimit), page: 1 }));
-  };
-
-  const handleSyncSelected = async () => {
-    if (!user) {
-      toast({ title: "Authentication Required", description: "Please log in to sync", variant: "destructive" });
-      return;
-    }
-    const canManageContent = user.role === 'admin' || user.role === 'doccon';
-    if (!canManageContent) {
-      toast({ title: "Not Allowed", description: "Admin or Document Control role is required to sync.", variant: "destructive" });
-      return;
-    }
-    const selectedPrfNos: string[] = prfData.filter((p) => selectedItems.has(p.id)).map((p) => p.prfNo);
-    if (selectedPrfNos.length === 0) {
-      toast({ title: "No Selection", description: "Select at least one PRF to sync" });
-      return;
-    }
-    setIsSelectedSyncing(true);
-    try {
-      const yearParam = yearFilter !== 'all' ? `&year=${encodeURIComponent(yearFilter)}` : '';
-      const promises = selectedPrfNos.map((prfNo) =>
-        fetch(`/api/cloud-sync/pull/prf/${encodeURIComponent(prfNo)}?mode=scan${yearParam}`, { method: 'POST', headers: authService.getAuthHeaders() })
-          .then(async (res) => ({ prfNo, res, body: await res.json() }))
-      );
-      const results = await Promise.allSettled(promises);
-      let successCount = 0;
-      let failureCount = 0;
-      results.forEach((r) => {
-        if (r.status === 'fulfilled') {
-          if (r.value.res.ok && r.value.body && r.value.body.success) {
-            successCount += 1;
-          } else {
-            failureCount += 1;
-          }
-        } else {
-          failureCount += 1;
-        }
-      });
-      toast({ title: "Sync Selected Completed", description: `Success: ${successCount}, Failed: ${failureCount}` });
-      fetchPRFData();
-    } catch (error) {
-      toast({ title: "Sync Selected Failed", description: error instanceof Error ? error.message : 'Error syncing selected PRFs', variant: "destructive" });
-    } finally {
-      setIsSelectedSyncing(false);
-    }
   };
 
   const handleProntoSyncNow = async (prfNo: string) => {
@@ -1175,18 +1100,6 @@ export default function PRFMonitoring() {
               <FolderSync className="h-4 w-4 mr-2" />
             )}
             Bulk Sync Folders
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleSyncSelected}
-            disabled={isSelectedSyncing || selectedItems.size === 0 || !(user?.role === 'admin' || user?.role === 'doccon')}
-          >
-            {isSelectedSyncing ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <CloudDownload className="h-4 w-4 mr-2" />
-            )}
-            Sync Selected PRFs
           </Button>
           <Button
             variant="outline"
@@ -1450,20 +1363,6 @@ export default function PRFMonitoring() {
                                 )}
                               </div>
                               <div className="merdeka-prf-sync-actions">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 px-2"
-                                  onClick={(e) => { e.stopPropagation(); handleSyncPRF(prf.prfNo); }}
-                                  disabled={syncingId === prf.prfNo || !(user?.role === 'admin' || user?.role === 'doccon')}
-                                  aria-label="Sync this PRF from Cloud"
-                                >
-                                  {syncingId === prf.prfNo ? (
-                                    <RefreshCw className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <CloudDownload className="h-4 w-4" />
-                                  )}
-                                </Button>
                                 <Button
                                   variant="ghost"
                                   size="sm"

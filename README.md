@@ -19,7 +19,7 @@ Budget Pulse Watch is a PRF and budget monitoring system for operational purchas
 - Document handling for PRF files and shared-folder storage.
 - OCR-assisted PRF ingestion from uploaded files.
 - Read-only OpenAI PRF Assistant for natural-language PRF queries and attachment links.
-- Sync integrations for OneDrive Excel and a dedicated Pronto sync worker.
+- A dedicated Pronto sync worker. The OneDrive Excel sync is retired: the shared Excel is no longer used, and the app no longer offers it (the `/api/cloud-sync` backend is still present).
 - Access control via JWT auth, local users, LDAP lookup, and API keys.
 
 ## Architecture At A Glance
