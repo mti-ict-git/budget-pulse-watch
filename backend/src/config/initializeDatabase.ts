@@ -152,6 +152,10 @@ export const ensureTablesExist = async (): Promise<void> => {
         ALTER TABLE dbo.AppSettings ADD ProntoSyncLastRunFinishedAt DATETIME2 NULL;
       IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncLastRunExitCode') IS NULL
         ALTER TABLE dbo.AppSettings ADD ProntoSyncLastRunExitCode INT NULL;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncLastRunError') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoSyncLastRunError NVARCHAR(1000) NULL;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncLastRunKind') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoSyncLastRunKind NVARCHAR(20) NULL;
       IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncTimeZone') IS NULL
         ALTER TABLE dbo.AppSettings ADD ProntoSyncTimeZone NVARCHAR(64) NULL;
     `;

@@ -1011,6 +1011,53 @@ paths:
                     type: string
                   sharedFolderPath:
                     type: string
+  /api/settings/pronto-sync/run-now/complete:
+    post:
+      summary: Record a finished Pronto sync run (called by the pronto_sync worker)
+      description: >
+        The worker reports every run: a run-now request (`kind: run-now`, the default, which also clears
+        the pending run-now request) and every scheduled cycle (`kind: scheduled`, which leaves a pending
+        request in place). The result is stored in `AppSettings.ProntoSyncLastRun*` and returned by
+        `GET /api/settings/pronto-sync` as `lastRunStartedAt`, `lastRunFinishedAt`, `lastRunExitCode`,
+        `lastRunError` and `lastRunKind`, and by `GET /api/settings/time` as `prontoSync.lastRunError`.
+        Exit code 124 means a step ran past `PRONTO_SYNC_STEP_TIMEOUT_SECONDS` and was stopped.
+      tags: [Settings]
+      security:
+        - bearerAuth: []
+        - ApiKeyHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [exitCode, startedAt, finishedAt]
+              properties:
+                exitCode:
+                  type: integer
+                  description: 0 when every step succeeded; otherwise the last failing step's exit code (124 for a timeout).
+                startedAt:
+                  type: string
+                  format: date-time
+                finishedAt:
+                  type: string
+                  format: date-time
+                error:
+                  type: string
+                  nullable: true
+                  maxLength: 1000
+                  description: Failing step and its last error line, for example "items: RuntimeError: Pronto gather wrote no batch (login or navigation in Pronto failed); nothing was applied".
+                kind:
+                  type: string
+                  enum: [run-now, scheduled]
+                  default: run-now
+      responses:
+        '200':
+          description: Run recorded
+        '400':
+          description: exitCode, startedAt or finishedAt missing or invalid
+        '500':
+          description: Failed to record run
   /api/settings/general:
     get:
       summary: Get general settings

@@ -1323,3 +1323,40 @@ A form with a wrong SUM can be rescanned; the reviewer sees the difference, and 
 - `node --test backend/tests/rescan-total-warning.test.cjs`: 5 pass (55690 rows confirmed and warning text; still blocks without PDF confirmation or with no text layer; a misread row is not confirmed; a row arithmetic error still blocks; a reconciled total gives no warning). Existing `rescanValidation.test.ts` checks pass unchanged.
 - `node --test backend/tests/`: 59 pass, 0 fail, 2 skipped. Backend `tsc` passes.
 - Production data, read-only, no AI call: with PRF 55690's real PDF text and its stored rows, `rowsConfirmedByPdf` is true, validation returns no errors, and the warning reads "Printed document total 76,245,000 differs from the sum of the item rows 84,915,000 (difference 8,670,000)".
+
+## Phase 27 - Pronto Sync Resilience
+
+### Status
+
+Implemented on branch `fix/pronto-sync-resilience` (local commit on top of a24eb2d, not pushed). Not deployed. Phase 26 (bulk rescan) is on a separate branch; the numbers do not depend on each other.
+
+### Objective
+
+A failed or hung Pronto sync must not write old data, must not stall the worker, and must be visible in the app. Product owner, 2026-11-25: after the Pronto password expired, the sync failed to log in from 2026-11-24 19:45 WITA; the failure was only visible in `docker logs`, and the items step still applied the previous run's batch file (7 item changes and the approval history of 34 PRFs stamped as freshly synced).
+
+### Source Documents
+
+- `docs/pronto-sync.md`
+- `docs/openapi.yaml` (`POST /api/settings/pronto-sync/run-now/complete`)
+- `docs/database-schema-specification.md`
+
+### Checklist
+
+- [x] Items step: the previous `prf_items_batch.json` is deleted before the Pronto gather. When the gather writes no batch (login or navigation failed), the step fails with "Pronto gather wrote no batch (login or navigation in Pronto failed); nothing was applied" and applies nothing.
+- [x] Worker step time limit `PRONTO_SYNC_STEP_TIMEOUT_SECONDS` (default 5400, 90 minutes). A step runs in its own process group; on timeout or container shutdown the step and the browser it started are stopped. A timeout reports exit code 124.
+- [x] After a failed scheduled cycle the worker tries again after `PRONTO_SYNC_RETRY_MINUTES` (default 30), at most `PRONTO_SYNC_MAX_RETRIES` (default 3) times in a row, then returns to the normal interval.
+- [x] Every run is reported, scheduled cycles included (`kind: scheduled` leaves a pending run-now request in place), with the failing step's last error line. Stored in `AppSettings.ProntoSyncLastRunError` and `ProntoSyncLastRunKind` (migration 030, also added at backend startup).
+- [x] Settings → Pronto sync shows "Last run succeeded / failed / timed out", whether it was a scheduled cycle or a run-now request, and the error message.
+- [ ] Push, review, deploy (backend first, then `pronto_sync`, while the worker is idle); confirm a scheduled cycle appears in Settings
+
+### Output
+
+A Pronto login failure, crash or hang stops the sync cleanly, is retried within 30 minutes, and shows its reason in Settings. Old Pronto data is never applied as new.
+
+### Challenge / Verification
+
+- `python3 -m unittest tests.test_pronto_sync_resilience` (in `backend/scripts`): 6 pass. A failed login removes the old batch and fails the step; a fresh batch is used; a failing step reports its error line ("items: RuntimeError: Pronto navigation not ready ..."); a hung step is stopped after its time limit with exit 124; a child process started by the hung step (stand-in for the browser) is stopped too.
+- `python3 -m unittest discover -s tests` (in `backend/scripts`): 26 pass.
+- Backend `tsc`, frontend `tsc` and `vite build` pass; eslint is clean on `Settings.tsx`.
+- Not yet run in the container against Pronto.
+

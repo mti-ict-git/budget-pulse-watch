@@ -48,6 +48,8 @@ CREATE TABLE AppSettings (
     ProntoSyncLastRunStartedAt DATETIME2 NULL,
     ProntoSyncLastRunFinishedAt DATETIME2 NULL,
     ProntoSyncLastRunExitCode INT NULL,
+    ProntoSyncLastRunError NVARCHAR(1000) NULL,
+    ProntoSyncLastRunKind NVARCHAR(20) NULL,
     ProntoSyncTimeZone NVARCHAR(64) NULL,
     ProntoSyncProgressJson NVARCHAR(MAX) NULL,
     ProntoSyncProgressUpdatedAt DATETIME2 NULL,

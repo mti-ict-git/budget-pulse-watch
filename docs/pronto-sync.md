@@ -217,3 +217,11 @@ Only Find, Lines, Approval Status, row selection and the card close button are u
 ### Selectors (verified 2026-11-11 at 1280x800)
 
 `#module-function-input` (function code box), `.hamburger-menu`, `.card-header-toolbar-module-function` (active function code), `button.page-close`, `tr.dg-row.selected`, `.row-count-input`, and `label.card-field[name="x:<col>,y:<row>"]` for detail panels.
+
+## Failure handling (Phase 27)
+
+- Each step (`header`, `items`) is stopped after `PRONTO_SYNC_STEP_TIMEOUT_SECONDS` (default 5400). The step and its browser are killed and the run is reported with exit code 124.
+- A failed scheduled cycle is retried after `PRONTO_SYNC_RETRY_MINUTES` (default 30), at most `PRONTO_SYNC_MAX_RETRIES` (default 3) times in a row.
+- The items step never reuses an old `prf_items_batch.json`: it is deleted before the gather, and a gather that writes no batch (for example after a failed login) fails the step without applying anything.
+- Every run, scheduled or run-now, is shown in Settings → Pronto sync with its result and error message. A login failure usually means the Pronto password expired: update `PRONTO_PASSWORD` in `backend/.env.production` and recreate the `pronto_sync` container.
+

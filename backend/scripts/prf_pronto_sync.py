@@ -353,14 +353,29 @@ def _gather_pronto_items_for_pos(
         "PRONTO_STORAGE_STATE_PATH": storage_state_path,
         "PRONTO_PROFILE_DIR": profile_dir,
     }
+    out_path = os.path.join(artifacts_dir, "prf_items_batch.json")
+    # Remove the previous batch first: when login or navigation fails, the gather returns without
+    # writing a batch, and the old file must not be applied as if it were fresh Pronto data.
+    _remove_stale_batch(out_path)
     old = _setenv_temp(env)
     try:
         asyncio.run(pronto_access.main(check_item=True, debug=False, max_scrolls=max_scrolls))
     finally:
         _restore_env(old)
-    out_path = os.path.join(artifacts_dir, "prf_items_batch.json")
+    if not os.path.exists(out_path):
+        raise RuntimeError(
+            "Pronto gather wrote no batch (login or navigation in Pronto failed); nothing was applied"
+        )
     print(f"Pronto gather done batch={out_path}", flush=True)
     return out_path
+
+
+def _remove_stale_batch(path: str) -> None:
+    try:
+        os.remove(path)
+        print(f"Removed previous batch {path}", flush=True)
+    except FileNotFoundError:
+        pass
 
 
 @dataclass(frozen=True)
