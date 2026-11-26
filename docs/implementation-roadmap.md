@@ -1462,7 +1462,7 @@ Show what needs IT action in Pronto without opening PO M094. Product owner, 2026
 - [x] Live read against Pronto (dry run, nothing sent to POMON) from the pronto_sync container on docker59, 2026-11-26.
 - [x] Deployed 2026-11-26 20:55 WITA (release 0ac6e74, branch not pushed): backend created the table and columns at startup, `GET /api/pronto-queue` answered 200, the frontend serves `/immediate-action`, the scripts are in the pronto_sync image. The product owner saw the page ("The queue has not been read from Pronto yet").
 - [x] First production read (21:13 WITA, right after the sync cycle) failed at login: the menu did not appear within 30 seconds. A probe login a few minutes later reached the menu in about 15 seconds with no "already signed in" prompt, although the sync's session had not been signed out. Fix: wait up to 90 seconds, retry once, put the screen text in the error, retry a failed read after 10 minutes (`PRONTO_QUEUE_RETRY_MINUTES`), and read the queue before each sync cycle so a restart does not hold it back. Dry run with the fix read both rows.
-- [ ] Deploy the fix (pronto_sync only) and confirm the first stored read.
+- [x] Fix deployed 2026-11-26 21:22 WITA (release 9c2614c, pronto_sync only). The queue was read before the sync cycle. The first login showed Pronto's "Sorry, the screen did not load correctly ... Connection to the server was lost ... Log in again"; the retry logged in and read both rows. Stored at 21:24: user itmt, 2 items, both rejected (42300 as split of PRF 41436, 53956), nothing unmatched.
 - [ ] Open question from the product owner: run the queue in its own worker. Needs proof that two itmt sessions at once are safe (see `docs/open-questions-and-challenges.md`).
 
 ### Output
