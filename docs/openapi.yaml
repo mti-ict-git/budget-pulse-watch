@@ -81,6 +81,24 @@ components:
           example: Rejected PO
           description: Empty for an approver who has not acted yet.
         comment: { type: string, nullable: true }
+    ProntoQueueActionRequest:
+      type: object
+      properties:
+        id: { type: integer }
+        orderNo: { type: string }
+        action: { type: string, example: acknowledge }
+        prfId: { type: integer, nullable: true }
+        requestedBy: { type: string, nullable: true }
+        requestedAt: { type: string, format: date-time }
+        status:
+          type: string
+          enum: [pending, running, done, skipped, failed, unverified]
+          description: >
+            skipped: a check in Pronto said no. failed: stopped before the menu click, nothing changed.
+            unverified: the menu item was clicked but the new Acknowledge entry was not confirmed.
+        message: { type: string, nullable: true }
+        startedAt: { type: string, format: date-time, nullable: true }
+        finishedAt: { type: string, format: date-time, nullable: true }
     ProntoQueueItem:
       type: object
       properties:
@@ -2954,6 +2972,11 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/ProntoQueueItem'
+                      actions:
+                        type: array
+                        description: Acknowledge requests of the last 14 days (up to 50), newest first.
+                        items:
+                          $ref: '#/components/schemas/ProntoQueueActionRequest'
         '401':
           description: Authentication required
         '500':
@@ -3058,6 +3081,119 @@ paths:
           description: Authentication required
         '403':
           description: Content manager or API key required
+  /api/pronto-queue/{orderNo}/acknowledge:
+    post:
+      summary: Ask the Pronto worker to acknowledge a requisition for approval
+      description: >
+        Phase 30. Queues "Acknowledge for approval" (PO M094 > Approve) for a requisition that the
+        stored queue shows as `it_action`. Only a signed-in admin or doccon can ask; API keys are
+        refused. The worker re-reads Pronto before it clicks anything and skips the request when Next
+        Action By no longer lists the queue account, the latest action is a rejection, or that account
+        already acknowledged in the current stage (after the latest New Order or Re-Approved). Pronto
+        records the acknowledge under the worker's account (itmt); POMON records who asked.
+      tags: [Pronto]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderNo
+          required: true
+          schema:
+            type: string
+            pattern: '^\d+$'
+      responses:
+        '201':
+          description: Request queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    $ref: '#/components/schemas/ProntoQueueActionRequest'
+        '400':
+          description: orderNo is not numeric
+        '401':
+          description: Authentication required
+        '403':
+          description: Admin or doccon required, or the caller is an API key
+        '404':
+          description: The order is not in the Immediate Action queue for POMON PRFs
+        '409':
+          description: The order is not waiting for IT (rejected or waiting for someone else), or a request is already queued
+  /api/pronto-queue/actions/claim:
+    post:
+      summary: Claim the oldest pending acknowledge request (Pronto worker)
+      description: >
+        Marks the oldest pending request as running and returns it, or returns `data: null`. Requests
+        still running after 30 minutes are first marked `unverified` (the worker stopped while running
+        them).
+      tags: [Pronto]
+      security:
+        - bearerAuth: []
+        - ApiKeyHeader: []
+      responses:
+        '200':
+          description: The claimed request or null
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/ProntoQueueActionRequest'
+                    nullable: true
+        '401':
+          description: Authentication required
+        '403':
+          description: Content manager or API key required
+  /api/pronto-queue/actions/{id}/result:
+    post:
+      summary: Record the outcome of a running acknowledge request (Pronto worker)
+      description: >
+        Only a request that is `running` is updated; anything else returns 409, so a late fallback
+        from the worker never overwrites the script's own result.
+      tags: [Pronto]
+      security:
+        - bearerAuth: []
+        - ApiKeyHeader: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [done, skipped, failed, unverified]
+                message:
+                  type: string
+                  maxLength: 1000
+      responses:
+        '200':
+          description: Outcome stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    $ref: '#/components/schemas/ProntoQueueActionRequest'
+        '400':
+          description: Invalid id or status
+        '409':
+          description: Request not found or not running
   /api/budgets:
     get:
       summary: List budgets

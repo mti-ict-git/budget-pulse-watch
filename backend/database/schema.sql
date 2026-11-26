@@ -261,6 +261,23 @@ CREATE TABLE ProntoActionQueue (
     CheckedAt DATETIME2 NOT NULL
 );
 
+-- Acknowledge requests from the Immediate Action page (migration 033)
+CREATE TABLE ProntoQueueActionRequest (
+    RequestID INT IDENTITY(1,1) PRIMARY KEY,
+    OrderNo NVARCHAR(20) NOT NULL,
+    Action NVARCHAR(30) NOT NULL DEFAULT 'acknowledge',
+    PRFID INT NULL,
+    RequestedByUserID INT NULL, -- no FK: LDAP users have ids from LDAPUserAccess
+    RequestedByName NVARCHAR(200) NULL,
+    RequestedAt DATETIME2 NOT NULL,
+    Status NVARCHAR(20) NOT NULL DEFAULT 'pending'
+        CHECK (Status IN ('pending', 'running', 'done', 'skipped', 'failed', 'unverified')),
+    Message NVARCHAR(1000) NULL,
+    StartedAt DATETIME2 NULL,
+    FinishedAt DATETIME2 NULL
+);
+CREATE INDEX IX_ProntoQueueActionRequest_Status_RequestedAt ON ProntoQueueActionRequest(Status, RequestedAt);
+
 -- Budget Transactions (tracks all budget movements)
 CREATE TABLE BudgetTransactions (
     TransactionID INT IDENTITY(1,1) PRIMARY KEY,

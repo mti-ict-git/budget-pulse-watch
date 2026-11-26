@@ -95,3 +95,33 @@ test('a direct PRF match wins over a split match', () => {
   assert.equal(items[0].prfNo, '50000');
   assert.equal(items[0].isSplit, false);
 });
+
+// --- Acknowledge requests (Phase 30) ---
+const { checkAcknowledgeRequest, validateActionResult } = require('../dist/services/prontoQueueActions');
+
+test('an acknowledge can be requested only for a queued IT-action item without an open request', () => {
+  const queue = {
+    items: [
+      { orderNo: '60001', category: 'it_action', prfId: 7 },
+      { orderNo: '42300', category: 'rejected', prfId: 11 },
+      { orderNo: '53956', category: 'waiting_other', prfId: 10 },
+    ],
+  };
+  assert.deepEqual(checkAcknowledgeRequest('60001', queue, []), { ok: true, prfId: 7 });
+  assert.equal(checkAcknowledgeRequest('42300', queue, []).status, 409);
+  assert.match(checkAcknowledgeRequest('42300', queue, []).message, /rejected/);
+  assert.equal(checkAcknowledgeRequest('53956', queue, []).status, 409);
+  assert.equal(checkAcknowledgeRequest('99999', queue, []).status, 404);
+  assert.equal(checkAcknowledgeRequest('abc', queue, []).status, 400);
+  assert.equal(checkAcknowledgeRequest('60001', queue, [{ OrderNo: '60001', Status: 'pending' }]).status, 409);
+  assert.equal(checkAcknowledgeRequest('60001', queue, [{ OrderNo: '60001', Status: 'running' }]).status, 409);
+  assert.equal(checkAcknowledgeRequest('60001', queue, [{ OrderNo: '60001', Status: 'done' }]).ok, true);
+});
+
+test('worker results must use a final status', () => {
+  assert.deepEqual(validateActionResult({ status: 'done', message: ' ok ' }), { ok: true, status: 'done', message: 'ok' });
+  assert.equal(validateActionResult({ status: 'unverified' }).ok, true);
+  assert.equal(validateActionResult({ status: 'running' }).ok, false);
+  assert.equal(validateActionResult({ status: 'approved' }).ok, false);
+  assert.equal(validateActionResult(null).ok, false);
+});

@@ -258,3 +258,21 @@ PO M094 has data-changing actions (Approve, Correct, Cancel, Buyer). The script:
 
 A queue row belongs to POMON when its order number is a PRF number, or a split PO number recorded on a PRF item (`PRFItems.SplitPONumber`). The rest of the queue is listed separately on the page, so a split PO that POMON has not recorded yet can be found and added to its PRF.
 
+## Acknowledge from POMON (Phase 30, added 2026-11-26)
+
+The product owner asked for an Acknowledge button on requisitions that need IT action. Decisions (2026-11-26): only "Acknowledge for approval" (no approve, convert or reject); admin and doccon may ask; company policy allows the worker to do it as itmt when a POMON user asks.
+
+### Flow
+
+1. On the Immediate Action page, an admin or doccon presses **Acknowledge** on a row in "Needs IT review" and confirms. `POST /api/pronto-queue/{orderNo}/acknowledge` stores a pending request (refused if the stored queue does not show the row as needing IT, or a request is already open).
+2. The worker checks for requests every poll (15 seconds) between sync cycles and at the start of a cycle, claims one (`POST /api/pronto-queue/actions/claim`) and runs `pronto_action_queue.py --acknowledge <order> --request-id <id>`. While a sync cycle runs, requests wait for it.
+3. The script logs in, opens PO M094, finds the row, and reads Next Action By and Approval Status again. It stops with `skipped` unless Next Action By lists the logged-in account, the latest action is not a rejection, and that account has not acknowledged in the current stage (after the latest "New Order" or "Re-Approved").
+4. It proves the cursor is on the row (Next Action By card check), opens the toolbar **Approve** menu (the `li.nav_item.pop-host` button, never a menu item named "Approve"), and clicks exactly **Acknowledge for approval**. If that item is not offered, it closes the menu and reports `failed` with the items it saw. A question dialog after the click is cancelled and reported; an OK-only message is read and closed.
+5. It reads PO E001 > Approval Status and reports `done` only when a new Acknowledge entry by the account is there; otherwise `unverified`. It then reads the whole queue again and posts the snapshot, so the page shows the result.
+
+### What was seen on 2026-11-26
+
+The Approve menu on 42300 (rejected) offered: Approve, Approve for convert, Reject for approval, Remove from approval, Single convert, Bulk convert, Approve and Convert, Hold Requisition, Release from Hold; no "Acknowledge for approval". The skill notes saw that item on 53956 and 54512 in October, at the acknowledge stage. The menu therefore depends on the stage, and the script only acts when the exact item is offered. Escape closes the menu with nothing selected.
+
+`--check-only` runs steps 3 and the guards and clicks nothing. On 2026-11-26 it skipped 53956 ("Next Action By does not list itmt") and 99999 ("not in the Immediate Action queue").
+

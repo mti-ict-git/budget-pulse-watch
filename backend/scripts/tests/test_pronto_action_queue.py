@@ -8,7 +8,15 @@ HERE = os.path.dirname(__file__)
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..")))
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..", "..", "pronto-sync")))
 
-from pronto_queue_parse import card_value, label_value, parse_next_action_rows, parse_queue_rows  # noqa: E402
+from pronto_queue_parse import (  # noqa: E402
+    acknowledge_blocker,
+    card_value,
+    it_display_name,
+    label_value,
+    new_acknowledge,
+    parse_next_action_rows,
+    parse_queue_rows,
+)
 import pronto_sync_worker as worker  # noqa: E402
 
 # Headers and rows as read from PO M094 on 2026-11-26 (account itmt).
@@ -88,6 +96,52 @@ class LabelValueTests(unittest.TestCase):
         self.assertEqual(label_value(self.FIELDS, "Missing"), "")
 
 
+def entry(line, user, at, status, comment=""):
+    raw = at.replace("T", " ") if at else ""
+    return {"line_no": line, "approval_user": user, "action_at": at, "action_at_raw": raw, "status": status, "comment": comment}
+
+
+NEXT_IT = [{"name": "Arthur Saul", "user": "arthurs", "hierarchy": ""}, {"name": "MTI IT", "user": "itmt", "hierarchy": "MAMCHRCCIT"}]
+
+
+class AcknowledgeGuardTests(unittest.TestCase):
+    def test_it_name(self):
+        self.assertEqual(it_display_name(NEXT_IT, "ITMT"), "MTI IT")
+        self.assertEqual(it_display_name(NEXT_IT[:1], "itmt"), "")
+
+    def test_not_waiting_for_it(self):
+        self.assertIn("does not list", acknowledge_blocker([], NEXT_IT[:1], "itmt"))
+
+    def test_rejected(self):
+        hist = [entry(1, "BUYER", None, ""), entry(2, "Arthur Saul", "2026-11-25T10:50:57", "Rejected PO", "x")]
+        self.assertIn("Rejected PO", acknowledge_blocker(hist, NEXT_IT, "itmt"))
+
+    def test_new_stage_may_be_acknowledged(self):
+        hist = [entry(1, "MTI IT", "2026-11-20T08:00:00", "New Order")]
+        self.assertIsNone(acknowledge_blocker(hist, NEXT_IT, "itmt"))
+
+    def test_already_acknowledged_in_this_stage(self):
+        hist = [entry(1, "MTI IT", "2026-11-20T08:00:00", "New Order"), entry(2, "MTI IT", "2026-11-20T08:05:00", "Acknowledge")]
+        self.assertIn("already acknowledged", acknowledge_blocker(hist, NEXT_IT, "itmt"))
+
+    def test_acknowledge_of_an_earlier_stage_does_not_block(self):
+        # 53956 pattern: acknowledged on 17 Oct, then Re-Approved on 26 Oct starts a new stage.
+        hist = [
+            entry(1, "MTI IT", "2026-10-17T08:26:50", "New Order"),
+            entry(2, "MTI IT", "2026-10-17T08:29:47", "Acknowledge"),
+            entry(3, "System", "2026-10-26T12:51:59", "Re-Approved"),
+        ]
+        self.assertIsNone(acknowledge_blocker(hist, NEXT_IT, "itmt"))
+
+    def test_new_acknowledge_found_only_when_newer(self):
+        before = [entry(1, "MTI IT", "2026-11-20T08:00:00", "New Order")]
+        same = before + [entry(2, "MTI IT", "2026-11-19T08:00:00", "Acknowledge")]
+        self.assertIsNone(new_acknowledge(before, same, "MTI IT"))
+        after = before + [entry(2, "MTI IT", "2026-11-26T22:00:00", "Acknowledge")]
+        self.assertEqual(new_acknowledge(before, after, "MTI IT")["line_no"], 2)
+        self.assertIsNone(new_acknowledge(before, after, "Someone Else"))
+
+
 class QueueScheduleTests(unittest.TestCase):
     def test_queue_next_wait(self):
         self.assertEqual(worker._queue_next_wait(0, 3600, 600), 3600)
@@ -98,6 +152,11 @@ class QueueScheduleTests(unittest.TestCase):
         step = worker._queue_step(worker._default_config_from_env())
         self.assertEqual(step.script, "pronto_action_queue.py")
         self.assertEqual(step.name, "queue")
+
+    def test_acknowledge_step(self):
+        step = worker._acknowledge_step(worker._default_config_from_env(), "60001", 7)
+        self.assertEqual(step.script, "pronto_action_queue.py")
+        self.assertEqual(step.args[1:], ["--acknowledge", "60001", "--request-id", "7"])
 
     def test_sync_steps_keep_the_sync_script(self):
         steps = worker._build_steps(worker._default_config_from_env(), run_now_prf_no=None)

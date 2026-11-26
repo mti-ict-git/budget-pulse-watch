@@ -44,6 +44,55 @@ export interface QueueItem {
   checkedAt: string;
 }
 
+export type ActionStatus = "pending" | "running" | "done" | "skipped" | "failed" | "unverified";
+
+/** A request to "Acknowledge for approval" in Pronto (Phase 30). */
+export interface QueueActionRequest {
+  id: number;
+  orderNo: string;
+  action: string;
+  prfId: number | null;
+  requestedBy: string | null;
+  requestedAt: string;
+  status: ActionStatus;
+  message: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export const isOpenAction = (a: QueueActionRequest): boolean => a.status === "pending" || a.status === "running";
+
+export const ACTION_STATUS_LABEL: Record<ActionStatus, string> = {
+  pending: "Waiting for the Pronto worker",
+  running: "Acknowledging in Pronto…",
+  done: "Acknowledged",
+  skipped: "Not acknowledged (checked in Pronto)",
+  failed: "Failed, nothing changed",
+  unverified: "Clicked, not confirmed: check Pronto",
+};
+
+/** Newest request per order number. */
+export const latestActionByOrder = (actions: QueueActionRequest[]): Map<string, QueueActionRequest> => {
+  const map = new Map<string, QueueActionRequest>();
+  for (const a of actions) {
+    const current = map.get(a.orderNo);
+    if (!current || a.requestedAt > current.requestedAt || (a.requestedAt === current.requestedAt && a.id > current.id)) {
+      map.set(a.orderNo, a);
+    }
+  }
+  return map;
+};
+
+export const requestAcknowledge = async (orderNo: string, headers: HeadersInit): Promise<QueueActionRequest> => {
+  const response = await fetch(`/api/pronto-queue/${encodeURIComponent(orderNo)}/acknowledge`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.success) throw new Error(result.message || "Failed to request the acknowledge");
+  return result.data as QueueActionRequest;
+};
+
 export interface QueueData {
   checkedAt: string | null;
   lastSuccessAt: string | null;
@@ -52,6 +101,8 @@ export interface QueueData {
   counts: { total: number; rejected: number; itAction: number; waitingOther: number };
   items: QueueItem[];
   unmatched: QueueItem[];
+  /** Acknowledge requests of the last 14 days, newest first. */
+  actions: QueueActionRequest[];
 }
 
 export const fetchProntoQueue = async (headers: HeadersInit, signal?: AbortSignal): Promise<QueueData> => {

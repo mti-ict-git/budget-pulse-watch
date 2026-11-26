@@ -1,6 +1,7 @@
-"""Read the Pronto Immediate Action queue (PO M094) and send it to POMON.
+"""Read the Pronto Immediate Action queue (PO M094) and send it to POMON; optionally acknowledge one
+requisition for approval (--acknowledge, Phase 30).
 
-Read-only. For every requisition in "Approve/Review Requisitions (Immediate Action Req'd)" it reads
+The queue read is read-only. For every requisition in "Approve/Review Requisitions (Immediate Action Req'd)" it reads
 the list row, Next Action By and Approval Status, then posts one snapshot to
 POST /api/pronto-queue/snapshot. POMON matches the order numbers to its PRFs and split POs.
 
@@ -13,6 +14,15 @@ Safety rules (PO M094 has data-changing actions such as Approve, Correct, Cancel
 - Each card is checked against the expected order number (the Requisition field on Next Action By,
   the "Purchase Requisition - <no>" title on Approval Status). A mismatch is recorded as an error
   for that row instead of storing another requisition's data.
+
+Acknowledge (--acknowledge <order> --request-id <id>), the only data-changing action: it re-reads
+the row's Next Action By and Approval Status first and stops unless Next Action By lists the
+logged-in account, the latest action is not a rejection, and that account has not acknowledged in
+the current stage. It proves the cursor is on the row (card check), opens the toolbar Approve menu,
+clicks exactly "Acknowledge for approval" (any other menu shape closes the menu and stops), cancels
+any question dialog, and confirms a new Acknowledge entry in PO E001 > Approval Status. The result
+is posted to POST /api/pronto-queue/actions/<id>/result. --check-only runs the checks and clicks
+nothing.
 
 Environment: TARGET_URL, PRONTO_USERNAME, PRONTO_PASSWORD, POMON_BASE_URL, POMON_API_KEY,
 PRONTO_HEADLESS (default true).
@@ -36,6 +46,8 @@ from pronto_access import (
     _click_toolbar_button,
     _close_card,
     _current_function_code,
+    _dismiss_message_box,
+    _gather_po_details,
     _ensure_standard_grid,
     _locate_password,
     _locate_username,
@@ -49,7 +61,15 @@ from pronto_access import (
     _wait_for_table,
 )
 from pronto_po_parse import pair_card_fields, parse_approval_rows
-from pronto_queue_parse import card_value, label_value, parse_next_action_rows, parse_queue_rows
+from pronto_queue_parse import (
+    acknowledge_blocker,
+    card_value,
+    it_display_name,
+    label_value,
+    new_acknowledge,
+    parse_next_action_rows,
+    parse_queue_rows,
+)
 
 QUEUE_FUNCTION = "PO M094"
 QUEUE_MENU_PATH = ["Supply Chain", "Requisitions", "Approve/Review Requisitions"]
@@ -336,6 +356,161 @@ async def gather_queue(page, scan_timeout_ms: int) -> Tuple[str, List[Dict[str, 
     return pronto_user, rows
 
 
+# --- Acknowledge for approval (Phase 30) ---------------------------------------------------------
+# The only data-changing action this script performs, and only for one requested order number.
+ACKNOWLEDGE_LABEL = "Acknowledge for approval"
+# Seen in the Approve menu on 2026-11-26; used to tell that the menu (not a card) is open.
+_APPROVE_MENU_MARKERS = ("Approve for convert", "Reject for approval", "Remove from approval")
+
+
+async def _visible_texts(page, texts: Tuple[str, ...]) -> List[str]:
+    found: List[str] = []
+    for t in texts:
+        loc = page.get_by_text(t, exact=True)
+        for i in range(await loc.count()):
+            if await loc.nth(i).is_visible():
+                found.append(t)
+                break
+    return found
+
+
+async def _approve_menu_items(page) -> List[str]:
+    return await page.evaluate(
+        """() => {
+          const host = Array.from(document.querySelectorAll('li.nav_item.pop-host'))
+            .find(li => /^\s*Approve\s*$/.test((li.querySelector('button') || {}).innerText || ''));
+          const root = host || document.body;
+          return Array.from(root.querySelectorAll('*'))
+            .filter(e => e.offsetParent && e.children.length === 0 && (e.innerText || '').trim())
+            .map(e => e.innerText.trim());
+        }"""
+    )
+
+
+async def _open_approve_menu(page) -> List[str]:
+    """Open the toolbar Approve menu (never one of its items) and return the visible item labels."""
+    if await _visible_texts(page, _APPROVE_MENU_MARKERS):
+        await page.keyboard.press("Escape")
+        await page.wait_for_timeout(800)
+        if await _visible_texts(page, _APPROVE_MENU_MARKERS):
+            raise RuntimeError("approve_menu_already_open")
+    button = page.locator("li.nav_item.pop-host button.pro-mode").filter(has_text=re.compile(r"^\s*Approve\s*$"))
+    target = None
+    for i in range(await button.count() - 1, -1, -1):
+        if await button.nth(i).is_visible():
+            target = button.nth(i)
+            break
+    if target is None:
+        raise RuntimeError("approve_toolbar_button_not_found")
+    await target.click(timeout=10000)
+    deadline = time.monotonic() + 8
+    while time.monotonic() < deadline:
+        if await _visible_texts(page, _APPROVE_MENU_MARKERS):
+            return await _approve_menu_items(page)
+        await page.wait_for_timeout(300)
+    raise RuntimeError("approve_menu_did_not_open")
+
+
+async def _close_approve_menu(page) -> None:
+    for _ in range(2):
+        if not await _visible_texts(page, _APPROVE_MENU_MARKERS):
+            return
+        await page.keyboard.press("Escape")
+        await page.wait_for_timeout(800)
+
+
+async def _handle_after_click(page) -> str:
+    """Deal with a dialog after the menu click. An OK-only message is read and closed; a dialog that
+    asks a question is cancelled, because its meaning has not been verified."""
+    await page.wait_for_timeout(3000)
+    question = await _visible_texts(page, ("Yes", "No"))
+    if question:
+        text = await _screen_text(page, 300)
+        await page.keyboard.press("Escape")
+        raise RuntimeError(f"Pronto asked a question that was not answered: {text!r}")
+    return await _dismiss_message_box(page)
+
+
+async def acknowledge(page, order_no: str, scan_timeout_ms: int, check_only: bool) -> Tuple[str, str]:
+    """Acknowledge one requisition for approval. Returns (status, message):
+    done, skipped (a guard said no), checked (check_only), failed (nothing was clicked in the menu),
+    unverified (the menu item was clicked but no new Acknowledge entry could be found)."""
+    await _open_queue(page, scan_timeout_ms)
+    pronto_user = label_value(await _read_card_fields(page), "User")
+    table = await _wait_for_table(page, "Order No", 5000)
+    if table is None:
+        raise RuntimeError("Approve/Review Requisitions list is not visible")
+    headers, raw_rows = await _read_table(table)
+    orders = [str(r["orderNo"]) for r in parse_queue_rows(headers, raw_rows)]
+    if order_no not in orders:
+        return "skipped", f"{order_no} is not in the Immediate Action queue of {pronto_user or 'the IT account'} any more"
+    index = orders.index(order_no)
+    await _select_row(page, index, settle_ms=800)
+    next_action_by = await _read_on_row(page, index, True, _read_next_action_by, order_no)
+    if not await _back_to_queue(page):
+        raise RuntimeError("queue_not_restored")
+    before = await _read_on_row(page, index, True, _read_approval_status, order_no)
+    if not await _back_to_queue(page):
+        raise RuntimeError("queue_not_restored")
+    blocker = acknowledge_blocker(before, next_action_by, pronto_user)
+    if blocker:
+        return "skipped", blocker
+    it_name = it_display_name(next_action_by, pronto_user)
+    if check_only:
+        return "checked", f"{order_no} can be acknowledged by {it_name} ({pronto_user}); nothing was clicked"
+    # Prove the cursor is on this row right before the action: the card check fails on any other row.
+    await _read_on_row(page, index, True, _read_next_action_by, order_no)
+    if not await _back_to_queue(page):
+        raise RuntimeError("queue_not_restored")
+    items = await _open_approve_menu(page)
+    if ACKNOWLEDGE_LABEL not in items:
+        await _close_approve_menu(page)
+        offered = [t for t in items if t not in ("Approve",)][:12]
+        return "failed", f'"{ACKNOWLEDGE_LABEL}" is not offered for {order_no}; the menu shows {offered}. Nothing was clicked.'
+    item = page.get_by_text(ACKNOWLEDGE_LABEL, exact=True)
+    clicked = False
+    for i in range(await item.count() - 1, -1, -1):
+        if await item.nth(i).is_visible():
+            await item.nth(i).click(timeout=10000)
+            clicked = True
+            break
+    if not clicked:
+        await _close_approve_menu(page)
+        return "failed", f'"{ACKNOWLEDGE_LABEL}" could not be clicked. Nothing was changed.'
+    _log(f"Acknowledge for approval clicked for {order_no}")
+    try:
+        message = await _handle_after_click(page)
+    except Exception as e:
+        return "unverified", f"Clicked {ACKNOWLEDGE_LABEL}, then: {e}. Check {order_no} in Pronto."
+    try:
+        details = await _gather_po_details(
+            page, [order_no], with_lines=False, with_line_detail=False, with_approvals=True
+        )
+        after = (details.get(order_no) or {}).get("approvals") or []
+    except Exception as e:
+        return "unverified", f"Clicked {ACKNOWLEDGE_LABEL}, but reading Approval Status afterwards failed ({e}). Check {order_no} in Pronto."
+    entry = new_acknowledge(before, after, it_name)
+    if entry:
+        note = f" Pronto said: {message}." if message and message != "message_box" else ""
+        return "done", f"Acknowledge by {it_name} recorded in Pronto at {entry.get('action_at_raw') or entry.get('action_at')}.{note}"
+    return "unverified", (
+        f"Clicked {ACKNOWLEDGE_LABEL} but no new Acknowledge by {it_name} was found in Approval Status"
+        f"{f' (Pronto said: {message})' if message else ''}. Check {order_no} in Pronto."
+    )
+
+
+def _post_action_result(base_url: str, api_key: str, request_id: int, status: str, message: str) -> None:
+    url = base_url.rstrip("/") + f"/api/pronto-queue/actions/{request_id}/result"
+    resp = requests.post(
+        url,
+        headers={"x-api-key": api_key, "content-type": "application/json", "accept": "application/json"},
+        json={"status": status, "message": message[:1000]},
+        timeout=60,
+    )
+    if resp.status_code != 200:
+        raise RuntimeError(f"POMON rejected the action result: HTTP {resp.status_code} {resp.text[:300]}")
+
+
 def _post_snapshot(base_url: str, api_key: str, body: Dict[str, object]) -> None:
     url = base_url.rstrip("/") + "/api/pronto-queue/snapshot"
     resp = requests.post(
@@ -359,16 +534,31 @@ async def run(args: argparse.Namespace) -> int:
     if not args.dry_run and not (base_url and api_key):
         raise RuntimeError("POMON_BASE_URL and POMON_API_KEY are required (or use --dry-run)")
 
+    if args.acknowledge and not args.check_only and not args.dry_run and not args.request_id:
+        raise RuntimeError("--acknowledge needs --request-id (or --check-only / --dry-run)")
+
     started = time.monotonic()
     error: Optional[str] = None
     pronto_user = ""
     rows: Optional[List[Dict[str, object]]] = None
+    action: Optional[Tuple[str, str]] = None
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=args.headless, args=["--disable-blink-features=AutomationControlled"])
         context = await browser.new_context(ignore_https_errors=True, viewport=VIEWPORT)
         page = await context.new_page()
         try:
             await _login(page, url, username, password)
+            if args.acknowledge:
+                try:
+                    action = await acknowledge(
+                        page, args.acknowledge, args.scan_timeout_seconds * 1000, args.check_only or args.dry_run
+                    )
+                except Exception as e:
+                    # An exception before the menu click means nothing was changed.
+                    action = ("failed", f"Stopped before acknowledging: {str(e)[:500]}. Nothing was changed.")
+                _log(f"Acknowledge {args.acknowledge}: {action[0]} - {action[1]}")
+                await _close_card(page)
+            # Refresh the queue so the page shows the result (an acknowledged row usually leaves it).
             pronto_user, rows = await gather_queue(page, args.scan_timeout_seconds * 1000)
         except Exception as e:
             error = str(e)[:900] or type(e).__name__
@@ -376,6 +566,11 @@ async def run(args: argparse.Namespace) -> int:
         finally:
             await _sign_out(page, url)
             await browser.close()
+
+    if action is None and args.acknowledge:
+        action = ("failed", f"Stopped before acknowledging: {error or 'unknown error'}. Nothing was changed.")
+    if action and args.request_id and not args.dry_run and not args.check_only:
+        _post_action_result(base_url, api_key, args.request_id, action[0], action[1])
 
     body: Dict[str, object] = {
         "checkedAt": _now_iso(),
@@ -390,14 +585,21 @@ async def run(args: argparse.Namespace) -> int:
     else:
         _post_snapshot(base_url, api_key, body)
         _log(f"Queue snapshot sent rows={len(rows) if rows is not None else 'unchanged'} error={bool(error)}")
+    if action and action[0] in ("failed", "unverified"):
+        return 1
     return 1 if error else 0
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Read the Pronto Immediate Action queue (PO M094), read-only.")
+    parser = argparse.ArgumentParser(
+        description="Read the Pronto Immediate Action queue (PO M094); optionally acknowledge one requisition."
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print the snapshot instead of sending it to POMON")
     parser.add_argument("--pronto-headless", dest="headless", action="store_true", default=True)
     parser.add_argument("--no-pronto-headless", dest="headless", action="store_false")
+    parser.add_argument("--acknowledge", default="", help="Order number to acknowledge for approval")
+    parser.add_argument("--request-id", type=int, default=0, help="POMON action request id to report the result to")
+    parser.add_argument("--check-only", action="store_true", help="With --acknowledge: run every check, click nothing")
     parser.add_argument("--scan-timeout-seconds", type=int, default=int(os.getenv("PRONTO_QUEUE_SCAN_TIMEOUT_SECONDS", "300")))
     args = parser.parse_args()
     try:

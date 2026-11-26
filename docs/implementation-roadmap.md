@@ -1476,3 +1476,40 @@ A daily work list of IT requisitions that Pronto says need action, with the reas
 - Live dry runs on 2026-11-26 (pronto_sync container, worker idle, test files removed afterwards). The first runs found three problems, all fixed: the PRAS user label has no "sunken" class (new `label_value`); First is disabled on the first row, so clicking it by label timed out (buttons now found by id and their disabled state is respected); and the cursor can lag a click, which opened a card for the previous row. The card check caught that every time, so no data was mixed up; the read now steps one row at a time and retries a mismatch once after a slow reselect. Four runs in a row after the fixes read both rows completely in about 40 seconds: user itmt; 42300 with Next Action By Arthur Saul and MTI IT and 4 Approval Status entries; 53956 with 117 Next Action By entries (MTI IT not among them) and 14 entries ending "Rejected PO" by Arthur Saul, "CBE TBE/SSJ?". Each run signed out of Pronto.
 - Data check on production (read-only, 2026-11-26): the queue held 42300 and 53956. 53956 is a POMON PRF; 42300 is the split PO of PRF 41436 (`PRFItems.SplitPONumber`). Both are "rejected" by the rule: 42300 by Ryanda Ganesha Away ("Bug PR/PO, Please Create New PR"), 53956 by Arthur Saul ("CBE TBE/SSJ?").
 
+## Phase 30 - Acknowledge From The Immediate Action Page
+
+### Status
+
+Built on branch `feat/immediate-action`; not deployed yet.
+
+### Objective
+
+Let IT acknowledge a requisition that needs IT action without opening Pronto. Product owner, 2026-11-26: only "Acknowledge for approval"; admin and doccon may ask; company policy allows the worker to do it as itmt.
+
+### Source Documents
+
+- `docs/pronto-sync.md` (Acknowledge from POMON)
+- `docs/openapi.yaml` (`POST /api/pronto-queue/{orderNo}/acknowledge`, `/actions/claim`, `/actions/{id}/result`, `actions` in `GET /api/pronto-queue`)
+- `docs/database-schema-specification.md` (`ProntoQueueActionRequest`)
+- Pronto skill notes on acknowledging (check Approval Status first, never repeat, verify the new entry)
+
+### Checklist
+
+- [x] Probe of the Approve menu on PO M094 (opened, listed, closed with Escape; nothing selected).
+- [x] `pronto_action_queue.py --acknowledge`: fresh re-read, guards (`acknowledge_blocker`: Next Action By lists the account, latest action not a rejection, no acknowledge by the account in the current stage), cursor proof, exact menu item, dialog handling, verification in PO E001 (`new_acknowledge`), result post, queue refresh, sign-out. `--check-only` clicks nothing.
+- [x] Table `ProntoQueueActionRequest` (migration 033, also created at startup), service `prontoQueueActions.ts`, routes (request, claim, result; recent requests in `GET /api/pronto-queue`), `AuditLog` row when the requester is a local user.
+- [x] Worker: claims requests between cycles and at the start of a cycle, one at a time; a step that ends without a result is recorded as `unverified`.
+- [x] Page: Acknowledge button for admin and doccon on IT-action rows, confirmation dialog, status per row, auto-refresh while a request is open, recent requests list.
+- [ ] Deploy (backend, frontend, pronto_sync) and run the first real acknowledge with the product owner watching; check the entry in Pronto.
+
+### Output
+
+IT can acknowledge from POMON, with the same checks a careful person does in Pronto, and a record of who asked.
+
+### Challenge / Verification
+
+- Offline: guard tests (not waiting for IT, rejected, new stage allowed, already acknowledged in this stage, the 53956 pattern where a Re-Approved starts a new stage, only a newer Acknowledge counts as verification), worker step arguments (22 Python tests with the resilience tests); backend request rules (only `it_action`, no second open request, 404 / 409 / 400 cases) and result validation (9 node tests in `pronto-action-queue.test.cjs`).
+- Live, read-only (2026-11-26): the Approve menu probe; `--check-only` skipped 53956 ("Next Action By does not list itmt"), 42300 ("the latest action is Rejected by Ryanda Ganesha Away", although MTI IT is in its Next Action By) and 99999 ("not in the Immediate Action queue"); both runs also read the queue and signed out.
+- Not tested yet: a real acknowledge. No requisition currently needs IT action, and the menu with "Acknowledge for approval" has not been seen by the script; the first real request is the end-to-end test.
+- Backend build, frontend `tsc`, `vite build` and eslint pass. The page has not been checked in a browser (local backend points at production).
+

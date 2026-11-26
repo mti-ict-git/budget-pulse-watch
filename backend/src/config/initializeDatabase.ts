@@ -169,6 +169,30 @@ export const ensureTablesExist = async (): Promise<void> => {
     `;
     await executeQuery(ensureProntoColumns);
 
+    // Acknowledge requests from the Immediate Action page, same definition as migration 033.
+    await executeQuery(`
+      IF OBJECT_ID('dbo.ProntoQueueActionRequest', 'U') IS NULL
+      BEGIN
+        CREATE TABLE dbo.ProntoQueueActionRequest (
+          RequestID INT IDENTITY(1,1) PRIMARY KEY,
+          OrderNo NVARCHAR(20) NOT NULL,
+          Action NVARCHAR(30) NOT NULL CONSTRAINT DF_ProntoQueueActionRequest_Action DEFAULT 'acknowledge',
+          PRFID INT NULL,
+          RequestedByUserID INT NULL,
+          RequestedByName NVARCHAR(200) NULL,
+          RequestedAt DATETIME2 NOT NULL,
+          Status NVARCHAR(20) NOT NULL CONSTRAINT DF_ProntoQueueActionRequest_Status DEFAULT 'pending'
+              CONSTRAINT CK_ProntoQueueActionRequest_Status
+              CHECK (Status IN ('pending', 'running', 'done', 'skipped', 'failed', 'unverified')),
+          Message NVARCHAR(1000) NULL,
+          StartedAt DATETIME2 NULL,
+          FinishedAt DATETIME2 NULL
+        );
+        CREATE INDEX IX_ProntoQueueActionRequest_Status_RequestedAt
+          ON dbo.ProntoQueueActionRequest(Status, RequestedAt);
+      END
+    `);
+
     // Pronto Immediate Action queue (PO M094), same definition as migration 032.
     await executeQuery(`
       IF OBJECT_ID('dbo.ProntoActionQueue', 'U') IS NULL

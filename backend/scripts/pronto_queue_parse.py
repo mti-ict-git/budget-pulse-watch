@@ -139,3 +139,65 @@ def label_value(fields: Sequence[Tuple[str, str, str]], label: str) -> str:
             if right and not right[0][1].endswith(":"):
                 return right[0][1]
     return ""
+
+
+# --- Acknowledge guards (Phase 30) ---------------------------------------------------------------
+# A stage of the approval workflow starts with these Approval Status entries; an acknowledge
+# before the latest of them belongs to an earlier stage.
+_STAGE_START = {"new order", "re-approved"}
+
+
+def _dated(approvals: Sequence[Dict[str, object]]) -> List[Dict[str, object]]:
+    rows = [a for a in approvals if a.get("action_at")]
+    return sorted(rows, key=lambda a: (str(a.get("action_at")), int(a.get("line_no") or 0)))
+
+
+def it_display_name(next_action_by: Sequence[Dict[str, str]], pronto_user: str) -> str:
+    """Name Pronto uses for the queue account in Approval Status (e.g. "MTI IT" for itmt)."""
+    for e in next_action_by:
+        if (e.get("user") or "").lower() == (pronto_user or "").lower():
+            return e.get("name") or ""
+    return ""
+
+
+def acknowledge_blocker(
+    approvals: Sequence[Dict[str, object]], next_action_by: Sequence[Dict[str, str]], pronto_user: str
+) -> Optional[str]:
+    """Why an acknowledge must not be done now, or None when it may.
+
+    - Next Action By must list the queue account (fresh read, not the stored snapshot).
+    - The latest dated Approval Status entry must not be a rejection.
+    - The account must not have acknowledged already in the current stage (after the latest
+      "New Order" or "Re-Approved"), so a retry or a double click never acknowledges twice.
+    """
+    name = it_display_name(next_action_by, pronto_user)
+    if not name:
+        return f"Next Action By does not list {pronto_user or 'the IT account'}"
+    dated = _dated(approvals)
+    if dated and "reject" in str(dated[-1].get("status") or "").lower():
+        latest = dated[-1]
+        return f"the latest action is {latest.get('status')} by {latest.get('approval_user')}"
+    start = 0
+    for i, a in enumerate(dated):
+        if str(a.get("status") or "").strip().lower() in _STAGE_START:
+            start = i
+    for a in dated[start:]:
+        if a.get("approval_user") == name and "acknowledge" in str(a.get("status") or "").lower():
+            return f"{name} already acknowledged at {a.get('action_at_raw') or a.get('action_at')}"
+    return None
+
+
+def new_acknowledge(
+    before: Sequence[Dict[str, object]], after: Sequence[Dict[str, object]], it_name: str
+) -> Optional[Dict[str, object]]:
+    """The acknowledge entry by `it_name` that is newer than everything in `before`, if any."""
+    dated_before = _dated(before)
+    floor = str(dated_before[-1].get("action_at")) if dated_before else ""
+    for a in reversed(_dated(after)):
+        if (
+            a.get("approval_user") == it_name
+            and "acknowledge" in str(a.get("status") or "").lower()
+            and str(a.get("action_at")) > floor
+        ):
+            return a
+    return None

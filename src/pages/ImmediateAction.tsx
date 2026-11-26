@@ -1,13 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ChevronDown, ChevronRight, ListChecks, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, ListChecks, Loader2, RefreshCw } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { authService } from "@/services/authService";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import {
+  ACTION_STATUS_LABEL,
+  isOpenAction,
+  latestActionByOrder,
+  requestAcknowledge,
+  type QueueActionRequest,
   fetchProntoQueue,
   formatAmount,
   formatProntoTime,
@@ -27,7 +44,7 @@ const SECTIONS: Array<{ category: QueueCategory; title: string; hint: string; to
   {
     category: "it_action",
     title: "Needs IT review and approve / acknowledge",
-    hint: "Next Action By is MTI IT. Review the requisition and approve or acknowledge it in Pronto.",
+    hint: "Next Action By is MTI IT. Review the requisition, then use Acknowledge (admin and doccon) or act in Pronto.",
     tone: "border-l-amber-500",
   },
   {
@@ -92,8 +109,40 @@ function QueueDetails({ item }: { item: QueueItem }) {
   );
 }
 
-function QueueRow({ item }: { item: QueueItem }) {
+const ACTION_TONE: Record<QueueActionRequest["status"], string> = {
+  pending: "text-amber-700 dark:text-amber-400",
+  running: "text-amber-700 dark:text-amber-400",
+  done: "text-emerald-700 dark:text-emerald-400",
+  skipped: "text-muted-foreground",
+  failed: "text-red-600",
+  unverified: "text-red-600",
+};
+
+const formatLocal = (iso: string | null): string => (iso ? new Date(iso).toLocaleString() : "-");
+
+function ActionStatusLine({ action }: { action: QueueActionRequest }) {
+  return (
+    <div className={`mt-1 flex items-start gap-1 text-xs ${ACTION_TONE[action.status]}`}>
+      {isOpenAction(action) ? <Loader2 className="mt-0.5 h-3 w-3 shrink-0 animate-spin" /> : action.status === "done" ? <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0" /> : null}
+      <span>
+        {ACTION_STATUS_LABEL[action.status]}
+        {action.requestedBy ? ` · by ${action.requestedBy}` : ""}
+        {action.message && !isOpenAction(action) ? ` · ${action.message}` : ""}
+      </span>
+    </div>
+  );
+}
+
+interface RowActions {
+  actionsByOrder: Map<string, QueueActionRequest>;
+  canAcknowledge: boolean;
+  onAcknowledge: (item: QueueItem) => void;
+}
+
+function QueueRow({ item, actionsByOrder, canAcknowledge, onAcknowledge }: { item: QueueItem } & RowActions) {
   const latest = item.latestAction;
+  const action = actionsByOrder.get(item.orderNo);
+  const busy = !!action && isOpenAction(action);
   return (
     <TableRow className="align-top">
       <TableCell className="whitespace-nowrap">
@@ -122,14 +171,24 @@ function QueueRow({ item }: { item: QueueItem }) {
         ) : (
           <span className="text-muted-foreground">-</span>
         )}
+        {action && <ActionStatusLine action={action} />}
       </TableCell>
       <TableCell className="min-w-[160px] text-sm">{summarizeNextActionBy(item.nextActionBy)}</TableCell>
-      <TableCell className="text-right"><QueueDetails item={item} /></TableCell>
+      <TableCell className="text-right">
+        <div className="flex justify-end gap-2">
+          {item.category === "it_action" && canAcknowledge && (
+            <Button size="sm" className="h-7 px-2 text-xs" disabled={busy} onClick={() => onAcknowledge(item)}>
+              {busy ? "Queued" : "Acknowledge"}
+            </Button>
+          )}
+          <QueueDetails item={item} />
+        </div>
+      </TableCell>
     </TableRow>
   );
 }
 
-function QueueTable({ items }: { items: QueueItem[] }) {
+function QueueTable({ items, ...rowActions }: { items: QueueItem[] } & RowActions) {
   return (
     <div className="overflow-x-auto">
       <Table>
@@ -145,7 +204,7 @@ function QueueTable({ items }: { items: QueueItem[] }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {items.map((item) => <QueueRow key={item.orderNo} item={item} />)}
+          {items.map((item) => <QueueRow key={item.orderNo} item={item} {...rowActions} />)}
         </TableBody>
       </Table>
     </div>
@@ -157,7 +216,12 @@ export default function ImmediateAction() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showOthers, setShowOthers] = useState(false);
+  const [confirmItem, setConfirmItem] = useState<QueueItem | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const active = useRef<AbortController | null>(null);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const canAcknowledge = user?.role === "admin" || user?.role === "doccon";
 
   const load = useCallback(async () => {
     active.current?.abort();
@@ -179,6 +243,35 @@ export default function ImmediateAction() {
     return () => active.current?.abort();
   }, [load]);
 
+  const actions = data?.actions ?? [];
+  const actionsByOrder = latestActionByOrder(actions);
+  const hasOpenAction = actions.some(isOpenAction);
+  // While an acknowledge is queued or running, follow it without a manual refresh.
+  useEffect(() => {
+    if (!hasOpenAction) return;
+    const timer = window.setInterval(() => void load(), 15000);
+    return () => window.clearInterval(timer);
+  }, [hasOpenAction, load]);
+
+  const submitAcknowledge = async () => {
+    if (!confirmItem) return;
+    setSubmitting(true);
+    try {
+      await requestAcknowledge(confirmItem.orderNo, authService.getAuthHeaders());
+      toast({
+        title: `Acknowledge queued for ${confirmItem.orderNo}`,
+        description: "The Pronto worker checks the requisition again and acknowledges it. This page updates by itself.",
+      });
+      setConfirmItem(null);
+      await load();
+    } catch (e) {
+      toast({ title: "Acknowledge not queued", description: e instanceof Error ? e.message : "Failed", variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  const rowActions: RowActions = { actionsByOrder, canAcknowledge, onAcknowledge: setConfirmItem };
+
   return (
     <div className="merdeka-overview space-y-5">
       <div className="merdeka-page-heading flex flex-wrap items-center justify-between gap-4">
@@ -186,7 +279,7 @@ export default function ImmediateAction() {
           <p className="merdeka-eyebrow">Pronto / Approve/Review Requisitions</p>
           <h1 className="text-[22px] font-semibold">Immediate Action</h1>
           <p className="text-muted-foreground">
-            Requisitions in the Pronto Immediate Action queue that belong to POMON PRFs (including split POs). Read-only; act in Pronto.
+            Requisitions in the Pronto Immediate Action queue that belong to POMON PRFs (including split POs). Acknowledge runs in Pronto through the worker; other actions stay in Pronto.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -230,7 +323,7 @@ export default function ImmediateAction() {
               </CardTitle>
               <p className="text-xs text-muted-foreground">{section.hint}</p>
             </CardHeader>
-            <CardContent><QueueTable items={items} /></CardContent>
+            <CardContent><QueueTable items={items} {...rowActions} /></CardContent>
           </Card>
         );
       })}
@@ -252,12 +345,72 @@ export default function ImmediateAction() {
                 <p className="mb-2 text-xs text-muted-foreground">
                   If one of these is an IT split PO, record its number as the Split PO Number on the PRF item so it appears above.
                 </p>
-                <QueueTable items={data.unmatched} />
+                <QueueTable items={data.unmatched} {...rowActions} canAcknowledge={false} />
               </CardContent>
             </Card>
           )}
         </div>
       )}
+
+      {actions.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Recent acknowledge requests</CardTitle>
+            <p className="text-xs text-muted-foreground">Requests from this page in the last 14 days. An acknowledged requisition usually leaves the Immediate Action queue.</p>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Order No</TableHead>
+                  <TableHead>Requested</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Result</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {actions.map((a) => (
+                  <TableRow key={a.id} className="align-top">
+                    <TableCell className="whitespace-nowrap font-medium">{a.orderNo}</TableCell>
+                    <TableCell className="whitespace-nowrap text-sm">{formatLocal(a.requestedAt)}<div className="text-xs text-muted-foreground">{a.requestedBy || "-"}</div></TableCell>
+                    <TableCell className={`whitespace-nowrap text-sm ${ACTION_TONE[a.status]}`}>{ACTION_STATUS_LABEL[a.status]}</TableCell>
+                    <TableCell className="text-sm">{a.message || (isOpenAction(a) ? "" : "-")}{a.finishedAt && <div className="text-xs text-muted-foreground">{formatLocal(a.finishedAt)}</div>}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      <AlertDialog open={!!confirmItem} onOpenChange={(open) => { if (!open && !submitting) setConfirmItem(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Acknowledge {confirmItem?.orderNo} for approval in Pronto?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  {confirmItem?.supplier || "-"} · {formatAmount(confirmItem?.reqTotal ?? null, confirmItem?.currency ?? null)}
+                  {confirmItem?.prfNo ? ` · ${confirmItem.isSplit ? `split of PRF ${confirmItem.prfNo}` : `PRF ${confirmItem.prfNo}`}` : ""}
+                </p>
+                <p>
+                  The Pronto worker runs "Acknowledge for approval" in Approve/Review Requisitions as{" "}
+                  <strong>{data?.prontoUser || "itmt"}</strong>. Pronto records it under that account; POMON records that you asked for it.
+                </p>
+                <p>
+                  Before it clicks anything, it checks Pronto again and stops if Next Action By is no longer IT, the requisition was rejected, or it was already acknowledged. It may take a few minutes, longer while a Pronto sync is running.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={submitting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={submitting} onClick={(e) => { e.preventDefault(); void submitAcknowledge(); }}>
+              {submitting ? "Queuing…" : "Acknowledge"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

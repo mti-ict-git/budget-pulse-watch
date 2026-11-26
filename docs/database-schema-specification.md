@@ -37,3 +37,13 @@ ItemCode retains the part number (64 characters). ItemName is a 200-character di
 - There is no foreign key to `PRF`: the queue can hold requisitions that are not in POMON. `GET /api/pronto-queue` matches `OrderNo` to `PRF.PRFNo` or `PRFItems.SplitPONumber` when it is read.
 - Read status lives in `AppSettings`: `ProntoQueueCheckedAt` (last attempt), `ProntoQueueLastSuccessAt`, `ProntoQueueUser` (the Pronto account that read the queue; used to decide "Next Action By is IT"), `ProntoQueueError` (error of the last attempt, NULL on success).
 - The backend creates the table and columns at startup if they are missing (same definition as migration 032).
+
+## Pronto acknowledge requests (migration 033)
+
+`ProntoQueueActionRequest` records every request from the Immediate Action page to "Acknowledge for approval" a requisition in Pronto (Phase 30) and its outcome. It is the main record of who asked; Pronto itself records the acknowledge under the worker's account (itmt).
+
+- `Status`: `pending` (queued), `running` (claimed by the worker), then `done`, `skipped` (a check in Pronto said no), `failed` (stopped before the menu click; nothing changed) or `unverified` (the menu item was clicked but the new Acknowledge entry could not be confirmed). A request running for more than 30 minutes is set to `unverified` when the next one is claimed.
+- `Message` holds the worker's explanation (for example "MTI IT already acknowledged at ..." or the time Pronto recorded the acknowledge).
+- `RequestedByUserID` has no foreign key, because LDAP users sign in with an id from `LDAPUserAccess`; `RequestedByName` keeps the display name. An `AuditLog` row (`TableName = 'ProntoQueueActionRequest'`) is also written when the id is a local user; it is skipped otherwise.
+- Times are stored in UTC from the backend. The backend creates the table at startup if it is missing (same definition as migration 033).
+
