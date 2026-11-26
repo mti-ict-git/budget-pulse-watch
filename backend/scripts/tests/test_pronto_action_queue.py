@@ -89,10 +89,10 @@ class LabelValueTests(unittest.TestCase):
 
 
 class QueueScheduleTests(unittest.TestCase):
-    def test_queue_due(self):
-        self.assertTrue(worker._queue_due(None, 3600, 10.0))
-        self.assertFalse(worker._queue_due(100.0, 3600, 3000.0))
-        self.assertTrue(worker._queue_due(100.0, 3600, 3700.0))
+    def test_queue_next_wait(self):
+        self.assertEqual(worker._queue_next_wait(0, 3600, 600), 3600)
+        self.assertEqual(worker._queue_next_wait(1, 3600, 600), 600)
+        self.assertEqual(worker._queue_next_wait(124, 300, 600), 300)
 
     def test_queue_step_runs_the_queue_script(self):
         step = worker._queue_step(worker._default_config_from_env())

@@ -234,7 +234,8 @@ Every hour the worker reads Pronto **Supply Chain > Requisitions > Approve/Revie
 ### How it runs
 
 - Script: `backend/scripts/pronto_action_queue.py` (parsers in `pronto_queue_parse.py`). It logs in, opens PO M094, waits for "Scanning Requisitions" to finish, reads the list, and for each row reads **Next Action By** (all pages) and **Approval Status**. It posts one snapshot to `POST /api/pronto-queue/snapshot`. `--dry-run` prints the snapshot instead.
-- Worker step `queue`: runs between sync cycles while Pronto sync is enabled in Settings. Settings (env): `PRONTO_QUEUE_ENABLED` (default true), `PRONTO_QUEUE_INTERVAL_MINUTES` (default 60), `PRONTO_QUEUE_TIMEOUT_SECONDS` (default 900). While a 12-hour sync cycle runs (about 40 minutes), the queue waits for it to finish.
+- Worker step `queue`: runs while Pronto sync is enabled in Settings, at the start of each sync cycle (before the long header and items steps) and between cycles. Settings (env of the pronto_sync container): `PRONTO_QUEUE_ENABLED` (default true), `PRONTO_QUEUE_INTERVAL_MINUTES` (default 60), `PRONTO_QUEUE_RETRY_MINUTES` (default 10; a failed read is tried again after this), `PRONTO_QUEUE_TIMEOUT_SECONDS` (default 900). The worker runs one Pronto task at a time, so a read that falls due during a sync cycle (15 to 40 minutes) waits for it.
+- Login waits up to 90 seconds for the Pronto menu and tries once more after a pause; the error names what the screen showed. On 2026-11-26 21:13 the first read after a sync cycle missed the 30-second wait of the first version, while a login a few minutes later took about 15 seconds.
 - A failed read is recorded with its error and the last good list stays visible; the page shows the error and when the list was last read successfully.
 
 ### Read-only rules for PO M094

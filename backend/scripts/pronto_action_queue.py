@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
 import requests
-from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
+from playwright.async_api import async_playwright
 
 from pronto_access import (
     _click_login,
@@ -68,26 +68,46 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
-async def _login(page, url: str, username: str, password: str) -> None:
+async def _screen_text(page, limit: int = 200) -> str:
+    try:
+        return re.sub(r"\s+", " ", await page.inner_text("body", timeout=3000)).strip()[:limit]
+    except Exception:
+        return ""
+
+
+async def _login_once(page, url: str, username: str, password: str, menu_timeout_ms: int) -> Optional[str]:
+    """One login attempt; returns None when the Pronto menu is shown, else what the screen showed."""
     await page.goto(url, wait_until="domcontentloaded", timeout=60000)
     await page.wait_for_load_state("load", timeout=60000)
     if await _wait_for_label(page, "Supply Chain", 8000):
-        return
+        return None
     u = await _locate_username(page)
     p = await _locate_password(page)
     if not (u and p):
-        raise RuntimeError("Pronto login form not found")
+        return f"login form not found; screen: {await _screen_text(page)!r}"
     _log("Login attempt")
     await u.fill(username)
     await p.fill(password)
     if not await _click_login(page):
-        raise RuntimeError("Pronto login button not found")
-    try:
-        await page.wait_for_load_state("networkidle", timeout=60000)
-    except PlaywrightTimeoutError:
-        pass
-    if not await _wait_for_label(page, "Supply Chain", 30000):
-        raise RuntimeError("Pronto login failed (menu did not appear; check PRONTO_USERNAME/PRONTO_PASSWORD)")
+        return "login button not found"
+    # Pronto can take a while to open the session after a busy period (seen 2026-11-26 21:13,
+    # right after a sync cycle); wait for the menu itself rather than for network idle.
+    if await _wait_for_label(page, "Supply Chain", menu_timeout_ms):
+        return None
+    return f"menu did not appear within {menu_timeout_ms // 1000}s; screen: {await _screen_text(page)!r}"
+
+
+async def _login(page, url: str, username: str, password: str) -> None:
+    """Log in, retrying once after a pause: a slow or busy Pronto is the usual cause of a miss."""
+    problem = await _login_once(page, url, username, password, 90000)
+    if problem is None:
+        return
+    _log(f"Login did not complete ({problem}); retrying once")
+    await page.wait_for_timeout(15000)
+    retry = await _login_once(page, url, username, password, 90000)
+    if retry is None:
+        return
+    raise RuntimeError(f"Pronto login failed twice: {retry}")
 
 
 async def _sign_out(page, url: str) -> None:

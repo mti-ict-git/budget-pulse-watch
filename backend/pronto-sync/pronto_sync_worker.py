@@ -472,8 +472,9 @@ def _report_queue_failure(*, base_url: str, api_key: str, error: str) -> bool:
         return False
 
 
-def _queue_due(last_run_mono: Optional[float], interval_seconds: int, now_mono: float) -> bool:
-    return last_run_mono is None or now_mono - last_run_mono >= interval_seconds
+def _queue_next_wait(exit_code: int, interval_seconds: int, retry_seconds: int) -> int:
+    """Seconds until the next queue read: the normal interval, or the shorter retry after a failure."""
+    return interval_seconds if exit_code == 0 else min(retry_seconds, interval_seconds)
 
 
 def main() -> int:
@@ -524,17 +525,23 @@ def main() -> int:
     queue_enabled = _parse_bool(os.getenv("PRONTO_QUEUE_ENABLED"), True)
     queue_interval_seconds = max(300, _parse_int(os.getenv("PRONTO_QUEUE_INTERVAL_MINUTES"), 60) * 60)
     queue_timeout_seconds = max(60, _parse_int(os.getenv("PRONTO_QUEUE_TIMEOUT_SECONDS"), 900))
-    last_queue_mono: Optional[float] = None
+    # A failed read is tried again sooner than the normal interval.
+    queue_retry_seconds = max(60, _parse_int(os.getenv("PRONTO_QUEUE_RETRY_MINUTES"), 10) * 60)
+    last_queue_mono = 0.0
+    next_queue_mono: Optional[float] = None
 
     def _maybe_run_queue(current: SyncConfig) -> None:
-        nonlocal last_queue_mono
+        nonlocal last_queue_mono, next_queue_mono
         if not queue_enabled or not current.enabled or stop_flag[0]:
             return
-        if not _queue_due(last_queue_mono, queue_interval_seconds, time.monotonic()):
+        now = time.monotonic()
+        if next_queue_mono is not None and now < next_queue_mono:
             return
-        last_queue_mono = time.monotonic()
+        last_queue_mono = now
         result = _run_step(_queue_step(current), timeout_seconds=queue_timeout_seconds, stop_flag=stop_flag)
-        print(f"[pronto-sync] queue_done exit_code={result.exit_code}", flush=True)
+        wait = _queue_next_wait(result.exit_code, queue_interval_seconds, queue_retry_seconds)
+        next_queue_mono = last_queue_mono + wait
+        print(f"[pronto-sync] queue_done exit_code={result.exit_code} next_in_seconds={wait}", flush=True)
         if result.exit_code == STEP_TIMEOUT_EXIT_CODE:
             # The script was killed before it could report; tell POMON so the page shows it.
             _report_queue_failure(base_url=base_url, api_key=api_key, error=result.error or "queue: timed out")
@@ -569,6 +576,11 @@ def main() -> int:
             print(f"[pronto-sync] run_now_complete_retry reported={ok} exit_code={pending_report[1]}", flush=True)
             if ok:
                 pending_report = None
+
+        # Read the short Immediate Action queue before a long sync cycle when it is due, so a
+        # restart or a 12-hour cycle does not hold it back for the length of the sync.
+        if not requested_now:
+            _maybe_run_queue(config)
 
         any_enabled = False
         worst_exit = 0

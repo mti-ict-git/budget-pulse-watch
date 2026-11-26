@@ -1460,7 +1460,10 @@ Show what needs IT action in Pronto without opening PO M094. Product owner, 2026
 - [x] Classification: `rejected` when the latest dated Approval Status entry is a rejection; else `it_action` when Next Action By lists the Pronto account that read the queue (itmt); else `waiting_other`.
 - [x] Frontend: sidebar menu "Immediate Action" under PRF Monitoring with a count badge (red when something is rejected), and a page with the three groups, the latest action and comment, Next Action By, a details popover with the full Approval Status, links to the PRF (split POs show their PRF), and the requisitions that do not match a POMON PRF behind a toggle.
 - [x] Live read against Pronto (dry run, nothing sent to POMON) from the pronto_sync container on docker59, 2026-11-26.
-- [ ] Push, review, deploy (backend, frontend, pronto_sync); check the page in production.
+- [x] Deployed 2026-11-26 20:55 WITA (release 0ac6e74, branch not pushed): backend created the table and columns at startup, `GET /api/pronto-queue` answered 200, the frontend serves `/immediate-action`, the scripts are in the pronto_sync image. The product owner saw the page ("The queue has not been read from Pronto yet").
+- [x] First production read (21:13 WITA, right after the sync cycle) failed at login: the menu did not appear within 30 seconds. A probe login a few minutes later reached the menu in about 15 seconds with no "already signed in" prompt, although the sync's session had not been signed out. Fix: wait up to 90 seconds, retry once, put the screen text in the error, retry a failed read after 10 minutes (`PRONTO_QUEUE_RETRY_MINUTES`), and read the queue before each sync cycle so a restart does not hold it back. Dry run with the fix read both rows.
+- [ ] Deploy the fix (pronto_sync only) and confirm the first stored read.
+- [ ] Open question from the product owner: run the queue in its own worker. Needs proof that two itmt sessions at once are safe (see `docs/open-questions-and-challenges.md`).
 
 ### Output
 
