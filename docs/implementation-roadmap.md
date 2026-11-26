@@ -1500,7 +1500,9 @@ Let IT acknowledge a requisition that needs IT action without opening Pronto. Pr
 - [x] Table `ProntoQueueActionRequest` (migration 033, also created at startup), service `prontoQueueActions.ts`, routes (request, claim, result; recent requests in `GET /api/pronto-queue`), `AuditLog` row when the requester is a local user.
 - [x] Worker: claims requests between cycles and at the start of a cycle, one at a time; a step that ends without a result is recorded as `unverified`.
 - [x] Page: Acknowledge button for admin and doccon on IT-action rows, confirmation dialog, status per row, auto-refresh while a request is open, recent requests list.
-- [ ] Deploy (backend, frontend, pronto_sync) and run the first real acknowledge with the product owner watching; check the entry in Pronto.
+- [x] Deploy release `2e49e53` (backend, frontend, pronto_sync) to docker59, 2026-11-27 02:31-02:58 WITA.
+- [ ] Navigation wait fix: the first queue read after the deploy failed with `first_button_not_found` (2 rows read, the list toolbar was not rendered yet). `_click_nav` now waits up to 20 s for First and 5 s for Down. Committed, not deployed yet.
+- [ ] First real acknowledge with the product owner watching; check the entry in Pronto.
 
 ### Output
 
@@ -1512,4 +1514,5 @@ IT can acknowledge from POMON, with the same checks a careful person does in Pro
 - Live, read-only (2026-11-26): the Approve menu probe; `--check-only` skipped 53956 ("Next Action By does not list itmt"), 42300 ("the latest action is Rejected by Ryanda Ganesha Away", although MTI IT is in its Next Action By) and 99999 ("not in the Immediate Action queue"); both runs also read the queue and signed out.
 - Not tested yet: a real acknowledge. No requisition currently needs IT action, and the menu with "Acknowledge for approval" has not been seen by the script; the first real request is the end-to-end test.
 - Backend build, frontend `tsc`, `vite build` and eslint pass. The page has not been checked in a browser (local backend points at production).
+- Deploy check (2026-11-27): all three containers up and healthy; `GET /api/pronto-queue` returns 200 with the `actions` field (empty), so the request table exists; `POST /api/pronto-queue/42300/acknowledge` with the worker API key returns 403; the served bundle contains the new page text. The first queue read after the restart failed (`first_button_not_found`); the stored snapshot from 02:23 WITA stayed in place and the worker retries 10 minutes after the 12-hour sync cycle ends.
 

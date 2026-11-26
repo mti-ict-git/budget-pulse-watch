@@ -185,32 +185,37 @@ async def _back_to_queue(page) -> bool:
     return False
 
 
-async def _click_nav(page, button_id: str) -> str:
+async def _click_nav(page, button_id: str, wait_ms: int = 0) -> str:
     """Click a list navigation button (`#pro-nav-first`, `#pro-nav-down`, ...) of the newest card.
 
     Returns "clicked", "disabled" (Pronto disables First on the first row and Down on the last), or
-    "missing".
+    "missing". With `wait_ms`, a button that is not shown yet is waited for: Pronto can render the
+    list table before its navigation toolbar.
     """
     loc = page.locator(f"button#{button_id}")
-    for i in range(await loc.count() - 1, -1, -1):
-        el = loc.nth(i)
-        if not await el.is_visible():
-            continue
-        if not await el.is_enabled():
-            return "disabled"
-        await el.click(timeout=10000)
-        await page.wait_for_timeout(300)
-        return "clicked"
-    return "missing"
+    deadline = time.monotonic() + wait_ms / 1000
+    while True:
+        for i in range(await loc.count() - 1, -1, -1):
+            el = loc.nth(i)
+            if not await el.is_visible():
+                continue
+            if not await el.is_enabled():
+                return "disabled"
+            await el.click(timeout=10000)
+            await page.wait_for_timeout(300)
+            return "clicked"
+        if time.monotonic() >= deadline:
+            return "missing"
+        await page.wait_for_timeout(500)
 
 
 async def _select_row(page, index: int, settle_ms: int = 400) -> None:
     """Put the list cursor on row `index` (0-based) with First, then Down `index` times."""
-    if await _click_nav(page, "pro-nav-first") == "missing":
+    if await _click_nav(page, "pro-nav-first", wait_ms=20000) == "missing":
         raise RuntimeError("first_button_not_found")
     await page.wait_for_timeout(settle_ms)
     for step in range(index):
-        state = await _click_nav(page, "pro-nav-down")
+        state = await _click_nav(page, "pro-nav-down", wait_ms=5000)
         if state != "clicked":
             raise RuntimeError(f"down_button_{state}_at_row_{step + 1}")
         await page.wait_for_timeout(settle_ms)
@@ -332,7 +337,7 @@ async def gather_queue(page, scan_timeout_ms: int) -> Tuple[str, List[Dict[str, 
         row["approvals"] = []
         # Closing a card leaves the cursor on its row, so each next row is one Down away.
         if index > 0:
-            state = await _click_nav(page, "pro-nav-down")
+            state = await _click_nav(page, "pro-nav-down", wait_ms=5000)
             await page.wait_for_timeout(600)
             if state != "clicked":
                 errors.append(f"down_button_{state}")
