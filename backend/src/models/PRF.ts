@@ -535,10 +535,11 @@ export class PRFModel {
     ]);
 
     // Get items for each PRF
+    const pendingApprovers = await this.getPendingApprovers(prfsResult.recordset.map((prf) => prf.PRFID));
     const prfsWithItems = await Promise.all(
       prfsResult.recordset.map(async (prf) => {
         const items = await this.getItems(prf.PRFID);
-        return { ...prf, Items: items };
+        return { ...prf, Items: items, PendingApprovers: pendingApprovers.get(prf.PRFID) ?? [] };
       })
     );
     
@@ -546,6 +547,38 @@ export class PRFModel {
       prfs: prfsWithItems,
       total: (countResult.recordset[0] as CountResult).Total
     };
+  }
+
+  /**
+   * Approvers Pronto still lists without an action (empty status and date), per PRF, across all
+   * of its POs, in approval order. Same rule as "Next Action By" in the approval history.
+   */
+  static async getPendingApprovers(prfIds: number[]): Promise<Map<number, string[]>> {
+    const ids = [...new Set(prfIds.filter((id) => Number.isInteger(id)))];
+    const out = new Map<number, string[]>();
+    if (ids.length === 0) return out;
+    const params: Record<string, number> = {};
+    const placeholders = ids.map((id, index) => {
+      params[`PRFID${index}`] = id;
+      return `@PRFID${index}`;
+    });
+    const result = await executeQuery<{ PRFID: number; ApprovalUser: string }>(
+      `SELECT PRFID, ApprovalUser, MIN(PONumber) AS PONumber, MIN(EntrySeq) AS EntrySeq
+         FROM dbo.PRFProntoApprovalHistory
+        WHERE PRFID IN (${placeholders.join(', ')})
+          AND ISNULL(LTRIM(RTRIM(Status)), '') = ''
+          AND ActionAt IS NULL
+          AND ISNULL(LTRIM(RTRIM(ApprovalUser)), '') <> ''
+        GROUP BY PRFID, ApprovalUser
+        ORDER BY PRFID, MIN(PONumber), MIN(EntrySeq)`,
+      params
+    );
+    for (const row of result.recordset) {
+      const list = out.get(row.PRFID) ?? [];
+      list.push(row.ApprovalUser);
+      out.set(row.PRFID, list);
+    }
+    return out;
   }
 
   /**

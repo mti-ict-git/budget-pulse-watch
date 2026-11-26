@@ -91,6 +91,8 @@ type ProntoSyncSettings = {
   lastRunStartedAt?: string | null;
   lastRunFinishedAt?: string | null;
   lastRunExitCode?: number | null;
+  lastRunError?: string | null;
+  lastRunKind?: string | null;
 };
 
 type ProntoSyncSettingsState = {
@@ -119,6 +121,8 @@ type ProntoSyncStatus = {
   lastRunStartedAt: string | null;
   lastRunFinishedAt: string | null;
   lastRunExitCode: number | null;
+  lastRunError: string | null;
+  lastRunKind: string | null;
 };
 
 type TimeCheckResponse = {
@@ -262,7 +266,9 @@ const Settings: React.FC = () => {
     runNowPrfNo: null,
     lastRunStartedAt: null,
     lastRunFinishedAt: null,
-    lastRunExitCode: null
+    lastRunExitCode: null,
+    lastRunError: null,
+    lastRunKind: null
   });
   const [showApiKey, setShowApiKey] = useState(false);
   const [isRevealingApiKey, setIsRevealingApiKey] = useState(false);
@@ -410,7 +416,9 @@ const Settings: React.FC = () => {
           runNowPrfNo: typeof settings.runNowPrfNo === 'string' ? settings.runNowPrfNo : null,
           lastRunStartedAt: typeof settings.lastRunStartedAt === 'string' ? settings.lastRunStartedAt : null,
           lastRunFinishedAt: typeof settings.lastRunFinishedAt === 'string' ? settings.lastRunFinishedAt : null,
-          lastRunExitCode: typeof settings.lastRunExitCode === 'number' ? settings.lastRunExitCode : null
+          lastRunExitCode: typeof settings.lastRunExitCode === 'number' ? settings.lastRunExitCode : null,
+          lastRunError: typeof settings.lastRunError === 'string' ? settings.lastRunError : null,
+          lastRunKind: typeof settings.lastRunKind === 'string' ? settings.lastRunKind : null
         });
       }
     } catch (error) {
@@ -1776,8 +1784,19 @@ const Settings: React.FC = () => {
                       {(prontoStatus.lastRunStartedAt || prontoStatus.lastRunFinishedAt || prontoStatus.lastRunExitCode !== null) && (
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant={prontoStatus.lastRunExitCode === 0 ? 'success' : 'destructive'}>
-                            Last run {prontoStatus.lastRunExitCode === null ? 'unknown' : `exit ${prontoStatus.lastRunExitCode}`}
+                            {prontoStatus.lastRunExitCode === null
+                              ? 'Last run unknown'
+                              : prontoStatus.lastRunExitCode === 0
+                                ? 'Last run succeeded'
+                                : prontoStatus.lastRunExitCode === 124
+                                  ? 'Last run timed out'
+                                  : `Last run failed (exit ${prontoStatus.lastRunExitCode})`}
                           </Badge>
+                          {prontoStatus.lastRunKind && (
+                            <span className="text-xs text-muted-foreground">
+                              {prontoStatus.lastRunKind === 'scheduled' ? 'scheduled cycle' : 'run-now request'}
+                            </span>
+                          )}
                           {prontoStatus.lastRunStartedAt && (
                             <span className="text-xs text-muted-foreground">
                               start {formatProntoTimestamp(prontoStatus.lastRunStartedAt)}
@@ -1789,6 +1808,9 @@ const Settings: React.FC = () => {
                             </span>
                           )}
                         </div>
+                      )}
+                      {prontoStatus.lastRunExitCode !== null && prontoStatus.lastRunExitCode !== 0 && prontoStatus.lastRunError && (
+                        <p className="text-sm text-destructive break-words">{prontoStatus.lastRunError}</p>
                       )}
                     </div>
                   </AlertDescription>

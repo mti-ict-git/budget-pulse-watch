@@ -3,35 +3,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { History } from "lucide-react";
 import { authService } from "@/services/authService";
-
-interface ProntoApprovalEntry {
-  poNumber: string;
-  entrySeq: number;
-  approvalUser: string;
-  actionAt: string | null;
-  actionAtRaw: string | null;
-  status: string;
-  comment: string | null;
-  syncedAt: string;
-}
+import {
+  fetchProntoApprovals,
+  formatApprovalActionAt as formatActionAt,
+  groupApprovalsByPo,
+  isPendingApproval as isPending,
+  type ProntoApprovalEntry,
+} from "./prontoApprovals";
 
 interface ProntoApprovalHistoryProps {
   prfId: number;
   prfNo: string;
 }
-
-// Pronto lists approvers who have not acted yet with an empty status and date.
-const isPending = (entry: ProntoApprovalEntry): boolean => !entry.status && !entry.actionAt;
-
-const formatActionAt = (entry: ProntoApprovalEntry): string => {
-  if (entry.actionAt) {
-    // Pronto wall-clock time without a zone: format the parts as-is.
-    const [date, time] = entry.actionAt.split("T");
-    const [y, m, d] = date.split("-");
-    return `${d}/${m}/${y} ${time}`;
-  }
-  return entry.actionAtRaw || "-";
-};
 
 export default function ProntoApprovalHistory({ prfId, prfNo }: ProntoApprovalHistoryProps) {
   const [entries, setEntries] = useState<ProntoApprovalEntry[]>([]);
@@ -44,10 +27,8 @@ export default function ProntoApprovalHistory({ prfId, prfNo }: ProntoApprovalHi
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`/api/prfs/${prfId}/pronto-approvals`, { headers: authService.getAuthHeaders() });
-        const result = await response.json();
-        if (!response.ok || !result.success) throw new Error(result.message || "Failed to load approval history");
-        if (!cancelled) setEntries(Array.isArray(result.data) ? result.data : []);
+        const data = await fetchProntoApprovals(prfId, authService.getAuthHeaders());
+        if (!cancelled) setEntries(data);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load approval history");
       } finally {
@@ -60,16 +41,7 @@ export default function ProntoApprovalHistory({ prfId, prfNo }: ProntoApprovalHi
     };
   }, [prfId]);
 
-  const byPo = useMemo(() => {
-    const groups = new Map<string, ProntoApprovalEntry[]>();
-    for (const e of entries) {
-      const list = groups.get(e.poNumber) ?? [];
-      list.push(e);
-      groups.set(e.poNumber, list);
-    }
-    // Original PO (same number as the PRF) first, then split POs.
-    return [...groups.entries()].sort(([a], [b]) => (a === prfNo ? -1 : b === prfNo ? 1 : a.localeCompare(b)));
-  }, [entries, prfNo]);
+  const byPo = useMemo(() => groupApprovalsByPo(entries, prfNo), [entries, prfNo]);
 
   // Next Action By: approvers still waiting, per PO (original first, then split POs).
   const nextActions = byPo

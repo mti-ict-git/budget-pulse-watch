@@ -427,11 +427,11 @@ paths:
           schema: { type: integer }
       responses:
         '200':
-          description: Validated rescan preview bound to source SHA-256 and existing item snapshot. Old previews must be refreshed. Each entry of `data.preservedItems` (existing items not matched by OCR) may carry `likelyDuplicateOf` `{ PRFItemID, ItemName, similarity }` when it looks like a duplicate of an item the OCR did match (same quantity, unit price within 10%, word similarity of at least 0.3).
+          description: Validated rescan preview bound to source SHA-256 and existing item snapshot. Old previews must be refreshed. Each entry of `data.preservedItems` (existing items not matched by OCR) may carry `likelyDuplicateOf` `{ PRFItemID, ItemName, similarity }` when it looks like a duplicate of an item the OCR did match (same quantity, unit price within 10%, word similarity of at least 0.3). `data.autoApply` `{ eligible, blockers[] }` says whether bulk rescan may apply the preview with the default decisions without review: eligible only when there are item rows, no warnings, no new rows, no existing rows left unmatched and no row that looks cancelled; `blockers` lists each reason otherwise.
         '400':
           description: Invalid source or request
         '422':
-          description: Unsafe OCR extraction (missing/mismatched PRF, invalid row arithmetic, unreconciled totals, ambiguous matching, or no existing item overlap); no changes applied
+          description: Unsafe OCR extraction (missing/mismatched PRF, invalid row arithmetic, unreconciled totals, ambiguous matching, or no existing item overlap); no changes applied. An unreconciled printed total is not blocking when the PDF text layer shows every active row's unit price and line total; it is then returned as a preview warning, and an approved header update sets the requested amount to the item sum.
         '404':
           description: PRF or selected source document not found
         '503':
@@ -499,7 +499,7 @@ paths:
         '409':
           description: Source bytes or existing PRF items changed since preview; refresh required
         '422':
-          description: Unsafe OCR extraction (missing/mismatched PRF, invalid row arithmetic, unreconciled totals, ambiguous matching, or no existing item overlap); no changes applied
+          description: Unsafe OCR extraction (missing/mismatched PRF, invalid row arithmetic, unreconciled totals, ambiguous matching, or no existing item overlap); no changes applied. An unreconciled printed total is not blocking when the PDF text layer shows every active row's unit price and line total; it is then returned as a preview warning, and an approved header update sets the requested amount to the item sum.
         '404':
           description: PRF or selected source document not found
 
@@ -1011,6 +1011,53 @@ paths:
                     type: string
                   sharedFolderPath:
                     type: string
+  /api/settings/pronto-sync/run-now/complete:
+    post:
+      summary: Record a finished Pronto sync run (called by the pronto_sync worker)
+      description: >
+        The worker reports every run: a run-now request (`kind: run-now`, the default, which also clears
+        the pending run-now request) and every scheduled cycle (`kind: scheduled`, which leaves a pending
+        request in place). The result is stored in `AppSettings.ProntoSyncLastRun*` and returned by
+        `GET /api/settings/pronto-sync` as `lastRunStartedAt`, `lastRunFinishedAt`, `lastRunExitCode`,
+        `lastRunError` and `lastRunKind`, and by `GET /api/settings/time` as `prontoSync.lastRunError`.
+        Exit code 124 means a step ran past `PRONTO_SYNC_STEP_TIMEOUT_SECONDS` and was stopped.
+      tags: [Settings]
+      security:
+        - bearerAuth: []
+        - ApiKeyHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [exitCode, startedAt, finishedAt]
+              properties:
+                exitCode:
+                  type: integer
+                  description: 0 when every step succeeded; otherwise the last failing step's exit code (124 for a timeout).
+                startedAt:
+                  type: string
+                  format: date-time
+                finishedAt:
+                  type: string
+                  format: date-time
+                error:
+                  type: string
+                  nullable: true
+                  maxLength: 1000
+                  description: Failing step and its last error line, for example "items: RuntimeError: Pronto gather wrote no batch (login or navigation in Pronto failed); nothing was applied".
+                kind:
+                  type: string
+                  enum: [run-now, scheduled]
+                  default: run-now
+      responses:
+        '200':
+          description: Run recorded
+        '400':
+          description: exitCode, startedAt or finishedAt missing or invalid
+        '500':
+          description: Failed to record run
   /api/settings/general:
     get:
       summary: Get general settings
@@ -1805,6 +1852,10 @@ paths:
   /api/cloud-sync/pull/prf/{prfNo}:
     post:
       summary: Pull a PRF from the shared OneDrive Excel
+      description: >
+        No longer called by the app. The shared OneDrive Excel is no longer used (product owner,
+        2026-11-25), so PRF Monitoring no longer has the "Sync Selected PRFs" or per-row cloud sync
+        buttons. The endpoint is kept until the cloud-sync backend is removed.
       tags: [Cloud Sync]
       security:
         - bearerAuth: []
@@ -2160,6 +2211,11 @@ paths:
   /api/prfs/with-items:
     get:
       summary: List PRFs with items
+      description: >
+        Each PRF also carries `PendingApprovers` (string array): the approvers Pronto still lists without
+        an action (empty status and date) in the synced approval history (`PRFProntoApprovalHistory`),
+        across all of the PRF's POs, original PO first, in approval order. Empty when nothing is pending
+        or no history has been synced. PRF Monitoring shows it as "Waiting: ..." in the Approved By column.
       tags: [PRFs]
       parameters:
         - in: query

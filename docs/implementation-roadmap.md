@@ -1186,7 +1186,7 @@ Misread prices are flagged on the item in the review screen; ASAP PRFs can be sa
 
 - Real data, read-only, no AI call (2026-11-24): the cross-check applied to the stored (already reviewed) items of the 40 latest PRFs with an original PDF (138 items) flagged 2 items and 2 document totals; each was a real difference between the database and the PDF, not a false alarm:
   - PRF 54123 item 8 is still stored as 6,300,000, the known misread of 6,600,000;
-  - PRF 55690 is stored as 84,915,000 against a printed total of 76,245,000;
+  - PRF 55690 is stored as 84,915,000 against a printed total of 76,245,000. Correction (2026-11-25): the stored value is right; the form's printed TOTAL leaves out row 3 (see Phase 25);
   - PRF 54345 is stored with a total of 10;
   - PRF 52726 item 10 (4,468,172) does not appear in its PDF, although the document total matches.
 
@@ -1285,9 +1285,151 @@ Items outside the phases above that are still open. Check each before acting; so
 - **Multi-page PRF forms**: the page-type filter of Phase 22 is not yet proven on a real multi-page PRF form; test with a PRF number that used to read badly.
 - **Data corrections for the document controller** (stored values differ from the PDF):
   - 54123: item 8 price and GL code on 9 items (duplicates now removable by rescan);
-  - 55690: total (84,915,000 stored, 76,245,000 printed);
   - 54345: total (10);
   - 52726: item 10;
   - 41609, 30183, 43702: GL codes.
 - **Security**: rotate the Microsoft Graph client secret (it was shared in chat on 2026-11-24); on docker59, `/root/budget-pulse-watch/.env.production` and `backend/.env.staging` are still mode 644 (`backend/.env.production` is 600).
 - **Roadmap hygiene**: Phases 17 and 18 still say "Not deployed yet"; confirm against production and update.
+
+## Phase 25 - Rescan With A Wrong Printed Total
+
+### Status
+
+Implemented on branch `feat/rescan-total-warning` (local commit a24eb2d, not pushed at the product owner's request). Deployed to production 2026-11-25 (backend only) from that commit.
+
+### Objective
+
+Do not block a rescan when the form's printed total is wrong but every item row is confirmed by the PDF. Product owner, 2026-11-25: PRF 55690 rescan failed with "Document total does not reconcile with either all item rows or active item rows".
+
+### Source Documents
+
+- `docs/openapi.yaml` (`/api/ocr-prf/rescan/{prfId}/file/{fileId}` preview and apply, 422)
+- Phase 22 (PDF text cross-check)
+
+### Checklist
+
+- [x] Cause, from the production PDF (read-only): PRF 55690 prints TOTAL 76,245,000, while its three rows add up to 84,915,000; the printed total leaves out row 3 (8,670,000). The OCR read every row correctly. The stored PRF (3 items, 84,915,000) already matches the rows; the Phase 22 note that listed 55690 as a data error was wrong.
+- [x] `pdfConfirmsItemRows` (`backend/src/services/ocrCrossCheck.ts`): every active row's unit price and line total appear in the PDF text layer. False for scans without a text layer.
+- [x] `validateRescanExtraction` takes `rowsConfirmedByPdf`; with it and no row errors, an unreconciled printed total is not an error. Preview and apply both check it (apply re-reads the source PDF).
+- [x] Preview warning `printedTotalWarning`: printed total, item sum and difference. An approved header update uses the item sum as requested amount.
+- [ ] Push, review, deploy; rescan PRF 55690 in production
+
+### Output
+
+A form with a wrong SUM can be rescanned; the reviewer sees the difference, and a misread row or a scanned PDF still blocks.
+
+### Challenge / Verification
+
+- `node --test backend/tests/rescan-total-warning.test.cjs`: 5 pass (55690 rows confirmed and warning text; still blocks without PDF confirmation or with no text layer; a misread row is not confirmed; a row arithmetic error still blocks; a reconciled total gives no warning). Existing `rescanValidation.test.ts` checks pass unchanged.
+- `node --test backend/tests/`: 59 pass, 0 fail, 2 skipped. Backend `tsc` passes.
+- Production data, read-only, no AI call: with PRF 55690's real PDF text and its stored rows, `rowsConfirmedByPdf` is true, validation returns no errors, and the warning reads "Printed document total 76,245,000 differs from the sum of the item rows 84,915,000 (difference 8,670,000)".
+
+## Phase 26 - Bulk AI Rescan
+
+### Status
+
+Deployed to production 2026-11-25 (release commit 69746e1, built from a local branch before push).
+
+### Objective
+
+Rescan several PRFs in one go. Product owner, 2026-11-25: bulk rescan of the PRFs selected in PRF Monitoring; clean results are applied automatically, the rest wait for review; at most 20 PRFs per batch.
+
+### Source Documents
+
+- `docs/openapi.yaml` (`/api/ocr-prf/rescan/{prfId}/file/{fileId}` preview and apply)
+- Phases 22, 23 and 25 (rescan validation, duplicate removal, printed-total warning)
+
+### Checklist
+
+- [x] `rescanAutoApplyDecision` (`backend/src/services/rescanAutoApply.ts`): a preview is clean only when it has item rows, no warnings, no new rows, no existing rows left unmatched and no row that looks cancelled. The preview response returns it as `autoApply { eligible, blockers }`.
+- [x] PRF Monitoring: "Rescan with AI (n)" in the bulk-action bar for admin and doccon. More than 20 selected PRFs are refused with a message.
+- [x] `BulkRescanDialog`: after Start, scans each PRF's original PDF or image document one at a time with the existing preview endpoint. Clean previews are applied through the existing apply endpoint with the default decisions and no header update, so each one writes the normal rescan audit. Other outcomes: Needs review (with the blockers), Skipped (no original readable document), Failed (for example a 422 unsafe OCR result). "Stop after current PRF" ends the batch early. The dialog cannot be closed while a scan runs.
+- [x] Review opens the normal rescan dialog with the bulk preview (no second AI call); an expired preview is refreshed there as before.
+- [ ] Push, review, deploy; run a bulk rescan in production
+
+### Output
+
+A document controller can rescan up to 20 PRFs at once. Only previews that can do nothing but update rows the OCR matched are applied without a person looking at them.
+
+### Challenge / Verification
+
+- `node --test backend/tests/rescan-auto-apply.test.cjs`: 3 pass (clean preview eligible; warnings, new rows, unmatched rows, cancelled or struck-through rows and an empty result each block; every reason is listed).
+- `node --test backend/tests/`: 62 pass, 0 fail, 2 skipped. Backend `tsc`, frontend `tsc` and `vite build` pass; eslint is clean on the changed frontend files.
+- Not yet exercised in a browser: the local backend `.env` points at the production database, so it was not run locally.
+
+## Phase 27 - Pronto Sync Resilience
+
+### Status
+
+Deployed to production 2026-11-25 (release commit 69746e1, built from a local branch before push).
+
+### Objective
+
+A failed or hung Pronto sync must not write old data, must not stall the worker, and must be visible in the app. Product owner, 2026-11-25: after the Pronto password expired, the sync failed to log in from 2026-11-24 19:45 WITA; the failure was only visible in `docker logs`, and the items step still applied the previous run's batch file (7 item changes and the approval history of 34 PRFs stamped as freshly synced).
+
+### Source Documents
+
+- `docs/pronto-sync.md`
+- `docs/openapi.yaml` (`POST /api/settings/pronto-sync/run-now/complete`)
+- `docs/database-schema-specification.md`
+
+### Checklist
+
+- [x] Items step: the previous `prf_items_batch.json` is deleted before the Pronto gather. When the gather writes no batch (login or navigation failed), the step fails with "Pronto gather wrote no batch (login or navigation in Pronto failed); nothing was applied" and applies nothing.
+- [x] Worker step time limit `PRONTO_SYNC_STEP_TIMEOUT_SECONDS` (default 5400, 90 minutes). A step runs in its own process group; on timeout or container shutdown the step and the browser it started are stopped. A timeout reports exit code 124.
+- [x] After a failed scheduled cycle the worker tries again after `PRONTO_SYNC_RETRY_MINUTES` (default 30), at most `PRONTO_SYNC_MAX_RETRIES` (default 3) times in a row, then returns to the normal interval.
+- [x] Every run is reported, scheduled cycles included (`kind: scheduled` leaves a pending run-now request in place), with the failing step's last error line. Stored in `AppSettings.ProntoSyncLastRunError` and `ProntoSyncLastRunKind` (migration 030, also added at backend startup).
+- [x] Settings → Pronto sync shows "Last run succeeded / failed / timed out", whether it was a scheduled cycle or a run-now request, and the error message.
+- [ ] Push, review, deploy (backend first, then `pronto_sync`, while the worker is idle); confirm a scheduled cycle appears in Settings
+
+### Output
+
+A Pronto login failure, crash or hang stops the sync cleanly, is retried within 30 minutes, and shows its reason in Settings. Old Pronto data is never applied as new.
+
+### Challenge / Verification
+
+- `python3 -m unittest tests.test_pronto_sync_resilience` (in `backend/scripts`): 6 pass. A failed login removes the old batch and fails the step; a fresh batch is used; a failing step reports its error line ("items: RuntimeError: Pronto navigation not ready ..."); a hung step is stopped after its time limit with exit 124; a child process started by the hung step (stand-in for the browser) is stopped too.
+- `python3 -m unittest discover -s tests` (in `backend/scripts`): 26 pass.
+- Backend `tsc`, frontend `tsc` and `vite build` pass; eslint is clean on `Settings.tsx`.
+- Not yet run in the container against Pronto.
+
+## Phase 28 - Approval Status In The PRF List
+
+### Status
+
+Deployed to production 2026-11-25 (release commit 69746e1, built from a local branch before push).
+
+### Objective
+
+See who a PRF is waiting for without opening it. Product owner, 2026-11-25: in the Approved By column, show the Next Action By text and a quick menu with each approver's status and date. Completed PRFs without synced history are left as they are.
+
+### Source Documents
+
+- `docs/openapi.yaml` (`GET /api/prfs/with-items`, `GET /api/prfs/{id}/pronto-approvals`)
+- `docs/pronto-sync.md` (approval history from PO E001 > Approval Status)
+
+### Checklist
+
+- [x] `GET /api/prfs/with-items` returns `PendingApprovers` per PRF, with one query per page (`PRFModel.getPendingApprovers`), using the same rule as Next Action By in the approval history card.
+- [x] PRF Monitoring, Approved By column: the approver name, "Waiting: ..." when Pronto lists pending approvers, and a history button that opens a popover with Next Action By and each approval user, status and date per PO (original PO first, split POs marked). The steps load when the popover opens.
+- [x] The approval history card and the popover share `src/components/prf/prontoApprovals.ts`.
+- [ ] Push, review, deploy; check the column and the popover in production
+
+### Output
+
+The PRF list shows who each open PRF is waiting for, and one click shows the approval steps.
+
+### Challenge / Verification
+
+- Production data, read-only: the new pending-approver query over the 39 PRFs that have approval history returns 12 waiting PRFs, for example 55996 "Human Resources CC, MTI Cost Control" and 54123 "BUYER", which matches the approval history synced on 2026-11-25.
+- Backend `tsc`, frontend `tsc` and `vite build` pass; eslint is clean on the changed frontend files.
+- Not yet checked in a browser: the local backend points at the production database.
+
+### Found While Checking
+
+- PRF 50117 (status "Req. Approval Reqd") has `RequestorID = 0`, which matches no user (submitted by "Adhi Surahman [MTI]", probably from the retired Excel import). `vw_PRFSummary` inner-joined `Users` and `ChartOfAccounts`, so 50117 was missing from `GET /api/prfs/with-items` and the PRF detail; PRF Monitoring and the Pronto sync both skipped it.
+- [x] Migration 031 (`031_prf_summary_view_keep_unknown_requestor.sql`) and `schema.sql`: both joins become LEFT JOINs; `RequestorName` falls back to `SubmitBy`. Columns are unchanged.
+- [x] Read-only check on production: the new SELECT returns 486 PRFs against 485 from the current view; the only added row is 50117 (requestor "Adhi Surahman [MTI]"); no existing row changes its requestor name.
+- [x] Migration 031 run on production 2026-11-25 (by hand; the backend does not apply it). `vw_PRFSummary` now returns 486 rows, and `GET /api/prfs/with-items` returns 50117 with requestor "Adhi Surahman [MTI]".
+- [ ] Confirm the next Pronto sync picks up 50117.
+

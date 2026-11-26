@@ -50,6 +50,8 @@ interface ProntoSyncSettings {
   lastRunStartedAt?: string | null;
   lastRunFinishedAt?: string | null;
   lastRunExitCode?: number | null;
+  lastRunError?: string | null;
+  lastRunKind?: string | null;
 }
 
 interface AppSettings {
@@ -88,6 +90,8 @@ interface DbAppSettingsRow {
   ProntoSyncLastRunStartedAt: Date | null;
   ProntoSyncLastRunFinishedAt: Date | null;
   ProntoSyncLastRunExitCode: number | null;
+  ProntoSyncLastRunError: string | null;
+  ProntoSyncLastRunKind: string | null;
   ProntoSyncTimeZone: string | null;
 }
 
@@ -307,7 +311,7 @@ async function ensureDataDirectory() {
 async function loadSettings(): Promise<AppSettings> {
   try {
     const result = await executeQuery<DbAppSettingsRow>(
-      'SELECT TOP 1 UploadExtractionMethod, Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath, ProntoSyncEnabled, ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled, ProntoSyncBudgetYear, ProntoSyncIntervalMinutes, ProntoSyncApply, ProntoSyncMaxPrfs, ProntoSyncLimit, ProntoSyncLogEvery, ProntoHeadless, ProntoCaptureScreenshots, ProntoWritePerPoJson, ProntoSyncReplaceItem, ProntoSyncAddMissingItem, ProntoSyncSyncItemDescription, ProntoSyncRunNowRequestedAt, ProntoSyncRunNowRequestedBy, ProntoSyncRunNowPrfNo, ProntoSyncRunNowPrfNosJson, ProntoSyncLastRunStartedAt, ProntoSyncLastRunFinishedAt, ProntoSyncLastRunExitCode, ProntoSyncTimeZone FROM AppSettings ORDER BY SettingsID DESC'
+      'SELECT TOP 1 UploadExtractionMethod, Provider, GeminiApiKeyEnc, OpenAIApiKeyEnc, Enabled, Model, SharedFolderPath, ProntoSyncEnabled, ProntoSyncHeaderEnabled, ProntoSyncItemsEnabled, ProntoSyncBudgetYear, ProntoSyncIntervalMinutes, ProntoSyncApply, ProntoSyncMaxPrfs, ProntoSyncLimit, ProntoSyncLogEvery, ProntoHeadless, ProntoCaptureScreenshots, ProntoWritePerPoJson, ProntoSyncReplaceItem, ProntoSyncAddMissingItem, ProntoSyncSyncItemDescription, ProntoSyncRunNowRequestedAt, ProntoSyncRunNowRequestedBy, ProntoSyncRunNowPrfNo, ProntoSyncRunNowPrfNosJson, ProntoSyncLastRunStartedAt, ProntoSyncLastRunFinishedAt, ProntoSyncLastRunExitCode, ProntoSyncLastRunError, ProntoSyncLastRunKind, ProntoSyncTimeZone FROM AppSettings ORDER BY SettingsID DESC'
     );
     const row = result.recordset[0];
     if (row) {
@@ -359,7 +363,9 @@ async function loadSettings(): Promise<AppSettings> {
           runNowPrfNos: parseStringArrayJson(row.ProntoSyncRunNowPrfNosJson),
           lastRunStartedAt: toIsoOrNull(row.ProntoSyncLastRunStartedAt),
           lastRunFinishedAt: toIsoOrNull(row.ProntoSyncLastRunFinishedAt),
-          lastRunExitCode: typeof row.ProntoSyncLastRunExitCode === 'number' ? row.ProntoSyncLastRunExitCode : null
+          lastRunExitCode: typeof row.ProntoSyncLastRunExitCode === 'number' ? row.ProntoSyncLastRunExitCode : null,
+          lastRunError: typeof row.ProntoSyncLastRunError === 'string' && row.ProntoSyncLastRunError.trim().length > 0 ? row.ProntoSyncLastRunError : null,
+          lastRunKind: typeof row.ProntoSyncLastRunKind === 'string' ? row.ProntoSyncLastRunKind : null
         }
       };
       return settings;
@@ -882,7 +888,10 @@ router.post('/pronto-sync/run-now', authenticateToken, requireContentManager, as
 
 router.post('/pronto-sync/run-now/complete', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { exitCode, startedAt, finishedAt } = req.body as Record<string, unknown>;
+    const { exitCode, startedAt, finishedAt, error, kind } = req.body as Record<string, unknown>;
+    // "scheduled" records a regular cycle and leaves any pending run-now request in place.
+    const runKind = kind === 'scheduled' ? 'scheduled' : 'run-now';
+    const runError = typeof error === 'string' && error.trim().length > 0 ? error.trim().slice(0, 1000) : null;
     if (typeof exitCode !== 'number' || !Number.isFinite(exitCode)) {
       return res.status(400).json({ error: 'exitCode must be a number' });
     }
@@ -900,12 +909,17 @@ router.post('/pronto-sync/run-now/complete', authenticateToken, requireAdmin, as
     if (!finished) {
       return res.status(400).json({ error: 'finishedAt must be a valid ISO date string' });
     }
+    const clearRequest = runKind === 'run-now'
+      ? 'ProntoSyncRunNowRequestedAt=NULL, ProntoSyncRunNowRequestedBy=NULL, ProntoSyncRunNowPrfNo=NULL, ProntoSyncRunNowPrfNosJson=NULL, '
+      : '';
     await executeQuery(
-      'UPDATE AppSettings SET ProntoSyncRunNowRequestedAt=NULL, ProntoSyncRunNowRequestedBy=NULL, ProntoSyncRunNowPrfNo=NULL, ProntoSyncRunNowPrfNosJson=NULL, ProntoSyncLastRunStartedAt=@StartedAt, ProntoSyncLastRunFinishedAt=@FinishedAt, ProntoSyncLastRunExitCode=@ExitCode, UpdatedAt=SYSUTCDATETIME()',
+      `UPDATE AppSettings SET ${clearRequest}ProntoSyncLastRunStartedAt=@StartedAt, ProntoSyncLastRunFinishedAt=@FinishedAt, ProntoSyncLastRunExitCode=@ExitCode, ProntoSyncLastRunError=@RunError, ProntoSyncLastRunKind=@RunKind, UpdatedAt=SYSUTCDATETIME()`,
       {
         StartedAt: started,
         FinishedAt: finished,
-        ExitCode: Math.trunc(exitCode)
+        ExitCode: Math.trunc(exitCode),
+        RunError: runError,
+        RunKind: runKind
       }
     );
     return res.json({ message: 'Run recorded' });
@@ -994,8 +1008,9 @@ router.get('/time', authenticateToken, requireAdmin, async (req: Request, res: R
       LastRunStartedAt: Date | null;
       LastRunFinishedAt: Date | null;
       LastRunExitCode: number | null;
+      LastRunError: string | null;
     }>(
-      "SELECT TOP 1 ProntoSyncRunNowRequestedAt AS RunRequestedAt, ProntoSyncRunNowRequestedBy AS RunRequestedBy, CASE WHEN ProntoSyncRunNowRequestedAt IS NULL THEN NULL ELSE DATEDIFF_BIG(second, ProntoSyncRunNowRequestedAt, SYSUTCDATETIME()) END AS RunRequestedAgeSec, ProntoSyncLastRunStartedAt AS LastRunStartedAt, ProntoSyncLastRunFinishedAt AS LastRunFinishedAt, ProntoSyncLastRunExitCode AS LastRunExitCode FROM AppSettings ORDER BY SettingsID DESC"
+      "SELECT TOP 1 ProntoSyncRunNowRequestedAt AS RunRequestedAt, ProntoSyncRunNowRequestedBy AS RunRequestedBy, CASE WHEN ProntoSyncRunNowRequestedAt IS NULL THEN NULL ELSE DATEDIFF_BIG(second, ProntoSyncRunNowRequestedAt, SYSUTCDATETIME()) END AS RunRequestedAgeSec, ProntoSyncLastRunStartedAt AS LastRunStartedAt, ProntoSyncLastRunFinishedAt AS LastRunFinishedAt, ProntoSyncLastRunExitCode AS LastRunExitCode, ProntoSyncLastRunError AS LastRunError FROM AppSettings ORDER BY SettingsID DESC"
     );
     const p = prontoResult.recordset[0];
     return res.json({
@@ -1017,7 +1032,8 @@ router.get('/time', authenticateToken, requireAdmin, async (req: Request, res: R
         runNowRequestedAgeSec: typeof p?.RunRequestedAgeSec === 'number' ? p.RunRequestedAgeSec : null,
         lastRunStartedAtIso: p?.LastRunStartedAt instanceof Date ? p.LastRunStartedAt.toISOString() : null,
         lastRunFinishedAtIso: p?.LastRunFinishedAt instanceof Date ? p.LastRunFinishedAt.toISOString() : null,
-        lastRunExitCode: typeof p?.LastRunExitCode === 'number' ? p.LastRunExitCode : null
+        lastRunExitCode: typeof p?.LastRunExitCode === 'number' ? p.LastRunExitCode : null,
+        lastRunError: typeof p?.LastRunError === 'string' ? p.LastRunError : null
       }
     });
   } catch (error) {

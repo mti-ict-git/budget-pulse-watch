@@ -93,3 +93,22 @@ export const crossCheckItemNumbers = (data: ExtractedPRFData, pdfText: string): 
   }
   return issues;
 };
+
+/**
+ * True when the PDF text layer shows every active item's unit price and line total, so the rows
+ * are confirmed by the document itself. False when the PDF has no usable text layer (a scan) or
+ * any row value is missing. Used to tell a wrong printed total (PRF 55690: SUM left out the last
+ * row) from an AI misread.
+ */
+export const pdfConfirmsItemRows = (data: ExtractedPRFData, pdfText: string): boolean => {
+  const numbers = numbersInText(pdfText);
+  if (numbers.size < MIN_NUMBERS_IN_TEXT) return false;
+  const items = (data.items || []).filter((item) => item.status !== 'Cancelled' && item.isStruckThrough !== true);
+  if (!items.length) return false;
+  return items.every((item) =>
+    [item.unitPrice, item.totalPrice ?? Number(item.quantity) * Number(item.unitPrice)].every((raw) => {
+      const value = typeof raw === 'number' ? raw : Number(raw);
+      return Number.isFinite(value) && (value === 0 || numbers.has(Math.round(value * 100) / 100));
+    })
+  );
+};

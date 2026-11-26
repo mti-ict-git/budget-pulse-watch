@@ -3,10 +3,12 @@ import random
 import signal
 import subprocess
 import sys
+import threading
 import time
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import List, Optional, Tuple
+from typing import Deque, List, Optional, Tuple
 
 import requests
 
@@ -125,16 +127,81 @@ def _resolve_scripts_dir() -> str:
     return "/app/scripts"
 
 
-def _run_step(step: Step) -> int:
+# Exit code used when a step is killed for running past its time limit (as GNU timeout does).
+STEP_TIMEOUT_EXIT_CODE = 124
+
+
+@dataclass(frozen=True)
+class StepResult:
+    exit_code: int
+    error: Optional[str]
+
+
+def _error_from_output(lines: List[str]) -> Optional[str]:
+    """The most useful line of a failed step's output: its last error line, else its last line."""
+    meaningful = [line.strip() for line in lines if line.strip()]
+    for line in reversed(meaningful):
+        if "Error" in line or "error" in line or "failed" in line.lower():
+            return line[:500]
+    return meaningful[-1][:500] if meaningful else None
+
+
+def _kill_process_group(proc: "subprocess.Popen[str]") -> None:
+    """Stop the step and every process it started (the headless browser included)."""
+    for sig, wait in ((signal.SIGTERM, 15), (signal.SIGKILL, 5)):
+        try:
+            os.killpg(proc.pid, sig)
+        except ProcessLookupError:
+            return
+        try:
+            proc.wait(timeout=wait)
+            return
+        except subprocess.TimeoutExpired:
+            continue
+
+
+def _run_step(step: Step, *, timeout_seconds: int, stop_flag: List[bool]) -> StepResult:
     scripts_dir = _resolve_scripts_dir()
     script_path = os.path.join(scripts_dir, "prf_pronto_sync.py")
     cmd = [sys.executable, script_path, *step.args]
-    print(f"[pronto-sync] step={step.name} start cmd={' '.join(cmd)}", flush=True)
+    print(f"[pronto-sync] step={step.name} start timeout_seconds={timeout_seconds} cmd={' '.join(cmd)}", flush=True)
     t0 = time.monotonic()
-    p = subprocess.run(cmd, check=False)
+    # Own process group, so a timeout or shutdown also ends the browser the step started.
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, start_new_session=True
+    )
+    tail: Deque[str] = deque(maxlen=40)
+
+    def _pump() -> None:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            tail.append(line)
+            sys.stdout.write(line)
+            sys.stdout.flush()
+
+    reader = threading.Thread(target=_pump, daemon=True)
+    reader.start()
+    timed_out = False
+    while proc.poll() is None:
+        if stop_flag[0]:
+            _kill_process_group(proc)
+            break
+        if timeout_seconds > 0 and time.monotonic() - t0 > timeout_seconds:
+            timed_out = True
+            _kill_process_group(proc)
+            break
+        time.sleep(1)
+    proc.wait()
+    reader.join(timeout=10)
     dt = int((time.monotonic() - t0) * 1000)
-    print(f"[pronto-sync] step={step.name} exit_code={p.returncode} duration_ms={dt}", flush=True)
-    return int(p.returncode)
+    if timed_out:
+        code = STEP_TIMEOUT_EXIT_CODE
+        error = f"Step {step.name} was stopped after {timeout_seconds // 60} minutes (Pronto or the browser stopped responding)"
+    else:
+        code = int(proc.returncode)
+        error = None if code == 0 else _error_from_output(list(tail))
+    print(f"[pronto-sync] step={step.name} exit_code={code} duration_ms={dt}", flush=True)
+    return StepResult(exit_code=code, error=None if code == 0 else f"{step.name}: {error or f'exit code {code}'}")
 
 
 def _default_config_from_env() -> SyncConfig:
@@ -307,7 +374,17 @@ def _extract_run_request_prf_nos(payload: Optional[dict]) -> Optional[List[str]]
     return out if out else None
 
 
-def _report_run_complete(*, base_url: str, api_key: str, exit_code: int, started_at: str, finished_at: str) -> bool:
+def _report_run_complete(
+    *,
+    base_url: str,
+    api_key: str,
+    exit_code: int,
+    started_at: str,
+    finished_at: str,
+    error: Optional[str] = None,
+    kind: str = "run-now",
+) -> bool:
+    """Record a finished run. kind "run-now" also clears the run-now request; "scheduled" does not."""
     if not base_url or not api_key:
         return False
     url = base_url.rstrip("/") + "/api/settings/pronto-sync/run-now/complete"
@@ -316,7 +393,13 @@ def _report_run_complete(*, base_url: str, api_key: str, exit_code: int, started
         resp = requests.post(
             url,
             headers=headers,
-            json={"exitCode": int(exit_code), "startedAt": started_at, "finishedAt": finished_at},
+            json={
+                "exitCode": int(exit_code),
+                "startedAt": started_at,
+                "finishedAt": finished_at,
+                "error": error,
+                "kind": kind,
+            },
             timeout=20,
         )
         return resp.status_code == 200
@@ -397,8 +480,14 @@ def main() -> int:
 
     loop = 0
     last_handled_request_ms: Optional[int] = None
-    pending_report: Optional[Tuple[int, int, str, str]] = None
+    pending_report: Optional[Tuple[int, int, str, str, Optional[str]]] = None
     poll_seconds = max(5, _parse_int(os.getenv("PRONTO_SYNC_POLL_SECONDS"), 15))
+    # A step that runs longer than this is treated as hung and stopped (default 90 minutes).
+    step_timeout_seconds = max(0, _parse_int(os.getenv("PRONTO_SYNC_STEP_TIMEOUT_SECONDS"), 5400))
+    # After a failed scheduled cycle, try again sooner than the normal interval, a few times.
+    retry_seconds = max(60, _parse_int(os.getenv("PRONTO_SYNC_RETRY_MINUTES"), 30) * 60)
+    max_retries = max(0, _parse_int(os.getenv("PRONTO_SYNC_MAX_RETRIES"), 3))
+    failed_cycles = 0
     while not stop_flag[0]:
         loop += 1
         fallback = last_config if last_config is not None else env_fallback
@@ -424,6 +513,7 @@ def main() -> int:
                 exit_code=pending_report[1],
                 started_at=pending_report[2],
                 finished_at=pending_report[3],
+                error=pending_report[4],
             )
             print(f"[pronto-sync] run_now_complete_retry reported={ok} exit_code={pending_report[1]}", flush=True)
             if ok:
@@ -431,6 +521,7 @@ def main() -> int:
 
         any_enabled = False
         worst_exit = 0
+        errors: List[str] = []
         started_at = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
         if requested_now and requested_prf_nos:
             for idx2, prf_no in enumerate(requested_prf_nos, start=1):
@@ -444,9 +535,10 @@ def main() -> int:
                     if not step.enabled:
                         continue
                     any_enabled = True
-                    code = _run_step(step)
-                    if code != 0:
-                        worst_exit = code
+                    result = _run_step(step, timeout_seconds=step_timeout_seconds, stop_flag=stop_flag)
+                    if result.exit_code != 0:
+                        worst_exit = result.exit_code
+                        errors.append(f"PRF {prf_no} {result.error}")
         else:
             steps = _build_steps(config, run_now_prf_no=requested_prf_no)
             for step in steps:
@@ -457,32 +549,53 @@ def main() -> int:
                 if not step.enabled:
                     continue
                 any_enabled = True
-                code = _run_step(step)
-                if code != 0:
-                    worst_exit = code
+                result = _run_step(step, timeout_seconds=step_timeout_seconds, stop_flag=stop_flag)
+                if result.exit_code != 0:
+                    worst_exit = result.exit_code
+                    if result.error:
+                        errors.append(result.error)
         finished_at = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
 
         if not any_enabled:
             print("[pronto-sync] no steps enabled; sleeping", flush=True)
 
+        error_text = " | ".join(errors)[:1000] if errors else None
         if requested_now:
             last_handled_request_ms = requested_ms
-            pending_report = (requested_ms if requested_ms is not None else 0, worst_exit, started_at, finished_at)
+            pending_report = (requested_ms if requested_ms is not None else 0, worst_exit, started_at, finished_at, error_text)
             ok = _report_run_complete(
                 base_url=base_url,
                 api_key=api_key,
                 exit_code=worst_exit,
                 started_at=started_at,
                 finished_at=finished_at,
+                error=error_text,
             )
             print(f"[pronto-sync] run_now_complete reported={ok} exit_code={worst_exit}", flush=True)
             if ok:
                 pending_report = None
 
+        elif any_enabled and not stop_flag[0]:
+            ok = _report_run_complete(
+                base_url=base_url,
+                api_key=api_key,
+                exit_code=worst_exit,
+                started_at=started_at,
+                finished_at=finished_at,
+                error=error_text,
+                kind="scheduled",
+            )
+            print(f"[pronto-sync] cycle_reported reported={ok} exit_code={worst_exit}", flush=True)
+
         if run_once:
             return worst_exit
 
         sleep_for = interval_seconds
+        if any_enabled and not requested_now:
+            failed_cycles = failed_cycles + 1 if worst_exit != 0 else 0
+            if 0 < failed_cycles <= max_retries:
+                sleep_for = min(interval_seconds, retry_seconds)
+                print(f"[pronto-sync] retry_scheduled attempt={failed_cycles}/{max_retries} in_seconds={sleep_for}", flush=True)
         if jitter_seconds:
             sleep_for += random.randint(0, jitter_seconds)
         print(f"[pronto-sync] cycle_end loop={loop} sleep_seconds={sleep_for}", flush=True)
@@ -500,6 +613,7 @@ def main() -> int:
                     exit_code=pending_report[1],
                     started_at=pending_report[2],
                     finished_at=pending_report[3],
+                    error=pending_report[4],
                 )
                 print(f"[pronto-sync] run_now_complete_retry reported={ok} exit_code={pending_report[1]}", flush=True)
                 if ok:

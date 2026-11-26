@@ -35,7 +35,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync, CloudDownload, Waypoints } from "lucide-react";
+import { Search, Filter, Plus, Edit, Trash2, RefreshCw, Download, Archive, CheckSquare, ChevronDown, ChevronRight, Expand, Minimize, FolderSync, Waypoints, Sparkles } from "lucide-react";
 import * as XLSX from "xlsx";
 import { PRFDetailDialog } from "@/components/prf/PRFDetailDialog";
 import { ExcelImportDialog } from "@/components/prf/ExcelImportDialog";
@@ -46,6 +46,8 @@ import { toast } from "@/hooks/use-toast";
 import { authService } from "@/services/authService";
 import { budgetService, type ChartOfAccount } from "@/services/budgetService";
 import { useAuth } from "@/contexts/AuthContext";
+import { ApprovalStatusPopover } from "@/components/prf/ApprovalStatusPopover";
+import { BulkRescanDialog, BULK_RESCAN_LIMIT } from "@/components/prf/BulkRescanDialog";
 import { useLocation } from "react-router-dom";
 
 import type { PRFItem } from '@/types/prfItem';
@@ -67,6 +69,8 @@ interface PRFData {
   priority: string;
   progress: string;
   approvedByName?: string;
+  /** Approvers Pronto still waits for (Next Action By). */
+  pendingApprovers?: string[];
   allocatedBuyer?: string;
   lastUpdate: string;
   items?: PRFItem[];
@@ -116,6 +120,7 @@ interface PRFRawData {
   Priority?: string;
   Status?: string;
   ApprovedByName?: string;
+  PendingApprovers?: string[];
   AllocatedBuyer?: string | null;
   RequiredDate?: string;
   RequiredASAP?: boolean | null;
@@ -308,6 +313,8 @@ export default function PRFMonitoring() {
   const lastItemTrigger = useRef<HTMLElement | null>(null);
   const lastEditItemTrigger = useRef<HTMLElement | null>(null);
   const [isBulkSyncing, setIsBulkSyncing] = useState(false);
+  const [bulkRescanPRFs, setBulkRescanPRFs] = useState<Array<{ prfId: number; prfNo: string }>>([]);
+  const [showBulkRescan, setShowBulkRescan] = useState(false);
   const [selectedItemForModification, setSelectedItemForModification] = useState<SelectedItemForModification | null>(null);
   const [isModificationModalOpen, setIsModificationModalOpen] = useState(false);
   const [pagination, setPagination] = useState({
@@ -317,8 +324,6 @@ export default function PRFMonitoring() {
     totalPages: 0
   });
   const [chartOfAccounts, setChartOfAccounts] = useState<ChartOfAccount[]>([]);
-  const [syncingId, setSyncingId] = useState<string | null>(null);
-  const [isSelectedSyncing, setIsSelectedSyncing] = useState<boolean>(false);
   const [isProntoSyncingId, setIsProntoSyncingId] = useState<string | null>(null);
   const [isProntoSelectedSyncing, setIsProntoSelectedSyncing] = useState<boolean>(false);
   const [availableSubmitYears, setAvailableSubmitYears] = useState<number[]>([]);
@@ -389,6 +394,7 @@ export default function PRFMonitoring() {
           priority: prf.Priority || 'Medium',
           progress: prf.Status || 'pending',
           approvedByName: prf.ApprovedByName,
+          pendingApprovers: Array.isArray(prf.PendingApprovers) ? prf.PendingApprovers : [],
           allocatedBuyer: prf.AllocatedBuyer ?? undefined,
           lastUpdate: prf.UpdatedAt || prf.LastUpdate || prf.RequestDate || '',
           items: prf.Items || [],
@@ -881,6 +887,24 @@ export default function PRFMonitoring() {
     });
   };
 
+  const handleBulkRescan = () => {
+    const selected = filteredData
+      .filter((prf) => selectedItems.has(prf.id))
+      .map((prf) => ({ prfId: Number.parseInt(prf.id, 10), prfNo: prf.prfNo }))
+      .filter((prf) => Number.isInteger(prf.prfId));
+    if (selected.length === 0) return;
+    if (selected.length > BULK_RESCAN_LIMIT) {
+      toast({
+        title: "Too many PRFs for one rescan",
+        description: `Select at most ${BULK_RESCAN_LIMIT} PRFs; ${selected.length} are selected.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    setBulkRescanPRFs(selected);
+    setShowBulkRescan(true);
+  };
+
   const handleBulkArchive = () => {
     // TODO: Implement bulk archive functionality
   };
@@ -1009,81 +1033,8 @@ export default function PRFMonitoring() {
     }
   };
 
-  const handleSyncPRF = async (prfNo: string) => {
-    if (!user) {
-      toast({ title: "Authentication Required", description: "Please log in to sync", variant: "destructive" });
-      return;
-    }
-    const canManageContent = user.role === 'admin' || user.role === 'doccon';
-    if (!canManageContent) {
-      toast({ title: "Not Allowed", description: "Admin or Document Control role is required to sync.", variant: "destructive" });
-      return;
-    }
-    setSyncingId(prfNo);
-    try {
-      const yearParam = yearFilter !== 'all' ? `&year=${encodeURIComponent(yearFilter)}` : '';
-      const response = await fetch(`/api/cloud-sync/pull/prf/${encodeURIComponent(prfNo)}?mode=scan${yearParam}`, { method: 'POST', headers: authService.getAuthHeaders() });
-      const result = await response.json();
-      if (result.success) {
-        toast({ title: "Synced From Cloud", description: result.message });
-        fetchPRFData();
-      } else {
-        throw new Error((result && (result.error || result.message)) || 'Failed to sync');
-      }
-    } catch (error) {
-      toast({ title: "Sync Failed", description: error instanceof Error ? error.message : 'Error syncing PRF', variant: "destructive" });
-    } finally {
-      setSyncingId(null);
-    }
-  };
-
   const handlePageSizeChange = (newLimit: string) => {
     setPagination(prev => ({ ...prev, limit: parseInt(newLimit), page: 1 }));
-  };
-
-  const handleSyncSelected = async () => {
-    if (!user) {
-      toast({ title: "Authentication Required", description: "Please log in to sync", variant: "destructive" });
-      return;
-    }
-    const canManageContent = user.role === 'admin' || user.role === 'doccon';
-    if (!canManageContent) {
-      toast({ title: "Not Allowed", description: "Admin or Document Control role is required to sync.", variant: "destructive" });
-      return;
-    }
-    const selectedPrfNos: string[] = prfData.filter((p) => selectedItems.has(p.id)).map((p) => p.prfNo);
-    if (selectedPrfNos.length === 0) {
-      toast({ title: "No Selection", description: "Select at least one PRF to sync" });
-      return;
-    }
-    setIsSelectedSyncing(true);
-    try {
-      const yearParam = yearFilter !== 'all' ? `&year=${encodeURIComponent(yearFilter)}` : '';
-      const promises = selectedPrfNos.map((prfNo) =>
-        fetch(`/api/cloud-sync/pull/prf/${encodeURIComponent(prfNo)}?mode=scan${yearParam}`, { method: 'POST', headers: authService.getAuthHeaders() })
-          .then(async (res) => ({ prfNo, res, body: await res.json() }))
-      );
-      const results = await Promise.allSettled(promises);
-      let successCount = 0;
-      let failureCount = 0;
-      results.forEach((r) => {
-        if (r.status === 'fulfilled') {
-          if (r.value.res.ok && r.value.body && r.value.body.success) {
-            successCount += 1;
-          } else {
-            failureCount += 1;
-          }
-        } else {
-          failureCount += 1;
-        }
-      });
-      toast({ title: "Sync Selected Completed", description: `Success: ${successCount}, Failed: ${failureCount}` });
-      fetchPRFData();
-    } catch (error) {
-      toast({ title: "Sync Selected Failed", description: error instanceof Error ? error.message : 'Error syncing selected PRFs', variant: "destructive" });
-    } finally {
-      setIsSelectedSyncing(false);
-    }
   };
 
   const handleProntoSyncNow = async (prfNo: string) => {
@@ -1175,18 +1126,6 @@ export default function PRFMonitoring() {
               <FolderSync className="h-4 w-4 mr-2" />
             )}
             Bulk Sync Folders
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleSyncSelected}
-            disabled={isSelectedSyncing || selectedItems.size === 0 || !(user?.role === 'admin' || user?.role === 'doccon')}
-          >
-            {isSelectedSyncing ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <CloudDownload className="h-4 w-4 mr-2" />
-            )}
-            Sync Selected PRFs
           </Button>
           <Button
             variant="outline"
@@ -1335,6 +1274,12 @@ export default function PRFMonitoring() {
                     <Download className="h-4 w-4 mr-1" />
                     Export ({selectedItems.size})
                   </Button>
+                  {(user?.role === 'admin' || user?.role === 'doccon') && (
+                    <Button variant="outline" size="sm" onClick={handleBulkRescan}>
+                      <Sparkles className="h-4 w-4 mr-1" />
+                      Rescan with AI ({selectedItems.size})
+                    </Button>
+                  )}
                   <Button variant="outline" size="sm" onClick={handleBulkArchive}>
                     <Archive className="h-4 w-4 mr-1" />
                     Archive ({selectedItems.size})
@@ -1454,20 +1399,6 @@ export default function PRFMonitoring() {
                                   variant="ghost"
                                   size="sm"
                                   className="h-7 px-2"
-                                  onClick={(e) => { e.stopPropagation(); handleSyncPRF(prf.prfNo); }}
-                                  disabled={syncingId === prf.prfNo || !(user?.role === 'admin' || user?.role === 'doccon')}
-                                  aria-label="Sync this PRF from Cloud"
-                                >
-                                  {syncingId === prf.prfNo ? (
-                                    <RefreshCw className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <CloudDownload className="h-4 w-4" />
-                                  )}
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 px-2"
                                   onClick={(e) => { e.stopPropagation(); handleProntoSyncNow(prf.prfNo); }}
                                   disabled={isProntoSyncingId === prf.prfNo || !(user?.role === 'admin' || user?.role === 'doccon')}
                                   aria-label="Sync this PRF from Pronto"
@@ -1491,7 +1422,14 @@ export default function PRFMonitoring() {
                           <TableCell>{getPriorityBadge(prf.priority)}</TableCell>
                           <TableCell className="whitespace-nowrap">{prf.budgetYear}</TableCell>
                           <TableCell>{getStatusBadge(prf.progress)}</TableCell>
-                          <TableCell className="truncate max-w-[150px]" title={prf.approvedByName || ''}>{prf.approvedByName || '-'}</TableCell>
+                          <TableCell className="max-w-[180px]">
+                            <ApprovalStatusPopover
+                              prfId={Number.parseInt(prf.id, 10)}
+                              prfNo={prf.prfNo}
+                              approvedByName={prf.approvedByName}
+                              pendingApprovers={prf.pendingApprovers}
+                            />
+                          </TableCell>
                           <TableCell className="sticky right-0 bg-background z-10" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-1">
                               <PRFDetailDialog prf={prf} onRefresh={fetchPRFData} />
@@ -1570,6 +1508,13 @@ export default function PRFMonitoring() {
           onUpdate={handleItemUpdate}
         />
       )}
+
+      <BulkRescanDialog
+        open={showBulkRescan}
+        onOpenChange={setShowBulkRescan}
+        prfs={bulkRescanPRFs}
+        onApplied={() => fetchPRFData()}
+      />
     </div>
   );
 }

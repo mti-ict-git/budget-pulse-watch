@@ -7,62 +7,19 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { authService } from '@/services/authService';
 import { toast } from '@/hooks/use-toast';
+import {
+  getDefaultPreservedAction,
+  getDefaultProposalAction,
+  type PreservedAction,
+  type ProposalAction,
+  type RescanPreview,
+} from './ocrRescan';
 
 interface OCRSourceRef {
   FileID: number;
   OriginalFileName: string;
   IsOriginalDocument?: boolean;
 }
-
-interface RescanProposal {
-  index: number;
-  action: 'update' | 'add';
-  matchReason: string;
-  existing?: { PRFItemID?: number; ItemName: string; Description?: string | null; ItemCode?: string | null; PurchaseCostCode?: string | null; Status?: string | null };
-  scanned: {
-    partNumber?: string;
-    description?: string;
-    quantity?: number;
-    unitPrice?: number;
-    purchaseCostCode?: string;
-    status?: 'Active' | 'Cancelled';
-    statusReason?: string;
-    isStruckThrough?: boolean;
-  };
-}
-
-interface RescanPreview {
-  previewToken: string;
-  extractedData: {
-    prfNo?: string;
-    rawProjectDescription?: string;
-    projectArea?: string;
-    projectDescription?: string;
-    semanticTitle?: string;
-    requestFor?: string;
-    department?: string;
-    totalAmount?: number;
-    confidence?: number;
-    items?: RescanProposal['scanned'][];
-  };
-  proposals: RescanProposal[];
-  preservedItems: Array<{
-    PRFItemID: number; ItemName: string; Description?: string | null; ItemCode?: string | null; PurchaseCostCode?: string | null; Status?: string | null;
-    /** Set when this leftover is most likely a duplicate of an item the OCR did find. */
-    likelyDuplicateOf?: { PRFItemID: number; ItemName: string; similarity: number };
-  }>;
-  warnings: string[];
-  totals: {
-    documentTotal: number;
-    extractedItemsTotal: number;
-    activeItemsTotal: number;
-    cancelledItemsTotal: number;
-    documentItemVariance: number;
-  };
-}
-
-type ProposalAction = 'update' | 'keep' | 'add' | 'ignore';
-type PreservedAction = 'keep' | 'cancel' | 'remove';
 
 interface OCRRescanDialogProps {
   open: boolean;
@@ -71,9 +28,11 @@ interface OCRRescanDialogProps {
   prfNo: string;
   file: OCRSourceRef | null;
   onApplied?: () => void;
+  /** A preview already made (for example by bulk rescan); shown instead of scanning again. */
+  initialPreview?: RescanPreview | null;
 }
 
-export function OCRRescanDialog({ open, onOpenChange, prfId, prfNo, file, onApplied }: OCRRescanDialogProps) {
+export function OCRRescanDialog({ open, onOpenChange, prfId, prfNo, file, onApplied, initialPreview }: OCRRescanDialogProps) {
   const [preview, setPreview] = useState<RescanPreview | null>(null);
   const [proposalActions, setProposalActions] = useState<Record<number, ProposalAction>>({});
   const [preservedActions, setPreservedActions] = useState<Record<number, PreservedAction>>({});
@@ -84,13 +43,15 @@ export function OCRRescanDialog({ open, onOpenChange, prfId, prfNo, file, onAppl
   const [error, setError] = useState<string | null>(null);
   const [previewRefreshRequired, setPreviewRefreshRequired] = useState(false);
 
-  const getDefaultProposalAction = (proposal: RescanProposal): ProposalAction => {
-    const isCancelled = proposal.scanned.status === 'Cancelled' || proposal.scanned.isStruckThrough;
-    if (proposal.action === 'add') {
-      return isCancelled ? 'ignore' : 'add';
-    }
-    return isCancelled ? 'keep' : 'update';
-  };
+  const showPreview = useCallback((next: RescanPreview) => {
+    setPreview(next);
+    setProposalActions(
+      Object.fromEntries(next.proposals.map((proposal) => [proposal.index, getDefaultProposalAction(proposal)]))
+    );
+    setPreservedActions(
+      Object.fromEntries(next.preservedItems.map((item) => [item.PRFItemID, getDefaultPreservedAction(item)]))
+    );
+  }, []);
 
   const isPreviewTokenError = (message: string): boolean => {
     const normalized = message.trim().toLowerCase();
@@ -126,26 +87,26 @@ export function OCRRescanDialog({ open, onOpenChange, prfId, prfNo, file, onAppl
         throw new Error(body.message || 'OCR rescan failed');
       }
 
-      const next = body.data as RescanPreview;
-      setPreview(next);
-      setProposalActions(
-        Object.fromEntries(next.proposals.map((proposal) => [proposal.index, getDefaultProposalAction(proposal)]))
-      );
-      setPreservedActions(
-        Object.fromEntries(next.preservedItems.map((item) => [item.PRFItemID, item.likelyDuplicateOf ? 'remove' : 'keep']))
-      );
+      showPreview(body.data as RescanPreview);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'OCR rescan failed');
     } finally {
       setLoading(false);
       setRefreshingPreview(false);
     }
-  }, [file, prfId]);
+  }, [file, prfId, showPreview]);
 
   useEffect(() => {
     if (!open || !file) return;
+    if (initialPreview) {
+      setError(null);
+      setPreviewRefreshRequired(false);
+      setUpdateHeader(false);
+      showPreview(initialPreview);
+      return;
+    }
     void loadPreview(false);
-  }, [open, file, loadPreview]);
+  }, [open, file, loadPreview, initialPreview, showPreview]);
 
   const setProposalAction = (index: number, action: ProposalAction) => {
     setProposalActions((current) => ({ ...current, [index]: action }));
@@ -171,7 +132,7 @@ export function OCRRescanDialog({ open, onOpenChange, prfId, prfNo, file, onAppl
           })),
           preservedItemDecisions: preview.preservedItems.map((item) => ({
             prfItemId: item.PRFItemID,
-            action: preservedActions[item.PRFItemID] ?? 'keep',
+            action: preservedActions[item.PRFItemID] ?? getDefaultPreservedAction(item),
           })),
           updateHeader,
         }),
