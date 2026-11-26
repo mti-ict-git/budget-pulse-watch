@@ -26,3 +26,14 @@ ItemCode retains the part number (64 characters). ItemName is a 200-character di
 - `ActionAt` is Pronto site wall-clock time without a time zone; `ActionAtRaw` keeps the original text (e.g. `29-SEP-2026 16:37:03`).
 - Rows are deleted with their PRF (`ON DELETE CASCADE`).
 - This is separate from `PRFApprovals`, which models POMON's own internal approvers by user ID.
+
+## Pronto Immediate Action queue (migration 032)
+
+`ProntoActionQueue` holds the last successful read of Pronto PO M094 "Approve/Review Requisitions (Immediate Action Req'd)", one row per requisition (`OrderNo` is the primary key). The Pronto worker reads the queue every hour; `POST /api/pronto-queue/snapshot` replaces the whole table in one transaction. A failed read does not touch the table.
+
+- List columns as shown in Pronto: `Supplier`, `Warehouse`, `DueDate`, `RequestUser`, `CostCategory`, `ReqTotal`, `Currency`, `LocalValue`, `Auth`, `ActionGroup` (the list's Action column), `Buyer`, `StockGroup`, `Priority`.
+- `NextActionByJson` and `ApprovalsJson` are JSON arrays of the Next Action By rows (`name`, `user`, `hierarchy`) and the Approval Status rows (`lineNo`, `approvalUser`, `actionAt` as Pronto wall-clock time, `actionAtRaw`, `status`, `comment`). They are only shown, never queried, so they are not split into tables.
+- `ReadErrors` lists problems reading that row (for example a card that showed another requisition).
+- There is no foreign key to `PRF`: the queue can hold requisitions that are not in POMON. `GET /api/pronto-queue` matches `OrderNo` to `PRF.PRFNo` or `PRFItems.SplitPONumber` when it is read.
+- Read status lives in `AppSettings`: `ProntoQueueCheckedAt` (last attempt), `ProntoQueueLastSuccessAt`, `ProntoQueueUser` (the Pronto account that read the queue; used to decide "Next Action By is IT"), `ProntoQueueError` (error of the last attempt, NULL on success).
+- The backend creates the table and columns at startup if they are missing (same definition as migration 032).

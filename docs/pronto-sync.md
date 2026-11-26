@@ -225,3 +225,35 @@ Only Find, Lines, Approval Status, row selection and the card close button are u
 - The items step never reuses an old `prf_items_batch.json`: it is deleted before the gather, and a gather that writes no batch (for example after a failed login) fails the step without applying anything.
 - Every run, scheduled or run-now, is shown in Settings → Pronto sync with its result and error message. A login failure usually means the Pronto password expired: update `PRONTO_PASSWORD` in `backend/.env.production` and recreate the `pronto_sync` container.
 
+## Immediate Action queue (Phase 29, added 2026-11-26)
+
+### What it is
+
+Every hour the worker reads Pronto **Supply Chain > Requisitions > Approve/Review Requisitions** (PO M094) in its default mode, "Immediate Action Req'd": the requisitions that need action from the logged-in account's hierarchy (MTI IT, `itmt`). POMON shows them on the **Immediate Action** page, limited to its own PRFs and their split POs.
+
+### How it runs
+
+- Script: `backend/scripts/pronto_action_queue.py` (parsers in `pronto_queue_parse.py`). It logs in, opens PO M094, waits for "Scanning Requisitions" to finish, reads the list, and for each row reads **Next Action By** (all pages) and **Approval Status**. It posts one snapshot to `POST /api/pronto-queue/snapshot`. `--dry-run` prints the snapshot instead.
+- Worker step `queue`: runs between sync cycles while Pronto sync is enabled in Settings. Settings (env): `PRONTO_QUEUE_ENABLED` (default true), `PRONTO_QUEUE_INTERVAL_MINUTES` (default 60), `PRONTO_QUEUE_TIMEOUT_SECONDS` (default 900). While a 12-hour sync cycle runs (about 40 minutes), the queue waits for it to finish.
+- A failed read is recorded with its error and the last good list stays visible; the page shows the error and when the list was last read successfully.
+
+### Read-only rules for PO M094
+
+PO M094 has data-changing actions (Approve, Correct, Cancel, Buyer). The script:
+
+- never clicks a list row, because clicking a cell opens supplier editing; it moves the row cursor with the navigation buttons `#pro-nav-first` and `#pro-nav-down` (Pronto disables First on the first row and Down on the last);
+- clicks only the toolbar labels Next Action By and Approval Status (exact match), the navigation buttons `#pro-nav-first`, `#pro-nav-down` and `#pro-nav-page-down` (to page through long Next Action By lists), and the card close button;
+- checks each card against the expected order number (the Requisition field on Next Action By, the "Purchase Requisition - <no>" title on Approval Status). The cursor can lag a click; on a mismatch the row is selected again slowly and read once more, and a second mismatch is recorded as an error for that row;
+- uses a 2400 px wide browser window so the whole toolbar, including Approval Status, is visible without scrolling;
+- signs out at the end (the `/logout?exit=1` URL), so hourly reads do not leave Pronto sessions open. The PRAS user shown on the screen (`itmt`) is stored with the snapshot.
+
+### Classification (in POMON)
+
+- **Rejected**: the latest dated Approval Status entry is a rejection (for example "Rejected" or "Rejected PO"). Checked first, because a rejected requisition can still list MTI IT in Next Action By while the real follow-up is a revision, documents or a new PR.
+- **Needs IT review and approve / acknowledge**: Next Action By lists the account that read the queue (`itmt`).
+- **Waiting for others**: anything else.
+
+### Matching to POMON
+
+A queue row belongs to POMON when its order number is a PRF number, or a split PO number recorded on a PRF item (`PRFItems.SplitPONumber`). The rest of the queue is listed separately on the page, so a split PO that POMON has not recorded yet can be found and added to its PRF.
+

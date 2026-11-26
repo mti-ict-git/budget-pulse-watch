@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import PRFMonitoring from "./pages/PRFMonitoring";
 import BudgetOverview from "./pages/BudgetOverview";
 import Settings from "./pages/Settings";
+import ImmediateAction from "./pages/ImmediateAction";
 import Reports from "./pages/Reports";
 import CreatePRF from "./pages/CreatePRF";
 import Login from "./pages/Login";
@@ -43,6 +44,7 @@ const AppRoutes = () => {
         <Route index element={<Dashboard />} />
         <Route path="prf" element={<PRFMonitoring />} />
         <Route path="prf/create" element={<CreatePRF />} />
+        <Route path="immediate-action" element={<ImmediateAction />} />
         <Route path="budget" element={<BudgetOverview />} />
         <Route path="coa-management" element={<COAManagement />} />
         <Route path="reports" element={<Navigate to="reports/audit-log" replace />} />

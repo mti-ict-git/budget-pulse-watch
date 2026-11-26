@@ -50,6 +50,10 @@ CREATE TABLE AppSettings (
     ProntoSyncLastRunExitCode INT NULL,
     ProntoSyncLastRunError NVARCHAR(1000) NULL,
     ProntoSyncLastRunKind NVARCHAR(20) NULL,
+    ProntoQueueCheckedAt DATETIME2 NULL,
+    ProntoQueueLastSuccessAt DATETIME2 NULL,
+    ProntoQueueUser NVARCHAR(50) NULL,
+    ProntoQueueError NVARCHAR(1000) NULL,
     ProntoSyncTimeZone NVARCHAR(64) NULL,
     ProntoSyncProgressJson NVARCHAR(MAX) NULL,
     ProntoSyncProgressUpdatedAt DATETIME2 NULL,
@@ -233,6 +237,28 @@ CREATE TABLE PRFProntoApprovalHistory (
     SyncedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
     FOREIGN KEY (PRFID) REFERENCES PRF(PRFID) ON DELETE CASCADE,
     UNIQUE (PRFID, PONumber, EntrySeq)
+);
+
+-- Pronto Immediate Action queue (PO M094), replaced by the hourly queue read (migration 032)
+CREATE TABLE ProntoActionQueue (
+    OrderNo NVARCHAR(20) NOT NULL PRIMARY KEY,
+    Supplier NVARCHAR(50) NULL,
+    Warehouse NVARCHAR(20) NULL,
+    DueDate DATE NULL,
+    RequestUser NVARCHAR(50) NULL,
+    CostCategory NVARCHAR(50) NULL,
+    ReqTotal DECIMAL(18,2) NULL,
+    Currency NVARCHAR(10) NULL,
+    LocalValue DECIMAL(18,2) NULL,
+    Auth NVARCHAR(10) NULL,
+    ActionGroup NVARCHAR(50) NULL,
+    Buyer NVARCHAR(100) NULL,
+    StockGroup NVARCHAR(100) NULL,
+    Priority NVARCHAR(10) NULL,
+    NextActionByJson NVARCHAR(MAX) NOT NULL DEFAULT '[]',
+    ApprovalsJson NVARCHAR(MAX) NOT NULL DEFAULT '[]',
+    ReadErrors NVARCHAR(1000) NULL,
+    CheckedAt DATETIME2 NOT NULL
 );
 
 -- Budget Transactions (tracks all budget movements)

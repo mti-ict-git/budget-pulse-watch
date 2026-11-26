@@ -1413,7 +1413,7 @@ See who a PRF is waiting for without opening it. Product owner, 2026-11-25: in t
 - [x] `GET /api/prfs/with-items` returns `PendingApprovers` per PRF, with one query per page (`PRFModel.getPendingApprovers`), using the same rule as Next Action By in the approval history card.
 - [x] PRF Monitoring, Approved By column: the approver name, "Waiting: ..." when Pronto lists pending approvers, and a history button that opens a popover with Next Action By and each approval user, status and date per PO (original PO first, split POs marked). The steps load when the popover opens.
 - [x] The approval history card and the popover share `src/components/prf/prontoApprovals.ts`.
-- [ ] Push, review, deploy; check the column and the popover in production
+- [x] Deployed 2026-11-25 (release 69746e1) and merged to `main` through PR #16 on 2026-11-26. The product owner checks the column and the popover in the browser.
 
 ### Output
 
@@ -1431,5 +1431,45 @@ The PRF list shows who each open PRF is waiting for, and one click shows the app
 - [x] Migration 031 (`031_prf_summary_view_keep_unknown_requestor.sql`) and `schema.sql`: both joins become LEFT JOINs; `RequestorName` falls back to `SubmitBy`. Columns are unchanged.
 - [x] Read-only check on production: the new SELECT returns 486 PRFs against 485 from the current view; the only added row is 50117 (requestor "Adhi Surahman [MTI]"); no existing row changes its requestor name.
 - [x] Migration 031 run on production 2026-11-25 (by hand; the backend does not apply it). `vw_PRFSummary` now returns 486 rows, and `GET /api/prfs/with-items` returns 50117 with requestor "Adhi Surahman [MTI]".
-- [ ] Confirm the next Pronto sync picks up 50117.
+- [x] The first sync after the deploy (2026-11-25) picked up 50117: the header step set its status to Completed from Pronto, so the items step skips it as it does every Completed PRF.
+
+## Phase 29 - Immediate Action Queue From Pronto
+
+### Status
+
+Built on branch `feat/immediate-action`; not deployed yet.
+
+### Objective
+
+Show what needs IT action in Pronto without opening PO M094. Product owner, 2026-11-26: the Pronto screen Supply Chain > Requisitions > Approve/Review Requisitions (Immediate Action Req'd) lists what needs action from IT. When Next Action By goes back to MTI IT, IT must review and approve or acknowledge; otherwise Approval Status says more (rejections, notes). Decisions: a new sidebar menu "Immediate Action"; only the Immediate Action queue (not My Group / All Reqs); only requisitions that belong to POMON PRFs, including split POs; no notifications; checked every hour.
+
+### Source Documents
+
+- `docs/pronto-sync.md` (worker, Immediate Action queue section)
+- `docs/openapi.yaml` (`GET /api/pronto-queue`, `POST /api/pronto-queue/snapshot`)
+- `docs/database-schema-specification.md` (`ProntoActionQueue`, `AppSettings.ProntoQueue*`)
+- Pronto skill notes on PO M094 (read-only rules: rows are not clicked, Approve is never used)
+
+### Checklist
+
+- [x] `backend/scripts/pronto_action_queue.py`: opens PO M094 in Immediate Action mode, reads the list, then for each row Next Action By (all pages) and Approval Status, and posts one snapshot. Read-only: the row cursor is moved with First / Down (clicking a cell opens supplier editing), only exact read-only toolbar labels are clicked, and every card is checked against the expected order number.
+- [x] `backend/scripts/pronto_queue_parse.py`: offline parsers for the list (shortened headers included), Next Action By and card fields.
+- [x] Worker: a `queue` step every 60 minutes between sync cycles (`PRONTO_QUEUE_ENABLED`, `PRONTO_QUEUE_INTERVAL_MINUTES`, `PRONTO_QUEUE_TIMEOUT_SECONDS`, default 15 minutes); a timed-out read is reported to POMON. The step only runs while Pronto sync is enabled in Settings.
+- [x] Database: table `ProntoActionQueue` and `AppSettings` columns `ProntoQueueCheckedAt`, `ProntoQueueLastSuccessAt`, `ProntoQueueUser`, `ProntoQueueError` (migration 032; also created at backend startup).
+- [x] API: `POST /api/pronto-queue/snapshot` (worker; `rows: null` records a failed read and keeps the last good list) and `GET /api/pronto-queue` (matched to PRF numbers and `PRFItems.SplitPONumber`; a direct PRF match wins; unmatched rows listed apart).
+- [x] Classification: `rejected` when the latest dated Approval Status entry is a rejection; else `it_action` when Next Action By lists the Pronto account that read the queue (itmt); else `waiting_other`.
+- [x] Frontend: sidebar menu "Immediate Action" under PRF Monitoring with a count badge (red when something is rejected), and a page with the three groups, the latest action and comment, Next Action By, a details popover with the full Approval Status, links to the PRF (split POs show their PRF), and the requisitions that do not match a POMON PRF behind a toggle.
+- [x] Live read against Pronto (dry run, nothing sent to POMON) from the pronto_sync container on docker59, 2026-11-26.
+- [ ] Push, review, deploy (backend, frontend, pronto_sync); check the page in production.
+
+### Output
+
+A daily work list of IT requisitions that Pronto says need action, with the reason, refreshed every hour.
+
+### Challenge / Verification
+
+- Offline tests: `backend/scripts/tests/test_pronto_action_queue.py` (parsers with the 2026-11-26 queue rows, shortened headers, the PRAS user label, worker schedule; 24 Python tests pass together with the existing Pronto tests) and `backend/tests/pronto-action-queue.test.cjs` (validation, classification with the 42300 history, rejection then re-approval, PRF and split matching; 7 tests; all 69 backend node tests pass, 2 skipped).
+- Backend `tsc`, frontend `tsc` and eslint on the changed frontend files pass.
+- Live dry runs on 2026-11-26 (pronto_sync container, worker idle, test files removed afterwards). The first runs found three problems, all fixed: the PRAS user label has no "sunken" class (new `label_value`); First is disabled on the first row, so clicking it by label timed out (buttons now found by id and their disabled state is respected); and the cursor can lag a click, which opened a card for the previous row. The card check caught that every time, so no data was mixed up; the read now steps one row at a time and retries a mismatch once after a slow reselect. Four runs in a row after the fixes read both rows completely in about 40 seconds: user itmt; 42300 with Next Action By Arthur Saul and MTI IT and 4 Approval Status entries; 53956 with 117 Next Action By entries (MTI IT not among them) and 14 entries ending "Rejected PO" by Arthur Saul, "CBE TBE/SSJ?". Each run signed out of Pronto.
+- Data check on production (read-only, 2026-11-26): the queue held 42300 and 53956. 53956 is a POMON PRF; 42300 is the split PO of PRF 41436 (`PRFItems.SplitPONumber`). Both are "rejected" by the rule: 42300 by Ryanda Ganesha Away ("Bug PR/PO, Please Create New PR"), 53956 by Arthur Saul ("CBE TBE/SSJ?").
 

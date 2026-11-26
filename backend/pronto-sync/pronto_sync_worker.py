@@ -18,6 +18,7 @@ class Step:
     name: str
     args: List[str]
     enabled: bool
+    script: str = "prf_pronto_sync.py"
 
 
 @dataclass(frozen=True)
@@ -162,7 +163,7 @@ def _kill_process_group(proc: "subprocess.Popen[str]") -> None:
 
 def _run_step(step: Step, *, timeout_seconds: int, stop_flag: List[bool]) -> StepResult:
     scripts_dir = _resolve_scripts_dir()
-    script_path = os.path.join(scripts_dir, "prf_pronto_sync.py")
+    script_path = os.path.join(scripts_dir, step.script)
     cmd = [sys.executable, script_path, *step.args]
     print(f"[pronto-sync] step={step.name} start timeout_seconds={timeout_seconds} cmd={' '.join(cmd)}", flush=True)
     t0 = time.monotonic()
@@ -444,6 +445,37 @@ def _build_steps(config: SyncConfig, *, run_now_prf_no: Optional[str]) -> List[S
     ]
 
 
+def _queue_step(config: SyncConfig) -> Step:
+    """Read the Pronto Immediate Action queue (PO M094); the script reports to POMON itself."""
+    headless_arg = "--pronto-headless" if config.headless else "--no-pronto-headless"
+    return Step(name="queue", args=[headless_arg], enabled=True, script="pronto_action_queue.py")
+
+
+def _report_queue_failure(*, base_url: str, api_key: str, error: str) -> bool:
+    """Record a failed queue read without touching the last good snapshot (rows: null)."""
+    if not base_url or not api_key:
+        return False
+    url = base_url.rstrip("/") + "/api/pronto-queue/snapshot"
+    try:
+        resp = requests.post(
+            url,
+            headers={"x-api-key": api_key, "accept": "application/json", "content-type": "application/json"},
+            json={
+                "checkedAt": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
+                "error": error[:900],
+                "rows": None,
+            },
+            timeout=20,
+        )
+        return resp.status_code == 200
+    except Exception:
+        return False
+
+
+def _queue_due(last_run_mono: Optional[float], interval_seconds: int, now_mono: float) -> bool:
+    return last_run_mono is None or now_mono - last_run_mono >= interval_seconds
+
+
 def main() -> int:
     stop_flag: List[bool] = [False]
 
@@ -488,6 +520,25 @@ def main() -> int:
     retry_seconds = max(60, _parse_int(os.getenv("PRONTO_SYNC_RETRY_MINUTES"), 30) * 60)
     max_retries = max(0, _parse_int(os.getenv("PRONTO_SYNC_MAX_RETRIES"), 3))
     failed_cycles = 0
+    # The Immediate Action queue is read on its own, shorter schedule, between sync cycles.
+    queue_enabled = _parse_bool(os.getenv("PRONTO_QUEUE_ENABLED"), True)
+    queue_interval_seconds = max(300, _parse_int(os.getenv("PRONTO_QUEUE_INTERVAL_MINUTES"), 60) * 60)
+    queue_timeout_seconds = max(60, _parse_int(os.getenv("PRONTO_QUEUE_TIMEOUT_SECONDS"), 900))
+    last_queue_mono: Optional[float] = None
+
+    def _maybe_run_queue(current: SyncConfig) -> None:
+        nonlocal last_queue_mono
+        if not queue_enabled or not current.enabled or stop_flag[0]:
+            return
+        if not _queue_due(last_queue_mono, queue_interval_seconds, time.monotonic()):
+            return
+        last_queue_mono = time.monotonic()
+        result = _run_step(_queue_step(current), timeout_seconds=queue_timeout_seconds, stop_flag=stop_flag)
+        print(f"[pronto-sync] queue_done exit_code={result.exit_code}", flush=True)
+        if result.exit_code == STEP_TIMEOUT_EXIT_CODE:
+            # The script was killed before it could report; tell POMON so the page shows it.
+            _report_queue_failure(base_url=base_url, api_key=api_key, error=result.error or "queue: timed out")
+
     while not stop_flag[0]:
         loop += 1
         fallback = last_config if last_config is not None else env_fallback
@@ -627,6 +678,10 @@ def main() -> int:
             if requested2_now:
                 print(f"[pronto-sync] wake_for_run_now loaded_from_api={loaded2}", flush=True)
                 break
+            before = time.monotonic()
+            _maybe_run_queue(config2)
+            # Time spent reading the queue counts toward the sleep before the next sync cycle.
+            remaining -= int(time.monotonic() - before)
 
     print("[pronto-sync] stopped", flush=True)
     return 0
