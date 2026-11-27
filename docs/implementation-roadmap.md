@@ -1501,7 +1501,7 @@ Let IT acknowledge a requisition that needs IT action without opening Pronto. Pr
 - [x] Worker: claims requests between cycles and at the start of a cycle, one at a time; a step that ends without a result is recorded as `unverified`.
 - [x] Page: Acknowledge button for admin and doccon on IT-action rows, confirmation dialog, status per row, auto-refresh while a request is open, recent requests list.
 - [x] Deploy release `2e49e53` (backend, frontend, pronto_sync) to docker59, 2026-11-27 02:31-02:58 WITA.
-- [ ] Navigation wait fix: the first queue read after the deploy failed with `first_button_not_found` (2 rows read, the list toolbar was not rendered yet). `_click_nav` now waits up to 20 s for First and 5 s for Down. Committed, not deployed yet.
+- [x] Navigation wait fix: the first queue read after the deploy failed with `first_button_not_found` (2 rows read, the list toolbar was not rendered yet). `_click_nav` now waits up to 20 s for First and 5 s for Down. Deployed (pronto_sync only, release `4fad0e1`) 2026-11-27; the first queue read after the restart read both rows (42300: 2 Next Action By entries, 4 approvals; 53956: 117 and 14), sent the snapshot without error and signed out.
 - [ ] First real acknowledge with the product owner watching; check the entry in Pronto.
 
 ### Output
