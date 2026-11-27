@@ -158,8 +158,65 @@ export const ensureTablesExist = async (): Promise<void> => {
         ALTER TABLE dbo.AppSettings ADD ProntoSyncLastRunKind NVARCHAR(20) NULL;
       IF COL_LENGTH('dbo.AppSettings', 'ProntoSyncTimeZone') IS NULL
         ALTER TABLE dbo.AppSettings ADD ProntoSyncTimeZone NVARCHAR(64) NULL;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoQueueCheckedAt') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoQueueCheckedAt DATETIME2 NULL;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoQueueLastSuccessAt') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoQueueLastSuccessAt DATETIME2 NULL;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoQueueUser') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoQueueUser NVARCHAR(50) NULL;
+      IF COL_LENGTH('dbo.AppSettings', 'ProntoQueueError') IS NULL
+        ALTER TABLE dbo.AppSettings ADD ProntoQueueError NVARCHAR(1000) NULL;
     `;
     await executeQuery(ensureProntoColumns);
+
+    // Acknowledge requests from the Immediate Action page, same definition as migration 033.
+    await executeQuery(`
+      IF OBJECT_ID('dbo.ProntoQueueActionRequest', 'U') IS NULL
+      BEGIN
+        CREATE TABLE dbo.ProntoQueueActionRequest (
+          RequestID INT IDENTITY(1,1) PRIMARY KEY,
+          OrderNo NVARCHAR(20) NOT NULL,
+          Action NVARCHAR(30) NOT NULL CONSTRAINT DF_ProntoQueueActionRequest_Action DEFAULT 'acknowledge',
+          PRFID INT NULL,
+          RequestedByUserID INT NULL,
+          RequestedByName NVARCHAR(200) NULL,
+          RequestedAt DATETIME2 NOT NULL,
+          Status NVARCHAR(20) NOT NULL CONSTRAINT DF_ProntoQueueActionRequest_Status DEFAULT 'pending'
+              CONSTRAINT CK_ProntoQueueActionRequest_Status
+              CHECK (Status IN ('pending', 'running', 'done', 'skipped', 'failed', 'unverified')),
+          Message NVARCHAR(1000) NULL,
+          StartedAt DATETIME2 NULL,
+          FinishedAt DATETIME2 NULL
+        );
+        CREATE INDEX IX_ProntoQueueActionRequest_Status_RequestedAt
+          ON dbo.ProntoQueueActionRequest(Status, RequestedAt);
+      END
+    `);
+
+    // Pronto Immediate Action queue (PO M094), same definition as migration 032.
+    await executeQuery(`
+      IF OBJECT_ID('dbo.ProntoActionQueue', 'U') IS NULL
+        CREATE TABLE dbo.ProntoActionQueue (
+          OrderNo NVARCHAR(20) NOT NULL PRIMARY KEY,
+          Supplier NVARCHAR(50) NULL,
+          Warehouse NVARCHAR(20) NULL,
+          DueDate DATE NULL,
+          RequestUser NVARCHAR(50) NULL,
+          CostCategory NVARCHAR(50) NULL,
+          ReqTotal DECIMAL(18,2) NULL,
+          Currency NVARCHAR(10) NULL,
+          LocalValue DECIMAL(18,2) NULL,
+          Auth NVARCHAR(10) NULL,
+          ActionGroup NVARCHAR(50) NULL,
+          Buyer NVARCHAR(100) NULL,
+          StockGroup NVARCHAR(100) NULL,
+          Priority NVARCHAR(10) NULL,
+          NextActionByJson NVARCHAR(MAX) NOT NULL CONSTRAINT DF_ProntoActionQueue_NextActionBy DEFAULT '[]',
+          ApprovalsJson NVARCHAR(MAX) NOT NULL CONSTRAINT DF_ProntoActionQueue_Approvals DEFAULT '[]',
+          ReadErrors NVARCHAR(1000) NULL,
+          CheckedAt DATETIME2 NOT NULL
+        );
+    `);
 
     const checkSettingsRow = `SELECT COUNT(*) AS Count FROM AppSettings`;
     const settingsCount = await executeQuery<{ Count: number }>(checkSettingsRow);

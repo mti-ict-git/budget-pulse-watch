@@ -1413,7 +1413,7 @@ See who a PRF is waiting for without opening it. Product owner, 2026-11-25: in t
 - [x] `GET /api/prfs/with-items` returns `PendingApprovers` per PRF, with one query per page (`PRFModel.getPendingApprovers`), using the same rule as Next Action By in the approval history card.
 - [x] PRF Monitoring, Approved By column: the approver name, "Waiting: ..." when Pronto lists pending approvers, and a history button that opens a popover with Next Action By and each approval user, status and date per PO (original PO first, split POs marked). The steps load when the popover opens.
 - [x] The approval history card and the popover share `src/components/prf/prontoApprovals.ts`.
-- [ ] Push, review, deploy; check the column and the popover in production
+- [x] Deployed 2026-11-25 (release 69746e1) and merged to `main` through PR #16 on 2026-11-26. The product owner checks the column and the popover in the browser.
 
 ### Output
 
@@ -1431,5 +1431,88 @@ The PRF list shows who each open PRF is waiting for, and one click shows the app
 - [x] Migration 031 (`031_prf_summary_view_keep_unknown_requestor.sql`) and `schema.sql`: both joins become LEFT JOINs; `RequestorName` falls back to `SubmitBy`. Columns are unchanged.
 - [x] Read-only check on production: the new SELECT returns 486 PRFs against 485 from the current view; the only added row is 50117 (requestor "Adhi Surahman [MTI]"); no existing row changes its requestor name.
 - [x] Migration 031 run on production 2026-11-25 (by hand; the backend does not apply it). `vw_PRFSummary` now returns 486 rows, and `GET /api/prfs/with-items` returns 50117 with requestor "Adhi Surahman [MTI]".
-- [ ] Confirm the next Pronto sync picks up 50117.
+- [x] The first sync after the deploy (2026-11-25) picked up 50117: the header step set its status to Completed from Pronto, so the items step skips it as it does every Completed PRF.
+
+## Phase 29 - Immediate Action Queue From Pronto
+
+### Status
+
+Built on branch `feat/immediate-action`; not deployed yet.
+
+### Objective
+
+Show what needs IT action in Pronto without opening PO M094. Product owner, 2026-11-26: the Pronto screen Supply Chain > Requisitions > Approve/Review Requisitions (Immediate Action Req'd) lists what needs action from IT. When Next Action By goes back to MTI IT, IT must review and approve or acknowledge; otherwise Approval Status says more (rejections, notes). Decisions: a new sidebar menu "Immediate Action"; only the Immediate Action queue (not My Group / All Reqs); only requisitions that belong to POMON PRFs, including split POs; no notifications; checked every hour.
+
+### Source Documents
+
+- `docs/pronto-sync.md` (worker, Immediate Action queue section)
+- `docs/openapi.yaml` (`GET /api/pronto-queue`, `POST /api/pronto-queue/snapshot`)
+- `docs/database-schema-specification.md` (`ProntoActionQueue`, `AppSettings.ProntoQueue*`)
+- Pronto skill notes on PO M094 (read-only rules: rows are not clicked, Approve is never used)
+
+### Checklist
+
+- [x] `backend/scripts/pronto_action_queue.py`: opens PO M094 in Immediate Action mode, reads the list, then for each row Next Action By (all pages) and Approval Status, and posts one snapshot. Read-only: the row cursor is moved with First / Down (clicking a cell opens supplier editing), only exact read-only toolbar labels are clicked, and every card is checked against the expected order number.
+- [x] `backend/scripts/pronto_queue_parse.py`: offline parsers for the list (shortened headers included), Next Action By and card fields.
+- [x] Worker: a `queue` step every 60 minutes between sync cycles (`PRONTO_QUEUE_ENABLED`, `PRONTO_QUEUE_INTERVAL_MINUTES`, `PRONTO_QUEUE_TIMEOUT_SECONDS`, default 15 minutes); a timed-out read is reported to POMON. The step only runs while Pronto sync is enabled in Settings.
+- [x] Database: table `ProntoActionQueue` and `AppSettings` columns `ProntoQueueCheckedAt`, `ProntoQueueLastSuccessAt`, `ProntoQueueUser`, `ProntoQueueError` (migration 032; also created at backend startup).
+- [x] API: `POST /api/pronto-queue/snapshot` (worker; `rows: null` records a failed read and keeps the last good list) and `GET /api/pronto-queue` (matched to PRF numbers and `PRFItems.SplitPONumber`; a direct PRF match wins; unmatched rows listed apart).
+- [x] Classification: `rejected` when the latest dated Approval Status entry is a rejection; else `it_action` when Next Action By lists the Pronto account that read the queue (itmt); else `waiting_other`.
+- [x] Frontend: sidebar menu "Immediate Action" under PRF Monitoring with a count badge (red when something is rejected), and a page with the three groups, the latest action and comment, Next Action By, a details popover with the full Approval Status, links to the PRF (split POs show their PRF), and the requisitions that do not match a POMON PRF behind a toggle.
+- [x] Live read against Pronto (dry run, nothing sent to POMON) from the pronto_sync container on docker59, 2026-11-26.
+- [x] Deployed 2026-11-26 20:55 WITA (release 0ac6e74, branch not pushed): backend created the table and columns at startup, `GET /api/pronto-queue` answered 200, the frontend serves `/immediate-action`, the scripts are in the pronto_sync image. The product owner saw the page ("The queue has not been read from Pronto yet").
+- [x] First production read (21:13 WITA, right after the sync cycle) failed at login: the menu did not appear within 30 seconds. A probe login a few minutes later reached the menu in about 15 seconds with no "already signed in" prompt, although the sync's session had not been signed out. Fix: wait up to 90 seconds, retry once, put the screen text in the error, retry a failed read after 10 minutes (`PRONTO_QUEUE_RETRY_MINUTES`), and read the queue before each sync cycle so a restart does not hold it back. Dry run with the fix read both rows.
+- [x] Fix deployed 2026-11-26 21:22 WITA (release 9c2614c, pronto_sync only). The queue was read before the sync cycle. The first login showed Pronto's "Sorry, the screen did not load correctly ... Connection to the server was lost ... Log in again"; the retry logged in and read both rows. Stored at 21:24: user itmt, 2 items, both rejected (42300 as split of PRF 41436, 53956), nothing unmatched.
+- [ ] Open question from the product owner: run the queue in its own worker. Needs proof that two itmt sessions at once are safe (see `docs/open-questions-and-challenges.md`).
+
+### Output
+
+A daily work list of IT requisitions that Pronto says need action, with the reason, refreshed every hour.
+
+### Challenge / Verification
+
+- Offline tests: `backend/scripts/tests/test_pronto_action_queue.py` (parsers with the 2026-11-26 queue rows, shortened headers, the PRAS user label, worker schedule; 24 Python tests pass together with the existing Pronto tests) and `backend/tests/pronto-action-queue.test.cjs` (validation, classification with the 42300 history, rejection then re-approval, PRF and split matching; 7 tests; all 69 backend node tests pass, 2 skipped).
+- Backend `tsc`, frontend `tsc` and eslint on the changed frontend files pass.
+- Live dry runs on 2026-11-26 (pronto_sync container, worker idle, test files removed afterwards). The first runs found three problems, all fixed: the PRAS user label has no "sunken" class (new `label_value`); First is disabled on the first row, so clicking it by label timed out (buttons now found by id and their disabled state is respected); and the cursor can lag a click, which opened a card for the previous row. The card check caught that every time, so no data was mixed up; the read now steps one row at a time and retries a mismatch once after a slow reselect. Four runs in a row after the fixes read both rows completely in about 40 seconds: user itmt; 42300 with Next Action By Arthur Saul and MTI IT and 4 Approval Status entries; 53956 with 117 Next Action By entries (MTI IT not among them) and 14 entries ending "Rejected PO" by Arthur Saul, "CBE TBE/SSJ?". Each run signed out of Pronto.
+- Data check on production (read-only, 2026-11-26): the queue held 42300 and 53956. 53956 is a POMON PRF; 42300 is the split PO of PRF 41436 (`PRFItems.SplitPONumber`). Both are "rejected" by the rule: 42300 by Ryanda Ganesha Away ("Bug PR/PO, Please Create New PR"), 53956 by Arthur Saul ("CBE TBE/SSJ?").
+
+## Phase 30 - Acknowledge From The Immediate Action Page
+
+### Status
+
+Built on branch `feat/immediate-action`; not deployed yet.
+
+### Objective
+
+Let IT acknowledge a requisition that needs IT action without opening Pronto. Product owner, 2026-11-26: only "Acknowledge for approval"; admin and doccon may ask; company policy allows the worker to do it as itmt.
+
+### Source Documents
+
+- `docs/pronto-sync.md` (Acknowledge from POMON)
+- `docs/openapi.yaml` (`POST /api/pronto-queue/{orderNo}/acknowledge`, `/actions/claim`, `/actions/{id}/result`, `actions` in `GET /api/pronto-queue`)
+- `docs/database-schema-specification.md` (`ProntoQueueActionRequest`)
+- Pronto skill notes on acknowledging (check Approval Status first, never repeat, verify the new entry)
+
+### Checklist
+
+- [x] Probe of the Approve menu on PO M094 (opened, listed, closed with Escape; nothing selected).
+- [x] `pronto_action_queue.py --acknowledge`: fresh re-read, guards (`acknowledge_blocker`: Next Action By lists the account, latest action not a rejection, no acknowledge by the account in the current stage), cursor proof, exact menu item, dialog handling, verification in PO E001 (`new_acknowledge`), result post, queue refresh, sign-out. `--check-only` clicks nothing.
+- [x] Table `ProntoQueueActionRequest` (migration 033, also created at startup), service `prontoQueueActions.ts`, routes (request, claim, result; recent requests in `GET /api/pronto-queue`), `AuditLog` row when the requester is a local user.
+- [x] Worker: claims requests between cycles and at the start of a cycle, one at a time; a step that ends without a result is recorded as `unverified`.
+- [x] Page: Acknowledge button for admin and doccon on IT-action rows, confirmation dialog, status per row, auto-refresh while a request is open, recent requests list.
+- [x] Deploy release `2e49e53` (backend, frontend, pronto_sync) to docker59, 2026-11-27 02:31-02:58 WITA.
+- [x] Navigation wait fix: the first queue read after the deploy failed with `first_button_not_found` (2 rows read, the list toolbar was not rendered yet). `_click_nav` now waits up to 20 s for First and 5 s for Down. Deployed (pronto_sync only, release `4fad0e1`) 2026-11-27; the first queue read after the restart read both rows (42300: 2 Next Action By entries, 4 approvals; 53956: 117 and 14), sent the snapshot without error and signed out.
+- [ ] First real acknowledge with the product owner watching; check the entry in Pronto.
+
+### Output
+
+IT can acknowledge from POMON, with the same checks a careful person does in Pronto, and a record of who asked.
+
+### Challenge / Verification
+
+- Offline: guard tests (not waiting for IT, rejected, new stage allowed, already acknowledged in this stage, the 53956 pattern where a Re-Approved starts a new stage, only a newer Acknowledge counts as verification), worker step arguments (22 Python tests with the resilience tests); backend request rules (only `it_action`, no second open request, 404 / 409 / 400 cases) and result validation (9 node tests in `pronto-action-queue.test.cjs`).
+- Live, read-only (2026-11-26): the Approve menu probe; `--check-only` skipped 53956 ("Next Action By does not list itmt"), 42300 ("the latest action is Rejected by Ryanda Ganesha Away", although MTI IT is in its Next Action By) and 99999 ("not in the Immediate Action queue"); both runs also read the queue and signed out.
+- Not tested yet: a real acknowledge. No requisition currently needs IT action, and the menu with "Acknowledge for approval" has not been seen by the script; the first real request is the end-to-end test.
+- Backend build, frontend `tsc`, `vite build` and eslint pass. The page has not been checked in a browser (local backend points at production).
+- Deploy check (2026-11-27): all three containers up and healthy; `GET /api/pronto-queue` returns 200 with the `actions` field (empty), so the request table exists; `POST /api/pronto-queue/42300/acknowledge` with the worker API key returns 403; the served bundle contains the new page text. The first queue read after the restart failed (`first_button_not_found`); the stored snapshot from 02:23 WITA stayed in place and the worker retries 10 minutes after the 12-hour sync cycle ends.
 

@@ -225,3 +225,54 @@ Only Find, Lines, Approval Status, row selection and the card close button are u
 - The items step never reuses an old `prf_items_batch.json`: it is deleted before the gather, and a gather that writes no batch (for example after a failed login) fails the step without applying anything.
 - Every run, scheduled or run-now, is shown in Settings → Pronto sync with its result and error message. A login failure usually means the Pronto password expired: update `PRONTO_PASSWORD` in `backend/.env.production` and recreate the `pronto_sync` container.
 
+## Immediate Action queue (Phase 29, added 2026-11-26)
+
+### What it is
+
+Every hour the worker reads Pronto **Supply Chain > Requisitions > Approve/Review Requisitions** (PO M094) in its default mode, "Immediate Action Req'd": the requisitions that need action from the logged-in account's hierarchy (MTI IT, `itmt`). POMON shows them on the **Immediate Action** page, limited to its own PRFs and their split POs.
+
+### How it runs
+
+- Script: `backend/scripts/pronto_action_queue.py` (parsers in `pronto_queue_parse.py`). It logs in, opens PO M094, waits for "Scanning Requisitions" to finish, reads the list, and for each row reads **Next Action By** (all pages) and **Approval Status**. It posts one snapshot to `POST /api/pronto-queue/snapshot`. `--dry-run` prints the snapshot instead.
+- Worker step `queue`: runs while Pronto sync is enabled in Settings, at the start of each sync cycle (before the long header and items steps) and between cycles. Settings (env of the pronto_sync container): `PRONTO_QUEUE_ENABLED` (default true), `PRONTO_QUEUE_INTERVAL_MINUTES` (default 60), `PRONTO_QUEUE_RETRY_MINUTES` (default 10; a failed read is tried again after this), `PRONTO_QUEUE_TIMEOUT_SECONDS` (default 900). The worker runs one Pronto task at a time, so a read that falls due during a sync cycle (15 to 40 minutes) waits for it.
+- Login waits up to 90 seconds for the Pronto menu and tries once more after a pause; the error names what the screen showed. On 2026-11-26 21:13 the first read after a sync cycle missed the 30-second wait of the first version, while a login a few minutes later took about 15 seconds.
+- A failed read is recorded with its error and the last good list stays visible; the page shows the error and when the list was last read successfully.
+
+### Read-only rules for PO M094
+
+PO M094 has data-changing actions (Approve, Correct, Cancel, Buyer). The script:
+
+- never clicks a list row, because clicking a cell opens supplier editing; it moves the row cursor with the navigation buttons `#pro-nav-first` and `#pro-nav-down` (Pronto disables First on the first row and Down on the last);
+- clicks only the toolbar labels Next Action By and Approval Status (exact match), the navigation buttons `#pro-nav-first`, `#pro-nav-down` and `#pro-nav-page-down` (to page through long Next Action By lists), and the card close button;
+- checks each card against the expected order number (the Requisition field on Next Action By, the "Purchase Requisition - <no>" title on Approval Status). The cursor can lag a click; on a mismatch the row is selected again slowly and read once more, and a second mismatch is recorded as an error for that row;
+- uses a 2400 px wide browser window so the whole toolbar, including Approval Status, is visible without scrolling;
+- signs out at the end (the `/logout?exit=1` URL), so hourly reads do not leave Pronto sessions open. The PRAS user shown on the screen (`itmt`) is stored with the snapshot.
+
+### Classification (in POMON)
+
+- **Rejected**: the latest dated Approval Status entry is a rejection (for example "Rejected" or "Rejected PO"). Checked first, because a rejected requisition can still list MTI IT in Next Action By while the real follow-up is a revision, documents or a new PR.
+- **Needs IT review and approve / acknowledge**: Next Action By lists the account that read the queue (`itmt`).
+- **Waiting for others**: anything else.
+
+### Matching to POMON
+
+A queue row belongs to POMON when its order number is a PRF number, or a split PO number recorded on a PRF item (`PRFItems.SplitPONumber`). The rest of the queue is listed separately on the page, so a split PO that POMON has not recorded yet can be found and added to its PRF.
+
+## Acknowledge from POMON (Phase 30, added 2026-11-26)
+
+The product owner asked for an Acknowledge button on requisitions that need IT action. Decisions (2026-11-26): only "Acknowledge for approval" (no approve, convert or reject); admin and doccon may ask; company policy allows the worker to do it as itmt when a POMON user asks.
+
+### Flow
+
+1. On the Immediate Action page, an admin or doccon presses **Acknowledge** on a row in "Needs IT review" and confirms. `POST /api/pronto-queue/{orderNo}/acknowledge` stores a pending request (refused if the stored queue does not show the row as needing IT, or a request is already open).
+2. The worker checks for requests every poll (15 seconds) between sync cycles and at the start of a cycle, claims one (`POST /api/pronto-queue/actions/claim`) and runs `pronto_action_queue.py --acknowledge <order> --request-id <id>`. While a sync cycle runs, requests wait for it.
+3. The script logs in, opens PO M094, finds the row, and reads Next Action By and Approval Status again. It stops with `skipped` unless Next Action By lists the logged-in account, the latest action is not a rejection, and that account has not acknowledged in the current stage (after the latest "New Order" or "Re-Approved").
+4. It proves the cursor is on the row (Next Action By card check), opens the toolbar **Approve** menu (the `li.nav_item.pop-host` button, never a menu item named "Approve"), and clicks exactly **Acknowledge for approval**. If that item is not offered, it closes the menu and reports `failed` with the items it saw. A question dialog after the click is cancelled and reported; an OK-only message is read and closed.
+5. It reads PO E001 > Approval Status and reports `done` only when a new Acknowledge entry by the account is there; otherwise `unverified`. It then reads the whole queue again and posts the snapshot, so the page shows the result.
+
+### What was seen on 2026-11-26
+
+The Approve menu on 42300 (rejected) offered: Approve, Approve for convert, Reject for approval, Remove from approval, Single convert, Bulk convert, Approve and Convert, Hold Requisition, Release from Hold; no "Acknowledge for approval". The skill notes saw that item on 53956 and 54512 in October, at the acknowledge stage. The menu therefore depends on the stage, and the script only acts when the exact item is offered. Escape closes the menu with nothing selected.
+
+`--check-only` runs steps 3 and the guards and clicks nothing. On 2026-11-26 it skipped 53956 ("Next Action By does not list itmt") and 99999 ("not in the Immediate Action queue").
+

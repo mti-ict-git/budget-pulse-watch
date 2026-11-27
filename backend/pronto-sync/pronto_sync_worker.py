@@ -18,6 +18,7 @@ class Step:
     name: str
     args: List[str]
     enabled: bool
+    script: str = "prf_pronto_sync.py"
 
 
 @dataclass(frozen=True)
@@ -162,7 +163,7 @@ def _kill_process_group(proc: "subprocess.Popen[str]") -> None:
 
 def _run_step(step: Step, *, timeout_seconds: int, stop_flag: List[bool]) -> StepResult:
     scripts_dir = _resolve_scripts_dir()
-    script_path = os.path.join(scripts_dir, "prf_pronto_sync.py")
+    script_path = os.path.join(scripts_dir, step.script)
     cmd = [sys.executable, script_path, *step.args]
     print(f"[pronto-sync] step={step.name} start timeout_seconds={timeout_seconds} cmd={' '.join(cmd)}", flush=True)
     t0 = time.monotonic()
@@ -444,6 +445,77 @@ def _build_steps(config: SyncConfig, *, run_now_prf_no: Optional[str]) -> List[S
     ]
 
 
+def _queue_step(config: SyncConfig) -> Step:
+    """Read the Pronto Immediate Action queue (PO M094); the script reports to POMON itself."""
+    headless_arg = "--pronto-headless" if config.headless else "--no-pronto-headless"
+    return Step(name="queue", args=[headless_arg], enabled=True, script="pronto_action_queue.py")
+
+
+def _report_queue_failure(*, base_url: str, api_key: str, error: str) -> bool:
+    """Record a failed queue read without touching the last good snapshot (rows: null)."""
+    if not base_url or not api_key:
+        return False
+    url = base_url.rstrip("/") + "/api/pronto-queue/snapshot"
+    try:
+        resp = requests.post(
+            url,
+            headers={"x-api-key": api_key, "accept": "application/json", "content-type": "application/json"},
+            json={
+                "checkedAt": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
+                "error": error[:900],
+                "rows": None,
+            },
+            timeout=20,
+        )
+        return resp.status_code == 200
+    except Exception:
+        return False
+
+
+def _claim_action(*, base_url: str, api_key: str) -> Optional[dict]:
+    """Oldest pending acknowledge request from POMON (marked running), or None."""
+    if not base_url or not api_key:
+        return None
+    url = base_url.rstrip("/") + "/api/pronto-queue/actions/claim"
+    try:
+        resp = requests.post(url, headers={"x-api-key": api_key, "accept": "application/json"}, timeout=20)
+        if resp.status_code != 200:
+            return None
+        data = resp.json().get("data")
+        return data if isinstance(data, dict) and data.get("id") and data.get("orderNo") else None
+    except Exception:
+        return None
+
+
+def _report_action_fallback(*, base_url: str, api_key: str, request_id: int, status: str, message: str) -> None:
+    """Record an outcome when the script could not; POMON ignores it if the script already did."""
+    url = base_url.rstrip("/") + f"/api/pronto-queue/actions/{request_id}/result"
+    try:
+        requests.post(
+            url,
+            headers={"x-api-key": api_key, "accept": "application/json", "content-type": "application/json"},
+            json={"status": status, "message": message[:1000]},
+            timeout=20,
+        )
+    except Exception:
+        return
+
+
+def _acknowledge_step(config: SyncConfig, order_no: str, request_id: int) -> Step:
+    headless_arg = "--pronto-headless" if config.headless else "--no-pronto-headless"
+    return Step(
+        name="acknowledge",
+        args=[headless_arg, "--acknowledge", order_no, "--request-id", str(request_id)],
+        enabled=True,
+        script="pronto_action_queue.py",
+    )
+
+
+def _queue_next_wait(exit_code: int, interval_seconds: int, retry_seconds: int) -> int:
+    """Seconds until the next queue read: the normal interval, or the shorter retry after a failure."""
+    return interval_seconds if exit_code == 0 else min(retry_seconds, interval_seconds)
+
+
 def main() -> int:
     stop_flag: List[bool] = [False]
 
@@ -488,6 +560,66 @@ def main() -> int:
     retry_seconds = max(60, _parse_int(os.getenv("PRONTO_SYNC_RETRY_MINUTES"), 30) * 60)
     max_retries = max(0, _parse_int(os.getenv("PRONTO_SYNC_MAX_RETRIES"), 3))
     failed_cycles = 0
+    # The Immediate Action queue is read on its own, shorter schedule, between sync cycles.
+    queue_enabled = _parse_bool(os.getenv("PRONTO_QUEUE_ENABLED"), True)
+    queue_interval_seconds = max(300, _parse_int(os.getenv("PRONTO_QUEUE_INTERVAL_MINUTES"), 60) * 60)
+    queue_timeout_seconds = max(60, _parse_int(os.getenv("PRONTO_QUEUE_TIMEOUT_SECONDS"), 900))
+    # A failed read is tried again sooner than the normal interval.
+    queue_retry_seconds = max(60, _parse_int(os.getenv("PRONTO_QUEUE_RETRY_MINUTES"), 10) * 60)
+    last_queue_mono = 0.0
+    next_queue_mono: Optional[float] = None
+
+    def _maybe_run_queue(current: SyncConfig) -> None:
+        nonlocal last_queue_mono, next_queue_mono
+        if not queue_enabled or not current.enabled or stop_flag[0]:
+            return
+        now = time.monotonic()
+        if next_queue_mono is not None and now < next_queue_mono:
+            return
+        last_queue_mono = now
+        result = _run_step(_queue_step(current), timeout_seconds=queue_timeout_seconds, stop_flag=stop_flag)
+        wait = _queue_next_wait(result.exit_code, queue_interval_seconds, queue_retry_seconds)
+        next_queue_mono = last_queue_mono + wait
+        print(f"[pronto-sync] queue_done exit_code={result.exit_code} next_in_seconds={wait}", flush=True)
+        if result.exit_code == STEP_TIMEOUT_EXIT_CODE:
+            # The script was killed before it could report; tell POMON so the page shows it.
+            _report_queue_failure(base_url=base_url, api_key=api_key, error=result.error or "queue: timed out")
+
+    def _maybe_run_actions(current: SyncConfig) -> None:
+        """Run acknowledge requests from the Immediate Action page, one at a time."""
+        nonlocal next_queue_mono
+        if not queue_enabled or not current.enabled:
+            return
+        for _ in range(10):
+            if stop_flag[0]:
+                return
+            claimed = _claim_action(base_url=base_url, api_key=api_key)
+            if not claimed:
+                return
+            request_id = int(claimed["id"])
+            order_no = str(claimed["orderNo"])
+            print(f"[pronto-sync] acknowledge_claimed request_id={request_id} order_no={order_no}", flush=True)
+            result = _run_step(
+                _acknowledge_step(current, order_no, request_id), timeout_seconds=queue_timeout_seconds, stop_flag=stop_flag
+            )
+            if result.exit_code != 0:
+                timed_out = result.exit_code == STEP_TIMEOUT_EXIT_CODE
+                _report_action_fallback(
+                    base_url=base_url,
+                    api_key=api_key,
+                    request_id=request_id,
+                    status="unverified",
+                    message=(
+                        "The acknowledge step was stopped after its time limit"
+                        if timed_out
+                        else f"The acknowledge step ended without a result ({result.error or 'no error text'})"
+                    )
+                    + f"; check {order_no} in Pronto.",
+                )
+            # The acknowledge run also refreshed the queue snapshot.
+            next_queue_mono = time.monotonic() + queue_interval_seconds
+            print(f"[pronto-sync] acknowledge_done request_id={request_id} exit_code={result.exit_code}", flush=True)
+
     while not stop_flag[0]:
         loop += 1
         fallback = last_config if last_config is not None else env_fallback
@@ -518,6 +650,12 @@ def main() -> int:
             print(f"[pronto-sync] run_now_complete_retry reported={ok} exit_code={pending_report[1]}", flush=True)
             if ok:
                 pending_report = None
+
+        # Read the short Immediate Action queue before a long sync cycle when it is due, so a
+        # restart or a 12-hour cycle does not hold it back for the length of the sync.
+        if not requested_now:
+            _maybe_run_actions(config)
+            _maybe_run_queue(config)
 
         any_enabled = False
         worst_exit = 0
@@ -627,6 +765,11 @@ def main() -> int:
             if requested2_now:
                 print(f"[pronto-sync] wake_for_run_now loaded_from_api={loaded2}", flush=True)
                 break
+            before = time.monotonic()
+            _maybe_run_actions(config2)
+            _maybe_run_queue(config2)
+            # Time spent reading the queue counts toward the sleep before the next sync cycle.
+            remaining -= int(time.monotonic() - before)
 
     print("[pronto-sync] stopped", flush=True)
     return 0

@@ -12,15 +12,42 @@ import {
   Plus,
   BookOpen,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  ListChecks
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { authService } from "@/services/authService";
+import { fetchProntoQueue } from "@/components/immediate-action/prontoQueue";
+
+const IMMEDIATE_ACTION_HREF = "/immediate-action";
+const QUEUE_COUNT_REFRESH_MS = 5 * 60 * 1000;
+
+/** Count for the Immediate Action badge; refreshed every few minutes and when the page is opened. */
+function useImmediateActionCount(pathname: string): { total: number; rejected: number } {
+  const [counts, setCounts] = useState({ total: 0, rejected: 0 });
+  useEffect(() => {
+    const controller = new AbortController();
+    const load = () => {
+      fetchProntoQueue(authService.getAuthHeaders(), controller.signal)
+        .then((data) => setCounts({ total: data.counts.total, rejected: data.counts.rejected }))
+        .catch(() => { /* the badge is optional; the page shows errors */ });
+    };
+    load();
+    const timer = window.setInterval(load, QUEUE_COUNT_REFRESH_MS);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+    };
+  }, [pathname === IMMEDIATE_ACTION_HREF]); // eslint-disable-line react-hooks/exhaustive-deps
+  return counts;
+}
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
   { name: "PRF Monitoring", href: "/prf", icon: FileText },
+  { name: "Immediate Action", href: IMMEDIATE_ACTION_HREF, icon: ListChecks },
   { name: "Create PRF", href: "/prf/create", icon: Plus },
   { name: "Budget Overview", href: "/budget", icon: Wallet },
   { name: "COA Management", href: "/coa-management", icon: BookOpen },
@@ -46,6 +73,7 @@ export function Sidebar({ className, mobile = false, onNavigate }: SidebarProps)
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const queueCounts = useImmediateActionCount(location.pathname);
   
   // Filter navigation items based on user role
   const filteredNavigation = navigation.filter(item => {
@@ -103,16 +131,19 @@ export function Sidebar({ className, mobile = false, onNavigate }: SidebarProps)
       {!isCollapsed && <div className="merdeka-sidebar-caption">MTI ICT PO Monitoring</div>}
       {/* Navigation */}
       <nav className={cn("merdeka-navigation relative z-10 flex-1 p-4 space-y-2", isCollapsed ? "pb-16" : "pb-28")}>
-        {navBeforeAlerts.map((item) => (
+        {navBeforeAlerts.map((item) => {
+          const badge = item.href === IMMEDIATE_ACTION_HREF && queueCounts.total > 0 ? queueCounts.total : 0;
+          const badgeTone = queueCounts.rejected > 0 ? "bg-red-600 text-white" : "bg-amber-500 text-white";
+          return (
           <NavLink
             key={item.name}
             to={item.href}
-            title={item.name}
-            aria-label={item.name}
+            title={badge ? `${item.name} (${badge})` : item.name}
+            aria-label={badge ? `${item.name}, ${badge} need action` : item.name}
             end
             className={({ isActive }) =>
               cn(
-                "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                "relative flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                 isActive
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent",
@@ -121,9 +152,15 @@ export function Sidebar({ className, mobile = false, onNavigate }: SidebarProps)
             }
           >
             <item.icon className="h-5 w-5 flex-shrink-0" />
-            {!isCollapsed && <span>{item.name}</span>}
+            {!isCollapsed && <span className="flex-1">{item.name}</span>}
+            {badge > 0 && (
+              isCollapsed
+                ? <span aria-hidden="true" className={cn("absolute right-2 top-1.5 h-2.5 w-2.5 rounded-full", badgeTone)} />
+                : <span className={cn("ml-auto rounded-full px-2 py-0.5 text-xs font-semibold leading-none", badgeTone)}>{badge}</span>
+            )}
           </NavLink>
-        ))}
+          );
+        })}
 
         <button
           type="button"

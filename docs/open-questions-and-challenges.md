@@ -170,3 +170,8 @@ PRF 54123 candidate native-text+image OCR verified after explicit external-provi
 - Decision (product owner, 2026-11-24): use `https://pomon.merdekabattery.com`, which already serves POMON and its API with the company `*.merdekabattery.com` certificate. Redirect URI `https://pomon.merdekabattery.com/api/auth/microsoft/callback`; post-login page `https://pomon.merdekabattery.com/login`.
 - Not chosen: `https://pomonbackend.justanapi.my.id` (public API for the mobile app, outside the company domain).
 - Follow-up: point users to the HTTPS address as the normal way to open POMON.
+
+## Separate worker for the Immediate Action queue (2026-11-26)
+
+The product owner asked whether the hourly queue read (Phase 29) can run in its own worker, so it never waits for a sync cycle. Both would log in to Pronto as `itmt`, so two sessions of one account could be open at once. Not yet known: whether Pronto allows that, and whether the queue's sign-out (`/logout?exit=1`, "signed out of all Pronto applications") also ends the sync's session. Evidence so far: a login while the sync's last session was still open worked; the product owner's own itmt browser session was found signed out during the dry runs, cause unknown. Options: test a queue read during a sync cycle; or give the queue reader its own Pronto account.
+
